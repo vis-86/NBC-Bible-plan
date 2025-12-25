@@ -1,5 +1,9 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## AI Integration
+
+This project uses an AI integration through Directus and n8n. For setup instructions, see [AI Integration Guide](docs/AI_INTEGRATION_GUIDE.md).
+
 ## Getting Started
 
 First, run the development server:
