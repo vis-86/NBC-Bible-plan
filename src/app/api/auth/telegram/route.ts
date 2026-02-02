@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyTelegramInitData } from '@/lib/telegram-server';
+import { findOrCreateUser } from '@/lib/directus-user';
+import { createSession } from '@/lib/session';
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,16 +19,38 @@ export async function POST(request: NextRequest) {
 
     const result = verifyTelegramInitData(initData, botToken);
 
-    if (!result.valid) {
-      return NextResponse.json({ error: result.error }, { status: 401 });
+    if (!result.valid || !result.user) {
+      return NextResponse.json({ error: result.error || 'Invalid user data' }, { status: 401 });
     }
 
-    // Here you could potentially create a session or return a token
-    // For now, we just return the verified user data
-    return NextResponse.json({ 
+    const telegramUser = result.user;
+
+    // Находим или создаем пользователя в Directus
+    const directusUserId = await findOrCreateUser(telegramUser);
+
+    // Создаем Next.js сессию
+    const sessionData = {
+      telegram_id: telegramUser.id,
+      directus_id: directusUserId,
+      first_name: telegramUser.first_name,
+      last_name: telegramUser.last_name,
+      username: telegramUser.username,
+    };
+
+    const response = NextResponse.json({ 
       success: true, 
-      user: result.user 
+      user: {
+        id: telegramUser.id,
+        first_name: telegramUser.first_name,
+        last_name: telegramUser.last_name,
+        username: telegramUser.username,
+        directus_id: directusUserId
+      }
     });
+
+    createSession(sessionData, response);
+
+    return response;
   } catch (error) {
     console.error('API Auth Telegram error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

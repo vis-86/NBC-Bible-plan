@@ -22,6 +22,8 @@ interface TelegramWebApp {
   ready: () => void;
   close: () => void;
   expand: () => void;
+  enableClosingConfirmation: () => void;
+  disableVerticalSwipes: () => void;
   MainButton: {
     text: string;
     color: string;
@@ -45,10 +47,67 @@ declare global {
 }
 
 /**
+ * Initializes mock Telegram WebApp for development
+ */
+export const initDevTelegramWebApp = () => {
+  if (typeof window !== 'undefined' && !window.Telegram?.WebApp?.initData) {
+    // Mock Telegram WebApp for development
+    // Используем актуальную дату для auth_date
+    const authDate = Math.floor(Date.now() / 1000);
+    const userData = {
+      id: 12345678,
+      first_name: 'Иван',
+      last_name: 'Тестовый',
+      username: 'test_user',
+      language_code: 'ru'
+    };
+    
+    // Создаем мок initData с актуальной датой
+    const userJson = encodeURIComponent(JSON.stringify(userData));
+    const mockInitData = `user=${userJson}&auth_date=${authDate}&hash=dev_mock_hash`;
+    
+    window.Telegram = {
+      WebApp: {
+        initData: mockInitData,
+        initDataUnsafe: {
+          user: userData,
+          auth_date: authDate.toString(),
+          hash: 'dev_mock_hash'
+        },
+        ready: () => {},
+        close: () => {},
+        expand: () => {},
+        enableClosingConfirmation: () => {
+          console.log('[Dev] Closing confirmation enabled');
+        },
+        disableVerticalSwipes: () => {
+          console.log('[Dev] Vertical swipes disabled');
+        },
+        MainButton: {
+          text: '',
+          color: '',
+          textColor: '',
+          isVisible: false,
+          isActive: false,
+          show: () => {},
+          hide: () => {},
+          onClick: () => {},
+        },
+        setHeaderColor: () => {},
+        setBackgroundColor: () => {},
+      }
+    };
+  }
+};
+
+/**
  * Returns the Telegram WebApp object if available
  */
 export const getTelegramWebApp = (): TelegramWebApp | undefined => {
-  if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+  if (window.Telegram?.WebApp) {
     return window.Telegram.WebApp;
   }
   return undefined;
@@ -70,8 +129,58 @@ export const initTelegramWebApp = () => {
   if (webApp) {
     webApp.ready();
     webApp.expand();
+    // Disable vertical swipes to prevent accidental swipe-to-close
+    webApp.disableVerticalSwipes();
+    // Enable closing confirmation dialog
+    webApp.enableClosingConfirmation();
     // Set theme colors if needed
     webApp.setHeaderColor('#ffffff');
+  }
+};
+
+/**
+ * Sets up additional protection against accidental app closure
+ * Should be called early in the app lifecycle
+ */
+export const setupTelegramAppProtection = () => {
+  if (typeof window === 'undefined') return;
+
+  // Apply protection immediately when Telegram WebApp is available
+  const applyProtection = () => {
+    const webApp = getTelegramWebApp();
+    if (webApp) {
+      try {
+        webApp.disableVerticalSwipes();
+        webApp.enableClosingConfirmation();
+      } catch (error) {
+        console.warn('Failed to apply Telegram app protection:', error);
+      }
+    }
+  };
+
+  // Try to apply immediately
+  applyProtection();
+
+  // Also try when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyProtection);
+  }
+
+  // Listen for Telegram WebApp initialization
+  if (window.Telegram?.WebApp) {
+    applyProtection();
+  } else {
+    // Poll for Telegram WebApp availability (in case script loads later)
+    let attempts = 0;
+    const checkInterval = setInterval(() => {
+      attempts++;
+      if (window.Telegram?.WebApp || attempts > 20) {
+        clearInterval(checkInterval);
+        if (window.Telegram?.WebApp) {
+          applyProtection();
+        }
+      }
+    }, 100);
   }
 };
 
@@ -86,5 +195,9 @@ export const getTelegramInitData = (): string | undefined => {
  * Returns true if the app is running as a Telegram Mini App
  */
 export const isTelegramWebApp = (): boolean => {
-  return typeof window !== 'undefined' && !!window.Telegram?.WebApp?.initData;
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  
+  return !!window.Telegram?.WebApp;
 };

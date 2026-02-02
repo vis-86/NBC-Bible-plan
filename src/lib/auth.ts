@@ -23,7 +23,7 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function getCurrentUser() {
   try {
     const user = await directus.request(readMe({
-      fields: ['*', 'role.*']
+      fields: ['*', 'role.*'] as any
     }));
     return user || null;
   } catch {

@@ -1,0 +1,74 @@
+'use client';
+
+import React, { useEffect, useRef } from 'react';
+import { BottomSheet } from '@/shared/components/ui/BottomSheet';
+import { ReadingPlanDay } from '@/types';
+import { CircleCheckIcon, type CircleCheckIconHandle } from '@/shared/components/ui/circle-check';
+
+interface CompletionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  day: ReadingPlanDay | null;
+  totalDays?: number;
+}
+
+export const CompletionModal: React.FC<CompletionModalProps> = ({
+  isOpen,
+  onClose,
+  day,
+  totalDays = 365,
+}) => {
+  const iconRef = useRef<CircleCheckIconHandle>(null);
+  const currentYear = new Date().getFullYear();
+  const completionProgress = Math.min(1, Math.max(0, day ? day.id / totalDays : 0));
+
+  useEffect(() => {
+    if (!isOpen) return;
+    // Ждём 200мс: иконка появляется и сразу запускает прорисовку галочки
+    const delayMs = 200;
+    const id = window.setTimeout(() => {
+      // Даём React дорендерить SVG перед стартом анимации.
+      requestAnimationFrame(() => iconRef.current?.startAnimation());
+    }, delayMs);
+
+    return () => window.clearTimeout(id);
+  }, [isOpen]);
+  
+  return (
+    <BottomSheet isOpen={isOpen} onClose={onClose}>
+      <div className="flex flex-col items-center pt-2 pb-6">
+        
+        {/* Большая галочка (lucide-animated) */}
+        <div className="w-20 h-20 flex items-center justify-center mb-6 completion-icon-fade-in">
+          <CircleCheckIcon ref={iconRef} className="text-stone-900" size={80} />
+        </div>
+
+        {/* Заголовок */}
+        <h2 className="text-3xl font-black text-stone-900 mb-8">
+          День {day?.id} из {totalDays}
+        </h2>
+
+        {/* Прогресс-бар */}
+        <div className="w-full h-1.5 bg-stone-100 rounded-full overflow-hidden">
+          <div 
+            className="h-full bg-red-500 completion-progress-fill"
+            style={
+              {
+                ['--completion-progress' as any]: completionProgress
+              } as React.CSSProperties
+            }
+          />
+        </div>
+
+        {/* Кнопка закрытия/продолжения */}
+        <button 
+          onClick={onClose}
+          className="mt-8 w-full py-4 bg-stone-900 text-white rounded-2xl font-bold active:scale-95 transition-transform"
+        >
+          Продолжить
+        </button>
+      </div>
+    </BottomSheet>
+  );
+};
+

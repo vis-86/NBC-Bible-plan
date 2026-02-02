@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { directus } from '@/lib/directus';
 import { registerUser } from '@directus/sdk';
 
@@ -132,12 +133,12 @@ export default function RegisterPage() {
           <span className="text-zinc-600 dark:text-zinc-400">
             Уже есть аккаунт?{' '}
           </span>
-          <a
+          <Link
             href="/login"
             className="font-medium text-black dark:text-zinc-50 hover:underline"
           >
             Войти
-          </a>
+          </Link>
         </div>
       </div>
     </div>

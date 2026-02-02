@@ -22,20 +22,25 @@ export function verifyTelegramInitData(initData: string, botToken: string) {
       .sort()
       .join('\n');
 
-    // Create the secret key using the bot token
-    const secretKey = crypto
-      .createHmac('sha256', 'WebAppData')
-      .update(botToken)
-      .digest();
+    // В dev режиме пропускаем проверку хеша для мок данных
+    const isDev = process.env.NODE_ENV === 'development';
+    
+    if (!isDev) {
+      // Create the secret key using the bot token
+      const secretKey = crypto
+        .createHmac('sha256', 'WebAppData')
+        .update(botToken)
+        .digest();
 
-    // Calculate the hash of the data check string
-    const calculatedHash = crypto
-      .createHmac('sha256', secretKey)
-      .update(params)
-      .digest('hex');
+      // Calculate the hash of the data check string
+      const calculatedHash = crypto
+        .createHmac('sha256', secretKey)
+        .update(params)
+        .digest('hex');
 
-    if (calculatedHash !== hash) {
-      return { valid: false, error: 'Hash mismatch' };
+      if (calculatedHash !== hash) {
+        return { valid: false, error: 'Hash mismatch' };
+      }
     }
 
     // Optional: Check auth_date to prevent replay attacks (e.g., max 24 hours old)

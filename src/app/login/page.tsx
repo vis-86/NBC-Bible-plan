@@ -1,15 +1,60 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { directus } from '@/lib/directus';
+import { isTelegramWebApp, initTelegramWebApp, getTelegramInitData } from '@/lib/telegram';
+import { getApiPath } from '@/lib/utils';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [telegramLoading, setTelegramLoading] = useState(true);
+
+  // Проверяем Telegram аутентификацию при загрузке
+  useEffect(() => {
+    const checkTelegram = async () => {
+      // В dev режиме инициализируем мок Telegram WebApp
+      if (process.env.NODE_ENV === 'development') {
+        const { initDevTelegramWebApp } = await import('@/lib/telegram');
+        initDevTelegramWebApp();
+      }
+
+      if (isTelegramWebApp()) {
+        initTelegramWebApp();
+        const initData = getTelegramInitData();
+        
+        if (initData) {
+          try {
+            const verifyRes = await fetch(getApiPath('/api/auth/telegram'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ initData })
+            });
+
+            if (verifyRes.ok) {
+              // Успешная аутентификация - редирект на dashboard или redirect параметр
+              // router.push автоматически учитывает basePath для относительных путей
+              const redirect = searchParams.get('redirect') || '/dashboard';
+              router.push(redirect);
+              return;
+            }
+          } catch (err) {
+            console.error('Error verifying Telegram user:', err);
+          }
+        }
+      }
+      setTelegramLoading(false);
+    };
+
+    checkTelegram();
+  }, [router, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +71,14 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (telegramLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black px-4">
+        <div className="text-zinc-600 dark:text-zinc-400">Проверка аутентификации...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black px-4">
@@ -95,15 +148,28 @@ export default function LoginPage() {
           <span className="text-zinc-600 dark:text-zinc-400">
             Нет аккаунта?{' '}
           </span>
-          <a
+          <Link
             href="/register"
             className="font-medium text-black dark:text-zinc-50 hover:underline"
           >
             Зарегистрироваться
-          </a>
+          </Link>
         </div>
       </div>
     </div>
   );
 }
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black px-4">
+        <div className="text-zinc-600 dark:text-zinc-400">Загрузка...</div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
 

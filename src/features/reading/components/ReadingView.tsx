@@ -1,0 +1,253 @@
+'use client';
+
+import React, { useEffect, useState, useRef } from 'react';
+import { ChevronLeft, ChevronRight, Book } from 'lucide-react';
+import { BibleReference, ReadingPlanDay, PlanItem } from '@/types';
+import { BIBLE_STRUCTURE } from '@/lib/constants';
+import { getReferenceInfo } from '@/lib/ai';
+import { isAIEnabled } from '@/shared/utils/constants';
+import { parseReadingItem } from '@/shared/utils/bible';
+import { useReadingSettings } from '../hooks/useReadingSettings';
+import { useBibleText } from '../hooks/useBibleText';
+import { useChapterNavigation } from '../hooks/useChapterNavigation';
+import { ReadingHeader } from './ReadingHeader';
+import { ReadingContent } from './ReadingContent';
+import { ReadingSettings } from './ReadingSettings';
+import { ChapterPicker } from './ChapterPicker';
+import { BookPicker } from './BookPicker';
+import { CompletionModal } from './CompletionModal';
+import { ReadingPlanFooter } from './ReadingPlanFooter';
+import { useDayCompletion } from '@/features/plan/hooks/useDayCompletion';
+
+interface ReadingViewProps {
+  reading: BibleReference | null;
+  onBack: () => void;
+  day?: ReadingPlanDay | null;
+  totalDays?: number;
+  currentItem?: PlanItem | null;
+  onChapterRead?: (dayId: number, itemNumber: number) => void;
+  onNavigateChapter?: (book: string, chapter: number, dayId?: number, itemNumber?: number) => void;
+  todayDayNumber?: number;
+}
+
+export const ReadingView: React.FC<ReadingViewProps> = ({ 
+  reading, 
+  onBack, 
+  day, 
+  totalDays,
+  currentItem, 
+  onChapterRead, 
+  onNavigateChapter,
+  todayDayNumber
+}) => {
+  const [showSettings, setShowSettings] = useState(false);
+  const [showChapterPicker, setShowChapterPicker] = useState(false);
+  const [showBookPicker, setShowBookPicker] = useState(false);
+  const [contextInfo, setContextInfo] = useState<string | null>(null);
+  const [infoLoading, setInfoLoading] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  const { settings, updateSettings } = useReadingSettings();
+  const { text, loading } = useBibleText(reading);
+  const {
+    currentItemState,
+    currentReadingState,
+    handleNextChapter,
+    handlePrevChapter,
+    canGoNext,
+    canGoPrev
+  } = useChapterNavigation({
+    currentReading: reading,
+    day: day || null,
+    currentItem: currentItem || null,
+    onNavigateChapter,
+    onChapterRead
+  });
+
+  // Определяем, был ли день пропущенным
+  // В ReadingView показываем модалку только при автоматическом завершении (переход false -> true)
+  const isMissed = day && todayDayNumber ? day.id < todayDayNumber : false;
+  const completion = useDayCompletion(day || null, { isMissed, alwaysShowIfCompleted: false });
+
+  const themeClasses = {
+    light: 'bg-white text-stone-800',
+    dark: 'bg-stone-900 text-stone-100',
+    sepia: 'bg-amber-50 text-stone-900'
+  };
+
+  useEffect(() => {
+    if (reading && contentRef.current) {
+      contentRef.current.scrollTop = 0;
+    }
+  }, [reading?.book, reading?.chapter]);
+
+  const handleExplain = async () => {
+    if (!reading || !isAIEnabled()) return;
+    setInfoLoading(true);
+    const summary = await getReferenceInfo(
+      `О чем говорится в главе ${reading.chapter} книги ${reading.book}?`,
+      `Текст главы: ${text.substring(0, 1000)}...` 
+    );
+    setContextInfo(summary);
+    setInfoLoading(false);
+  };
+
+  const handleSelectChapter = (item: PlanItem) => {
+    const newReading = parseReadingItem(item.readText);
+    if (newReading) {
+      if (onNavigateChapter && day) {
+        onNavigateChapter(newReading.book, newReading.chapter, day.id, item.item);
+        setShowChapterPicker(false);
+        return;
+      }
+      
+      if (onChapterRead && day && !item.completed) {
+        setTimeout(() => {
+          onChapterRead(day.id, item.item);
+        }, 500);
+      }
+    }
+  };
+
+  const handleSelectBook = (book: string, chapter: number) => {
+    if (onNavigateChapter) {
+      onNavigateChapter(book, chapter);
+      setShowBookPicker(false);
+    }
+  };
+
+  const handleSettingsChange = async (newSettings: typeof settings) => {
+    try {
+      await updateSettings(newSettings);
+    } catch (error) {
+      console.error('Error updating settings:', error);
+    }
+  };
+
+  if (!reading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full p-8 text-stone-400 bg-white">
+        <Book size={64} className="mb-6 opacity-10" />
+        <h3 className="text-lg font-bold text-stone-700 mb-2">Библия</h3>
+        <p className="text-center text-stone-500 mb-8 max-w-xs">Выберите книгу и главу в плане чтения для начала изучения.</p>
+        <button 
+          onClick={onBack}
+          className="px-8 py-3 bg-red-600 text-white rounded-full font-bold shadow-lg active:scale-95 transition-transform"
+        >
+          Открыть План
+        </button>
+      </div>
+    );
+  }
+
+  const currentChapter = currentReadingState?.chapter || reading?.chapter || 1;
+
+  return (
+    <div className={`flex flex-col h-full ${themeClasses[settings.theme as keyof typeof themeClasses] || themeClasses.light} relative pb-safe`}>
+      <ReadingHeader
+        currentReading={currentReadingState || reading}
+        reading={reading}
+        currentChapter={currentChapter}
+        day={day || null}
+        onBack={onBack}
+        onSettingsClick={() => setShowSettings(true)}
+        onChapterPickerClick={() => setShowChapterPicker(true)}
+        onBookPickerClick={() => setShowBookPicker(true)}
+      />
+
+      <div className={`flex-1 overflow-y-auto w-full ${themeClasses[settings.theme as keyof typeof themeClasses] || themeClasses.light}`} ref={contentRef}>
+        <div className="max-w-xl mx-auto px-6 py-8 pb-32">
+          <ReadingContent
+            text={text}
+            loading={loading}
+            settings={settings}
+            contextInfo={contextInfo}
+            infoLoading={infoLoading}
+            onContextClose={() => setContextInfo(null)}
+            day={day || null}
+            currentItem={currentItemState || currentItem || null}
+            onChapterRead={onChapterRead}
+          />
+        </div>
+      </div>
+
+      {day ? (
+        <ReadingPlanFooter
+          day={day}
+          currentItem={currentItemState || currentItem || null}
+          onPrev={handlePrevChapter}
+          onNext={() => {
+            const isLastItem = !canGoNext();
+            const currentItemEffective = currentItemState || currentItem;
+            
+            handleNextChapter();
+            
+            // Если это был последний элемент, решаем: показать модалку или сразу выйти к плану.
+            if (isLastItem) {
+              const willCompleteDay = day?.items.every(i => i.completed || i.item === currentItemEffective?.item);
+              
+              if (!willCompleteDay) {
+                onBack();
+              }
+            }
+          }}
+          canPrev={canGoPrev()}
+          canNext={canGoNext()}
+        />
+      ) : !loading && currentReadingState && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-100 px-6 pb-safe h-[80px] flex items-center justify-between">
+          <button 
+            onClick={handlePrevChapter}
+            disabled={!canGoPrev()}
+            className="p-3 text-stone-400 hover:text-stone-900 hover:bg-stone-50 active:scale-90 disabled:opacity-20 transition-all rounded-full"
+          >
+            <ChevronLeft size={28} strokeWidth={1.5} />
+          </button>
+          <button 
+            onClick={handleNextChapter}
+            disabled={!canGoNext()}
+            className="w-12 h-12 flex items-center justify-center bg-red-600 text-white shadow-md hover:bg-red-700 active:scale-95 disabled:opacity-20 transition-all rounded-full"
+          >
+            <ChevronRight size={24} strokeWidth={2.5} />
+          </button>
+        </div>
+      )}
+
+      <ReadingSettings
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        settings={settings}
+        onSettingsChange={handleSettingsChange}
+      />
+
+      <ChapterPicker
+        isOpen={showChapterPicker}
+        onClose={() => setShowChapterPicker(false)}
+        day={day || null}
+        currentItem={currentItemState || currentItem || null}
+        onSelectChapter={handleSelectChapter}
+      />
+
+      <BookPicker
+        isOpen={showBookPicker}
+        onClose={() => setShowBookPicker(false)}
+        currentBook={currentReadingState?.book || reading?.book || null}
+        currentChapter={currentReadingState?.chapter || reading?.chapter || null}
+        onSelectBook={handleSelectBook}
+      />
+
+      <CompletionModal
+        isOpen={completion.showModal}
+        onClose={() => {
+          completion.closeModal();
+          onBack(); // Возвращаемся к плану после закрытия поздравления
+        }}
+        day={day || null}
+        totalDays={totalDays}
+      />
+    </div>
+  );
+};
+
+export default ReadingView;
+

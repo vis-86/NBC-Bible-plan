@@ -1,225 +1,157 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { readItems, createItem, deleteItems } from '@directus/sdk';
-import { isAuthenticated, getCurrentUser } from '@/lib/auth';
-import { directus } from '@/lib/directus';
-import { AppView, ReadingPlanDay, BibleReference } from '@/types';
-import { parseReading } from '@/lib/utils';
-import { isTelegramWebApp, getTelegramUser, initTelegramWebApp, getTelegramInitData } from '@/lib/telegram';
-import DashboardLayout from '@/components/DashboardLayout';
-import PlanView from '@/components/PlanView';
-import ReadingView from '@/components/ReadingView';
+import { AppView, BibleReference } from '@/types';
+import { parseReadingItem } from '@/shared/utils/bible';
+import { isTelegramWebApp, initTelegramWebApp, getTelegramInitData, initDevTelegramWebApp } from '@/lib/telegram';
+import { useAuth } from '@/hooks/useAuth';
+import { getApiPath } from '@/shared/utils/api';
+import DashboardLayout from '@/shared/components/layout/DashboardLayout';
+import { PlanView } from '@/features/plan/components/PlanView';
 import PastorChat from '@/components/PastorChat';
 import ReferenceTool from '@/components/ReferenceTool';
+import { isAIEnabled } from '@/shared/utils/constants';
+import { usePlan } from '@/features/plan/hooks/usePlan';
+import { useProgress } from '@/features/plan/hooks/useProgress';
+import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<{ id: any; first_name: string; email?: string } | null>(null);
+  const { user, loading: authLoading } = useAuth();
   const [currentView, setCurrentView] = useState<AppView>(AppView.PLAN);
-  const [plan, setPlan] = useState<ReadingPlanDay[]>([]);
-  const [readChapters, setReadChapters] = useState<Set<string>>(new Set());
-  const [currentReading, setCurrentReading] = useState<BibleReference | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const hasInitialized = useRef(false);
+  const lastUserId = useRef<string | null>(null);
+  const hasLoadedPlan = useRef(false);
 
-  const fetchData = useCallback(async (userId: any) => {
-    try {
-      setError(null);
-      
-      // Ensure userId is in a format compatible with the database (INTEGER)
-      // If it's a UUID string from Directus, we might have issues if the DB field is strictly INTEGER.
-      // For Telegram users, it's always a number.
-      const normalizedUserId = typeof userId === 'number' ? userId : parseInt(userId.toString().replace(/\D/g, '').slice(0, 9)) || 0;
-
-      // Fetch plan
-      const planData = await directus.request(readItems('plan', {
-        sort: ['numbers'],
-        limit: -1
-      }));
-
-      // Fetch user's reading progress
-      console.log('FETCHING_PROGRESS_FOR_USER_ID:', userId, '(normalized:', normalizedUserId, ')');
-      const progressData = await directus.request(readItems('reading', {
-        filter: {
-          user_id: { _eq: normalizedUserId }
-        },
-        limit: -1
-      }));
-      console.log('RECEIVED_PROGRESS_DATA:', progressData);
-
-      const completedDayNumbers = new Set(progressData.map((p: any) => p.day));
-
-      // Map to ReadingPlanDay
-      const mappedPlan: ReadingPlanDay[] = planData.map((item: any) => ({
-        id: item.numbers,
-        dateStr: item.day,
-        readings: parseReading(item.read),
-        completed: completedDayNumbers.has(item.numbers)
-      }));
-
-      setPlan(mappedPlan);
-
-      // Derive read chapters from completed days
-      const chapters = new Set<string>();
-      mappedPlan.forEach(day => {
-        if (day.completed) {
-          day.readings.forEach(r => chapters.add(`${r.book}_${r.chapter}`));
-        }
-      });
-      setReadChapters(chapters);
-
-    } catch (error: any) {
-      const errorDetail = {
-        message: error.message,
-        code: error.errors?.[0]?.extensions?.code,
-        status: error.response?.status,
-        collection: error.errors?.[0]?.extensions?.collection,
-      };
-      
-      console.error('FETCH_DATA_ERROR_DETAIL:', JSON.stringify(errorDetail, null, 2));
-      
-      let errorMessage = 'Ошибка при загрузке данных.';
-      if (errorDetail.code === 'FORBIDDEN') {
-        errorMessage = `Доступ запрещен (403). Проверьте права доступа в Directus для коллекции "${errorDetail.collection || 'plan'}". Убедитесь, что роль пользователя имеет права на чтение (Read).`;
-      } else if (error.message) {
-        errorMessage = `Ошибка: ${error.message}`;
-      }
-      setError(errorMessage);
-    }
-  }, []);
+  const { plan, readChapters, loading, error, fetchPlan, setReadChapters } = usePlan();
+  const { toggleItem, toggleComplete } = useProgress();
 
   useEffect(() => {
-    if (hasInitialized.current) return;
-    hasInitialized.current = true;
+    if (authLoading) return;
 
-    const checkAuth = async () => {
-      // 1. Try Telegram first
+    const currentUserId = user?.directus_id || null;
+    if (lastUserId.current !== currentUserId) {
+      hasInitialized.current = false;
+      lastUserId.current = currentUserId;
+    }
+
+    if (hasInitialized.current) return;
+
+    const initialize = async () => {
+      hasInitialized.current = true;
+
+      if (process.env.NODE_ENV === 'development') {
+        initDevTelegramWebApp();
+      }
+
       if (isTelegramWebApp()) {
-        console.log('RUNNING_IN_TELEGRAM_MODE');
         initTelegramWebApp();
         const initData = getTelegramInitData();
         
-        try {
-          // Verify on server
-          const verifyRes = await fetch('/api/auth/telegram', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ initData })
-          });
+        if (initData) {
+          try {
+            const verifyRes = await fetch(getApiPath('/api/auth/telegram'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ initData })
+            });
 
-          if (verifyRes.ok) {
-            const { user: verifiedUser } = await verifyRes.json();
-            console.log('TELEGRAM_USER_VERIFIED:', verifiedUser);
+            if (!verifyRes.ok) {
+              const errData = await verifyRes.json().catch(() => ({ error: 'Unknown error' }));
+              console.error('[Dashboard] Telegram verification failed', errData);
+              return;
+            }
             
-            const userData = {
-              id: verifiedUser.id,
-              first_name: verifiedUser.first_name,
-              username: verifiedUser.username
-            };
-            setUser(userData as any);
-            await fetchData(verifiedUser.id);
-            setLoading(false);
+            if ((window as any).refreshAuth) {
+              await (window as any).refreshAuth();
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 200));
+            await fetchPlan();
             return;
-          } else {
-            console.error('Telegram verification failed');
-            const errData = await verifyRes.json();
-            setError(`Ошибка верификации Telegram: ${errData.error || 'Unknown error'}`);
+          } catch (err) {
+            console.error('[Dashboard] Error verifying Telegram user:', err);
+            return;
           }
-        } catch (err) {
-          console.error('Error verifying Telegram user:', err);
-          setError('Ошибка при проверке данных Telegram.');
         }
       }
 
-      // 2. Fallback to Directus Auth
-      console.log('FALLBACK_TO_DIRECTUS_AUTH');
-      const authenticated = await isAuthenticated();
-      
-      if (!authenticated) {
-        router.push('/login');
+      if (!user) {
         return;
       }
 
-      const userData = await getCurrentUser();
-      if (userData) {
-        console.log('DIRECTUS_USER_FOUND:', userData);
-        setUser({
-            id: userData.id,
-            first_name: userData.first_name || userData.email,
-            email: userData.email
-        });
-        await fetchData(userData.id);
+      try {
+        await fetchPlan();
+      } catch (err) {
+        console.error('[Dashboard] Error in fetchPlan:', err);
       }
-      setLoading(false);
     };
 
-    checkAuth();
-  }, [router, fetchData]);
+    initialize();
+  }, [fetchPlan, user, authLoading]);
 
-  const handleSelectReading = (day: ReadingPlanDay, reading: BibleReference) => {
-    setCurrentReading(reading);
-    setCurrentView(AppView.READER);
+  useEffect(() => {
+    if (currentView === AppView.READER) {
+      // При выборе вида READER перенаправляем на страницу чтения
+      // Если нет сохраненного последнего прочтения, открываем Бытие 1
+      router.push('/dashboard/read/Бытие/1');
+    }
+  }, [currentView, router]);
+
+  const handleSelectReading = (day: any, reading: BibleReference) => {
+    const item = day.items.find((i: any) => {
+      const itemReading = parseReadingItem(i.readText);
+      return itemReading && itemReading.book === reading.book && itemReading.chapter === reading.chapter;
+    });
+    
+    let path = `/dashboard/read/${encodeURIComponent(reading.book)}/${reading.chapter}`;
+    
+    if (item) {
+      path += `?day=${day.id}&item=${item.item}`;
+    }
+    
+    router.push(path);
+  };
+  
+  const handleChapterRead = async (dayId: number, itemNumber: number) => {
+    try {
+      await toggleItem(dayId, itemNumber);
+      // Не вызываем fetchPlan() - оптимистичное обновление через GraphQL уже применено
+      // Состояние обновляется локально через setPlan в useProgress
+    } catch (error) {
+      console.error('Error toggling item:', error);
+      // При ошибке обновляем данные для синхронизации
+      await fetchPlan();
+    }
   };
 
   const handleToggleComplete = async (dayId: number) => {
-    if (!user) return;
-
-    const day = plan.find(d => d.id === dayId);
-    if (!day) return;
-
-    const isCompleted = day.completed;
-    const normalizedUserId = typeof user.id === 'number' ? user.id : parseInt(user.id.toString().replace(/\D/g, '').slice(0, 9)) || 0;
-
-    // Оптимистичное обновление локального стейта
-    setPlan(prevPlan => prevPlan.map(d => 
-      d.id === dayId ? { ...d, completed: !isCompleted } : d
-    ));
-
-    // Обновляем прочитанные главы оптимистично
-    if (!isCompleted) {
-      setReadChapters(prev => {
-        const next = new Set(prev);
-        day.readings.forEach(r => next.add(`${r.book}_${r.chapter}`));
-        return next;
-      });
-    }
-
     try {
-      if (isCompleted) {
-        const records = await directus.request(readItems('reading', {
-          filter: {
-            _and: [
-              { user_id: { _eq: normalizedUserId } },
-              { day: { _eq: dayId } }
-            ]
-          }
-        }));
-        
-        if (records.length > 0) {
-            const recordIds = records.map((r: any) => r.id);
-            await directus.request(deleteItems('reading', recordIds));
-        }
-      } else {
-        await directus.request(createItem('reading', {
-          user_id: normalizedUserId,
-          day: dayId
-        }));
-      }
+      await toggleComplete(dayId);
+      // Не вызываем fetchPlan() - оптимистичное обновление через GraphQL уже применено
+      // Состояние обновляется локально через setPlan в useProgress
+    } catch (error) {
+      console.error('Error toggling complete:', error);
+      // При ошибке обновляем данные для синхронизации
+      await fetchPlan();
+    }
+  };
 
-      // Окончательная синхронизация с сервером
-      await fetchData(user.id);
-    } catch (error: any) {
-      console.error('Error toggling completion:', error);
-      await fetchData(user.id);
+  const handleToggleItem = async (dayId: number, itemNumber: number) => {
+    try {
+      await toggleItem(dayId, itemNumber);
+      // Не вызываем fetchPlan() - оптимистичное обновление через GraphQL уже применено
+      // Состояние обновляется локально через setPlan в useProgress
+    } catch (error) {
+      console.error('Error toggling item:', error);
+      // При ошибке обновляем данные для синхронизации
+      await fetchPlan();
     }
   };
 
   const handleToggleChapter = (book: string, chapter: number) => {
-    // For now, we don't have a table for individual chapters.
-    // We'll just update the local state for immediate feedback.
     const key = `${book}_${chapter}`;
     setReadChapters(prev => {
       const next = new Set(prev);
@@ -232,7 +164,8 @@ export default function DashboardPage() {
     });
   };
 
-  if (loading) {
+  // Показываем загрузку только при первой загрузке (когда данных еще нет)
+  if (authLoading || (loading && plan.length === 0)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-stone-50">
         <div className="text-stone-600">Загрузка...</div>
@@ -240,50 +173,48 @@ export default function DashboardPage() {
     );
   }
 
+  if (!user) {
+    return null;
+  }
+
   const renderContent = () => {
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center p-8 text-center h-full">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-            <h3 className="text-red-800 font-bold mb-2">Ошибка загрузки</h3>
-            <p className="text-red-600 mb-4">{error}</p>
-            <button 
-              onClick={() => user && fetchData(user.id)}
-              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-            >
-              Попробовать снова
-            </button>
-          </div>
-        </div>
+        <ErrorMessage
+          message={error}
+          onRetry={fetchPlan}
+        />
       );
     }
 
-    switch (currentView) {
-      case AppView.PLAN:
-        return (
+    return (
+      <>
+        {/* Рендерим все компоненты всегда, но показываем только активный через CSS */}
+        {/* Это сохраняет состояние компонентов при переключении табов */}
+        <div className={currentView === AppView.PLAN ? 'block h-full' : 'hidden'}>
           <PlanView 
             plan={plan} 
             readChapters={readChapters}
             onSelectReading={handleSelectReading}
             onToggleComplete={handleToggleComplete}
+            onToggleItem={handleToggleItem}
             onToggleChapter={handleToggleChapter}
-            userName={user?.first_name || user?.email}
+            userName={user?.first_name}
           />
-        );
-      case AppView.READER:
-        return (
-          <ReadingView 
-            reading={currentReading} 
-            onBack={() => setCurrentView(AppView.PLAN)}
-          />
-        );
-      case AppView.CHAT:
-        return <PastorChat />;
-      case AppView.REFERENCE:
-        return <ReferenceTool />;
-      default:
-        return null;
-    }
+        </div>
+        {isAIEnabled() && (
+          <>
+            <div className={currentView === AppView.CHAT ? 'block h-full' : 'hidden'}>
+              <PastorChat />
+            </div>
+            <div className={currentView === AppView.REFERENCE ? 'block h-full' : 'hidden'}>
+              <ReferenceTool />
+            </div>
+          </>
+        )}
+        {/* READER обрабатывается через редирект в useEffect */}
+      </>
+    );
   };
 
   return (

@@ -1,0 +1,92 @@
+{
+  "plan": {
+    "read": {
+      "policy": {
+        "name": "full"
+      },
+      "fields": ["*"]
+    }
+  },
+  "reading": {
+    "create": {
+      "policy": {
+        "name": "full"
+      },
+      "fields": ["*"]
+    },
+    "read": {
+      "policy": {
+        "name": "custom",
+        "rules": {
+          "directus_user_id": {
+            "_eq": "$CURRENT_USER"
+          }
+        }
+      },
+      "fields": ["*"]
+    },
+    "update": {
+      "policy": {
+        "name": "custom",
+        "rules": {
+          "directus_user_id": {
+            "_eq": "$CURRENT_USER"
+          }
+        }
+      },
+      "fields": ["*"]
+    },
+    "delete": {
+      "policy": {
+        "name": "custom",
+        "rules": {
+          "directus_user_id": {
+            "_eq": "$CURRENT_USER"
+          }
+        }
+      },
+      "fields": ["*"]
+    }
+  },
+  "weeks": {
+    "read": {
+      "policy": {
+        "name": "full"
+      },
+      "fields": ["*"]
+    }
+  },
+  "directus_users": {
+    "read": {
+      "policy": {
+        "name": "custom",
+        "rules": {
+          "id": {
+            "_eq": "$CURRENT_USER"
+          }
+        }
+      },
+      "fields": ["id", "first_name", "last_name", "email", "external_identifier"]
+    }
+  },
+  "telegram_user_mapping": {
+    "read": {
+      "policy": {
+        "name": "custom",
+        "rules": {
+          "directus_user_id": {
+            "_eq": "$CURRENT_USER"
+          }
+        }
+      },
+      "fields": ["*"]
+    },
+    "create": {
+      "policy": {
+        "name": "full"
+      },
+      "fields": ["*"]
+    }
+  }
+}
+
