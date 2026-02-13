@@ -399,3 +399,18 @@ export function useAuth()
 3. **Простая структура** - минимум абстракций, понятный flow
 4. **Легко тестировать** - каждый компонент изолирован
 5. **Легко откатить** - нет изменений в БД, только код
+
+
+-- SQLite: UPDATE с подзапросом (JOIN в UPDATE не поддерживается)
+UPDATE reading
+SET directus_user_id = (
+  SELECT directus_user_id
+  FROM telegram_user_mapping
+  WHERE telegram_user_mapping.telegram_user_id = reading.user_id
+  LIMIT 1
+)
+WHERE (directus_user_id IS NULL OR directus_user_id = '')
+  AND EXISTS (
+    SELECT 1 FROM telegram_user_mapping
+    WHERE telegram_user_mapping.telegram_user_id = reading.user_id
+  );

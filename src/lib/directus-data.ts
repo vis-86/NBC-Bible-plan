@@ -1,33 +1,21 @@
 // @ts-nocheck - Directus SDK typing issue with custom schema
-import { getDirectusAdminClient } from '@/lib/directus';
+import { getDirectusAdminClient, getDirectusUserClient } from '@/lib/directus';
 import { readItems, createItem, updateItem, deleteItems } from '@directus/sdk';
 
 /**
- * Получает прогресс чтения пользователя
+ * Получает прогресс чтения пользователя.
+ * Если передан userAccessToken, запрос идёт от имени пользователя.
  */
-export async function getUserProgress(directusUserId: string) {
-  const adminClient = getDirectusAdminClient();
+export async function getUserProgress(directusUserId: string, userAccessToken?: string) {
+  const client = userAccessToken
+    ? getDirectusUserClient(userAccessToken)
+    : getDirectusAdminClient();
 
-  // Получаем маппинг для определения telegram_user_id
-  const mappings = await adminClient.request(
-    readItems('telegram_user_mapping', {
-      filter: { directus_user_id: { _eq: directusUserId } },
-      limit: 1,
-    })
-  );
-
-  if (mappings.length === 0) {
-    return [];
-  }
-
-  const telegramUserId = (mappings[0] as any).telegram_user_id;
-
-  // Получаем прогресс чтения по telegram_user_id (user_id в таблице reading)
   // Получаем за все время, чтобы корректно отображать прогресс при переходе года
-  const progressData = await adminClient.request(
+  const progressData = await client.request(
     readItems('reading', {
       filter: {
-        user_id: { _eq: telegramUserId }
+        directus_user_id: { _eq: directusUserId }
       },
       sort: ['year', 'id'], // Сортируем по году и id, чтобы при deduplication брать более свежие
       limit: -1
@@ -45,10 +33,9 @@ export async function getUserProgress(directusUserId: string) {
   });
 
   const uniqueProgress = Array.from(progressMap.values());
-  
+
   console.log('getUserProgress: processed progress', {
     directusUserId,
-    telegramUserId,
     totalRecords: progressData.length,
     uniqueRecords: uniqueProgress.length,
     duplicatesRemoved: progressData.length - uniqueProgress.length
@@ -58,30 +45,18 @@ export async function getUserProgress(directusUserId: string) {
 }
 
 /**
- * Получает прогресс чтения пользователя за все годы (для отображения пропущенных дней)
+ * Получает прогресс чтения пользователя за все годы (для отображения пропущенных дней).
+ * Если передан userAccessToken, запрос идёт от имени пользователя.
  */
-export async function getUserProgressAllYears(directusUserId: string) {
-  const adminClient = getDirectusAdminClient();
+export async function getUserProgressAllYears(directusUserId: string, userAccessToken?: string) {
+  const client = userAccessToken
+    ? getDirectusUserClient(userAccessToken)
+    : getDirectusAdminClient();
 
-  // Получаем маппинг для определения telegram_user_id
-  const mappings = await adminClient.request(
-    readItems('telegram_user_mapping', {
-      filter: { directus_user_id: { _eq: directusUserId } },
-      limit: 1,
-    })
-  );
-
-  if (mappings.length === 0) {
-    return [];
-  }
-
-  const telegramUserId = (mappings[0] as any).telegram_user_id;
-
-  // Получаем прогресс чтения за все годы
-  const progressData = await adminClient.request(
+  const progressData = await client.request(
     readItems('reading', {
       filter: {
-        user_id: { _eq: telegramUserId }
+        directus_user_id: { _eq: directusUserId }
       },
       limit: -1
     })
@@ -115,46 +90,33 @@ export async function getUserProgressAllYears(directusUserId: string) {
 }
 
 /**
- * Обновляет прогресс чтения пользователя
+ * Обновляет прогресс чтения пользователя.
+ * Если передан userAccessToken, запрос идёт от имени пользователя.
  */
 export async function updateUserProgress(
   directusUserId: string,
   day: number,
-  count: number | null
+  count: number | null,
+  userAccessToken?: string
 ) {
-  const adminClient = getDirectusAdminClient();
+  const client = userAccessToken
+    ? getDirectusUserClient(userAccessToken)
+    : getDirectusAdminClient();
 
-  // Получаем маппинг для определения telegram_user_id
-  const mappings = await adminClient.request(
-    readItems('telegram_user_mapping', {
-      filter: { directus_user_id: { _eq: directusUserId } },
-      limit: 1,
-    })
-  );
-
-  if (mappings.length === 0) {
-    throw new Error('User mapping not found');
-  }
-
-  const telegramUserId = (mappings[0] as any).telegram_user_id;
-
-  // Получаем текущий год
   const currentYear = new Date().getFullYear();
 
   console.log('updateUserProgress: updating progress', {
     directusUserId,
-    telegramUserId,
     day,
     count,
     year: currentYear
   });
 
-  // Проверяем есть ли уже запись для этого дня в текущем году
-  const existingRecords = await adminClient.request(
+  const existingRecords = await client.request(
     readItems('reading', {
       filter: {
         _and: [
-          { user_id: { _eq: telegramUserId } },
+          { directus_user_id: { _eq: directusUserId } },
           { day: { _eq: day } },
           { year: { _eq: currentYear } }
         ]
@@ -173,7 +135,7 @@ export async function updateUserProgress(
     // Удаляем все записи если count = 0
     const recordIds = existingRecords.map((r: any) => r.id);
     console.log('updateUserProgress: deleting records', { day, recordIds });
-    await adminClient.request(deleteItems('reading', recordIds));
+    await client.request(deleteItems('reading', recordIds));
     console.log('updateUserProgress: records deleted successfully', { day });
   } else if (existingRecords.length > 0) {
     // Если есть дубликаты, удаляем все кроме первой, затем обновляем первую
@@ -184,7 +146,7 @@ export async function updateUserProgress(
         recordIds: existingRecords.map((r: any) => r.id)
       });
       const duplicateIds = existingRecords.slice(1).map((r: any) => r.id);
-      await adminClient.request(deleteItems('reading', duplicateIds));
+      await client.request(deleteItems('reading', duplicateIds));
       console.log('updateUserProgress: duplicates removed', { day, removedIds: duplicateIds });
     }
     
@@ -196,7 +158,7 @@ export async function updateUserProgress(
       oldCount: (recordToUpdate as any).count,
       newCount: count
     });
-    await adminClient.request(
+    await client.request(
       updateItem('reading', recordToUpdate.id, {
         count: count,
         year: currentYear
@@ -205,19 +167,16 @@ export async function updateUserProgress(
     console.log('updateUserProgress: record updated successfully', { day, count });
   } else {
     // Создаём новую запись (count может быть null для полностью прочитанного дня)
-    // count !== 0 уже проверено выше, но здесь мы создаем запись для любого count (включая null)
     console.log('updateUserProgress: creating new record', {
       day,
       count,
-      telegramUserId,
       directusUserId
     });
-    await adminClient.request(
+    await client.request(
       createItem('reading', {
-        user_id: telegramUserId,
+        directus_user_id: directusUserId,
         day: day,
         count: count,
-        directus_user_id: directusUserId,
         year: currentYear
       })
     );
@@ -226,12 +185,15 @@ export async function updateUserProgress(
 }
 
 /**
- * Получает план чтения
+ * Получает план чтения.
+ * Если передан userAccessToken, запрос идёт от имени пользователя.
  */
-export async function getReadingPlan() {
-  const adminClient = getDirectusAdminClient();
+export async function getReadingPlan(userAccessToken?: string) {
+  const client = userAccessToken
+    ? getDirectusUserClient(userAccessToken)
+    : getDirectusAdminClient();
 
-  const planData = await adminClient.request(
+  const planData = await client.request(
     readItems('plan', {
       sort: ['numbers', 'item'],
       limit: -1
@@ -242,10 +204,13 @@ export async function getReadingPlan() {
 }
 
 /**
- * Получает недельный план чтения по книге
+ * Получает недельный план чтения по книге.
+ * Если передан accessToken пользователя, запрос идёт от его имени (иначе — через admin-клиент).
  */
-export async function getWeeklyPlanItems(book: string) {
-  const adminClient = getDirectusAdminClient();
+export async function getWeeklyPlanItems(book: string, userAccessToken?: string) {
+  const client = userAccessToken
+    ? getDirectusUserClient(userAccessToken)
+    : getDirectusAdminClient();
 
   // В weekly_plan читаемые строки (например, "Притчи 1"), поэтому фильтруем префиксом.
   // Сейчас поддерживаем только Proverb-ветку, но можно расширить маппинг при добавлении книг.
@@ -255,7 +220,7 @@ export async function getWeeklyPlanItems(book: string) {
 
   const prefix = prefixByBook[book];
 
-  const items = await adminClient.request(
+  const items = await client.request(
     readItems('weekly_plan', {
       filter: prefix ? { read: { _starts_with: prefix } } : undefined,
       sort: ['numbers', 'item'],
@@ -267,12 +232,15 @@ export async function getWeeklyPlanItems(book: string) {
 }
 
 /**
- * Получает настройки чтения пользователя
+ * Получает настройки чтения пользователя.
+ * Если передан userAccessToken, запрос идёт от имени пользователя; иначе — через admin-клиент.
  */
-export async function getReadingSettings(directusUserId: string) {
-  const adminClient = getDirectusAdminClient();
+export async function getReadingSettings(directusUserId: string, userAccessToken?: string) {
+  const client = userAccessToken
+    ? getDirectusUserClient(userAccessToken)
+    : getDirectusAdminClient();
 
-  const settings = await adminClient.request(
+  const settings = await client.request(
     readItems('reading_settings', {
       filter: { directus_user_id: { _eq: directusUserId } },
       limit: 1,
@@ -285,7 +253,7 @@ export async function getReadingSettings(directusUserId: string) {
       font_size: 20,
       line_height: 1.6,
       text_align: 'left',
-      theme: 'light',
+      theme: 'system',
       verse_numbers_visible: true,
       ot_translation: 'rst',
       nt_translation: 'rst'
@@ -296,7 +264,8 @@ export async function getReadingSettings(directusUserId: string) {
 }
 
 /**
- * Сохраняет настройки чтения пользователя
+ * Сохраняет настройки чтения пользователя.
+ * Если передан userAccessToken, запрос идёт от имени пользователя; иначе — через admin-клиент.
  */
 export async function saveReadingSettings(
   directusUserId: string,
@@ -308,12 +277,15 @@ export async function saveReadingSettings(
     verse_numbers_visible?: boolean;
     ot_translation?: string;
     nt_translation?: string;
-  }
+  },
+  userAccessToken?: string
 ) {
-  const adminClient = getDirectusAdminClient();
+  const client = userAccessToken
+    ? getDirectusUserClient(userAccessToken)
+    : getDirectusAdminClient();
 
   // Проверяем, есть ли уже запись
-  const existing = await adminClient.request(
+  const existing = await client.request(
     readItems('reading_settings', {
       filter: { directus_user_id: { _eq: directusUserId } },
       limit: 1,
@@ -322,15 +294,75 @@ export async function saveReadingSettings(
 
   if (existing.length > 0) {
     // Обновляем существующую запись
-    await adminClient.request(
+    await client.request(
       updateItem('reading_settings', existing[0].id, settings)
     );
   } else {
     // Создаём новую запись
-    await adminClient.request(
+    await client.request(
       createItem('reading_settings', {
         directus_user_id: directusUserId,
         ...settings
+      })
+    );
+  }
+}
+
+/**
+ * Получает настройки приложения пользователя (тема UI и т.д.).
+ * Если записи нет, возвращает { theme: 'system' }.
+ */
+export async function getAppSettings(directusUserId: string, userAccessToken?: string) {
+  const client = userAccessToken
+    ? getDirectusUserClient(userAccessToken)
+    : getDirectusAdminClient();
+
+  const settings = await client.request(
+    readItems('user_app_settings', {
+      filter: { directus_user_id: { _eq: directusUserId } },
+      limit: 1,
+    })
+  );
+
+  if (settings.length === 0) {
+    return { theme: 'system' as const };
+  }
+
+  const raw = settings[0] as { theme?: string };
+  const theme = raw.theme === 'light' || raw.theme === 'dark' || raw.theme === 'system'
+    ? raw.theme
+    : 'system';
+  return { theme };
+}
+
+/**
+ * Сохраняет настройки приложения пользователя.
+ */
+export async function saveAppSettings(
+  directusUserId: string,
+  settings: { theme?: 'light' | 'dark' | 'system' },
+  userAccessToken?: string
+) {
+  const client = userAccessToken
+    ? getDirectusUserClient(userAccessToken)
+    : getDirectusAdminClient();
+
+  const existing = await client.request(
+    readItems('user_app_settings', {
+      filter: { directus_user_id: { _eq: directusUserId } },
+      limit: 1,
+    })
+  );
+
+  if (existing.length > 0) {
+    await client.request(
+      updateItem('user_app_settings', existing[0].id, settings)
+    );
+  } else {
+    await client.request(
+      createItem('user_app_settings', {
+        directus_user_id: directusUserId,
+        theme: settings.theme ?? 'system',
       })
     );
   }

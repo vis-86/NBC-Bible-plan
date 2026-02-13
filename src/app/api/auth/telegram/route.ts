@@ -28,24 +28,21 @@ export async function POST(request: NextRequest) {
     // Находим или создаем пользователя в Directus
     const directusUserId = await findOrCreateUser(telegramUser);
 
-    // Создаем Next.js сессию
     const sessionData = {
-      telegram_id: telegramUser.id,
       directus_id: directusUserId,
       first_name: telegramUser.first_name,
       last_name: telegramUser.last_name,
       username: telegramUser.username,
     };
 
-    const response = NextResponse.json({ 
-      success: true, 
+    const response = NextResponse.json({
+      success: true,
       user: {
-        id: telegramUser.id,
+        directus_id: directusUserId,
         first_name: telegramUser.first_name,
         last_name: telegramUser.last_name,
         username: telegramUser.username,
-        directus_id: directusUserId
-      }
+      },
     });
 
     createSession(sessionData, response);

@@ -20,21 +20,21 @@ const getDayCubeStyles = (status: 'completed' | 'missed' | 'future', isSelected:
   const baseStyles = 'day-navigation-cube flex-shrink-0 w-16 h-16 rounded-lg flex flex-col items-center justify-center relative transition-all duration-200 hover:scale-105 active:scale-95';
   
   const statusStyles = {
-    completed: 'bg-green-500 text-white',
-    missed: 'bg-red-100 text-red-700',
-    future: 'bg-white text-stone-700'
+    completed: 'bg-green-500 text-white dark:bg-green-600',
+    missed: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
+    future: 'bg-white dark:bg-stone-700 text-stone-700 dark:text-stone-200'
   };
 
   const selectedStyles = isSelected 
     ? {
-        completed: 'border-1 border-green-700 shadow-md',
-        missed: 'border-1 border-red-400 shadow-md',
-        future: 'border-1 border-stone-800 shadow-md'
+        completed: 'border-1 border-green-700 dark:border-green-500 shadow-md',
+        missed: 'border-1 border-red-400 dark:border-red-500 shadow-md',
+        future: 'border-1 border-stone-800 dark:border-stone-400 shadow-md'
       }
     : {
         completed: '',
-        missed: 'border border-red-200',
-        future: 'border border-stone-200'
+        missed: 'border border-red-200 dark:border-red-800',
+        future: 'border border-stone-200 dark:border-stone-600'
       };
 
   return `${baseStyles} ${statusStyles[status]} ${selectedStyles[status]}`;
@@ -79,11 +79,11 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex justify-between items-center px-1 h-8">
-        <div className="flex items-center gap-2">
-          <span className="text-base sm:text-lg font-bold text-stone-900 uppercase tracking-wider">План чтения {currentYear}</span>
+        <div className="flex items-center gap-2 px-4">
+          <span className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider">План чтения {currentYear}</span>
           <button
             onClick={() => router.push('/dashboard/calendar')}
-            className="p-2 text-stone-500 hover:text-stone-700 hover:bg-blue-50 border border-stone-200 hover:border-blue-300 rounded-lg transition-all active:scale-95 flex items-center gap-1.5"
+            className="p-2 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-stone-200 dark:border-stone-600 hover:border-blue-300 dark:hover:border-blue-600 rounded-lg transition-all active:scale-95 flex items-center gap-1.5"
             title="Открыть календарь"
           >
             <Calendar size={18} strokeWidth={2.5} />
@@ -94,7 +94,7 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
           <button
             data-day-navigation-today-button
             onClick={() => onSelectDay(todayDayNumber)}
-            className="h-9 p-2 bg-stone-900 text-white border border-white/20 rounded-lg transition-all hover:bg-stone-800 active:scale-95 flex flex-col items-center justify-center leading-none"
+            className="h-9 p-2 bg-stone-900 dark:bg-stone-700 text-white border border-white/20 dark:border-stone-500 rounded-lg transition-all hover:bg-stone-800 dark:hover:bg-stone-600 active:scale-95 flex flex-col items-center justify-center leading-none"
             title="Перейти на сегодня"
           >
             <Calendar size={16} strokeWidth={2.5} />

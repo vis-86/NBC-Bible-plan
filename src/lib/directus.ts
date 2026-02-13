@@ -25,6 +25,9 @@ export const directus = createDirectus<DirectusSchema>(directusUrl)
   }))
   .with(graphql());
 
+const getDirectusBaseUrl = () =>
+  process.env.NEXT_PUBLIC_DIRECTUS_URL || 'http://localhost:8055';
+
 /**
  * Создает клиент Directus с административным доступом (только для сервера)
  */
@@ -34,11 +37,21 @@ export const getDirectusAdminClient = () => {
     throw new Error('DIRECTUS_ADMIN_TOKEN is not set');
   }
 
-  return createDirectus<DirectusSchema>(process.env.NEXT_PUBLIC_DIRECTUS_URL || 'http://localhost:8055')
+  return createDirectus<DirectusSchema>(getDirectusBaseUrl())
     .with(staticToken(adminToken))
+    .with(rest());
+};
+
+/**
+ * Создает клиент Directus с токеном пользователя (для запросов от имени пользователя)
+ */
+export const getDirectusUserClient = (accessToken: string) => {
+  return createDirectus<DirectusSchema>(getDirectusBaseUrl())
+    .with(staticToken(accessToken))
     .with(rest());
 };
 
 export type DirectusClient = typeof directus;
 export type DirectusAdminClient = ReturnType<typeof getDirectusAdminClient>;
+export type DirectusUserClient = ReturnType<typeof getDirectusUserClient>;
 

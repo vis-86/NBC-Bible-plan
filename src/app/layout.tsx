@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
+import ThemeProvider from "@/components/ThemeProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,6 +41,8 @@ export default function RootLayout({
                 function setupProtection() {
                   if (window.Telegram && window.Telegram.WebApp) {
                     try {
+                      window.Telegram.WebApp.ready();
+                      window.Telegram.WebApp.expand();
                       window.Telegram.WebApp.disableVerticalSwipes();
                       window.Telegram.WebApp.enableClosingConfirmation();
                     } catch (e) {
@@ -77,9 +80,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

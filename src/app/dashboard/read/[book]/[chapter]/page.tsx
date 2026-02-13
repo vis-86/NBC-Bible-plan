@@ -103,8 +103,8 @@ export default function ReadPage() {
   if (loading) {
     return (
       <DashboardLayout currentView={AppView.READER} onChangeView={() => {}}>
-        <div className="flex min-h-screen items-center justify-center bg-stone-50">
-          <div className="text-stone-600">Загрузка...</div>
+        <div className="flex min-h-screen items-center justify-center bg-stone-50 dark:bg-stone-900">
+          <div className="text-stone-600 dark:text-stone-400">Загрузка...</div>
         </div>
       </DashboardLayout>
     );
@@ -132,9 +132,9 @@ export default function ReadPage() {
   if (!reading) {
     return (
       <DashboardLayout currentView={AppView.READER} onChangeView={() => {}}>
-        <div className="flex flex-col items-center justify-center h-full p-8 text-stone-400 bg-white">
-          <h3 className="text-lg font-bold text-stone-700 mb-2">Ошибка</h3>
-          <p className="text-center text-stone-500 mb-8 max-w-xs">Неверные параметры страницы.</p>
+        <div className="flex flex-col items-center justify-center h-full p-8 text-stone-400 dark:text-stone-500 bg-white dark:bg-stone-900">
+          <h3 className="text-lg font-bold text-stone-700 dark:text-stone-300 mb-2">Ошибка</h3>
+          <p className="text-center text-stone-500 dark:text-stone-400 mb-8 max-w-xs">Неверные параметры страницы.</p>
           <button 
             onClick={handleBack}
             className="px-8 py-3 bg-red-600 text-white rounded-full font-bold shadow-lg active:scale-95 transition-transform"

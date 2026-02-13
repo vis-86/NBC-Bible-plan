@@ -7,11 +7,19 @@ export interface ApiError {
 
 export class ApiClientError extends Error {
   status?: number;
-  
+
   constructor(message: string, status?: number) {
     super(message);
     this.name = 'ApiClientError';
     this.status = status;
+  }
+
+  /** True if the error is due to expired session (401); caller should not show error UI, redirect is in progress. */
+  static isSessionExpired(e: unknown): boolean {
+    if (e instanceof ApiClientError && e.status === 401) return true;
+    if (e && typeof e === 'object' && 'status' in e && (e as { status?: number }).status === 401) return true;
+    if (e && typeof e === 'object' && 'message' in e && String((e as { message?: unknown }).message).includes('Session expired')) return true;
+    return false;
   }
 }
 
@@ -42,6 +50,10 @@ class ApiClient {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        const onSessionExpired = (globalThis as unknown as { __onSessionExpired?: () => void }).__onSessionExpired;
+        onSessionExpired?.();
+      }
       let errorMessage = `HTTP error: ${response.statusText}`;
       try {
         const errorData = await response.json().catch(() => ({}));

@@ -7,19 +7,15 @@ import { ReadingSettings } from '@/features/reading/types';
 interface BibleTextProps {
   text: string;
   settings: ReadingSettings;
+  displayTheme?: 'light' | 'dark' | 'sepia';
 }
 
-export const BibleText: React.FC<BibleTextProps> = ({ text, settings }) => {
-  const themeClasses = {
-    light: 'bg-white text-stone-800',
-    dark: 'bg-stone-900 text-stone-100',
-    sepia: 'bg-amber-50 text-stone-900'
-  };
-
+export const BibleText: React.FC<BibleTextProps> = ({ text, settings, displayTheme }) => {
+  const themeForColor = displayTheme ?? (settings.theme === 'system' ? 'light' : settings.theme) as 'light' | 'dark' | 'sepia';
   const textAlignClass = settings.text_align === 'center' ? 'text-center' : 
                          settings.text_align === 'justify' ? 'text-justify' : 'text-left';
-  const textColorClass = settings.theme === 'dark' ? 'text-stone-100' : 
-                        settings.theme === 'sepia' ? 'text-stone-900' : 'text-stone-800';
+  const textColorClass = themeForColor === 'dark' ? 'text-stone-100' : 
+                        themeForColor === 'sepia' ? 'text-stone-900' : 'text-stone-800';
 
   return (
     <article className="prose prose-stone prose-lg">

@@ -71,7 +71,7 @@ export const DayChaptersList: React.FC<DayChaptersListProps> = ({
       {/* Заголовок дня */}
       <div 
         data-day-chapters-list-header={`day-${day.id}-header`}
-        className="day-chapters-list-header px-4 py-3 bg-transparent border-b border-black/5"
+        className="day-chapters-list-header px-4 py-3 bg-transparent border-b border-black/5 dark:border-white/10"
       >
         <div 
           data-day-chapters-list-header-top={`day-${day.id}-header-top`}
@@ -79,7 +79,7 @@ export const DayChaptersList: React.FC<DayChaptersListProps> = ({
         >
           <h2 
             data-day-chapters-list-title={`day-${day.id}-title`}
-            className="day-chapters-list-title text-xl font-bold text-stone-900"
+            className="day-chapters-list-title font-bold text-stone-900 dark:text-stone-100"
           >
             День {day.id} из {totalDays}
           </h2>
@@ -87,13 +87,13 @@ export const DayChaptersList: React.FC<DayChaptersListProps> = ({
             onClick={handleToggleComplete}
             className={`text-sm font-semibold px-3 py-1 rounded-full transition-colors flex items-center gap-2 ${
               day.completed 
-                ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                : 'bg-black/5 text-stone-700 hover:bg-black/10'
+                ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 hover:bg-green-200 dark:hover:bg-green-800/50' 
+                : 'bg-black/5 dark:bg-white/10 text-stone-700 dark:text-stone-300 hover:bg-black/10 dark:hover:bg-white/15'
             }`}
           >
             <Check 
               size={16} 
-              className={day.completed ? 'text-green-700' : 'text-stone-600'}
+              className={day.completed ? 'text-green-700 dark:text-green-300' : 'text-stone-600 dark:text-stone-400'}
               strokeWidth={3}
             />
             {day.completed ? 'Прочитано' : 'Отметить всё'}
@@ -117,7 +117,7 @@ export const DayChaptersList: React.FC<DayChaptersListProps> = ({
                   data-testid={`day-${day.id}-item-${item.item}`}
                   text={reading ? `${reading.book} ${reading.chapter}` : item.readText}
                   onClick={() => handleChapterClick(reading)}
-                  textClassName={isRead ? 'text-stone-400 line-through' : 'text-stone-800'}
+                  textClassName={isRead ? 'text-stone-400 dark:text-stone-500 line-through' : 'text-stone-800 dark:text-stone-200'}
                   left={
                     <button
                       type="button"
@@ -131,7 +131,7 @@ export const DayChaptersList: React.FC<DayChaptersListProps> = ({
                         className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${
                           isRead
                             ? 'bg-green-500 border-green-500'
-                            : 'bg-transparent border-stone-300 hover:border-stone-400'
+                            : 'bg-transparent border-stone-300 dark:border-stone-500 hover:border-stone-400 dark:hover:border-stone-400'
                         }`}
                       >
                         {isRead && (
@@ -157,7 +157,7 @@ export const DayChaptersList: React.FC<DayChaptersListProps> = ({
                 left={
                   <div
                     data-day-chapters-list-item-checkbox={`day-${day.id}-reading-${idx}-checkbox`}
-                    className="day-chapters-list-item-checkbox flex-shrink-0 w-6 h-6 rounded-full border-2 border-stone-300 flex items-center justify-center"
+                    className="day-chapters-list-item-checkbox flex-shrink-0 w-6 h-6 rounded-full border-2 border-stone-300 dark:border-stone-500 flex items-center justify-center"
                   />
                 }
               />

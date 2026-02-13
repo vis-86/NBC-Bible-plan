@@ -21,8 +21,9 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
   const alignOptions: Array<ReadingSettingsType['text_align']> = ['left', 'center', 'justify'];
   const themeOptions: Array<{ value: ReadingSettingsType['theme']; label: string }> = [
     { value: 'light', label: 'Светлая' },
-    { value: 'dark', label: 'Темная' },
-    { value: 'sepia', label: 'Сепия' }
+    { value: 'dark', label: 'Тёмная' },
+    { value: 'sepia', label: 'Сепия' },
+    { value: 'system', label: 'Как в системе' }
   ];
 
   const otTranslationOptions = getSelfHostedTranslationOptions('ot');
@@ -43,7 +44,7 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
       <div className="space-y-6">
         {/* Размер шрифта */}
         <div>
-          <label className="block text-sm font-medium text-stone-700 mb-2">
+          <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-2">
             Размер шрифта: {settings.font_size}px
           </label>
           <input
@@ -54,9 +55,9 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
             onChange={(e) => {
               onSettingsChange({ ...settings, font_size: parseInt(e.target.value) });
             }}
-            className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer"
+            className="w-full h-2 bg-stone-200 dark:bg-stone-600 rounded-lg appearance-none cursor-pointer"
           />
-          <div className="flex justify-between text-xs text-stone-400 mt-1">
+          <div className="flex justify-between text-xs text-stone-400 dark:text-stone-500 mt-1">
             <span>14px</span>
             <span>28px</span>
           </div>
@@ -64,7 +65,7 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
 
         {/* Межстрочный интервал */}
         <div>
-          <label className="block text-sm font-medium text-stone-700 mb-2">
+          <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-2">
             Межстрочный интервал: {settings.line_height.toFixed(1)}
           </label>
           <input
@@ -76,9 +77,9 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
             onChange={(e) => {
               onSettingsChange({ ...settings, line_height: parseFloat(e.target.value) });
             }}
-            className="w-full h-2 bg-stone-200 rounded-lg appearance-none cursor-pointer"
+            className="w-full h-2 bg-stone-200 dark:bg-stone-600 rounded-lg appearance-none cursor-pointer"
           />
-          <div className="flex justify-between text-xs text-stone-400 mt-1">
+          <div className="flex justify-between text-xs text-stone-400 dark:text-stone-500 mt-1">
             <span>1.2</span>
             <span>2.5</span>
           </div>
@@ -86,7 +87,7 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
 
         {/* Выравнивание текста */}
         <div>
-          <label className="block text-sm font-medium text-stone-700 mb-2">
+          <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-2">
             Выравнивание текста
           </label>
           <div className="grid grid-cols-3 gap-2">
@@ -98,8 +99,8 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
                 }}
                 className={`px-4 py-2 rounded-lg border-2 transition-all ${
                   settings.text_align === align
-                    ? 'border-red-500 bg-red-50 text-red-700 font-medium'
-                    : 'border-stone-200 text-stone-600 hover:border-stone-300'
+                    ? 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-medium'
+                    : 'border-stone-200 dark:border-stone-600 text-stone-600 dark:text-stone-400 hover:border-stone-300 dark:hover:border-stone-500'
                 }`}
               >
                 {align === 'left' ? 'По левому' : align === 'center' ? 'По центру' : 'По ширине'}
@@ -110,10 +111,10 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
 
         {/* Тема */}
         <div>
-          <label className="block text-sm font-medium text-stone-700 mb-2">
+          <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-2">
             Тема
           </label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-2">
             {themeOptions.map((theme) => (
               <button
                 key={theme.value}
@@ -122,8 +123,8 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
                 }}
                 className={`px-4 py-2 rounded-lg border-2 transition-all ${
                   settings.theme === theme.value
-                    ? 'border-red-500 bg-red-50 text-red-700 font-medium'
-                    : 'border-stone-200 text-stone-600 hover:border-stone-300'
+                    ? 'border-red-500 bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-medium'
+                    : 'border-stone-200 dark:border-stone-600 text-stone-600 dark:text-stone-400 hover:border-stone-300 dark:hover:border-stone-500'
                 }`}
               >
                 {theme.label}
@@ -134,7 +135,7 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
 
         {/* Переводы */}
         <div>
-          <label className="block text-sm font-medium text-stone-700 mb-2">
+          <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-2">
             Перевод Ветхого Завета
           </label>
           <select
@@ -145,7 +146,7 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
                 ot_translation: e.target.value as ReadingSettingsType['ot_translation']
               });
             }}
-            className="w-full px-4 py-3 rounded-lg border border-stone-200 bg-white text-stone-700"
+            className="w-full px-4 py-3 rounded-lg border border-stone-200 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200"
           >
             {otTranslationOptions.map(opt => (
               <option key={opt.id} value={opt.id}>
@@ -153,13 +154,13 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
               </option>
             ))}
           </select>
-          <p className="mt-2 text-xs text-stone-500">
+          <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
             Показаны только переводы, разрешённые для хранения и выдачи через наше API.
           </p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-stone-700 mb-2">
+          <label className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-2">
             Перевод Нового Завета
           </label>
           <select
@@ -170,7 +171,7 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
                 nt_translation: e.target.value as ReadingSettingsType['nt_translation']
               });
             }}
-            className="w-full px-4 py-3 rounded-lg border border-stone-200 bg-white text-stone-700"
+            className="w-full px-4 py-3 rounded-lg border border-stone-200 dark:border-stone-600 bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200"
           >
             {ntTranslationOptions.map(opt => (
               <option key={opt.id} value={opt.id}>
@@ -178,14 +179,14 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
               </option>
             ))}
           </select>
-          <p className="mt-2 text-xs text-stone-500">
+          <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">
             Показаны только переводы, разрешённые для хранения и выдачи через наше API.
           </p>
         </div>
 
         {/* Показывать номера стихов */}
         <div className="flex items-center justify-between">
-          <label className="text-sm font-medium text-stone-700">
+          <label className="text-sm font-medium text-stone-700 dark:text-stone-300">
             Показывать номера стихов
           </label>
           <button
@@ -193,7 +194,7 @@ export const ReadingSettings: React.FC<ReadingSettingsProps> = ({
               onSettingsChange({ ...settings, verse_numbers_visible: !settings.verse_numbers_visible });
             }}
             className={`relative w-12 h-6 rounded-full transition-colors ${
-              settings.verse_numbers_visible ? 'bg-red-500' : 'bg-stone-300'
+              settings.verse_numbers_visible ? 'bg-red-500' : 'bg-stone-300 dark:bg-stone-600'
             }`}
           >
             <span

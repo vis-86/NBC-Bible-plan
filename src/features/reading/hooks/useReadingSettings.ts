@@ -8,14 +8,14 @@ function isTextAlign(value: unknown): value is ReadingSettings['text_align'] {
 }
 
 function isTheme(value: unknown): value is ReadingSettings['theme'] {
-  return value === 'light' || value === 'dark' || value === 'sepia';
+  return value === 'light' || value === 'dark' || value === 'sepia' || value === 'system';
 }
 
 const defaultSettings: ReadingSettings = {
   font_size: 20,
   line_height: 1.6,
   text_align: 'left',
-  theme: 'light',
+  theme: 'system',
   verse_numbers_visible: true,
   ot_translation: 'rst',
   nt_translation: 'rst'

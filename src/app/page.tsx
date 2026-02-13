@@ -1,12 +1,24 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getBasePath } from '@/lib/utils';
+import { hasTelegramWebAppObject } from '@/lib/telegram';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Home() {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const basePath = getBasePath();
   const telegramBotUrl = 'https://t.me/VisTestPsBot';
+
+  // При наличии WebApp (Telegram или браузер со скриптом) без сессии ведём на логин; на логине различаем по initData
+  useEffect(() => {
+    if (authLoading || user) return;
+    if (hasTelegramWebAppObject()) {
+      router.replace('/login?redirect=/dashboard');
+    }
+  }, [authLoading, user, router]);
 
   const handleStart = () => {
     window.open(telegramBotUrl, '_blank');

@@ -12,6 +12,7 @@ interface ReadingContentProps {
   text: string;
   loading: boolean;
   settings: ReadingSettings;
+  displayTheme: 'light' | 'dark' | 'sepia';
   contextInfo: string | null;
   infoLoading: boolean;
   onContextClose: () => void;
@@ -24,6 +25,7 @@ export const ReadingContent: React.FC<ReadingContentProps> = ({
   text,
   loading,
   settings,
+  displayTheme,
   contextInfo,
   infoLoading,
   onContextClose,
@@ -39,7 +41,7 @@ export const ReadingContent: React.FC<ReadingContentProps> = ({
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-40 space-y-4">
+      <div className={`flex flex-col items-center justify-center py-40 space-y-4 min-h-[50vh] ${themeClasses[displayTheme]}`}>
         <LoadingSpinner size={40} />
       </div>
     );
@@ -71,7 +73,7 @@ export const ReadingContent: React.FC<ReadingContentProps> = ({
         </div>
       )}
 
-      <BibleText text={text} settings={settings} />
+      <BibleText text={text} settings={settings} displayTheme={displayTheme} />
     </>
   );
 };

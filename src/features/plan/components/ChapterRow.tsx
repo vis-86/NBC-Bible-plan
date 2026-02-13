@@ -27,7 +27,7 @@ export const ChapterRow: React.FC<ChapterRowProps> = ({
       data-testid={dataTestId}
       className={[
         'flex items-center gap-3 py-2 rounded-2xl px-2 -mx-2 transition-colors',
-        onClick ? 'cursor-pointer hover:bg-black/5' : '',
+        onClick ? 'cursor-pointer hover:bg-black/5 dark:hover:bg-white/10' : '',
         className || '',
       ].join(' ')}
       onClick={onClick}
@@ -40,11 +40,11 @@ export const ChapterRow: React.FC<ChapterRowProps> = ({
     >
       {left}
 
-      <span className={['flex-1 text-base font-medium', textClassName || 'text-stone-800'].join(' ')}>
+      <span className={['flex-1 text-base font-medium', textClassName || 'text-stone-800 dark:text-stone-200'].join(' ')}>
         {text}
       </span>
 
-      <ChevronRight size={20} className="text-stone-300 flex-shrink-0" />
+      <ChevronRight size={20} className="text-stone-300 dark:text-stone-500 flex-shrink-0" />
     </div>
   );
 };

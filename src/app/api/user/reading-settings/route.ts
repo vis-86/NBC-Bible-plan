@@ -14,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const settings = await getReadingSettings(session.directus_id);
+    const settings = await getReadingSettings(session.directus_id, session.access_token);
 
     return NextResponse.json({ settings });
   } catch (error) {
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
     const settings = await request.json();
 
-    await saveReadingSettings(session.directus_id, settings);
+    await saveReadingSettings(session.directus_id, settings, session.access_token);
 
     return NextResponse.json({ success: true });
   } catch (error) {

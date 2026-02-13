@@ -1,8 +1,21 @@
 @import "tailwindcss";
 
+/* Use data-theme attribute for dark: variant (ThemeProvider sets it on html) */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+}
+
+[data-theme="light"] {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+[data-theme="dark"] {
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 @layer utilities {
@@ -13,6 +26,10 @@
 
   .card-apple-dark {
     @apply rounded-3xl bg-stone-900/90 text-white ring-1 ring-white/10 shadow-lg;
+  }
+
+  [data-theme="dark"] .card-apple {
+    @apply rounded-3xl bg-stone-800/90 backdrop-blur-xl ring-1 ring-white/10 shadow-sm text-stone-100;
   }
 
   /* Contrast wrapper for “featured” sections */
@@ -28,8 +45,9 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* Fallback when data-theme is not set yet (e.g. before hydration or no JS) */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --background: #0a0a0a;
     --foreground: #ededed;
   }

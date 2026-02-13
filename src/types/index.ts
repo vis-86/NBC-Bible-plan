@@ -51,5 +51,6 @@ export enum AppView {
   PLAN = 'PLAN',
   READER = 'READER',
   CHAT = 'CHAT',
-  REFERENCE = 'REFERENCE'
+  REFERENCE = 'REFERENCE',
+  SETTINGS = 'SETTINGS'
 }

@@ -47,6 +47,14 @@ export interface BibleTextResponse {
   text: string;
 }
 
+export type AppThemePreference = 'light' | 'dark' | 'system';
+
+export interface AppSettingsResponse {
+  settings: {
+    theme: AppThemePreference;
+  };
+}
+
 // API Endpoints
 export const planApi = {
   getPlan: async (): Promise<PlanResponse> => {
@@ -85,6 +93,15 @@ export const bibleApi = {
   getText: async (book: string, chapter: number): Promise<BibleTextResponse> => {
     const encodedBook = encodeURIComponent(book);
     return apiClient.get<BibleTextResponse>(`/api/bible/${encodedBook}/${chapter}`);
+  },
+};
+
+export const appSettingsApi = {
+  getSettings: async (): Promise<AppSettingsResponse> => {
+    return apiClient.get<AppSettingsResponse>('/api/user/app-settings');
+  },
+  updateSettings: async (settings: { theme: AppThemePreference }): Promise<void> => {
+    return apiClient.post('/api/user/app-settings', settings);
   },
 };
 

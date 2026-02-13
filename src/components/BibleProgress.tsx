@@ -38,17 +38,17 @@ const BibleProgress: React.FC<BibleProgressProps> = ({ readChapters, onToggleCha
     if (!bookData) return null;
 
     return (
-      <div className="flex flex-col h-full bg-white animate-in fade-in duration-300">
-        <header className="flex items-center p-4 border-b border-stone-100 sticky top-0 bg-white/95 backdrop-blur-sm z-20">
+      <div className="flex flex-col h-full bg-white dark:bg-stone-900 animate-in fade-in duration-300">
+        <header className="flex items-center p-4 border-b border-stone-100 dark:border-stone-700 sticky top-0 bg-white/95 dark:bg-stone-900/95 backdrop-blur-sm z-20">
           <button 
             onClick={() => setSelectedBook(null)}
-            className="p-2 -ml-2 text-stone-500 hover:text-stone-900 rounded-full hover:bg-stone-100 transition-colors"
+            className="p-2 -ml-2 text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
           >
             <ArrowLeft size={24} />
           </button>
           <div className="ml-2 flex-1 text-center pr-8">
-            <h2 className="font-bold text-lg text-stone-900">{bookData.name}</h2>
-            <p className="text-xs text-stone-400 font-medium">
+            <h2 className="font-bold text-lg text-stone-900 dark:text-stone-100">{bookData.name}</h2>
+            <p className="text-xs text-stone-400 dark:text-stone-500 font-medium">
               {bookStats.find(b => b.name === selectedBook)?.readCount} из {bookData.chapters} прочитано
             </p>
           </div>
@@ -66,7 +66,7 @@ const BibleProgress: React.FC<BibleProgressProps> = ({ readChapters, onToggleCha
                     w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300
                     ${isRead 
                       ? 'bg-red-500 text-white shadow-md' 
-                      : 'bg-stone-50 text-stone-600 hover:bg-stone-100'
+                      : 'bg-stone-50 dark:bg-stone-800 text-stone-600 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-700'
                     }
                   `}
                 >
@@ -81,17 +81,17 @@ const BibleProgress: React.FC<BibleProgressProps> = ({ readChapters, onToggleCha
   }
 
   return (
-    <div className="flex flex-col h-full bg-stone-50 animate-in fade-in duration-300">
-      <header className="px-6 py-5 bg-white shadow-sm border-b border-stone-100 sticky top-0 z-20 flex justify-between items-center">
+    <div className="flex flex-col h-full bg-stone-50 dark:bg-stone-900 animate-in fade-in duration-300">
+      <header className="px-6 py-5 bg-white dark:bg-stone-800 shadow-sm border-b border-stone-100 dark:border-stone-700 sticky top-0 z-20 flex justify-between items-center">
           <div>
-            <h2 className="font-bold text-2xl text-stone-900 mb-1">Книги</h2>
-            <div className="text-xs font-bold text-stone-400 uppercase tracking-widest">
+            <h2 className="font-bold text-2xl text-stone-900 dark:text-stone-100 mb-1">Книги</h2>
+            <div className="text-xs font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest">
                {overallProgress}% Завершено
             </div>
           </div>
           <button 
             onClick={onClose} 
-            className="w-8 h-8 flex items-center justify-center bg-stone-100 rounded-full text-stone-500 hover:bg-stone-200"
+            className="w-8 h-8 flex items-center justify-center bg-stone-100 dark:bg-stone-700 rounded-full text-stone-500 dark:text-stone-400 hover:bg-stone-200 dark:hover:bg-stone-600"
           >
             ✕
           </button>
@@ -102,12 +102,12 @@ const BibleProgress: React.FC<BibleProgressProps> = ({ readChapters, onToggleCha
           <button
             key={book.name}
             onClick={() => setSelectedBook(book.name)}
-            className="w-full bg-white px-5 py-4 rounded-xl border border-stone-100 shadow-sm flex items-center justify-between hover:border-red-200 active:bg-stone-50 transition-all group"
+            className="w-full bg-white dark:bg-stone-800 px-5 py-4 rounded-xl border border-stone-100 dark:border-stone-700 shadow-sm flex items-center justify-between hover:border-red-200 dark:hover:border-red-800 active:bg-stone-50 dark:active:bg-stone-700 transition-all group"
           >
             <div className="flex items-center gap-4">
                <div className="relative w-10 h-10 flex items-center justify-center">
                    <svg className="w-full h-full transform -rotate-90">
-                       <circle cx="20" cy="20" r="18" stroke="#f3f4f6" strokeWidth="3" fill="none" />
+                       <circle cx="20" cy="20" r="18" strokeWidth="3" fill="none" className="stroke-stone-200 dark:stroke-stone-600" />
                        <circle 
                          cx="20" cy="20" r="18" 
                          stroke={book.progress === 100 ? '#22c55e' : '#ef4444'} 
@@ -118,16 +118,16 @@ const BibleProgress: React.FC<BibleProgressProps> = ({ readChapters, onToggleCha
                          className="transition-all duration-1000 ease-out"
                        />
                    </svg>
-                   <span className="absolute text-[10px] font-bold text-stone-600">{book.progress}%</span>
+                   <span className="absolute text-[10px] font-bold text-stone-600 dark:text-stone-300">{book.progress}%</span>
                </div>
                
                <div className="text-left">
-                    <span className="block font-bold text-stone-800 text-lg">{book.name}</span>
-                    <span className="text-xs text-stone-400 font-medium">{book.chapters} глав</span>
+                    <span className="block font-bold text-stone-800 dark:text-stone-100 text-lg">{book.name}</span>
+                    <span className="text-xs text-stone-400 dark:text-stone-500 font-medium">{book.chapters} глав</span>
                </div>
             </div>
             
-            <ChevronRight size={20} className="text-stone-300 group-hover:text-red-400 transition-colors" />
+            <ChevronRight size={20} className="text-stone-300 dark:text-stone-500 group-hover:text-red-400 transition-colors" />
           </button>
         ))}
       </div>

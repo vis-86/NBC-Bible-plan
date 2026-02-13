@@ -3,9 +3,8 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { directus } from '@/lib/directus';
-import { isTelegramWebApp, initTelegramWebApp, getTelegramInitData } from '@/lib/telegram';
-import { getApiPath } from '@/lib/utils';
+import { hasTelegramWebAppObject, isTelegramWebApp, initTelegramWebApp, getTelegramInitData } from '@/lib/telegram';
+import { getApiPath, getBasePath } from '@/lib/utils';
 
 function LoginForm() {
   const router = useRouter();
@@ -15,41 +14,49 @@ function LoginForm() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [telegramLoading, setTelegramLoading] = useState(true);
+  const [telegramVerificationFailed, setTelegramVerificationFailed] = useState(false);
 
-  // Проверяем Telegram аутентификацию при загрузке
   useEffect(() => {
+    const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
     const checkTelegram = async () => {
-      // В dev режиме инициализируем мок Telegram WebApp
-      if (process.env.NODE_ENV === 'development') {
-        const { initDevTelegramWebApp } = await import('@/lib/telegram');
-        initDevTelegramWebApp();
+      if (!hasTelegramWebAppObject()) {
+        setTelegramLoading(false);
+        return;
       }
 
-      if (isTelegramWebApp()) {
-        initTelegramWebApp();
-        const initData = getTelegramInitData();
-        
-        if (initData) {
-          try {
-            const verifyRes = await fetch(getApiPath('/api/auth/telegram'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({ initData })
-            });
-
-            if (verifyRes.ok) {
-              // Успешная аутентификация - редирект на dashboard или redirect параметр
-              // router.push автоматически учитывает basePath для относительных путей
-              const redirect = searchParams.get('redirect') || '/dashboard';
-              router.push(redirect);
-              return;
-            }
-          } catch (err) {
-            console.error('Error verifying Telegram user:', err);
-          }
+      initTelegramWebApp();
+      let initData = getTelegramInitData();
+      if (!initData) {
+        for (let i = 0; i < 3; i++) {
+          await delay(350);
+          initData = getTelegramInitData();
+          if (initData) break;
         }
       }
+      if (!initData) {
+        setTelegramLoading(false);
+        return;
+      }
+
+      try {
+        const verifyRes = await fetch(getApiPath('/api/auth/telegram'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ initData }),
+        });
+
+        if (verifyRes.ok) {
+          const redirect = searchParams.get('redirect') || '/dashboard';
+          const url = redirect.startsWith('http') ? redirect : `${window.location.origin}${getBasePath()}${redirect}`;
+          window.location.href = url;
+          return;
+        }
+      } catch (err) {
+        console.error('Error verifying Telegram user:', err);
+      }
+      setTelegramVerificationFailed(true);
       setTelegramLoading(false);
     };
 
@@ -62,9 +69,38 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      await directus.login({email, password});
-      router.push('/dashboard');
-      router.refresh();
+      const res = await fetch(getApiPath('/api/auth/login'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setError(data?.error || 'Ошибка входа. Проверьте данные.');
+        return;
+      }
+
+      const redirect = searchParams.get('redirect') || '/dashboard';
+
+      // Убеждаемся, что cookie сессии применена: проверяем сессию перед редиректом,
+      // чтобы запросы дашборда уже шли с cookie (избегаем 401 при быстрой навигации).
+      const sessionRes = await fetch(getApiPath('/api/auth/session'), {
+        credentials: 'include',
+      });
+      const sessionData = await sessionRes.json().catch(() => ({}));
+      if (sessionData?.user) {
+        if (typeof (window as any).refreshAuth === 'function') {
+          (window as any).refreshAuth();
+        }
+        router.push(redirect);
+        router.refresh();
+      } else {
+        // cookie не подхватилась — редирект полной загрузкой страницы, чтобы cookie точно применилась
+        window.location.href = redirect.startsWith('http') ? redirect : `${window.location.origin}${getBasePath()}${redirect}`;
+      }
     } catch (err: any) {
       setError(err?.message || 'Ошибка входа. Проверьте данные.');
     } finally {
@@ -80,6 +116,20 @@ function LoginForm() {
     );
   }
 
+  // В Telegram при неуспешной верификации — только сообщение; не из Telegram — всегда форма входа
+  if (isTelegramWebApp() && telegramVerificationFailed) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black px-4">
+        <div className="w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 p-8 shadow-lg text-center">
+          <p className="text-zinc-600 dark:text-zinc-400">
+            Откройте приложение из Telegram, чтобы войти. Если вы уже в Telegram — попробуйте закрыть и открыть мини-приложение снова.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Не из Telegram или успешная верификация в Telegram (редирект уже выполнен) — показываем форму входа
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black px-4">
       <div className="w-full max-w-md space-y-8 rounded-lg bg-white dark:bg-zinc-900 p-8 shadow-lg">

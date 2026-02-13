@@ -88,7 +88,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
       {/* Bottom Sheet */}
       <div 
         ref={sheetRef}
-        className={`fixed bottom-0 left-0 right-0 z-[70] bg-white rounded-t-3xl shadow-2xl ${maxHeight} overflow-hidden flex flex-col ${
+        className={`fixed bottom-0 left-0 right-0 z-[70] bg-white dark:bg-stone-800 rounded-t-3xl shadow-2xl ${maxHeight} overflow-hidden flex flex-col ${
           isDragging ? '' : 'animate-slide-up'
         }`}
         style={{
@@ -110,23 +110,23 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
           className="handle-area flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing"
           style={{ pointerEvents: 'auto' }}
         >
-          <div className="w-12 h-1 bg-stone-300 rounded-full" />
+          <div className="w-12 h-1 bg-stone-300 dark:bg-stone-600 rounded-full" />
         </div>
 
         {/* Header */}
         {title && (
           <div 
-            className="sheet-header px-6 py-2.5 border-b border-stone-100 flex items-center justify-between"
+            className="sheet-header px-6 py-2.5 border-b border-stone-100 dark:border-stone-700 flex items-center justify-between"
             style={{ pointerEvents: 'auto' }}
           >
             {typeof title === 'string' ? (
-              <h2 className="text-lg font-bold text-stone-900">{title}</h2>
+              <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100">{title}</h2>
             ) : (
               <div className="flex-1">{title}</div>
             )}
             <button
               onClick={onClose}
-              className="p-1.5 text-stone-400 hover:text-stone-900 active:scale-90 transition-transform"
+              className="p-1.5 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-200 active:scale-90 transition-transform"
             >
               <X size={18} />
             </button>

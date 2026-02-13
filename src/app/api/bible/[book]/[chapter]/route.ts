@@ -49,7 +49,7 @@ export async function GET(
 
     let requestedTranslation: string | null = queryTranslation;
     if (session) {
-      const settings = await getReadingSettings(session.directus_id);
+      const settings = await getReadingSettings(session.directus_id, session.access_token);
       requestedTranslation = testament === 'nt' ? settings?.nt_translation : settings?.ot_translation;
     }
 

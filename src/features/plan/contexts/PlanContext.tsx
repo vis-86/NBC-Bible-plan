@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useTransition, useMemo } from 'react';
 import { ReadingPlanDay, BibleReference, PlanItem } from '@/types';
 import { planApi, progressApi } from '@/shared/services/api/endpoints';
+import { ApiClientError } from '@/shared/services/api/client';
 import { dayOfYearToDateStr, parseReadingItem } from '@/shared/utils/bible';
 import { graphqlClient, progressMutations } from '@/shared/services/api/graphql';
 
@@ -134,8 +135,9 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
         const todayId = dayOfYear > maxDay ? maxDay : dayOfYear;
         setSelectedDayId(todayId);
       }
-    } catch (err: any) {
-      setError(err.message || 'Ошибка при загрузке данных.');
+    } catch (err: unknown) {
+      if (ApiClientError.isSessionExpired(err)) return;
+      setError((err as Error)?.message || 'Ошибка при загрузке данных.');
       console.error('Error fetching plan:', err);
     } finally {
       setLoading(false);

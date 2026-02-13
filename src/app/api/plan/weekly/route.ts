@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSession, deleteSession, isTokenExpiredError } from '@/lib/session';
 import { getWeeklyPlanItems } from '@/lib/directus-data';
 
 export type WeeklyPlanItem = {
@@ -16,12 +17,15 @@ export type WeeklyPlanWeek = {
 /**
  * GET /api/plan/weekly?book=proverbs
  * Возвращает недельный план (1..52) по выбранной книге.
+ * Использует токен пользователя из сессии, если есть (после входа по логину/паролю).
  */
 export async function GET(request: NextRequest) {
   try {
     const book = request.nextUrl.searchParams.get('book') || 'proverbs';
+    const session = await getSession();
+    const userToken = session?.access_token;
 
-    const rawItems = await getWeeklyPlanItems(book);
+    const rawItems = await getWeeklyPlanItems(book, userToken);
     // Directus SDK typings are intentionally relaxed in this codebase.
     const items = rawItems as unknown as WeeklyPlanItem[];
 
@@ -39,6 +43,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ book, weeks });
   } catch (error) {
+    if (isTokenExpiredError(error)) {
+      const res = NextResponse.json({ error: 'Session expired' }, { status: 401 });
+      return deleteSession(res);
+    }
     console.error('Error getting weekly plan:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

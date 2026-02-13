@@ -44,5 +44,10 @@ export interface DirectusSchema {
     created_at?: string;
     updated_at?: string;
   };
+  user_app_settings: {
+    id: string;
+    directus_user_id: string;
+    theme: 'light' | 'dark' | 'system';
+  };
 }
 

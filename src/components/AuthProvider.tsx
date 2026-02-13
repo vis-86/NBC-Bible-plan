@@ -3,9 +3,9 @@
 import { createContext, useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { getApiPath } from '@/lib/utils';
+import { isTelegramWebApp, initTelegramWebApp } from '@/lib/telegram';
 
 interface User {
-  telegram_id: number;
   directus_id: string;
   first_name: string;
   last_name?: string;
@@ -31,6 +31,13 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     checkSession();
+  }, []);
+
+  // Telegram Mini App: expand to full height and apply header color from theme
+  useEffect(() => {
+    if (isTelegramWebApp()) {
+      initTelegramWebApp();
+    }
   }, []);
 
   const checkSession = async () => {
@@ -66,6 +73,18 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       delete (window as any).refreshAuth;
     };
   }, []);
+
+  // При 401 (истёк токен) API-клиент вызывает этот callback — выходим и редирект на логин
+  useEffect(() => {
+    (globalThis as unknown as { __onSessionExpired?: () => void }).__onSessionExpired = () => {
+      setUser(null);
+      router.push('/login');
+      fetch(getApiPath('/api/auth/logout'), { method: 'POST', credentials: 'include' }).catch(() => {});
+    };
+    return () => {
+      delete (globalThis as unknown as { __onSessionExpired?: () => void }).__onSessionExpired;
+    };
+  }, [router]);
 
   const logout = async () => {
     try {

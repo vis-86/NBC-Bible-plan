@@ -4,9 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppView, BibleReference } from '@/types';
 import { parseReadingItem } from '@/shared/utils/bible';
-import { isTelegramWebApp, initTelegramWebApp, getTelegramInitData, initDevTelegramWebApp } from '@/lib/telegram';
 import { useAuth } from '@/hooks/useAuth';
-import { getApiPath } from '@/shared/utils/api';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PlanView } from '@/features/plan/components/PlanView';
 import PastorChat from '@/components/PastorChat';
@@ -15,6 +13,7 @@ import { isAIEnabled } from '@/shared/utils/constants';
 import { usePlan } from '@/features/plan/hooks/usePlan';
 import { useProgress } from '@/features/plan/hooks/useProgress';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
+import { preloadChapters } from '@/features/reading/bible-text-cache';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -33,50 +32,19 @@ export default function DashboardPage() {
     const currentUserId = user?.directus_id || null;
     if (lastUserId.current !== currentUserId) {
       hasInitialized.current = false;
+      hasLoadedPlan.current = false;
       lastUserId.current = currentUserId;
+    }
+
+    if (plan.length > 0) {
+      hasInitialized.current = true;
+      return;
     }
 
     if (hasInitialized.current) return;
 
     const initialize = async () => {
       hasInitialized.current = true;
-
-      if (process.env.NODE_ENV === 'development') {
-        initDevTelegramWebApp();
-      }
-
-      if (isTelegramWebApp()) {
-        initTelegramWebApp();
-        const initData = getTelegramInitData();
-        
-        if (initData) {
-          try {
-            const verifyRes = await fetch(getApiPath('/api/auth/telegram'), {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({ initData })
-            });
-
-            if (!verifyRes.ok) {
-              const errData = await verifyRes.json().catch(() => ({ error: 'Unknown error' }));
-              console.error('[Dashboard] Telegram verification failed', errData);
-              return;
-            }
-            
-            if ((window as any).refreshAuth) {
-              await (window as any).refreshAuth();
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, 200));
-            await fetchPlan();
-            return;
-          } catch (err) {
-            console.error('[Dashboard] Error verifying Telegram user:', err);
-            return;
-          }
-        }
-      }
 
       if (!user) {
         return;
@@ -90,7 +58,32 @@ export default function DashboardPage() {
     };
 
     initialize();
-  }, [fetchPlan, user, authLoading]);
+  }, [fetchPlan, user, authLoading, plan.length]);
+
+  useEffect(() => {
+    if (plan.length === 0 || hasLoadedPlan.current) return;
+
+    const filteredPlan = plan.filter((d) => d.id > 0);
+    if (filteredPlan.length === 0) return;
+
+    const getDayOfYear = (date: Date): number => {
+      const start = new Date(date.getFullYear(), 0, 0);
+      const diff = date.getTime() - start.getTime();
+      return Math.floor(diff / (1000 * 60 * 60 * 24));
+    };
+
+    const now = new Date();
+    const dayOfYear = getDayOfYear(now);
+    const maxDayNumber = Math.max(...filteredPlan.map((d) => d.id));
+    const planDayNumber = dayOfYear > maxDayNumber ? maxDayNumber : dayOfYear;
+    const todayDay = filteredPlan.find((d) => d.id === planDayNumber) ?? filteredPlan[0];
+    const readings = todayDay?.readings ?? [];
+
+    if (readings.length > 0) {
+      hasLoadedPlan.current = true;
+      preloadChapters(readings);
+    }
+  }, [plan]);
 
   useEffect(() => {
     if (currentView === AppView.READER) {
@@ -167,8 +160,8 @@ export default function DashboardPage() {
   // Показываем загрузку только при первой загрузке (когда данных еще нет)
   if (authLoading || (loading && plan.length === 0)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50">
-        <div className="text-stone-600">Загрузка...</div>
+      <div className="flex min-h-screen items-center justify-center bg-stone-50 dark:bg-stone-900">
+        <div className="text-stone-600 dark:text-stone-400">Загрузка...</div>
       </div>
     );
   }

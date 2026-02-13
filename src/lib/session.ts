@@ -1,26 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export interface SessionData {
-  telegram_id: number;
   directus_id: string;
   first_name: string;
   last_name?: string;
   username?: string;
+  /** Токен Directus для запросов от имени пользователя (при входе по логину/паролю) */
+  access_token?: string;
 }
 
 const SESSION_COOKIE_NAME = 'bible-plan-session';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 дней
 
 /**
- * Создает сессию пользователя
+ * Создает сессию пользователя.
+ * path: '/' — cookie отправляется на все пути (в т.ч. /app/api/...) при basePath.
  */
 export function createSession(userData: SessionData, response?: NextResponse): NextResponse {
   const sessionValue = JSON.stringify(userData);
   
-  // Создаем response если не передан
   const res = response || NextResponse.next();
   
-  // Устанавливаем cookie
   res.cookies.set(SESSION_COOKIE_NAME, sessionValue, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -82,8 +82,22 @@ export async function getSession(): Promise<SessionData | null> {
 export function deleteSession(response?: NextResponse): NextResponse {
   const res = response || NextResponse.next();
   
-  res.cookies.delete(SESSION_COOKIE_NAME);
+  res.cookies.delete({
+    name: SESSION_COOKIE_NAME,
+    path: '/',
+  });
   
   return res;
+}
+
+/**
+ * Проверяет, является ли ошибка от Directus признаком истёкшего токена (401).
+ */
+export function isTokenExpiredError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { message?: string; response?: { status?: number } };
+  if (e.message?.includes?.('Token expired')) return true;
+  if (e.response?.status === 401) return true;
+  return false;
 }
 

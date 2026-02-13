@@ -7,6 +7,7 @@ import { BIBLE_STRUCTURE } from '@/lib/constants';
 import { getReferenceInfo } from '@/lib/ai';
 import { isAIEnabled } from '@/shared/utils/constants';
 import { parseReadingItem } from '@/shared/utils/bible';
+import { useTheme } from '@/components/ThemeProvider';
 import { useReadingSettings } from '../hooks/useReadingSettings';
 import { useBibleText } from '../hooks/useBibleText';
 import { useChapterNavigation } from '../hooks/useChapterNavigation';
@@ -47,7 +48,8 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
   const [infoLoading, setInfoLoading] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const { settings, updateSettings } = useReadingSettings();
+  const { effectiveTheme } = useTheme();
+  const { settings, updateSettings, isLoading: settingsLoading } = useReadingSettings();
   const { text, loading } = useBibleText(reading);
   const {
     currentItemState,
@@ -74,6 +76,11 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     dark: 'bg-stone-900 text-stone-100',
     sepia: 'bg-amber-50 text-stone-900'
   };
+  // Пока настройки не загружены, используем тему приложения — иначе в тёмной теме мелькает белый экран
+  const displayTheme: 'light' | 'dark' | 'sepia' =
+    settings.theme === 'system' || settingsLoading
+      ? effectiveTheme
+      : (settings.theme as 'light' | 'dark' | 'sepia');
 
   useEffect(() => {
     if (reading && contentRef.current) {
@@ -126,10 +133,10 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
 
   if (!reading) {
     return (
-      <div className="flex flex-col items-center justify-center h-full p-8 text-stone-400 bg-white">
+      <div className={`flex flex-col items-center justify-center h-full p-8 ${themeClasses[displayTheme]}`}>
         <Book size={64} className="mb-6 opacity-10" />
-        <h3 className="text-lg font-bold text-stone-700 mb-2">Библия</h3>
-        <p className="text-center text-stone-500 mb-8 max-w-xs">Выберите книгу и главу в плане чтения для начала изучения.</p>
+        <h3 className="text-lg font-bold text-stone-700 dark:text-stone-300 mb-2">Библия</h3>
+        <p className="text-center text-stone-500 dark:text-stone-400 mb-8 max-w-xs">Выберите книгу и главу в плане чтения для начала изучения.</p>
         <button 
           onClick={onBack}
           className="px-8 py-3 bg-red-600 text-white rounded-full font-bold shadow-lg active:scale-95 transition-transform"
@@ -143,7 +150,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
   const currentChapter = currentReadingState?.chapter || reading?.chapter || 1;
 
   return (
-    <div className={`flex flex-col h-full ${themeClasses[settings.theme as keyof typeof themeClasses] || themeClasses.light} relative pb-safe`}>
+    <div className={`flex flex-col h-full ${themeClasses[displayTheme] || themeClasses.light} relative pb-safe`}>
       <ReadingHeader
         currentReading={currentReadingState || reading}
         reading={reading}
@@ -155,12 +162,13 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
         onBookPickerClick={() => setShowBookPicker(true)}
       />
 
-      <div className={`flex-1 overflow-y-auto w-full ${themeClasses[settings.theme as keyof typeof themeClasses] || themeClasses.light}`} ref={contentRef}>
+      <div className={`flex-1 overflow-y-auto w-full ${themeClasses[displayTheme] || themeClasses.light}`} ref={contentRef}>
         <div className="max-w-xl mx-auto px-6 py-8 pb-32">
           <ReadingContent
             text={text}
             loading={loading}
             settings={settings}
+            displayTheme={displayTheme}
             contextInfo={contextInfo}
             infoLoading={infoLoading}
             onContextClose={() => setContextInfo(null)}
@@ -195,11 +203,11 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
           canNext={canGoNext()}
         />
       ) : !loading && currentReadingState && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-100 px-6 pb-safe h-[80px] flex items-center justify-between">
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-stone-800/95 backdrop-blur-md border-t border-stone-100 dark:border-stone-700 px-6 pb-safe h-[80px] flex items-center justify-between">
           <button 
             onClick={handlePrevChapter}
             disabled={!canGoPrev()}
-            className="p-3 text-stone-400 hover:text-stone-900 hover:bg-stone-50 active:scale-90 disabled:opacity-20 transition-all rounded-full"
+            className="p-3 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-700/50 active:scale-90 disabled:opacity-20 transition-all rounded-full"
           >
             <ChevronLeft size={28} strokeWidth={1.5} />
           </button>

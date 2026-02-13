@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { ArrowLeft, Check, Info, X } from 'lucide-react';
 import { ReadingPlanDay, BibleReference } from '@/types';
 import { Modal } from '@/shared/components/ui/Modal';
@@ -46,6 +46,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [toastMessage, setToastMessage] = useState('');
   const [selectedDayId, setSelectedDayId] = useState<number | null>(null);
   const lastActionDaysRef = useRef<number[] | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const filteredPlan = useMemo(() => plan.filter(d => d.id > 0), [plan]);
 
   // Получаем день года (1-365/366)
@@ -158,6 +159,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
     return Array.from(monthsMap.values());
   }, [filteredPlan, planMap, selectedDays, todayDayNumber]);
+
+  // При открытии календаря прокручиваем к месяцу с текущим днём
+  useEffect(() => {
+    if (months.length === 0) return;
+    const todayMonthEl = scrollContainerRef.current?.querySelector('[data-today-month="true"]');
+    if (todayMonthEl) {
+      todayMonthEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [months.length]);
 
   const selectedDay = selectedDayId ? planMap.get(selectedDayId) : null;
 
@@ -340,8 +350,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setShowToast(true);
   };
 
+  const currentMonthIndex = new Date().getMonth();
+
   return (
-    <div className="flex flex-col h-full bg-stone-100 text-stone-900 overflow-y-auto">
+    <div
+      ref={scrollContainerRef}
+      className="flex flex-col h-full bg-stone-100 text-stone-900 overflow-y-auto"
+    >
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white border-b border-stone-100 px-4 py-3 flex items-center gap-4 shadow-sm">
         <button
@@ -371,7 +386,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
 
         {months.map((month) => (
-          <div key={`${month.year}-${month.month}`} className="space-y-3">
+          <div
+            key={`${month.year}-${month.month}`}
+            className={`space-y-3 ${month.month === currentMonthIndex ? 'scroll-mt-20' : ''}`}
+            {...(month.month === currentMonthIndex ? { 'data-today-month': 'true' } : {})}
+          >
             {/* Month Header */}
             <h2 className="text-sm font-bold uppercase tracking-wider text-stone-500">
               {monthNames[month.month]} {month.year} Г.
