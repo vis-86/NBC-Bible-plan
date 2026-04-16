@@ -44,18 +44,19 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-app-success-muted rounded-full blur-2xl -ml-10 -mb-10" aria-hidden />
 
         <div className="relative bg-app-overlay-inner backdrop-blur-sm rounded-[28px] p-6 border border-white/5">
-          <div data-today-reading-card-header className="flex justify-between items-start mb-6">
+          <div data-today-reading-card-header className="flex justify-between items-center mb-6">
             <div>
-              <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center gap-3 mb-2">
                 <button
                   type="button"
                   data-today-reading-card-plan-badge
                   onClick={() => router.push('/dashboard/calendar')}
-                  className="px-2.5 py-0.5 rounded-md bg-app-success-muted border border-app-success/20 text-app-success text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-app-success/20 transition-colors inline-flex items-center gap-1"
-                  title="Открыть календарь"
+                  aria-label={`Открыть план на ${currentYear}`}
+                  className="px-2.5 py-0.5 rounded-md bg-app-success-muted border border-app-success/20 text-app-success text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-app-success/25 hover:border-app-success/40 active:scale-95 transition-all inline-flex items-center gap-1"
                 >
                   <Calendar size={12} />
                   План {currentYear}
+                  <ChevronRight size={10} strokeWidth={2.5} />
                 </button>
                 <span data-today-reading-card-day-counter className="text-app-text-inverse/50 text-xs">
                   День {day.id} из {totalDays}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useEffect, useRef } from 'react';
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReadingPlanDay } from '@/types';
 import { formatDateShort, getDayOfWeek } from '@/shared/utils/bible';
@@ -42,7 +42,12 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
   onSelectDay
 }) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
   const filteredPlan = useMemo(() => plan.filter(d => d.id > 0), [plan]);
+  const [isTodayCubeVisible, setIsTodayCubeVisible] = useState(true);
+  // Куда уехал куб "сегодня" когда он не виден: 'right' = сегодня правее видимой зоны
+  const [todayCubeOffscreen, setTodayCubeOffscreen] = useState<'left' | 'right'>('right');
 
   useEffect(() => {
     if (scrollContainerRef.current && selectedDayId) {
@@ -59,6 +64,39 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
     }
   }, [selectedDayId, filteredPlan.length]);
 
+  useEffect(() => {
+    // root должен быть клипающий overflow-x-auto контейнер (track),
+    // а не внутренний min-w-max flex — тот никогда не скрывает содержимое
+    const track = trackRef.current;
+    const inner = scrollContainerRef.current;
+    if (!track || !inner) return;
+
+    const todayEl = inner.querySelector<HTMLElement>(
+      `[data-day-nav-cube="${todayDayNumber}"]`
+    );
+    if (!todayEl) return;
+
+    observerRef.current?.disconnect();
+
+    observerRef.current = new IntersectionObserver(
+      ([entry]) => {
+        setIsTodayCubeVisible(entry.isIntersecting);
+        if (!entry.isIntersecting && entry.rootBounds) {
+          // Куб левее левого края трека — он "уехал влево", сегодня слева
+          // Куб правее правого края — он "уехал вправо", сегодня справа
+          const dir = entry.boundingClientRect.left < entry.rootBounds.left ? 'left' : 'right';
+          setTodayCubeOffscreen(dir);
+        }
+      },
+      { root: track, threshold: 0.8 }
+    );
+    observerRef.current.observe(todayEl);
+
+    return () => {
+      observerRef.current?.disconnect();
+    };
+  }, [todayDayNumber, filteredPlan.length]);
+
   const getDayStatus = (day: ReadingPlanDay): 'completed' | 'missed' | 'future' => {
     if (day.completed) {
       return 'completed';
@@ -74,6 +112,7 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
       {/* Scrollable track — overflow-x-auto clips absolute children, so the
           floating "Сегодня" button lives in the outer relative wrapper instead */}
       <div
+        ref={trackRef}
         data-day-nav-bar-track
         className="day-navigation-bar w-full overflow-x-auto pb-2 pt-8 pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
@@ -124,36 +163,67 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
       </div>
 
       {/* Floating "Сегодня" button — outside the overflow container so it's
-          not clipped; positioned absolute relative to data-day-nav-bar */}
-      {selectedDayId !== todayDayNumber && (
-        <div
-          className={cn(
-            'absolute inset-y-0 flex items-center pointer-events-none z-10',
-            selectedDayId !== null && selectedDayId < todayDayNumber
-              ? 'left-0 bg-gradient-to-r from-app-bg to-transparent pr-3 pl-1'
-              : 'right-0 bg-gradient-to-l from-app-bg to-transparent pl-3 pr-1'
-          )}
-        >
-          <button
-            data-day-nav-bar-today-btn
-            onClick={() => onSelectDay(todayDayNumber)}
-            className="pointer-events-auto h-9 px-3 bg-app-text text-app-text-inverse rounded-lg transition-all hover:opacity-90 active:scale-95 flex gap-1.5 items-center text-sm font-semibold shadow-app-md"
-            title="Перейти на сегодня"
-          >
-            {selectedDayId !== null && selectedDayId < todayDayNumber ? (
-              <>
-                <span>Сегодня</span>
-                <ChevronRight size={16} strokeWidth={2.5} />
-              </>
-            ) : (
-              <>
-                <ChevronLeft size={16} strokeWidth={2.5} />
-                <span>Сегодня</span>
-              </>
+          not clipped; positioned absolute relative to data-day-nav-bar.
+          Логика стороны:
+          - today правее вьюпорта (прошлое выбрано или куб уехал вправо) → кнопка СЛЕВА, шеврон →
+          - today левее вьюпорта (будущее выбрано или куб уехал влево) → кнопка СПРАВА, шеврон ← */}
+      {(!isTodayCubeVisible || selectedDayId !== todayDayNumber) && (() => {
+        const todayIsRight =
+          (selectedDayId !== null && selectedDayId < todayDayNumber) ||
+          (selectedDayId === todayDayNumber && todayCubeOffscreen === 'right');
+
+        return (
+          <div
+            className={cn(
+              'absolute inset-y-0 flex items-center pointer-events-none z-10',
+              todayIsRight
+                ? 'left-0 bg-gradient-to-r from-app-bg via-app-bg/80 to-transparent w-28 pl-0'
+                : 'right-0 bg-gradient-to-l from-app-bg via-app-bg/80 to-transparent w-28 pr-0'
             )}
-          </button>
-        </div>
-      )}
+          >
+            <button
+              data-day-nav-bar-today-btn
+              onClick={() => {
+                onSelectDay(todayDayNumber);
+                // Прямой скролл нужен когда selectedDayId уже равен todayDayNumber —
+                // в этом случае deps useEffect не меняются и scrollIntoView не вызывается
+                scrollContainerRef.current
+                  ?.querySelector<HTMLElement>(`[data-day-nav-cube="${todayDayNumber}"]`)
+                  ?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+              }}
+              aria-label="Перейти на сегодня"
+              className={cn(
+                'pointer-events-auto group flex items-center gap-1 h-8 rounded-full',
+                'bg-app-primary text-app-text-inverse',
+                'text-xs font-bold tracking-wide',
+                'shadow-app-sm transition-all duration-200',
+                'hover:scale-105 hover:shadow-app-md active:scale-95',
+                todayIsRight ? 'ml-1 pl-3 pr-2.5' : 'mr-1 pl-2.5 pr-3'
+              )}
+            >
+              {todayIsRight ? (
+                <>
+                  <span>Сегодня</span>
+                  <ChevronRight
+                    size={13}
+                    strokeWidth={3}
+                    className="transition-transform duration-200 group-hover:translate-x-0.5"
+                  />
+                </>
+              ) : (
+                <>
+                  <ChevronLeft
+                    size={13}
+                    strokeWidth={3}
+                    className="transition-transform duration-200 group-hover:-translate-x-0.5"
+                  />
+                  <span>Сегодня</span>
+                </>
+              )}
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 };
