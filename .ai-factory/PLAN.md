@@ -1,277 +1,152 @@
-# UI Improvements: DayNavigationBar + TodayReadingCard
+# Plan: Refactor Bottom Navigation Bar
 
 **Дата:** 2026-04-16  
 **Режим:** Fast  
 **Тесты:** нет  
-**Логирование:** стандартное
+**Логирование:** стандартное  
 
 ---
 
-## Настройки
+## Контекст и задачи
 
-- Testing: no
-- Logging: standard
-- Docs: no
+Рефакторинг нижней навигационной панели как Senior Frontend Developer:
 
----
+1. **Вынести в отдельную компоненту** — `BottomNavBar`
+2. **Убрать "Закладки"** — показывать только 3 пункта (Главная, Библия, Профиль) когда AI отключён
+3. **Индикатор снизу под названием** вместо точки сверху над иконкой
+4. **Починить навигацию с любого экрана** — перевести на URL-based подход через `usePathname`/`router.push`, убрать зависимость от `onChangeView` пропа
 
-## Контекст
+### Root Cause бага навигации
 
-Пять UI-улучшений для главного экрана дашборда (`/dashboard`):
+На страницах `/dashboard/settings` и `/dashboard/read/*` в `DashboardLayout` передаётся `onChangeView={() => {}}`. Клик по "Библия" вызывает `onChangeView(AppView.READER)`, которая ничего не делает. Переход на читалку не происходит.
 
-1. Кнопка «Календарь» в `DayNavigationBar` заменяется иконкой на бейдже в `TodayReadingCard`
-2. Исправить баг скролла к сегодняшнему дню (неверный data-атрибут в querySelector)
-3. Для не-сегодняшнего дня: менять заголовок карточки + «Сегодня» как floating overlay
-4. `data-today-reading-card-progress` → годовой прогресс (completedDays / totalDays)
-5. Исправить вертикальный скролл всего приложения
-
-**Затрагиваемые файлы:**
-- `src/features/plan/components/DayNavigationBar.tsx`
-- `src/features/plan/components/TodayReadingCard.tsx`
-- `src/features/plan/components/PlanView.tsx`
-- `src/shared/components/layout/DashboardLayout.tsx`
+**Решение:** Весь нижний navbar переводим на `router.push()` + `usePathname()` для определения активного пункта. `onChangeView` нужен только для CHAT (переключение вью внутри `/dashboard`).
 
 ---
 
 ## Задачи
 
-### Задача 1: Убрать кнопку «Календарь», добавить иконку в badge
+### Phase 1 — Компонент BottomNavBar
 
-**Файлы:** `DayNavigationBar.tsx`, `TodayReadingCard.tsx`
+#### Task 1: Создать `BottomNavBar` component
 
-**DayNavigationBar.tsx:**
-- Удалить весь блок `data-day-nav-bar-controls` (div с кнопкой «Календарь» и кнопкой «Сегодня», строки 75–98)
-- Компонент становится проще: только трек со скроллом + floating overlay для «Сегодня» (задача 4)
+**Файл:** `src/shared/components/layout/BottomNavBar.tsx`
 
-**TodayReadingCard.tsx:**
-- Добавить prop `onOpenCalendar?: () => void` (или использовать `useRouter` внутри)
-- Обернуть `data-today-reading-card-plan-badge` в `<button>` или `<a>` с `onClick` → navigate `/dashboard/calendar`
-- Добавить `<Calendar size={12} />` иконку слева внутри badge
-- Стили badge: добавить `cursor-pointer hover:bg-app-success/20 transition-colors`
-- Импорт `Calendar` из `lucide-react` и `useRouter` из `next/navigation`
+**Что делает:**
+- Принимает пропы: `onChangeView?: (view: AppView) => void` (для CHAT/REFERENCE переключения внутри dashboard)
+- Определяет активный пункт через `usePathname()` и `useSearchParams()`:
+  - pathname === `/dashboard` или `/app/dashboard` → HOME активен
+  - pathname начинается с `/dashboard/read` → READER активен (но nav скрыт на этой странице)
+  - pathname === `/dashboard/settings` → SETTINGS активен
+  - searchParams.get('view') === 'chat' → CHAT активен
+- Навигация через `router.push()` для всех пунктов:
+  - HOME → `router.push('/dashboard')`
+  - READER → `router.push('/dashboard/read/Бытие/1')`
+  - CHAT → `router.push('/dashboard?view=chat')` ИЛИ `onChangeView(AppView.CHAT)` если уже на `/dashboard`
+  - SETTINGS → `router.push('/dashboard/settings')`
+- Показывает только активные пункты (без "Закладок" когда AI выключен):
+  - AI включён: Главная, Библия, Пастырь, Профиль
+  - AI выключен: Главная, Библия, Профиль
+- Индикатор активного пункта — точка **под** label-ом (`absolute -bottom-1.5`)
+- Стилизация точно как в оригинале (glass-nav, rounded-[24px], etc.)
 
-**Результат:** нажатие на badge «📅 План 2026» открывает страницу календаря
-
----
-
-### Задача 2: Исправить скролл к сегодняшнему дню
-
-**Файл:** `DayNavigationBar.tsx`
-
-**Баг:** querySelector ищет `[data-day-navigation-cube="day-${selectedDayId}"]`,  
-но элементы имеют атрибут `data-day-nav-cube={day.id}` (строка 119).
-
-**Фикс (строка 51):**
 ```tsx
-// Было:
-`[data-day-navigation-cube="day-${selectedDayId}"]`
-// Стало:
-`[data-day-nav-cube="${selectedDayId}"]`
-```
-
-Также убедиться, что атрибут на кубиках передаёт `day.id` как строку (уже так в JSX через `{day.id}`).
-
-**Результат:** при выборе дня / первой загрузке полоса скроллится к нужному кубику.
-
----
-
-### Задача 3a: Заголовок карточки «Чтение на {dd mmm}» для не-сегодняшнего дня
-
-**Файлы:** `TodayReadingCard.tsx`, `PlanView.tsx`
-
-**TodayReadingCard.tsx — новые props:**
-```tsx
-interface TodayReadingCardProps {
-  // ... существующие
-  isToday: boolean;    // true когда selectedDayId === todayDayNumber
+// Структура nav item
+interface NavItem {
+  id: string;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
+  label: string;
+  href?: string;             // для router.push
+  view?: AppView;            // для onChangeView (только CHAT)
+  isFilled?: boolean;
 }
 ```
 
-**Логика заголовка (строка 52):**
-```tsx
-const title = isToday
-  ? 'Чтение на сегодня'
-  : `Чтение на ${formatDateShort(day.dateStr)}`;  // уже есть в @/shared/utils/bible
+**Логирование:**
 ```
-
-Импортировать `formatDateShort` из `@/shared/utils/bible`.
-
-**PlanView.tsx — передать prop:**
-```tsx
-<TodayReadingCard
-  ...
-  isToday={selectedDayId === todayDayNumber}
-/>
+console.debug('[BottomNavBar] navigate', { to: href, from: pathname })
 ```
-
-**Результат:** при выборе дня 5 января заголовок: «Чтение на 05 янв»
 
 ---
 
-### Задача 3b: Кнопка «Сегодня» — floating overlay над полосой навигации
+#### Task 2: Обновить `DashboardLayout` — использовать `BottomNavBar`
 
-**Файл:** `DayNavigationBar.tsx`
+**Файл:** `src/shared/components/layout/DashboardLayout.tsx`
 
-Кнопка показывается **только когда** `selectedDayId !== todayDayNumber`.
-
-Разместить поверх `data-day-nav-bar-track` с `position: relative` на обёртке:
+**Изменения:**
+- Импортировать `BottomNavBar`
+- Убрать весь inline nav код (navItems, handleNav, блок `<nav>`)
+- Условие показа nav переключить на URL-based: если pathname содержит `/read/` — скрываем nav. Иначе показываем.
+- Оставить пропы `currentView` и `onChangeView` для обратной совместимости, но передавать `onChangeView` в `BottomNavBar`
+- `hideBottomNav` проп оставить как запасной вариант
 
 ```tsx
-<div data-day-nav-bar className="flex flex-col gap-2 relative">
-  {/* трек со скроллом */}
-  <div data-day-nav-bar-track className="relative ...">
-    <div ref={scrollContainerRef} ...>
-      {/* кубики */}
-    </div>
+// В DashboardLayout вместо inline nav:
+const pathname = usePathname();
+const isReaderPage = pathname.includes('/read/');
 
-    {/* Floating overlay кнопка */}
-    {selectedDayId !== todayDayNumber && (
-      <div
-        className={cn(
-          "absolute top-0 bottom-0 flex items-center pointer-events-none z-10",
-          selectedDayId < todayDayNumber
-            ? "left-0 bg-gradient-to-r from-app-bg to-transparent pr-2"   // прошлое: слева
-            : "right-0 bg-gradient-to-l from-app-bg to-transparent pl-2"  // будущее: справа
-        )}
-      >
-        <button
-          data-day-nav-bar-today-btn
-          onClick={() => onSelectDay(todayDayNumber)}
-          className="pointer-events-auto h-9 px-3 bg-app-text text-app-text-inverse rounded-lg transition-all hover:opacity-90 active:scale-95 flex gap-1.5 items-center text-sm font-semibold shadow-app-md"
-          title="Перейти на сегодня"
-        >
-          {selectedDayId < todayDayNumber ? (
-            // Мы в прошлом — навигируем вправо (к сегодня)
-            <>
-              <span>Сегодня</span>
-              <ChevronRight size={16} strokeWidth={2.5} />
-            </>
-          ) : (
-            // Мы в будущем — навигируем влево (к сегодня)
-            <>
-              <ChevronLeft size={16} strokeWidth={2.5} />
-              <span>Сегодня</span>
-            </>
-          )}
-        </button>
-      </div>
-    )}
-  </div>
-</div>
+{!isReaderPage && !hideBottomNav && (
+  <BottomNavBar onChangeView={onChangeView} />
+)}
 ```
-
-Импортировать `ChevronLeft`, `ChevronRight` из `lucide-react`.  
-Убрать импорт `Calendar` из `DayNavigationBar` (больше не нужен).
-
-**Результат:** кнопка «Сегодня» с направляющей стрелкой, красиво вписанная в общий стиль, не занимает отдельную строку.
 
 ---
 
-### Задача 4: Годовой прогресс вместо дневного
+### Phase 2 — Dashboard page: поддержка ?view= param
 
-**Файлы:** `TodayReadingCard.tsx`, `PlanView.tsx`
+#### Task 3: Читать `?view=` параметр в `DashboardPage`
 
-**TodayReadingCard.tsx — новый prop:**
-```tsx
-interface TodayReadingCardProps {
-  // ... существующие
-  yearProgress: number;  // 0–100, процент завершённых дней за год
-}
+**Файл:** `src/app/dashboard/page.tsx`
+
+**Изменения:**
+- Добавить `useSearchParams()` (обернуть компонент в Suspense или использовать existing Suspense boundary)
+- При монтировании читать `searchParams.get('view')` и инициализировать `currentView`:
+  ```ts
+  const viewParam = searchParams.get('view');
+  const initialView = viewParam === 'chat' ? AppView.CHAT : AppView.PLAN;
+  const [currentView, setCurrentView] = useState<AppView>(initialView);
+  ```
+- При изменении `currentView` (через `onChangeView`) обновлять URL без перезагрузки через `router.replace`:
+  ```ts
+  // В handleChangeView:
+  if (view === AppView.CHAT) router.replace('/dashboard?view=chat', { scroll: false });
+  else if (view === AppView.PLAN) router.replace('/dashboard', { scroll: false });
+  ```
+- Это обеспечит: перейдя на `/dashboard/settings` и кликнув "Пастырь" в nav → попадёт на `/dashboard?view=chat`
+
+**Логирование:**
 ```
-
-Заменить `progressPercent` (дневной) на `yearProgress` в SVG-круге:
-
-```tsx
-// Убрать:
-const completedCount = day.items?.filter(...).length ?? 0;
-const totalItems = ...;
-const progressPercent = ...;
-const strokeDashoffset = CIRCLE - (CIRCLE * progressPercent) / 100;
-
-// Добавить расчёт для кольца:
-const strokeDashoffset = CIRCLE - (CIRCLE * yearProgress) / 100;
+console.debug('[DashboardPage] view from URL param', { viewParam, initialView })
 ```
-
-Обновить aria-label и текст внутри круга:
-```tsx
-aria-label={`Годовой прогресс: ${yearProgress}%`}
-// текст:
-<span ...>{yearProgress}%</span>
-```
-
-**PlanView.tsx — вычислить и передать:**
-```tsx
-const completedDaysCount = filteredPlan.filter((d) => d.completed).length;
-// totalDays уже есть через filteredPlan.length
-const yearProgressPercent = filteredPlan.length > 0
-  ? Math.round((completedDaysCount / filteredPlan.length) * 100)
-  : 0;
-
-<TodayReadingCard
-  ...
-  yearProgress={yearProgressPercent}
-/>
-```
-
-Переменная `streak` (строка 231) остаётся — она может использоваться в других местах.
-
-**Результат:** кольцо прогресса показывает % прочитанных дней за весь год.
 
 ---
 
-### Задача 5: Исправить вертикальный скролл
+### Phase 3 — Cleanup
 
-**Файл:** `src/features/plan/components/PlanView.tsx`
+#### Task 4: Удалить `BookMarked` из импортов `DashboardLayout`
 
-**Причина бага:**  
-`PlanView` имеет `min-h-full overflow-y-auto`. С `min-h-full` элемент расширяется под контент и `overflow-y-auto` не создаёт scrollbar — нужна фиксированная высота.
+**Файл:** `src/shared/components/layout/DashboardLayout.tsx`
 
-**Фикс в PlanView (строка 244):**
-```tsx
-// Было:
-className="flex flex-col min-h-full bg-app-bg text-app-text overflow-y-auto pb-32"
-// Стало:
-className="flex flex-col h-full bg-app-bg text-app-text overflow-y-auto pb-32"
-```
-
-**Дополнительно проверить цепочку высот:**  
-В `DashboardLayout.tsx` (строка 53–54):
-- `data-dashboard-layout-main`: `flex-1 overflow-hidden` — ОК, задаёт высоту
-- Внутренний div `max-w-md mx-auto h-full` — ОК
-
-В `dashboard/page.tsx` (строка 187):
-- Обёртка PlanView: `block h-full` — ОК
-
-С заменой `min-h-full` на `h-full` в PlanView цепочка замкнётся и скролл заработает.
-
-**Результат:** страница скроллится вертикально когда контент выходит за нижнюю границу экрана.
+- Убрать импорт `BookMarked` из `lucide-react` (больше не используется)
+- Убрать импорт `AppView` если не используется в layout (перенесено в BottomNavBar)
+- Убрать тип `navItems` и `handleNav` функцию
+- Проверить что пропы интерфейса `DashboardLayoutProps` всё ещё корректны
 
 ---
 
-## Порядок реализации
+## Итого файлы
 
-```
-Задача 2 → Задача 1 → Задача 3a → Задача 3b → Задача 4 → Задача 5
-```
-
-(Задача 2 первая — самая изолированная, быстро проверяемая. Задача 5 последняя — затрагивает layout.)
-
----
-
-## Примечания
-
-- `formatDateShort` уже экспортируется из `@/shared/utils/bible` — использовать без изменений
-- `ChevronLeft`/`ChevronRight` уже импортируются в `PlanView.tsx` — добавить в `DayNavigationBar.tsx`
-- Утилита `cn` доступна через `@/shared/utils/cn`
-- Годовой прогресс в круге — числовое значение 0-100, без анимации пересчёта (просто обновляется при изменении props)
+| Действие | Файл |
+|----------|------|
+| CREATE | `src/shared/components/layout/BottomNavBar.tsx` |
+| MODIFY | `src/shared/components/layout/DashboardLayout.tsx` |
+| MODIFY | `src/app/dashboard/page.tsx` |
 
 ---
 
-## Чеклист выполнения
+## Архитектурные решения
 
-- [x] Задача 1: Убрать кнопку «Календарь», добавить иконку в badge
-- [x] Задача 2: Исправить скролл к сегодняшнему дню
-- [x] Задача 3a: Заголовок карточки «Чтение на {dd mmm}» для не-сегодняшнего дня
-- [x] Задача 3b: Кнопка «Сегодня» — floating overlay над полосой навигации
-- [x] Задача 4: Годовой прогресс вместо дневного
-- [x] Задача 5: Исправить вертикальный скролл
+- **URL-first навигация**: активный пункт определяется из `usePathname()`, а не из проп `currentView`. Это делает nav независимым от состояния страницы.
+- **CHAT как исключение**: единственный пункт, который не имеет отдельного route — управляется через `?view=chat` query param и `onChangeView`. Это сохраняет текущую архитектуру без лишних новых страниц.
+- **Обратная совместимость**: `DashboardLayout` сохраняет все пропы (`currentView`, `onChangeView`, `hideBottomNav`) — Read и Settings страницы не требуют изменений.
+- **Без Suspense overhead**: `useSearchParams` в DashboardPage уже клиентский компонент (`'use client'`), Next.js требует обернуть в Suspense — добавим `<Suspense>` на уровне export.

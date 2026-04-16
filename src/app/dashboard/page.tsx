@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { AppView, BibleReference } from '@/types';
 import { parseReadingItem } from '@/shared/utils/bible';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,10 +15,16 @@ import { useProgress } from '@/features/plan/hooks/useProgress';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { preloadChapters } from '@/features/reading/bible-text-cache';
 
-export default function DashboardPage() {
+function DashboardPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading: authLoading } = useAuth();
-  const [currentView, setCurrentView] = useState<AppView>(AppView.PLAN);
+
+  const viewParam = searchParams.get('view');
+  const initialView = viewParam === 'chat' ? AppView.CHAT : AppView.PLAN;
+  console.debug('[DashboardPage] view from URL param', { viewParam, initialView });
+
+  const [currentView, setCurrentView] = useState<AppView>(initialView);
   const hasInitialized = useRef(false);
   const lastUserId = useRef<string | null>(null);
   const hasLoadedPlan = useRef(false);
@@ -87,47 +93,39 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (currentView === AppView.READER) {
-      // При выборе вида READER перенаправляем на страницу чтения
-      // Если нет сохраненного последнего прочтения, открываем Бытие 1
       router.push('/dashboard/read/Бытие/1');
     }
   }, [currentView, router]);
+
+  const handleChangeView = (view: AppView) => {
+    setCurrentView(view);
+    if (view === AppView.CHAT) {
+      router.replace('/dashboard?view=chat', { scroll: false });
+    } else if (view === AppView.PLAN) {
+      router.replace('/dashboard', { scroll: false });
+    }
+  };
 
   const handleSelectReading = (day: any, reading: BibleReference) => {
     const item = day.items.find((i: any) => {
       const itemReading = parseReadingItem(i.readText);
       return itemReading && itemReading.book === reading.book && itemReading.chapter === reading.chapter;
     });
-    
+
     let path = `/dashboard/read/${encodeURIComponent(reading.book)}/${reading.chapter}`;
-    
+
     if (item) {
       path += `?day=${day.id}&item=${item.item}`;
     }
-    
+
     router.push(path);
-  };
-  
-  const handleChapterRead = async (dayId: number, itemNumber: number) => {
-    try {
-      await toggleItem(dayId, itemNumber);
-      // Не вызываем fetchPlan() - оптимистичное обновление через GraphQL уже применено
-      // Состояние обновляется локально через setPlan в useProgress
-    } catch (error) {
-      console.error('Error toggling item:', error);
-      // При ошибке обновляем данные для синхронизации
-      await fetchPlan();
-    }
   };
 
   const handleToggleComplete = async (dayId: number) => {
     try {
       await toggleComplete(dayId);
-      // Не вызываем fetchPlan() - оптимистичное обновление через GraphQL уже применено
-      // Состояние обновляется локально через setPlan в useProgress
     } catch (error) {
       console.error('Error toggling complete:', error);
-      // При ошибке обновляем данные для синхронизации
       await fetchPlan();
     }
   };
@@ -135,11 +133,8 @@ export default function DashboardPage() {
   const handleToggleItem = async (dayId: number, itemNumber: number) => {
     try {
       await toggleItem(dayId, itemNumber);
-      // Не вызываем fetchPlan() - оптимистичное обновление через GraphQL уже применено
-      // Состояние обновляется локально через setPlan в useProgress
     } catch (error) {
       console.error('Error toggling item:', error);
-      // При ошибке обновляем данные для синхронизации
       await fetchPlan();
     }
   };
@@ -157,7 +152,6 @@ export default function DashboardPage() {
     });
   };
 
-  // Показываем загрузку только при первой загрузке (когда данных еще нет)
   if (authLoading || (loading && plan.length === 0)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-stone-50 dark:bg-stone-900">
@@ -182,11 +176,9 @@ export default function DashboardPage() {
 
     return (
       <>
-        {/* Рендерим все компоненты всегда, но показываем только активный через CSS */}
-        {/* Это сохраняет состояние компонентов при переключении табов */}
         <div className={currentView === AppView.PLAN ? 'block h-full' : 'hidden'}>
-          <PlanView 
-            plan={plan} 
+          <PlanView
+            plan={plan}
             readChapters={readChapters}
             onSelectReading={handleSelectReading}
             onToggleComplete={handleToggleComplete}
@@ -205,14 +197,27 @@ export default function DashboardPage() {
             </div>
           </>
         )}
-        {/* READER обрабатывается через редирект в useEffect */}
       </>
     );
   };
 
   return (
-    <DashboardLayout currentView={currentView} onChangeView={setCurrentView}>
+    <DashboardLayout currentView={currentView} onChangeView={handleChangeView}>
       {renderContent()}
     </DashboardLayout>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-stone-50 dark:bg-stone-900">
+          <div className="text-stone-600 dark:text-stone-400">Загрузка...</div>
+        </div>
+      }
+    >
+      <DashboardPageInner />
+    </Suspense>
   );
 }
