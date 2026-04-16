@@ -20,8 +20,8 @@ export default function SettingsPage() {
 
   if (authLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50 dark:bg-stone-900">
-        <div className="text-stone-600 dark:text-stone-400">Загрузка...</div>
+      <div className="flex min-h-screen items-center justify-center bg-app-bg">
+        <div className="text-app-text-muted">Загрузка...</div>
       </div>
     );
   }
@@ -33,14 +33,14 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout currentView={AppView.SETTINGS} onChangeView={() => {}}>
-      <div className="h-full overflow-y-auto bg-stone-50 dark:bg-stone-900">
+      <div className="h-full overflow-y-auto bg-app-bg">
         <div className="max-w-md mx-auto px-4 py-6">
-          <h1 className="text-xl font-semibold text-stone-900 dark:text-stone-100 mb-6">
+          <h1 className="text-xl font-semibold text-app-text mb-6">
             Настройки
           </h1>
 
           <section className="space-y-3">
-            <h2 className="text-sm font-medium text-stone-600 dark:text-stone-400">
+            <h2 className="text-sm font-medium text-app-text-secondary">
               Тема интерфейса
             </h2>
             <div className="grid grid-cols-1 gap-2">
@@ -50,13 +50,13 @@ export default function SettingsPage() {
                   onClick={() => setThemePreference(opt.value)}
                   className={`flex items-center justify-between rounded-xl border-2 px-4 py-3 text-left transition-all ${
                     themePreference === opt.value
-                      ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 font-medium'
-                      : 'border-stone-200 dark:border-stone-700 text-stone-700 dark:text-stone-300 hover:border-stone-300 dark:hover:border-stone-600'
+                      ? 'border-app-primary bg-app-primary-light text-app-primary font-medium'
+                      : 'border-app-border text-app-text-secondary hover:border-app-border-strong'
                   }`}
                 >
                   <span>{opt.label}</span>
                   {themePreference === opt.value && (
-                    <span className="text-red-500 dark:text-red-400" aria-hidden>✓</span>
+                    <span className="text-app-primary" aria-hidden>✓</span>
                   )}
                 </button>
               ))}

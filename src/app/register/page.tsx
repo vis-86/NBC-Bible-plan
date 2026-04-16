@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { directus } from '@/lib/directus';
 import { registerUser } from '@directus/sdk';
 
+const inputClass =
+  'mt-1 block w-full rounded-md border border-app-border bg-app-surface-muted px-3 py-2 text-app-text placeholder-app-text-subtle focus:border-app-primary/50 focus:outline-none focus:ring-1 focus:ring-app-primary/30';
+
 export default function RegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -31,11 +34,8 @@ export default function RegisterPage() {
     setLoading(true);
 
     try {
-      // Используем SDK для регистрации
       await directus.request(registerUser(email, password));
-
-      // Автоматически входим после регистрации
-      await directus.login({ email, password }, { mode: 'json', provider: 'local' , otp: ''});
+      await directus.login({ email, password }, { mode: 'json', provider: 'local', otp: '' });
       router.push('/dashboard');
       router.refresh();
     } catch (err: any) {
@@ -48,29 +48,26 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black px-4">
-      <div className="w-full max-w-md space-y-8 rounded-lg bg-white dark:bg-zinc-900 p-8 shadow-lg">
+    <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
+      <div className="w-full max-w-md space-y-8 rounded-lg bg-app-surface p-8 shadow-app-md">
         <div>
-          <h2 className="text-2xl font-semibold text-black dark:text-zinc-50">
+          <h2 className="text-2xl font-semibold text-app-text">
             Регистрация
           </h2>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-2 text-sm text-app-text-secondary">
             Создайте новый аккаунт
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-600 dark:text-red-400">
+            <div className="rounded-md bg-app-missed border border-app-missed-text/20 p-3 text-sm text-app-accent">
               {error}
             </div>
           )}
 
           <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-black dark:text-zinc-300"
-            >
+            <label htmlFor="email" className="block text-sm font-medium text-app-text">
               Email
             </label>
             <input
@@ -79,16 +76,13 @@ export default function RegisterPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-black dark:text-zinc-50 placeholder-zinc-400 focus:border-black dark:focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-zinc-500"
+              className={inputClass}
               placeholder="your@email.com"
             />
           </div>
 
           <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-black dark:text-zinc-300"
-            >
+            <label htmlFor="password" className="block text-sm font-medium text-app-text">
               Пароль
             </label>
             <input
@@ -97,16 +91,13 @@ export default function RegisterPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-black dark:text-zinc-50 placeholder-zinc-400 focus:border-black dark:focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-zinc-500"
+              className={inputClass}
               placeholder="Минимум 8 символов"
             />
           </div>
 
           <div>
-            <label
-              htmlFor="confirmPassword"
-              className="block text-sm font-medium text-black dark:text-zinc-300"
-            >
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-app-text">
               Подтвердите пароль
             </label>
             <input
@@ -115,7 +106,7 @@ export default function RegisterPage() {
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-black dark:text-zinc-50 placeholder-zinc-400 focus:border-black dark:focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-zinc-500"
+              className={inputClass}
               placeholder="••••••••"
             />
           </div>
@@ -123,19 +114,19 @@ export default function RegisterPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-black dark:bg-zinc-50 px-4 py-2 text-sm font-medium text-white dark:text-black transition-colors hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-md bg-app-text text-app-text-inverse px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Регистрация...' : 'Зарегистрироваться'}
           </button>
         </form>
 
         <div className="text-center text-sm">
-          <span className="text-zinc-600 dark:text-zinc-400">
+          <span className="text-app-text-secondary">
             Уже есть аккаунт?{' '}
           </span>
           <Link
             href="/login"
-            className="font-medium text-black dark:text-zinc-50 hover:underline"
+            className="font-medium text-app-text hover:underline"
           >
             Войти
           </Link>

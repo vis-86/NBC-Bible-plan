@@ -50,23 +50,23 @@ export const ReadingContent: React.FC<ReadingContentProps> = ({
   return (
     <>
       {isAIEnabled() && infoLoading && (
-        <div className="my-6 p-4 rounded-xl bg-stone-50 border border-stone-100 flex items-center gap-3 animate-pulse">
-          <Loader2 size={18} className="animate-spin text-stone-400" />
-          <span className="text-sm font-medium text-stone-500">Загрузка контекста...</span>
+        <div className="my-6 p-4 rounded-xl bg-app-surface-muted border border-app-border flex items-center gap-3 animate-pulse">
+          <Loader2 size={18} className="animate-spin text-app-text-muted" />
+          <span className="text-sm font-medium text-app-text-secondary">Загрузка контекста...</span>
         </div>
       )}
-      
+
       {isAIEnabled() && contextInfo && !infoLoading && (
-        <div className="my-6 bg-yellow-50/80 border border-yellow-100 rounded-xl p-5 relative">
-          <h4 className="font-bold text-yellow-800 text-sm uppercase tracking-wide mb-2 flex items-center gap-2">
+        <div className="my-6 bg-app-accent-light border border-app-accent/20 rounded-xl p-5 relative">
+          <h4 className="font-bold text-app-accent text-sm uppercase tracking-wide mb-2 flex items-center gap-2">
             <Info size={16} /> Контекст
           </h4>
-          <div className="text-sm text-yellow-900/80 leading-relaxed">
+          <div className="text-sm text-app-text leading-relaxed">
             <ReactMarkdown>{contextInfo}</ReactMarkdown>
           </div>
-          <button 
+          <button
             onClick={onContextClose}
-            className="absolute top-2 right-2 p-2 text-yellow-700/50 hover:text-yellow-800"
+            className="absolute top-2 right-2 p-2 text-app-text-muted hover:text-app-text"
           >
             ✕
           </button>

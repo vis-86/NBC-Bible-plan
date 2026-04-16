@@ -33,18 +33,18 @@ export const Modal: React.FC<ModalProps> = ({
         className="fixed inset-0 z-[70] flex items-center justify-center p-4"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className={`bg-white rounded-3xl shadow-2xl ${maxWidth} w-full p-8 relative animate-scale-in`}>
+        <div className={`bg-app-surface rounded-3xl shadow-app-lg ${maxWidth} w-full p-8 relative animate-scale-in`}>
           {/* Close button */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-2 text-stone-400 hover:text-stone-900 active:scale-90 transition-transform"
+            className="absolute top-4 right-4 p-2 text-app-text-muted hover:text-app-text active:scale-90 transition-transform"
           >
             <X size={20} />
           </button>
 
           {/* Title */}
           {title && (
-            <h2 className="text-2xl font-bold text-stone-900 mb-4">
+            <h2 className="text-2xl font-bold text-app-text mb-4">
               {title}
             </h2>
           )}

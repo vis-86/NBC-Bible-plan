@@ -17,27 +17,22 @@ interface DayNavigationBarProps {
  * Получает стили для кубика дня навигации
  */
 const getDayCubeStyles = (status: 'completed' | 'missed' | 'future', isSelected: boolean): string => {
-  const baseStyles = 'day-navigation-cube flex-shrink-0 w-16 h-16 rounded-lg flex flex-col items-center justify-center relative transition-all duration-200 hover:scale-105 active:scale-95';
-  
+  const baseStyles = 'day-navigation-cube flex-shrink-0 w-14 h-16 rounded-lg flex flex-col items-center justify-center relative transition-all duration-200 hover:scale-105 active:scale-95';
+
   const statusStyles = {
-    completed: 'bg-green-500 text-white dark:bg-green-600',
-    missed: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300',
-    future: 'bg-white dark:bg-stone-700 text-stone-700 dark:text-stone-200'
+    completed: 'bg-app-success text-app-text-inverse',
+    missed: 'bg-app-missed text-app-missed-text',
+    future: 'text-app-text',
   };
 
-  const selectedStyles = isSelected 
-    ? {
-        completed: 'border-1 border-green-700 dark:border-green-500 shadow-md',
-        missed: 'border-1 border-red-400 dark:border-red-500 shadow-md',
-        future: 'border-1 border-stone-800 dark:border-stone-400 shadow-md'
-      }
-    : {
-        completed: '',
-        missed: 'border border-red-200 dark:border-red-800',
-        future: 'border border-stone-200 dark:border-stone-600'
-      };
+  const selectedRing = isSelected ? 'ring-2 ring-offset-1 ring-offset-app-bg' : '';
+  const selectedRingColor = {
+    completed: 'ring-app-success',
+    missed: 'ring-app-missed-text',
+    future: 'ring-app-text-muted',
+  };
 
-  return `${baseStyles} ${statusStyles[status]} ${selectedStyles[status]}`;
+  return `${baseStyles} ${statusStyles[status]} ${selectedRing} ${isSelected ? selectedRingColor[status] : ''}`;
 };
 
 export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
@@ -49,7 +44,6 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
   const router = useRouter();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const filteredPlan = useMemo(() => plan.filter(d => d.id > 0), [plan]);
-  const currentYear = new Date().getFullYear();
 
   useEffect(() => {
     if (scrollContainerRef.current && selectedDayId) {
@@ -77,13 +71,13 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
   };
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex justify-between items-center px-1 h-8">
+    <div data-day-nav-bar className="flex flex-col gap-2">
+      <div data-day-nav-bar-controls className="flex justify-between items-center px-1 h-8">
         <div className="flex items-center gap-2 px-4">
-          <span className="text-base sm:text-lg font-bold text-stone-900 dark:text-stone-100 uppercase tracking-wider">План чтения {currentYear}</span>
           <button
+            data-day-nav-bar-calendar-btn
             onClick={() => router.push('/dashboard/calendar')}
-            className="p-2 text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-200 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-stone-200 dark:border-stone-600 hover:border-blue-300 dark:hover:border-blue-600 rounded-lg transition-all active:scale-95 flex items-center gap-1.5"
+            className="p-2 text-app-text-secondary hover:text-app-text hover:bg-app-primary-light border border-app-border hover:border-app-primary/30 rounded-lg transition-all active:scale-95 flex items-center gap-1.5"
             title="Открыть календарь"
           >
             <Calendar size={18} strokeWidth={2.5} />
@@ -92,25 +86,25 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
         </div>
         {selectedDayId !== todayDayNumber && (
           <button
-            data-day-navigation-today-button
+            data-day-nav-bar-today-btn
             onClick={() => onSelectDay(todayDayNumber)}
-            className="h-9 p-2 bg-stone-900 dark:bg-stone-700 text-white border border-white/20 dark:border-stone-500 rounded-lg transition-all hover:bg-stone-800 dark:hover:bg-stone-600 active:scale-95 flex flex-col items-center justify-center leading-none"
+            className="h-9 p-2 bg-app-text text-app-text-inverse border border-app-border-subtle rounded-lg transition-all hover:opacity-90 active:scale-95 flex gap-2 items-center justify-center leading-none"
             title="Перейти на сегодня"
           >
             <Calendar size={16} strokeWidth={2.5} />
-            <span className="text-[9px] font-semibold mt-0.5">Сегодня</span>
+            <span className="font-semibold">Сегодня</span>
           </button>
         )}
       </div>
 
-      <div 
-        data-day-navigation-bar="container"
-        className="day-navigation-bar w-full overflow-x-auto pb-2 pt-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+      <div
+        data-day-nav-bar-track
+        className="day-navigation-bar w-full overflow-x-auto pb-2 pt-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
-        <div 
+        <div
           ref={scrollContainerRef}
-          data-day-navigation-bar="scroll-container"
-          className="day-navigation-bar-scroll-container flex gap-2 min-w-max"
+          data-day-nav-bar-scroll
+          className="day-navigation-bar-scroll flex gap-3 min-w-max"
         >
           {filteredPlan.map(day => {
             const status = getDayStatus(day);
@@ -121,40 +115,30 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
             return (
               <button
                 key={day.id}
-                data-day-navigation-cube={`day-${day.id}`}
-                data-day-navigation-cube-status={status}
-                data-day-navigation-cube-selected={isSelected}
+                data-day-nav-cube={day.id}
+                data-day-nav-cube-status={status}
+                data-day-nav-cube-selected={isSelected || undefined}
                 onClick={() => onSelectDay(day.id)}
                 className={getDayCubeStyles(status, isSelected)}
               >
-                {/* Галочка для прочитанных дней */}
                 {status === 'completed' && (
-                  <Check 
-                    data-day-navigation-cube-check={`day-${day.id}-check`}
-                    size={14} 
-                    className="day-navigation-cube-check absolute top-1 right-1 text-white" 
+                  <Check
+                    data-day-nav-cube-check
+                    size={14}
+                    className="day-navigation-cube-check absolute top-1 right-1 text-white"
                     strokeWidth={3}
                   />
                 )}
-                
-                {/* День недели */}
-                <span className="text-[10px] uppercase font-medium opacity-80 mb-0.5">
+
+                <span data-day-nav-cube-weekday className="text-[10px] uppercase font-medium opacity-80 mb-0.5">
                   {dayOfWeek}
                 </span>
 
-                {/* Номер дня */}
-                <span 
-                  data-day-navigation-cube-number={`day-${day.id}-number`}
-                  className="day-navigation-cube-number text-base font-black leading-tight"
-                >
+                <span data-day-nav-cube-number className="day-navigation-cube-number text-base font-black leading-tight">
                   {day.id}
                 </span>
-                
-                {/* Дата */}
-                <span 
-                  data-day-navigation-cube-date={`day-${day.id}-date`}
-                  className="day-navigation-cube-date text-[10px] font-medium opacity-80"
-                >
+
+                <span data-day-nav-cube-date className="day-navigation-cube-date text-[10px] font-medium opacity-80">
                   {formattedDate}
                 </span>
               </button>

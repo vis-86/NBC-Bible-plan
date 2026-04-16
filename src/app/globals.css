@@ -3,19 +3,117 @@
 /* Use data-theme attribute for dark: variant (ThemeProvider sets it on html) */
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/* ═══════════════════════════════════════════════════════════════════════════
+   DESIGN TOKEN SYSTEM — "Sacred Minimal"
+   Single source of truth for all colors, shadows, and borders.
+   Light theme is the default; dark overrides via [data-theme="dark"].
+   ═══════════════════════════════════════════════════════════════════════════ */
 
+:root,
 [data-theme="light"] {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Legacy tokens (keep for backward-compat) */
+  --background: #FAFAF9;
+  --foreground: #1c1917;
+
+  /* ── Backgrounds ─────────────────────────────────────────────────── */
+  --app-bg: #FAFAF9;                        /* warm off-white page bg */
+  --app-surface: #ffffff;                   /* card surfaces */
+  --app-surface-elevated: #f8f7f5;          /* raised surfaces */
+  --app-surface-muted: #F5F5F4;             /* muted / subdued surfaces */
+  --app-overlay: #1E293B;                   /* dark hero overlay (TodayReadingCard) */
+  --app-overlay-inner: rgba(15,23,42,0.5);  /* inner blur layer for overlay */
+
+  /* ── Text ────────────────────────────────────────────────────────── */
+  --app-text: #1c1917;             /* stone-900 */
+  --app-text-secondary: #57534e;   /* stone-600 */
+  --app-text-muted: #a8a29e;       /* stone-400 */
+  --app-text-subtle: #d6d3d1;      /* stone-300 */
+  --app-text-inverse: #ffffff;
+
+  /* ── Primary — Indigo (plan / navigation) ────────────────────────── */
+  --app-primary: #4f46e5;          /* indigo-600 */
+  --app-primary-hover: #4338ca;    /* indigo-700 */
+  --app-primary-light: #eef2ff;    /* indigo-50 */
+  --app-primary-muted: rgba(79,70,229,0.15);
+
+  /* ── Accent — Red (reading) ──────────────────────────────────────── */
+  --app-accent: #dc2626;           /* red-600 */
+  --app-accent-hover: #b91c1c;     /* red-700 */
+  --app-accent-light: #fef2f2;     /* red-50 */
+  --app-accent-muted: rgba(220,38,38,0.15);
+
+  /* ── Success — Emerald (progress) ───────────────────────────────── */
+  --app-success: #10b981;          /* emerald-500 */
+  --app-success-dark: #059669;     /* emerald-600 */
+  --app-success-light: #ecfdf5;    /* emerald-50 */
+  --app-success-muted: rgba(16,185,129,0.15);
+
+  /* ── Missed — Warm Red ───────────────────────────────────────────── */
+  --app-missed: #fecaca;           /* red-200 bg */
+  --app-missed-text: #dc2626;      /* red-600 text */
+
+  /* ── Borders ─────────────────────────────────────────────────────── */
+  --app-border: rgba(0,0,0,0.06);
+  --app-border-subtle: rgba(0,0,0,0.04);
+  --app-border-strong: rgba(0,0,0,0.12);
+
+  /* ── Shadows ─────────────────────────────────────────────────────── */
+  --app-shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
+  --app-shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+  --app-shadow-card: 0 8px 32px rgba(15,23,42,0.12);
 }
 
 [data-theme="dark"] {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  /* Legacy */
+  --background: #1c1917;
+  --foreground: #e7e5e4;
+
+  /* ── Backgrounds ─────────────────────────────────────────────────── */
+  --app-bg: #1c1917;                        /* stone-900 */
+  --app-surface: #292524;                   /* stone-800 */
+  --app-surface-elevated: #312e2b;          /* stone-750 */
+  --app-surface-muted: #3b3634;             /* stone-700 */
+  --app-overlay: #334155;                   /* slate-700 (lighter in dark mode) */
+  --app-overlay-inner: rgba(51,65,85,0.5);
+
+  /* ── Text ────────────────────────────────────────────────────────── */
+  --app-text: #e7e5e4;             /* stone-200 */
+  --app-text-secondary: #a8a29e;   /* stone-400 */
+  --app-text-muted: #78716c;       /* stone-500 */
+  --app-text-subtle: #57534e;      /* stone-600 */
+  --app-text-inverse: #1c1917;
+
+  /* ── Primary ─────────────────────────────────────────────────────── */
+  --app-primary: #818cf8;          /* indigo-400 */
+  --app-primary-hover: #6366f1;    /* indigo-500 */
+  --app-primary-light: rgba(79,70,229,0.15);
+  --app-primary-muted: rgba(129,140,248,0.15);
+
+  /* ── Accent ──────────────────────────────────────────────────────── */
+  --app-accent: #f87171;           /* red-400 */
+  --app-accent-hover: #ef4444;     /* red-500 */
+  --app-accent-light: rgba(220,38,38,0.15);
+  --app-accent-muted: rgba(248,113,113,0.15);
+
+  /* ── Success ─────────────────────────────────────────────────────── */
+  --app-success: #34d399;          /* emerald-400 */
+  --app-success-dark: #10b981;     /* emerald-500 */
+  --app-success-light: rgba(16,185,129,0.15);
+  --app-success-muted: rgba(52,211,153,0.15);
+
+  /* ── Missed ──────────────────────────────────────────────────────── */
+  --app-missed: rgba(220,38,38,0.2);
+  --app-missed-text: #f87171;      /* red-400 */
+
+  /* ── Borders ─────────────────────────────────────────────────────── */
+  --app-border: rgba(255,255,255,0.08);
+  --app-border-subtle: rgba(255,255,255,0.05);
+  --app-border-strong: rgba(255,255,255,0.15);
+
+  /* ── Shadows ─────────────────────────────────────────────────────── */
+  --app-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+  --app-shadow-md: 0 4px 16px rgba(0,0,0,0.4);
+  --app-shadow-card: 0 8px 32px rgba(0,0,0,0.5);
 }
 
 @layer utilities {
@@ -39,10 +137,56 @@
 }
 
 @theme inline {
+  /* Legacy */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+
+  /* ── App design token mappings ───────────────────────────────────── */
+  --color-app-bg: var(--app-bg);
+  --color-app-surface: var(--app-surface);
+  --color-app-surface-elevated: var(--app-surface-elevated);
+  --color-app-surface-muted: var(--app-surface-muted);
+  --color-app-overlay: var(--app-overlay);
+  --color-app-overlay-inner: var(--app-overlay-inner);
+
+  --color-app-text: var(--app-text);
+  --color-app-text-secondary: var(--app-text-secondary);
+  --color-app-text-muted: var(--app-text-muted);
+  --color-app-text-subtle: var(--app-text-subtle);
+  --color-app-text-inverse: var(--app-text-inverse);
+
+  --color-app-primary: var(--app-primary);
+  --color-app-primary-hover: var(--app-primary-hover);
+  --color-app-primary-light: var(--app-primary-light);
+  --color-app-primary-muted: var(--app-primary-muted);
+
+  --color-app-accent: var(--app-accent);
+  --color-app-accent-hover: var(--app-accent-hover);
+  --color-app-accent-light: var(--app-accent-light);
+  --color-app-accent-muted: var(--app-accent-muted);
+
+  --color-app-success: var(--app-success);
+  --color-app-success-dark: var(--app-success-dark);
+  --color-app-success-light: var(--app-success-light);
+  --color-app-success-muted: var(--app-success-muted);
+
+  --color-app-missed: var(--app-missed);
+  --color-app-missed-text: var(--app-missed-text);
+
+  --color-app-border: var(--app-border);
+  --color-app-border-subtle: var(--app-border-subtle);
+  --color-app-border-strong: var(--app-border-strong);
+
+  /* ── Shadow utilities ────────────────────────────────────────────── */
+  --shadow-app-sm: var(--app-shadow-sm);
+  --shadow-app-md: var(--app-shadow-md);
+  --shadow-app-lg: var(--app-shadow-md);
+  --shadow-app-card: var(--app-shadow-card);
+
+  /* ── Fonts ───────────────────────────────────────────────────────── */
+  --font-sans: var(--font-plus-jakarta), var(--font-geist-sans), ui-sans-serif, sans-serif;
   --font-mono: var(--font-geist-mono);
+  --font-serif: var(--font-lora), ui-serif, serif;
 }
 
 /* Fallback when data-theme is not set yet (e.g. before hydration or no JS) */
@@ -54,8 +198,8 @@
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--app-bg);
+  color: var(--app-text);
   font-family: Arial, Helvetica, sans-serif;
 }
 
@@ -119,14 +263,42 @@ select,
 }
 
 /* Hide scrollbar for Chrome, Safari and Opera */
-.no-scrollbar::-webkit-scrollbar {
+.no-scrollbar::-webkit-scrollbar,
+.hide-scrollbar::-webkit-scrollbar {
     display: none;
 }
 
 /* Hide scrollbar for IE, Edge and Firefox */
-.no-scrollbar {
+.no-scrollbar,
+.hide-scrollbar {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
+}
+
+/* Redesign: glass panels and nav */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+[data-theme="dark"] .glass-panel {
+  background: rgba(41, 37, 36, 0.75); /* stone-800 */
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.glass-nav {
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.02);
+}
+
+[data-theme="dark"] .glass-nav {
+  background: rgba(28, 25, 23, 0.88); /* stone-900 */
+  border-color: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
 }
 
 /* Custom shadow for mobile feel */

@@ -103,7 +103,7 @@ export const BookPicker: React.FC<BookPickerProps> = ({
           {/* Кнопка назад */}
           <button
             onClick={handleBackToBooks}
-            className="flex items-center gap-2 mb-4 text-stone-600 hover:text-stone-900 transition-colors"
+            className="flex items-center gap-2 mb-4 text-app-text-secondary hover:text-app-text transition-colors"
           >
             <ArrowLeft size={18} />
             <span className="text-sm font-medium">Назад к книгам</span>
@@ -119,9 +119,9 @@ export const BookPicker: React.FC<BookPickerProps> = ({
                   onClick={() => handleChapterClick(chapter)}
                   className={`
                     aspect-square rounded-lg border-2 flex items-center justify-center text-sm font-bold transition-all
-                    ${isCurrent 
-                      ? 'border-red-500 bg-red-50 text-red-700' 
-                      : 'border-stone-200 hover:border-stone-300 bg-white text-stone-900 hover:bg-stone-50'
+                    ${isCurrent
+                      ? 'border-app-primary bg-app-primary-light text-app-primary'
+                      : 'border-app-border hover:border-app-border-subtle bg-app-surface text-app-text hover:bg-app-surface-muted'
                     }
                     active:scale-95
                   `}
@@ -145,13 +145,13 @@ export const BookPicker: React.FC<BookPickerProps> = ({
     >
       {loading && (
         <div className="flex items-center justify-center py-12">
-          <div className="text-stone-500">Загрузка...</div>
+          <div className="text-app-text-muted">Загрузка...</div>
         </div>
       )}
 
       {error && (
         <div className="flex items-center justify-center py-12">
-          <div className="text-red-500">{error}</div>
+          <div className="text-app-accent">{error}</div>
         </div>
       )}
 
@@ -159,7 +159,7 @@ export const BookPicker: React.FC<BookPickerProps> = ({
         <div className="space-y-6 pb-24">
           {/* Ветхий Завет */}
           <div>
-            <h3 className="text-sm font-bold text-stone-500 uppercase tracking-wider mb-3 sticky top-0 bg-white py-2 z-10">
+            <h3 className="text-sm font-bold text-app-text-muted uppercase tracking-wider mb-3 sticky top-0 bg-app-surface py-2 z-10">
               Ветхий Завет
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -171,9 +171,9 @@ export const BookPicker: React.FC<BookPickerProps> = ({
                     onClick={() => handleBookClick(book)}
                     className={`
                       p-3 rounded-lg border-2 text-left transition-all
-                      ${isCurrent 
-                        ? 'border-red-500 bg-red-50 text-red-700 font-semibold' 
-                        : 'border-stone-200 hover:border-stone-300 bg-white text-stone-900'
+                      ${isCurrent
+                        ? 'border-app-primary bg-app-primary-light text-app-primary font-semibold'
+                        : 'border-app-border hover:border-app-border-subtle bg-app-surface text-app-text'
                       }
                       active:scale-95
                     `}
@@ -181,7 +181,7 @@ export const BookPicker: React.FC<BookPickerProps> = ({
                     <div className="text-sm font-medium leading-tight mb-1">
                       {book.name}
                     </div>
-                    <div className="text-xs text-stone-500">
+                    <div className="text-xs text-app-text-muted">
                       {book.chapters} {book.chapters === 1 ? 'глава' : book.chapters < 5 ? 'главы' : 'глав'}
                     </div>
                   </button>
@@ -192,7 +192,7 @@ export const BookPicker: React.FC<BookPickerProps> = ({
 
           {/* Новый Завет */}
           <div>
-            <h3 className="text-sm font-bold text-stone-500 uppercase tracking-wider mb-3 sticky top-0 bg-white py-2 z-10">
+            <h3 className="text-sm font-bold text-app-text-muted uppercase tracking-wider mb-3 sticky top-0 bg-app-surface py-2 z-10">
               Новый Завет
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -204,9 +204,9 @@ export const BookPicker: React.FC<BookPickerProps> = ({
                     onClick={() => handleBookClick(book)}
                     className={`
                       p-3 rounded-lg border-2 text-left transition-all
-                      ${isCurrent 
-                        ? 'border-red-500 bg-red-50 text-red-700 font-semibold' 
-                        : 'border-stone-200 hover:border-stone-300 bg-white text-stone-900'
+                      ${isCurrent
+                        ? 'border-app-primary bg-app-primary-light text-app-primary font-semibold'
+                        : 'border-app-border hover:border-app-border-subtle bg-app-surface text-app-text'
                       }
                       active:scale-95
                     `}
@@ -214,7 +214,7 @@ export const BookPicker: React.FC<BookPickerProps> = ({
                     <div className="text-sm font-medium leading-tight mb-1">
                       {book.name}
                     </div>
-                    <div className="text-xs text-stone-500">
+                    <div className="text-xs text-app-text-muted">
                       {book.chapters} {book.chapters === 1 ? 'глава' : book.chapters < 5 ? 'главы' : 'глав'}
                     </div>
                   </button>

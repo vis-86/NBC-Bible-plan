@@ -18,9 +18,9 @@ export const Button: React.FC<ButtonProps> = ({
   const baseStyles = 'font-medium rounded-full transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed';
   
   const variantStyles = {
-    primary: 'bg-red-600 text-white hover:bg-red-700 shadow-lg',
-    secondary: 'bg-stone-100 text-stone-700 hover:bg-stone-200',
-    ghost: 'bg-transparent text-stone-600 hover:bg-stone-50'
+    primary: 'bg-app-primary text-app-text-inverse hover:opacity-90 shadow-app-sm',
+    secondary: 'bg-app-surface-muted text-app-text-secondary hover:bg-app-surface-elevated',
+    ghost: 'bg-transparent text-app-text-secondary hover:bg-app-surface-muted',
   };
 
   const sizeStyles = {

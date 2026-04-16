@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { hasTelegramWebAppObject, isTelegramWebApp, initTelegramWebApp, getTelegramInitData } from '@/lib/telegram';
 import { getApiPath, getBasePath } from '@/lib/utils';
 
+const inputClass =
+  'mt-1 block w-full rounded-md border border-app-border bg-app-surface-muted px-3 py-2 text-app-text placeholder-app-text-subtle focus:border-app-primary/50 focus:outline-none focus:ring-1 focus:ring-app-primary/30';
+
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -110,8 +113,8 @@ function LoginForm() {
 
   if (telegramLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black px-4">
-        <div className="text-zinc-600 dark:text-zinc-400">Проверка аутентификации...</div>
+      <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
+        <div className="text-app-text-muted">Проверка аутентификации...</div>
       </div>
     );
   }
@@ -119,9 +122,9 @@ function LoginForm() {
   // В Telegram при неуспешной верификации — только сообщение; не из Telegram — всегда форма входа
   if (isTelegramWebApp() && telegramVerificationFailed) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black px-4">
-        <div className="w-full max-w-md rounded-lg bg-white dark:bg-zinc-900 p-8 shadow-lg text-center">
-          <p className="text-zinc-600 dark:text-zinc-400">
+      <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
+        <div className="w-full max-w-md rounded-lg bg-app-surface p-8 shadow-app-md text-center">
+          <p className="text-app-text-secondary">
             Откройте приложение из Telegram, чтобы войти. Если вы уже в Telegram — попробуйте закрыть и открыть мини-приложение снова.
           </p>
         </div>
@@ -131,29 +134,26 @@ function LoginForm() {
 
   // Не из Telegram или успешная верификация в Telegram (редирект уже выполнен) — показываем форму входа
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black px-4">
-      <div className="w-full max-w-md space-y-8 rounded-lg bg-white dark:bg-zinc-900 p-8 shadow-lg">
+    <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
+      <div className="w-full max-w-md space-y-8 rounded-lg bg-app-surface p-8 shadow-app-md">
         <div>
-          <h2 className="text-2xl font-semibold text-black dark:text-zinc-50">
+          <h2 className="text-2xl font-semibold text-app-text">
             Вход
           </h2>
-          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="mt-2 text-sm text-app-text-secondary">
             Войдите в свой аккаунт
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="rounded-md bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-600 dark:text-red-400">
+            <div className="rounded-md bg-app-missed border border-app-missed-text/20 p-3 text-sm text-app-accent">
               {error}
             </div>
           )}
 
           <div>
-            <label
-              htmlFor="email"
-              className="block text-sm font-medium text-black dark:text-zinc-300"
-            >
+            <label htmlFor="email" className="block text-sm font-medium text-app-text">
               Email
             </label>
             <input
@@ -162,16 +162,13 @@ function LoginForm() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-black dark:text-zinc-50 placeholder-zinc-400 focus:border-black dark:focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-zinc-500"
+              className={inputClass}
               placeholder="your@email.com"
             />
           </div>
 
           <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-black dark:text-zinc-300"
-            >
+            <label htmlFor="password" className="block text-sm font-medium text-app-text">
               Пароль
             </label>
             <input
@@ -180,7 +177,7 @@ function LoginForm() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-md border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 px-3 py-2 text-black dark:text-zinc-50 placeholder-zinc-400 focus:border-black dark:focus:border-zinc-500 focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-zinc-500"
+              className={inputClass}
               placeholder="••••••••"
             />
           </div>
@@ -188,19 +185,19 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-black dark:bg-zinc-50 px-4 py-2 text-sm font-medium text-white dark:text-black transition-colors hover:bg-zinc-800 dark:hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-md bg-app-text text-app-text-inverse px-4 py-2 text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Вход...' : 'Войти'}
           </button>
         </form>
 
         <div className="text-center text-sm">
-          <span className="text-zinc-600 dark:text-zinc-400">
+          <span className="text-app-text-secondary">
             Нет аккаунта?{' '}
           </span>
           <Link
             href="/register"
-            className="font-medium text-black dark:text-zinc-50 hover:underline"
+            className="font-medium text-app-text hover:underline"
           >
             Зарегистрироваться
           </Link>
@@ -213,13 +210,11 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center bg-zinc-50 dark:bg-black px-4">
-        <div className="text-zinc-600 dark:text-zinc-400">Загрузка...</div>
+      <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
+        <div className="text-app-text-muted">Загрузка...</div>
       </div>
     }>
       <LoginForm />
     </Suspense>
   );
 }
-
-

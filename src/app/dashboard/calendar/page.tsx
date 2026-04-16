@@ -61,8 +61,8 @@ export default function CalendarPage() {
   if (authLoading || (loading && plan.length === 0)) {
     return (
       <DashboardLayout currentView={AppView.PLAN} onChangeView={() => {}}>
-        <div className="flex min-h-screen items-center justify-center bg-stone-50">
-          <div className="text-stone-600">Загрузка...</div>
+        <div className="flex min-h-screen items-center justify-center bg-app-bg">
+          <div className="text-app-text-muted">Загрузка...</div>
         </div>
       </DashboardLayout>
     );

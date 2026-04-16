@@ -40,18 +40,18 @@ export const CompletionModal: React.FC<CompletionModalProps> = ({
         
         {/* Большая галочка (lucide-animated) */}
         <div className="w-20 h-20 flex items-center justify-center mb-6 completion-icon-fade-in">
-          <CircleCheckIcon ref={iconRef} className="text-stone-900 dark:text-stone-100" size={80} />
+          <CircleCheckIcon ref={iconRef} className="text-app-text" size={80} />
         </div>
 
         {/* Заголовок */}
-        <h2 className="text-3xl font-black text-stone-900 dark:text-stone-100 mb-8">
+        <h2 className="text-3xl font-black text-app-text mb-8">
           День {day?.id} из {totalDays}
         </h2>
 
         {/* Прогресс-бар */}
-        <div className="w-full h-1.5 bg-stone-100 dark:bg-stone-700 rounded-full overflow-hidden">
-          <div 
-            className="h-full bg-red-500 completion-progress-fill"
+        <div className="w-full h-1.5 bg-app-surface-muted rounded-full overflow-hidden">
+          <div
+            className="h-full bg-app-success completion-progress-fill"
             style={
               {
                 ['--completion-progress' as any]: completionProgress
@@ -61,9 +61,9 @@ export const CompletionModal: React.FC<CompletionModalProps> = ({
         </div>
 
         {/* Кнопка закрытия/продолжения */}
-        <button 
+        <button
           onClick={onClose}
-          className="mt-8 w-full py-4 bg-stone-900 dark:bg-stone-700 text-white rounded-2xl font-bold active:scale-95 transition-transform hover:bg-stone-800 dark:hover:bg-stone-600"
+          className="mt-8 w-full py-4 bg-app-text text-app-text-inverse rounded-2xl font-bold active:scale-95 transition-all hover:opacity-90"
         >
           Продолжить
         </button>

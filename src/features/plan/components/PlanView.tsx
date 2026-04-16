@@ -2,19 +2,17 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight, Flame } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePlanContext } from '../contexts/PlanContext';
 import { ReadingPlanDay, BibleReference } from '@/types';
-import { BIBLE_STRUCTURE } from '@/lib/constants';
 import BibleProgress from '@/components/BibleProgress';
-import { ProgressWidget } from './ProgressWidget';
 import { VerseOfTheDay } from './VerseOfTheDay';
 import { DayNavigationBar } from './DayNavigationBar';
-import { DayChaptersList } from './DayChaptersList';
+import { TodayReadingCard } from './TodayReadingCard';
 import { useDayCompletion } from '../hooks/useDayCompletion';
 import { CompletionModal } from '@/features/reading/components/CompletionModal';
 import { parseReadingItem } from '@/shared/utils/bible';
-import { getWeekDateRange, getWeekNumber, formatDateDDMM } from '@/shared/utils/date';
+import { getWeekDateRange, getWeekNumber, formatDateDDMM, formatHeaderDate } from '@/shared/utils/date';
 import { weeklyPlanApi, WeeklyPlanWeek } from '@/shared/services/api/endpoints';
 import { ApiClientError } from '@/shared/services/api/client';
 import { ChapterRow } from './ChapterRow';
@@ -194,10 +192,6 @@ export const PlanView: React.FC<PlanViewProps> = ({
     prevCompletedDaysRef.current = currentCompletedDays;
   }, [filteredPlan, todayDay]);
 
-  const handleToggleCompleteInternal = async (dayId: number) => {
-    await onToggleComplete(dayId);
-  };
-
   // В PlanView показываем модалку только при ручной отметке (переход false -> true)
   // alwaysShowIfCompleted: false, так как lastCompletedDay устанавливается только для только что завершенных дней
   const completion = useDayCompletion(lastCompletedDay, { todayDay, alwaysShowIfCompleted: false });
@@ -209,12 +203,19 @@ export const PlanView: React.FC<PlanViewProps> = ({
     }
   }, [completion.showModal, lastCompletedDay]);
 
-  const stats = useMemo(() => {
-    const totalChapters = BIBLE_STRUCTURE.reduce((acc, b) => acc + b.chapters, 0);
-    const readCount = readChapters.size;
-    const percentage = totalChapters > 0 ? Math.round((readCount / totalChapters) * 100) : 0;
-    return { readCount, totalChapters, percentage };
-  }, [readChapters]);
+  const handleStartReading = () => {
+    if (!selectedDay) return;
+    const firstUnreadItem = selectedDay.items?.find((item) => !item.completed);
+    if (firstUnreadItem) {
+      const reading = parseReadingItem(firstUnreadItem.readText);
+      if (reading) onSelectReading(selectedDay, reading);
+    } else if (selectedDay.items?.length) {
+      const firstReading = parseReadingItem(selectedDay.items[0].readText);
+      if (firstReading) onSelectReading(selectedDay, firstReading);
+    } else if (selectedDay.readings?.length) {
+      onSelectReading(selectedDay, selectedDay.readings[0]);
+    }
+  };
 
   if (showDetailedProgress) {
     return (
@@ -226,178 +227,125 @@ export const PlanView: React.FC<PlanViewProps> = ({
     );
   }
 
-  const completedDaysCount = filteredPlan.filter(d => d.completed).length;
+  const completedDaysCount = filteredPlan.filter((d) => d.completed).length;
   const streak = completedDaysCount > 0 ? completedDaysCount : 0;
-
-  const date = new Date().toLocaleDateString('ru-RU', { weekday: 'long', day: 'numeric', month: 'long' });
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour >= 5 && hour < 12) {
-      return 'Доброе утро';
-    } else if (hour >= 12 && hour < 17) {
-      return 'Добрый день';
-    } else if (hour >= 17 && hour < 22) {
-      return 'Добрый вечер';
-    } else {
-      return 'Доброй ночи';
-    }
+    if (hour >= 5 && hour < 12) return 'Доброе утро';
+    if (hour >= 12 && hour < 17) return 'Добрый день';
+    if (hour >= 17 && hour < 22) return 'Добрый вечер';
+    return 'Доброй ночи';
   };
 
+  const headerDate = formatHeaderDate(new Date());
+
   return (
-    <div className="flex flex-col h-full bg-[rgb(245,245,247)] dark:bg-stone-900 overflow-y-auto pb-20">
-      {/* Top App Bar — z-20 чтобы оставаться поверх недельного блока при скролле */}
-      <div className="bg-white/75 dark:bg-stone-800/80 backdrop-blur-xl px-5 py-2 flex justify-between items-center sticky top-0 z-20 border-b border-black/5 dark:border-white/10">
+    <div data-plan-view className="flex flex-col min-h-full bg-app-bg text-app-text overflow-y-auto pb-32">
+      <header data-plan-view-header className="px-6 pt-10 pb-2 flex justify-between items-end">
         <div>
-          <h1 className="font-bold text-stone-900 dark:text-stone-100 capitalize">{date}</h1>
-          <p className="text-stone-500 dark:text-stone-400 font-medium">{getGreeting()}, {userName}</p>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-1 text-red-500 dark:text-red-400 font-bold bg-red-50 dark:bg-red-900/30 px-2 py-1 rounded-full text-xs">
-            <Flame size={14} className="fill-current" />
-            <span>{streak}</span>
+          <div className="flex items-center gap-2 mb-1">
+            <p data-plan-view-date className="text-xs font-semibold text-app-text-muted uppercase tracking-wide">
+              {headerDate}
+            </p>
           </div>
+          <h1 data-plan-view-greeting className="text-2xl font-serif font-medium text-app-text leading-tight">
+            {getGreeting()}, <span className="text-app-text-muted">{userName}</span>
+          </h1>
         </div>
-      </div>
+      </header>
 
-      <div className=" space-y-6">
-        {/* Sections */}
-        <div className="space-y-6">
-          {/* Weekly Plan (Proverbs) - featured above daily plan */}
-          <div className="relative overflow-hidden rounded-none bg-gradient-to-br from-stone-800 via-stone-800/95 to-stone-800/90 group cursor-pointer transition-shadow px-4 py-6 shadow-md text-stone-100">
-            <div
-              className="absolute inset-0 opacity-30 pointer-events-none bg-cover bg-center"
-              style={{
-                backgroundImage: `url('${process.env.NEXT_PUBLIC_BASE_PATH || ''}/liquid-cheese.svg')`
-              }}
-              aria-hidden
-            />
-            <div>
+      <DayNavigationBar
+        plan={plan}
+        selectedDayId={selectedDayId}
+        todayDayNumber={todayDayNumber}
+        onSelectDay={handleSelectDay}
+      />
 
-              <div className="flex items-center justify-between gap-2 px-1 relative z-10">
-                <div className="font-bold text-stone-100 uppercase tracking-wider pl-3">
-                  <div className="text-base sm:text-lg">НЕДЕЛЬНЫЕ ЧТЕНИЯ #{selectedWeek}</div>
-                  <div className="text-sm text-stone-400">
-                    {weekRangeLabel}
-                  </div>
-                </div>
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedWeek((prev) => (prev <= 1 ? 52 : prev - 1))}
-                    className="p-1.5 rounded-lg text-stone-300 hover:text-stone-100 hover:bg-white/10 transition-colors active:scale-95 flex-shrink-0"
-                    aria-label="Предыдущая неделя"
-                    title="Предыдущая неделя"
-                  >
-                    <ChevronLeft size={22} />
-                  </button>
+      {selectedDay && (
+        <TodayReadingCard
+          day={selectedDay}
+          totalDays={filteredPlan.length}
+          onToggleItem={onToggleItem}
+          onSelectReading={onSelectReading}
+          onStartReading={handleStartReading}
+        />
+      )}
 
-                  <button
-                    type="button"
-                    onClick={() => setSelectedWeek((prev) => (prev >= 52 ? 1 : prev + 1))}
-                    className="p-1.5 rounded-lg text-stone-300 hover:text-stone-100 hover:bg-white/10 transition-colors active:scale-95 flex-shrink-0"
-                    aria-label="Следующая неделя"
-                    title="Следующая неделя"
-                  >
-                    <ChevronRight size={22} />
-                  </button>
-                </div>
-              </div>
+      <section data-plan-view-sections className="px-4 mb-6 grid grid-cols-1 gap-4">
+        <div data-weekly-reading className="bg-app-surface p-5 rounded-3xl border border-app-border shadow-app-sm">
+          <div data-weekly-reading-header className="flex items-center gap-4 mb-4">
+            <div className="w-12 h-12 rounded-2xl bg-app-primary-light flex items-center justify-center text-app-primary flex-shrink-0" aria-hidden>
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+              </svg>
             </div>
-            <div className="">
-              <div className="ring-black/10 ">
-                <div className="mt-3 text-stone-100 [&_svg]:text-stone-400">
-                  {weeklyLoading && <div className="text-xs text-stone-400">Загрузка…</div>}
-                  {!weeklyLoading && weeklyError && (
-                    <div className="text-xs text-red-400">{weeklyError}</div>
-                  )}
-                  {!weeklyLoading && !weeklyError && (
-                    <div className="space-y-3 px-4">
-                      {(weeklyWeeks.find(w => w.week === selectedWeek)?.items || []).map((it) => (
-                        <ChapterRow
-                          key={`${it.numbers}_${it.item}_${it.id}`}
-                          text={it.read}
-                          textClassName="text-stone-100"
-                          className="bg-white/10"
-                          onClick={() => {
-                            const ref = parseReadingItem(it.read);
-                            if (!ref) return;
-                            router.push(`/dashboard/read/${encodeURIComponent(ref.book)}/${ref.chapter}`);
-                          }}
-                        />
-                      ))}
-                      {(weeklyWeeks.find(w => w.week === selectedWeek)?.items || []).length === 0 && (
-                        <div className="text-xs text-stone-400">Нет чтений для этой недели.</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
+            <div className="flex-1 min-w-0">
+              <h3 data-weekly-reading-title className="text-sm font-bold text-app-text">
+                Недельное чтение
+              </h3>
+              <p data-weekly-reading-range className="text-xs text-app-text-muted mt-0.5">
+                Притчи 9–12 • <span className="text-app-primary font-medium">{weekRangeLabel}</span>
+              </p>
+            </div>
+            <div data-weekly-reading-nav className="flex gap-1 flex-shrink-0">
+              <button
+                type="button"
+                data-weekly-reading-prev-btn
+                onClick={() => setSelectedWeek((prev) => (prev <= 1 ? 52 : prev - 1))}
+                className="p-1.5 rounded-lg text-app-text-muted hover:text-app-text-secondary hover:bg-app-surface-muted transition-colors"
+                aria-label="Предыдущая неделя"
+              >
+                <ChevronLeft size={20} />
+              </button>
+              <button
+                type="button"
+                data-weekly-reading-next-btn
+                onClick={() => setSelectedWeek((prev) => (prev >= 52 ? 1 : prev + 1))}
+                className="p-1.5 rounded-lg text-app-text-muted hover:text-app-text-secondary hover:bg-app-surface-muted transition-colors"
+                aria-label="Следующая неделя"
+              >
+                <ChevronRight size={20} />
+              </button>
             </div>
           </div>
-
-          {/* 1. Day Navigation Bar */}
-          <div className="space-y-4">
-            <DayNavigationBar
-              plan={plan}
-              selectedDayId={selectedDayId}
-              todayDayNumber={todayDayNumber}
-              onSelectDay={handleSelectDay}
-            />
-
-            {/* Детальный вид выбранного дня */}
-            {selectedDay && (
-              <div className="card-apple overflow-hidden mx-4">
-                <DayChaptersList
-                  day={selectedDay}
-                  todayDayNumber={todayDayNumber}
-                  totalDays={filteredPlan.length}
-                  onToggleItem={onToggleItem}
-                  onToggleComplete={handleToggleCompleteInternal}
-                  onSelectReading={onSelectReading}
-                  onStartReading={() => {
-                    const firstUnreadItem = selectedDay.items?.find(item => !item.completed);
-                    if (firstUnreadItem) {
-                      const reading = parseReadingItem(firstUnreadItem.readText);
-                      if (reading) {
-                        onSelectReading(selectedDay, reading);
-                      }
-                    } else if (selectedDay.items && selectedDay.items.length > 0) {
-                      const firstReading = parseReadingItem(selectedDay.items[0].readText);
-                      if (firstReading) {
-                        onSelectReading(selectedDay, firstReading);
-                      }
-                    } else if (selectedDay.readings && selectedDay.readings.length > 0) {
-                      onSelectReading(selectedDay, selectedDay.readings[0]);
-                    }
-                  }}
-                  onNavigateToNextDay={
-                    // Показываем кнопку перехода к следующему дню только если это не последний день
-                    filteredPlan.findIndex(d => d.id === selectedDay.id) < filteredPlan.length - 1
-                      ? handleNavigateToNextDay
-                      : undefined
-                  }
-                />
-              </div>
+          <div data-weekly-reading-list className="space-y-2">
+            {weeklyLoading && (
+              <div data-weekly-reading-loading className="text-xs text-app-text-muted py-2">Загрузка…</div>
             )}
-          </div>
-
-          {/* Bible Progress Card */}
-          <div className="space-y-4 px-4">
-            <ProgressWidget
-              readCount={stats.readCount}
-              totalChapters={stats.totalChapters}
-              percentage={stats.percentage}
-              onClick={() => setShowDetailedProgress(true)}
-            />
+            {!weeklyLoading && weeklyError && (
+              <div data-weekly-reading-error className="text-xs text-app-accent py-2">{weeklyError}</div>
+            )}
+            {!weeklyLoading && !weeklyError &&
+              (weeklyWeeks.find((w) => w.week === selectedWeek)?.items || []).map((it) => (
+                <a
+                  key={`${it.numbers}_${it.item}_${it.id}`}
+                  data-weekly-reading-item={it.id}
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    const ref = parseReadingItem(it.read);
+                    if (ref) router.push(`/dashboard/read/${encodeURIComponent(ref.book)}/${ref.chapter}`);
+                  }}
+                  className="flex items-center justify-between p-3 rounded-xl bg-app-surface-muted hover:bg-app-surface-elevated transition-colors group"
+                >
+                  <span className="text-sm font-medium text-app-text-secondary group-hover:text-app-text">
+                    {it.read}
+                  </span>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 text-app-text-muted group-hover:text-app-text-secondary" aria-hidden>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                  </svg>
+                </a>
+              ))}
+            {!weeklyLoading && !weeklyError &&
+              (weeklyWeeks.find((w) => w.week === selectedWeek)?.items || []).length === 0 && (
+                <div data-weekly-reading-empty className="text-xs text-app-text-muted py-2">Нет чтений для этой недели.</div>
+              )}
           </div>
         </div>
 
-        {/* Verse of the Day Card - moved to bottom for better visual hierarchy */}
-        <div className="mt-8 px-4">
-          <VerseOfTheDay />
-        </div>
-      </div>
+        <VerseOfTheDay />
+      </section>
 
       <CompletionModal
         isOpen={completion.showModal}

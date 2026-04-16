@@ -133,13 +133,13 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
 
   if (!reading) {
     return (
-      <div className={`flex flex-col items-center justify-center h-full p-8 ${themeClasses[displayTheme]}`}>
+      <div className="flex flex-col items-center justify-center h-full p-8 bg-app-bg text-app-text">
         <Book size={64} className="mb-6 opacity-10" />
-        <h3 className="text-lg font-bold text-stone-700 dark:text-stone-300 mb-2">Библия</h3>
-        <p className="text-center text-stone-500 dark:text-stone-400 mb-8 max-w-xs">Выберите книгу и главу в плане чтения для начала изучения.</p>
-        <button 
+        <h3 className="text-lg font-bold text-app-text mb-2">Библия</h3>
+        <p className="text-center text-app-text-muted mb-8 max-w-xs">Выберите книгу и главу в плане чтения для начала изучения.</p>
+        <button
           onClick={onBack}
-          className="px-8 py-3 bg-red-600 text-white rounded-full font-bold shadow-lg active:scale-95 transition-transform"
+          className="px-8 py-3 bg-app-primary text-app-text-inverse rounded-full font-bold shadow-app-sm active:scale-95 transition-transform"
         >
           Открыть План
         </button>
@@ -203,18 +203,18 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
           canNext={canGoNext()}
         />
       ) : !loading && currentReadingState && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-stone-800/95 backdrop-blur-md border-t border-stone-100 dark:border-stone-700 px-6 pb-safe h-[80px] flex items-center justify-between">
-          <button 
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-app-surface/95 backdrop-blur-md border-t border-app-border px-6 pb-safe h-[80px] flex items-center justify-between">
+          <button
             onClick={handlePrevChapter}
             disabled={!canGoPrev()}
-            className="p-3 text-stone-400 dark:text-stone-500 hover:text-stone-900 dark:hover:text-stone-100 hover:bg-stone-50 dark:hover:bg-stone-700/50 active:scale-90 disabled:opacity-20 transition-all rounded-full"
+            className="p-3 text-app-text-muted hover:text-app-text hover:bg-app-surface-muted active:scale-90 disabled:opacity-20 transition-all rounded-full"
           >
             <ChevronLeft size={28} strokeWidth={1.5} />
           </button>
-          <button 
+          <button
             onClick={handleNextChapter}
             disabled={!canGoNext()}
-            className="w-12 h-12 flex items-center justify-center bg-red-600 text-white shadow-md hover:bg-red-700 active:scale-95 disabled:opacity-20 transition-all rounded-full"
+            className="w-12 h-12 flex items-center justify-center bg-app-primary text-app-text-inverse shadow-app-sm hover:opacity-90 active:scale-95 disabled:opacity-20 transition-all rounded-full"
           >
             <ChevronRight size={24} strokeWidth={2.5} />
           </button>

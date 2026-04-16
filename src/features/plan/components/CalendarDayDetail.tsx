@@ -71,7 +71,7 @@ export const CalendarDayDetail: React.FC<CalendarDayDetailProps> = ({
                 <button
                   key={item.id}
                   onClick={() => handleChapterClick(reading)}
-                  className="w-full flex items-center gap-3 py-2 px-2 hover:bg-stone-50 rounded transition-colors text-left"
+                  className="w-full flex items-center gap-3 py-2 px-2 hover:bg-app-surface-muted rounded transition-colors text-left"
                 >
                   {/* Checkbox */}
                   <button
@@ -79,14 +79,14 @@ export const CalendarDayDetail: React.FC<CalendarDayDetailProps> = ({
                     onClick={(e) => handleToggle(e, item.item)}
                     className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
                       isRead 
-                        ? 'bg-green-500 border-green-500' 
-                        : 'bg-transparent border-stone-300 hover:border-stone-400'
+                        ? 'bg-app-success border-app-success' 
+                        : 'bg-transparent border-app-border hover:border-app-border-strong'
                     }`}
                   >
                     {isRead && (
                       <Check 
                         size={12} 
-                        className="text-white" 
+                        className="text-app-text-inverse" 
                         strokeWidth={3} 
                       />
                     )}
@@ -95,7 +95,7 @@ export const CalendarDayDetail: React.FC<CalendarDayDetailProps> = ({
                   {/* Chapter Text */}
                   <span 
                     className={`flex-1 text-sm ${
-                      isRead ? 'text-stone-400 line-through' : 'text-stone-800'
+                      isRead ? 'text-app-text-subtle line-through' : 'text-app-text'
                     }`}
                   >
                     {reading ? `${getFullBookName(reading.book)} ${reading.chapter}` : item.readText}
@@ -104,7 +104,7 @@ export const CalendarDayDetail: React.FC<CalendarDayDetailProps> = ({
                   {/* Arrow */}
                   <ChevronRight 
                     size={18} 
-                    className="text-stone-300 flex-shrink-0" 
+                    className="text-app-text-subtle flex-shrink-0" 
                   />
                 </button>
               );
@@ -113,20 +113,20 @@ export const CalendarDayDetail: React.FC<CalendarDayDetailProps> = ({
               <button
                 key={`${day.id}-${idx}`}
                 onClick={() => handleChapterClick(reading)}
-                className="w-full flex items-center gap-3 py-2 px-2 hover:bg-stone-50 rounded transition-colors text-left"
+                className="w-full flex items-center gap-3 py-2 px-2 hover:bg-app-surface-muted rounded transition-colors text-left"
               >
                 {/* Checkbox */}
-                <div className="flex-shrink-0 w-5 h-5 rounded-full border-2 border-stone-300 flex items-center justify-center" />
+                <div className="flex-shrink-0 w-5 h-5 rounded-full border-2 border-app-border flex items-center justify-center" />
 
                 {/* Chapter Text */}
-                <span className="flex-1 text-sm text-stone-800">
+                <span className="flex-1 text-sm text-app-text">
                   {getFullBookName(reading.book)} {reading.chapter}
                 </span>
 
                 {/* Arrow */}
                 <ChevronRight 
                   size={18} 
-                  className="text-stone-300 flex-shrink-0" 
+                  className="text-app-text-subtle flex-shrink-0" 
                 />
               </button>
             ))
@@ -136,7 +136,7 @@ export const CalendarDayDetail: React.FC<CalendarDayDetailProps> = ({
       {/* Start Reading Button */}
       <button
         onClick={handleStartReading}
-        className="w-full bg-stone-900 text-white font-semibold py-2 rounded-lg hover:bg-stone-800 active:scale-98 transition-all duration-200 text-sm"
+        className="w-full bg-app-text text-app-text-inverse font-semibold py-2 rounded-lg hover:opacity-90 active:scale-[0.98] transition-all duration-200 text-sm"
       >
         {day.completed ? 'Перейти к чтению' : 'Начать чтение'}
       </button>

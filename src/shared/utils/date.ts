@@ -52,3 +52,22 @@ export function formatDateDDMM(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   return `${d}.${m}`;
 }
+
+const WEEKDAY_NAMES = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
+const MONTH_SHORT = ['Янв.', 'Фев.', 'Мар.', 'Апр.', 'Май', 'Июн.', 'Июл.', 'Авг.', 'Сен.', 'Окт.', 'Ноя.', 'Дек.'];
+
+/** Формат для хедера: "Пятница, 13 Фев." */
+export function formatHeaderDate(date: Date): string {
+  const weekday = WEEKDAY_NAMES[date.getDay()];
+  const day = date.getDate();
+  const month = MONTH_SHORT[date.getMonth()];
+  return `${weekday}, ${day} ${month}`;
+}
+
+/** День месяца из dateStr "DD.MM.YYYY" */
+export function getDayOfMonthFromStr(dateStr: string): number {
+  if (!dateStr) return 0;
+  const parts = dateStr.split('.');
+  if (parts.length !== 3) return 0;
+  return parseInt(parts[0], 10) || 0;
+}

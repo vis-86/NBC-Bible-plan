@@ -355,20 +355,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   return (
     <div
       ref={scrollContainerRef}
-      className="flex flex-col h-full bg-stone-100 text-stone-900 overflow-y-auto"
+      className="flex flex-col h-full bg-app-bg text-app-text overflow-y-auto"
     >
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-white border-b border-stone-100 px-4 py-3 flex items-center gap-4 shadow-sm">
+      <div className="sticky top-0 z-10 bg-app-surface border-b border-app-border px-4 py-3 flex items-center gap-4 shadow-app-sm">
         <button
           onClick={onBack}
-          className="p-2 hover:bg-stone-100 rounded-lg transition-colors active:scale-95 text-stone-600"
+          className="p-2 hover:bg-app-surface-muted rounded-lg transition-colors active:scale-95 text-app-text-secondary"
           aria-label="Назад"
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-lg font-bold text-stone-900">Календарь</h1>
+        <h1 className="text-lg font-bold text-app-text">Календарь</h1>
         {missedDays.length === 0 && (
-          <div className="flex items-center gap-1.5 text-sm font-medium text-green-600 ml-auto">
+          <div className="flex items-center gap-1.5 text-sm font-medium text-app-success ml-auto">
             <Check size={16} strokeWidth={2.5} />
             <span>Все по плану</span>
           </div>
@@ -378,9 +378,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       {/* Calendar */}
       <div className="flex-1 p-4 space-y-6 relative z-0">
         {/* Hint */}
-        <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3">
-          <Info size={16} className="text-blue-600 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-blue-800 leading-relaxed">
+        <div className="flex items-start gap-2 bg-app-surface-muted border border-app-border rounded-lg p-3">
+          <Info size={16} className="text-app-text-secondary flex-shrink-0 mt-0.5" />
+          <p className="text-xs text-app-text-secondary leading-relaxed">
             Кликните на день, чтобы выбрать его. Появится меню для дальнейших действий.
           </p>
         </div>
@@ -392,7 +392,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             {...(month.month === currentMonthIndex ? { 'data-today-month': 'true' } : {})}
           >
             {/* Month Header */}
-            <h2 className="text-sm font-bold uppercase tracking-wider text-stone-500">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-app-text-muted">
               {monthNames[month.month]} {month.year} Г.
             </h2>
 
@@ -401,7 +401,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {weekDays.map((day) => (
                 <div
                   key={day}
-                  className="text-center text-xs font-medium text-stone-400 py-1"
+                  className="text-center text-xs font-medium text-app-text-subtle py-1"
                 >
                   {day}
                 </div>
@@ -419,16 +419,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   className={`
                     aspect-square flex items-center justify-center relative
                     transition-all duration-200 rounded-lg
-                    ${day.isOtherMonth ? 'text-stone-300' : day.isMissed ? 'text-red-700' : 'text-stone-900'}
+                    ${day.isOtherMonth ? 'text-app-text-subtle' : day.isMissed ? 'text-app-accent' : 'text-app-text'}
                     ${day.isSelected 
-                      ? 'border-2 border-blue-600 bg-blue-50' 
+                      ? 'border-2 border-app-primary bg-app-primary-light' 
                       : day.isMissed
-                        ? 'border border-red-200 bg-red-100 hover:bg-red-50'
+                        ? 'border border-app-missed-text/30 bg-app-missed hover:bg-app-missed/70'
                         : day.isOtherMonth 
                           ? 'border-0 bg-transparent' 
-                          : 'border border-stone-200 bg-white hover:bg-stone-50'
+                          : 'border border-app-border bg-app-surface hover:bg-app-surface-muted'
                     }
-                    ${day.isToday && !day.isSelected && !day.isMissed ? 'border-stone-400 bg-stone-50' : ''}
+                    ${day.isToday && !day.isSelected && !day.isMissed ? 'border-app-border-strong bg-app-surface-muted' : ''}
                     ${day.dayId !== null ? 'cursor-pointer' : 'cursor-default'}
                     ${day.isOtherMonth ? '' : 'active:scale-95'}
                   `}
@@ -437,7 +437,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   {day.isSelected && !day.isOtherMonth && (
                     <Check
                       size={16}
-                      className="absolute inset-0 m-auto text-blue-600"
+                      className="absolute inset-0 m-auto text-app-primary"
                       strokeWidth={3}
                     />
                   )}
@@ -446,19 +446,19 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   {day.isCompleted && !day.isSelected && !day.isOtherMonth && (
                     <Check
                       size={10}
-                      className="absolute top-1 right-1 text-green-600"
+                      className="absolute top-1 right-1 text-app-success"
                       strokeWidth={3}
                     />
                   )}
 
                   {/* Day Number */}
                   {!day.isSelected && (
-                    <span className={`text-sm ${day.isSelected ? 'font-bold' : 'font-normal'}`}>
+                    <span className="text-sm font-normal">
                       {day.dayNumber}
                     </span>
                   )}
                   {day.isSelected && !day.isOtherMonth && (
-                    <span className="absolute bottom-1 right-1 text-xs text-blue-600 font-medium">
+                    <span className="absolute bottom-1 right-1 text-xs text-app-primary font-medium">
                       {day.dayNumber}
                     </span>
                   )}
@@ -479,8 +479,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       >
         {selectedDaysInfo && (
           <div className="space-y-4">
-            <p className="text-stone-600 text-sm">
-              Выбрано дней: <span className="font-semibold text-stone-900">
+            <p className="text-app-text-secondary text-sm">
+              Выбрано дней: <span className="font-semibold text-app-text">
                 {selectedDaysInfo.count}
               </span>
             </p>
@@ -490,13 +490,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {selectedDaysInfo.days.map(day => (
                 <div
                   key={day.id}
-                  className="flex items-center justify-between p-2 bg-stone-50 rounded-lg"
+                  className="flex items-center justify-between p-2 bg-app-surface-muted rounded-lg"
                 >
-                  <span className="text-sm font-medium text-stone-900">
+                  <span className="text-sm font-medium text-app-text">
                     День {day.id}
                   </span>
                   {day.completed && (
-                    <span className="text-xs text-green-600 font-medium">
+                    <span className="text-xs text-app-success font-medium">
                       Прочитано
                     </span>
                   )}
@@ -507,14 +507,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             <div className="flex gap-2 pt-2">
               <button
                 onClick={handleClearSelection}
-                className="flex-1 px-3 py-2 bg-stone-100 text-stone-700 text-sm font-semibold rounded-lg hover:bg-stone-200 transition-colors"
+                className="flex-1 px-3 py-2 bg-app-surface-muted text-app-text-secondary text-sm font-semibold rounded-lg hover:bg-app-surface-elevated transition-colors"
               >
                 Отмена
               </button>
               {selectedDaysInfo.uncompletedCount > 0 && (
                 <button
                   onClick={handleMarkSelected}
-                  className="flex-1 px-3 py-2 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center gap-1.5"
+                  className="flex-1 px-3 py-2 bg-app-success text-app-text-inverse text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center justify-center gap-1.5"
                 >
                   <Check size={16} strokeWidth={3} />
                   <span>Отметить</span>
@@ -523,7 +523,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {selectedDaysInfo.completedCount > 0 && (
                 <button
                   onClick={handleUnmarkSelected}
-                  className="flex-1 px-3 py-2 bg-stone-600 text-white text-sm font-semibold rounded-lg hover:bg-stone-700 transition-colors flex items-center justify-center gap-1.5"
+                  className="flex-1 px-3 py-2 bg-app-surface-elevated text-app-text text-sm font-semibold rounded-lg hover:bg-app-border transition-colors flex items-center justify-center gap-1.5"
                 >
                   <X size={16} strokeWidth={3} />
                   <span>Отменить</span>
@@ -541,7 +541,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           onClose={() => setSelectedDayId(null)}
           title={
             <div className="flex items-center justify-between w-full pr-8">
-              <span className="text-xl font-bold text-stone-900">День {selectedDay.id}</span>
+              <span className="text-xl font-bold text-app-text">День {selectedDay.id}</span>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -549,8 +549,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 }}
                 className={`text-xs font-semibold px-3 py-1 rounded-full transition-colors ${
                   selectedDay.completed 
-                    ? 'bg-green-100 text-green-700 hover:bg-green-200' 
-                    : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                    ? 'bg-app-success/15 text-app-success hover:bg-app-success/25' 
+                    : 'bg-app-surface-muted text-app-text-secondary hover:bg-app-surface-elevated'
                 }`}
               >
                 {selectedDay.completed ? 'Прочитано' : 'Отметить всё'}
@@ -574,11 +574,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[50]">
           <button
             onClick={handleMarkAllMissed}
-            className="px-4 py-2.5 bg-green-600 text-white text-sm font-semibold rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 shadow-lg active:scale-95"
+            className="px-4 py-2.5 bg-app-success text-app-text-inverse text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 shadow-app-md active:scale-95"
           >
             <Check size={18} strokeWidth={3} />
             <span>Отметить пропущенные</span>
-            <span className="bg-white/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
+            <span className="bg-black/20 px-2 py-0.5 rounded-full text-[10px] font-bold">
               {missedDays.length}
             </span>
           </button>

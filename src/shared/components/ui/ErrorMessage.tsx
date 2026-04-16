@@ -17,13 +17,13 @@ export const ErrorMessage: React.FC<ErrorMessageProps> = ({
 }) => {
   return (
     <div className="flex flex-col items-center justify-center p-8 text-center h-full">
-      <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
-        <h3 className="text-red-800 font-bold mb-2">{title}</h3>
-        <p className="text-red-600 mb-4">{message}</p>
+      <div className="bg-app-missed border border-app-missed-text/20 rounded-lg p-6 max-w-md">
+        <h3 className="text-app-accent font-bold mb-2">{title}</h3>
+        <p className="text-app-accent/80 mb-4">{message}</p>
         {onRetry && (
-          <button 
+          <button
             onClick={onRetry}
-            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+            className="px-4 py-2 bg-app-accent text-app-text-inverse rounded-md hover:opacity-90 transition-opacity"
           >
             {retryLabel}
           </button>

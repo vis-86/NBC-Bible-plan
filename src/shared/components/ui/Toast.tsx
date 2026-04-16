@@ -51,36 +51,36 @@ export const Toast: React.FC<ToastProps> = ({
 
   return (
     <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-[80]">
-      <div className="bg-green-600 text-white rounded-lg shadow-2xl px-6 py-4 min-w-[400px] max-w-[90vw] animate-slide-up relative overflow-hidden">
+      <div className="bg-app-success text-app-text-inverse rounded-lg shadow-app-lg px-6 py-4 min-w-[400px] max-w-[90vw] animate-slide-up relative overflow-hidden">
         {/* Progress indicator as bottom border */}
-        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-green-700">
+        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black/20">
           <div
             className="h-full bg-white transition-all duration-50 ease-linear"
             style={{ width: `${Math.max(0, (timeLeft / duration) * 100)}%` }}
           />
         </div>
-        
+
         <div className="flex items-start gap-3">
           {/* Check Icon */}
           <div className="flex-shrink-0 mt-0.5">
             <div className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center">
-              <Check size={14} strokeWidth={3} className="text-white" />
+              <Check size={14} strokeWidth={3} className="text-app-text-inverse" />
             </div>
           </div>
-          
+
           <div className="flex-1">
             <p className="text-sm font-medium">{message}</p>
           </div>
-          
+
           <button
             onClick={onClose}
-            className="p-1 hover:bg-green-700 rounded transition-colors active:scale-95 flex-shrink-0"
+            className="p-1 hover:bg-black/10 rounded transition-colors active:scale-95 flex-shrink-0"
             aria-label="Закрыть"
           >
             <X size={16} />
           </button>
         </div>
-        
+
         <div className="mt-3 pt-1">
           <button
             onClick={onUndo}

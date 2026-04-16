@@ -10,7 +10,7 @@ function SkeletonBlock({ className }: SkeletonBlockProps) {
   return (
     <div
       className={[
-        'bg-stone-200/70',
+        'bg-app-surface-muted',
         'rounded-lg',
         'animate-pulse',
         className ?? '',
@@ -22,9 +22,9 @@ function SkeletonBlock({ className }: SkeletonBlockProps) {
 
 export default function DashboardHomeSkeleton() {
   return (
-    <div className="flex flex-col h-full bg-[rgb(245,245,247)] overflow-y-auto pb-20">
+    <div className="flex flex-col h-full bg-app-bg overflow-y-auto pb-20">
       {/* Top App Bar (matches PlanView sticky header footprint) */}
-      <div className="bg-white/75 backdrop-blur-xl sticky top-0 z-10 border-b border-black/5">
+      <div className="bg-app-surface/75 backdrop-blur-xl sticky top-0 z-10 border-b border-app-border">
         <div className="px-5 py-2 h-[64px] flex items-center justify-between">
           <div className="space-y-2">
             <SkeletonBlock className="h-4 w-44 rounded-md" />
@@ -88,7 +88,7 @@ export default function DashboardHomeSkeleton() {
 
         {/* Verse of the day */}
         <div className="mt-8">
-          <SkeletonBlock className="h-[160px] w-full rounded-3xl bg-stone-800/15" />
+          <SkeletonBlock className="h-[160px] w-full rounded-3xl" />
         </div>
       </div>
     </div>
