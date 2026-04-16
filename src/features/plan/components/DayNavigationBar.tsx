@@ -21,7 +21,7 @@ const getDayCubeStyles = (status: 'completed' | 'missed' | 'future', isSelected:
 
   const statusStyles = {
     completed: 'bg-app-success text-app-text-inverse',
-    missed: 'bg-app-missed text-app-missed-text',
+    missed: 'text-app-missed-text',
     future: 'text-app-text',
   };
 
@@ -56,7 +56,6 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
       );
       if (selectedElement) {
         selectedElement.scrollIntoView({
-          behavior: 'smooth',
           block: 'nearest',
           inline: 'center'
         });

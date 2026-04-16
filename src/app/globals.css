@@ -22,6 +22,7 @@
   --app-surface-muted: #F5F5F4;             /* muted / subdued surfaces */
   --app-overlay: #1E293B;                   /* dark hero overlay (TodayReadingCard) */
   --app-overlay-inner: rgba(15,23,42,0.5);  /* inner blur layer for overlay */
+  --app-overlay-text: #ffffff;              /* text on overlay (always light — overlay is always dark) */
 
   /* ── Text ────────────────────────────────────────────────────────── */
   --app-text: #1c1917;             /* stone-900 */
@@ -73,8 +74,9 @@
   --app-surface: #292524;                   /* stone-800 */
   --app-surface-elevated: #312e2b;          /* stone-750 */
   --app-surface-muted: #3b3634;             /* stone-700 */
-  --app-overlay: #334155;                   /* slate-700 (lighter in dark mode) */
-  --app-overlay-inner: rgba(51,65,85,0.5);
+  --app-overlay: #243045;                   /* deep navy-slate for dark mode overlay */
+  --app-overlay-inner: rgba(20,30,50,0.6);  /* deeper inner layer for dark mode */
+  --app-overlay-text: #ffffff;              /* text on overlay (always light — overlay is always dark) */
 
   /* ── Text ────────────────────────────────────────────────────────── */
   --app-text: #e7e5e4;             /* stone-200 */
@@ -148,6 +150,7 @@
   --color-app-surface-muted: var(--app-surface-muted);
   --color-app-overlay: var(--app-overlay);
   --color-app-overlay-inner: var(--app-overlay-inner);
+  --color-app-overlay-text: var(--app-overlay-text);
 
   --color-app-text: var(--app-text);
   --color-app-text-secondary: var(--app-text-secondary);

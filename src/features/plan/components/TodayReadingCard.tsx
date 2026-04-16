@@ -58,12 +58,12 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                   План {currentYear}
                   <ChevronRight size={10} strokeWidth={2.5} />
                 </button>
-                <span data-today-reading-card-day-counter className="text-app-text-inverse/50 text-xs">
+                <span data-today-reading-card-day-counter className="text-app-overlay-text/50 text-xs">
                   День {day.id} из {totalDays}
                 </span>
               </div>
-              <h2 data-today-reading-card-title className="text-2xl font-bold text-app-text-inverse mb-1">{title}</h2>
-              <p data-today-reading-card-time className="text-app-text-inverse/50 text-sm">Примерное время: {displayTime}</p>
+              <h2 data-today-reading-card-title className="text-2xl font-bold text-app-overlay-text mb-1">{title}</h2>
+              <p data-today-reading-card-time className="text-app-overlay-text/50 text-sm">Примерное время: {displayTime}</p>
             </div>
 
             <div data-today-reading-card-progress className="relative w-12 h-12 flex items-center justify-center flex-shrink-0">
@@ -78,7 +78,7 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                   className="text-app-success transition-[stroke-dashoffset] duration-300"
                 />
               </svg>
-              <span className="absolute text-[10px] font-bold text-app-text-inverse">{yearProgress}%</span>
+              <span className="absolute text-[10px] font-bold text-app-overlay-text">{yearProgress}%</span>
             </div>
           </div>
 
@@ -114,11 +114,11 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                         onClick={() => reading && onSelectReading(day, reading)}
                         className="flex-1 text-left"
                       >
-                        <span className="text-lg font-medium text-app-text-inverse/80 group-hover:text-app-text-inverse transition-colors">
+                        <span className="text-lg font-medium text-app-overlay-text/80 group-hover:text-app-overlay-text transition-colors">
                           {label}
                         </span>
                       </button>
-                      <ChevronRight className="w-5 h-5 text-app-text-inverse/30 group-hover:text-app-text-inverse/60 flex-shrink-0" aria-hidden />
+                      <ChevronRight className="w-5 h-5 text-app-overlay-text/30 group-hover:text-app-overlay-text/60 flex-shrink-0" aria-hidden />
                     </label>
                   );
                 })
@@ -141,11 +141,11 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                       onClick={() => onSelectReading(day, reading)}
                       className="flex-1 text-left"
                     >
-                      <span className="text-lg font-medium text-app-text-inverse/80 group-hover:text-app-text-inverse transition-colors">
+                      <span className="text-lg font-medium text-app-overlay-text/80 group-hover:text-app-overlay-text transition-colors">
                         {reading.book} {reading.chapter}
                       </span>
                     </button>
-                    <ChevronRight className="w-5 h-5 text-app-text-inverse/30 group-hover:text-app-text-inverse/60 flex-shrink-0" aria-hidden />
+                    <ChevronRight className="w-5 h-5 text-app-overlay-text/30 group-hover:text-app-overlay-text/60 flex-shrink-0" aria-hidden />
                   </label>
                 ))}
           </div>
@@ -154,7 +154,7 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
             type="button"
             data-today-reading-card-start-btn
             onClick={onStartReading}
-            className="w-full py-3.5 bg-app-text-inverse text-app-text font-bold rounded-xl shadow-lg hover:bg-app-surface-elevated active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+            className="w-full py-3.5 bg-app-overlay-text text-app-overlay rounded-xl font-bold shadow-lg hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
           >
             <Play className="w-5 h-5 fill-current" aria-hidden />
             Начать чтение

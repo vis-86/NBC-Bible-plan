@@ -38,6 +38,8 @@ export const text = {
   subtle: 'text-app-text-subtle',
   /** Inverse text (on dark backgrounds): white */
   inverse: 'text-app-text-inverse',
+  /** Text on overlay cards (always white — overlay is always dark in both themes) */
+  onOverlay: 'text-app-overlay-text',
 } as const;
 
 // ─── Primary (Plan / Navigation — Indigo) ─────────────────────────────────────
