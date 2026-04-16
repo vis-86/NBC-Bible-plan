@@ -15,7 +15,6 @@ import { parseReadingItem } from '@/shared/utils/bible';
 import { getWeekDateRange, getWeekNumber, formatDateDDMM, formatHeaderDate } from '@/shared/utils/date';
 import { weeklyPlanApi, WeeklyPlanWeek } from '@/shared/services/api/endpoints';
 import { ApiClientError } from '@/shared/services/api/client';
-import { ChapterRow } from './ChapterRow';
 
 interface PlanViewProps {
   plan: ReadingPlanDay[];
@@ -31,7 +30,6 @@ export const PlanView: React.FC<PlanViewProps> = ({
   plan,
   readChapters,
   onSelectReading,
-  onToggleComplete,
   onToggleItem,
   onToggleChapter,
   userName = 'Пользователь'
@@ -73,17 +71,6 @@ export const PlanView: React.FC<PlanViewProps> = ({
     const url = new URL(window.location.href);
     url.searchParams.set('day', id.toString());
     window.history.replaceState(null, '', url.toString());
-  };
-
-  const handleNavigateToNextDay = () => {
-    if (!selectedDay) return;
-
-    const currentIndex = filteredPlan.findIndex(d => d.id === selectedDay.id);
-    const nextDay = filteredPlan[currentIndex + 1];
-
-    if (nextDay) {
-      handleSelectDay(nextDay.id);
-    }
   };
 
   // Вычисляет день года (1-365/366)
@@ -228,7 +215,9 @@ export const PlanView: React.FC<PlanViewProps> = ({
   }
 
   const completedDaysCount = filteredPlan.filter((d) => d.completed).length;
-  const streak = completedDaysCount > 0 ? completedDaysCount : 0;
+  const yearProgressPercent = filteredPlan.length > 0
+    ? Math.round((completedDaysCount / filteredPlan.length) * 100)
+    : 0;
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -241,7 +230,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
   const headerDate = formatHeaderDate(new Date());
 
   return (
-    <div data-plan-view className="flex flex-col min-h-full bg-app-bg text-app-text overflow-y-auto pb-32">
+    <div data-plan-view className="flex flex-col h-full bg-app-bg text-app-text overflow-y-auto pb-32">
       <header data-plan-view-header className="px-6 pt-10 pb-2 flex justify-between items-end">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -266,6 +255,8 @@ export const PlanView: React.FC<PlanViewProps> = ({
         <TodayReadingCard
           day={selectedDay}
           totalDays={filteredPlan.length}
+          isToday={selectedDayId === todayDayNumber}
+          yearProgress={yearProgressPercent}
           onToggleItem={onToggleItem}
           onSelectReading={onSelectReading}
           onStartReading={handleStartReading}

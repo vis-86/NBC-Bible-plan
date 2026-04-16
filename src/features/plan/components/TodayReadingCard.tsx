@@ -1,13 +1,16 @@
 'use client';
 
 import React from 'react';
-import { Check, ChevronRight, Play } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Calendar, Check, ChevronRight, Play } from 'lucide-react';
 import { ReadingPlanDay, BibleReference } from '@/types';
-import { parseReadingItem } from '@/shared/utils/bible';
+import { formatDateShort, parseReadingItem } from '@/shared/utils/bible';
 
 interface TodayReadingCardProps {
   day: ReadingPlanDay;
   totalDays: number;
+  isToday: boolean;
+  yearProgress: number;
   onToggleItem: (dayId: number, itemNumber: number) => void;
   onSelectReading: (day: ReadingPlanDay, reading: BibleReference) => void;
   onStartReading: () => void;
@@ -19,18 +22,20 @@ const currentYear = new Date().getFullYear();
 export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
   day,
   totalDays,
+  isToday,
+  yearProgress,
   onToggleItem,
   onSelectReading,
   onStartReading,
 }) => {
-  const completedCount = day.items?.filter((i) => i.completed).length ?? 0;
+  const router = useRouter();
   const totalItems = day.items?.length ?? day.readings?.length ?? 1;
-  const progressPercent = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
-  const strokeDashoffset = CIRCLE - (CIRCLE * progressPercent) / 100;
+  const strokeDashoffset = CIRCLE - (CIRCLE * yearProgress) / 100;
 
   const estimatedMinutes = totalItems * 3;
   const displayTime =
     estimatedMinutes < 60 ? `~${estimatedMinutes} мин` : `~${Math.round(estimatedMinutes / 60)} ч`;
+  const title = isToday ? 'Чтение на сегодня' : `Чтение на ${formatDateShort(day.dateStr)}`;
 
   return (
     <section data-today-reading-card className="px-4 mb-6">
@@ -42,19 +47,26 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
           <div data-today-reading-card-header className="flex justify-between items-start mb-6">
             <div>
               <div className="flex items-center gap-2 mb-2">
-                <span data-today-reading-card-plan-badge className="px-2.5 py-0.5 rounded-md bg-app-success-muted border border-app-success/20 text-app-success text-[10px] font-bold uppercase tracking-wider">
+                <button
+                  type="button"
+                  data-today-reading-card-plan-badge
+                  onClick={() => router.push('/dashboard/calendar')}
+                  className="px-2.5 py-0.5 rounded-md bg-app-success-muted border border-app-success/20 text-app-success text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-app-success/20 transition-colors inline-flex items-center gap-1"
+                  title="Открыть календарь"
+                >
+                  <Calendar size={12} />
                   План {currentYear}
-                </span>
+                </button>
                 <span data-today-reading-card-day-counter className="text-app-text-inverse/50 text-xs">
                   День {day.id} из {totalDays}
                 </span>
               </div>
-              <h2 data-today-reading-card-title className="text-2xl font-bold text-app-text-inverse mb-1">Чтение на сегодня</h2>
+              <h2 data-today-reading-card-title className="text-2xl font-bold text-app-text-inverse mb-1">{title}</h2>
               <p data-today-reading-card-time className="text-app-text-inverse/50 text-sm">Примерное время: {displayTime}</p>
             </div>
 
             <div data-today-reading-card-progress className="relative w-12 h-12 flex items-center justify-center flex-shrink-0">
-              <svg className="w-full h-full transform -rotate-90" aria-label={`Прогресс: ${progressPercent}%`}>
+              <svg className="w-full h-full transform -rotate-90" aria-label={`Годовой прогресс: ${yearProgress}%`}>
                 <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="3" fill="none" className="text-white/10" />
                 <circle
                   cx="24" cy="24" r="20"
@@ -65,7 +77,7 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                   className="text-app-success transition-[stroke-dashoffset] duration-300"
                 />
               </svg>
-              <span className="absolute text-[10px] font-bold text-app-text-inverse">{progressPercent}%</span>
+              <span className="absolute text-[10px] font-bold text-app-text-inverse">{yearProgress}%</span>
             </div>
           </div>
 

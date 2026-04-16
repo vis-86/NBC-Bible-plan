@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useMemo, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { Check, Calendar } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReadingPlanDay } from '@/types';
 import { formatDateShort, getDayOfWeek } from '@/shared/utils/bible';
+import { cn } from '@/shared/utils/cn';
 
 interface DayNavigationBarProps {
   plan: ReadingPlanDay[];
@@ -41,14 +41,13 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
   todayDayNumber,
   onSelectDay
 }) => {
-  const router = useRouter();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const filteredPlan = useMemo(() => plan.filter(d => d.id > 0), [plan]);
 
   useEffect(() => {
     if (scrollContainerRef.current && selectedDayId) {
       const selectedElement = scrollContainerRef.current.querySelector(
-        `[data-day-navigation-cube="day-${selectedDayId}"]`
+        `[data-day-nav-cube="${selectedDayId}"]`
       );
       if (selectedElement) {
         selectedElement.scrollIntoView({
@@ -71,35 +70,12 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
   };
 
   return (
-    <div data-day-nav-bar className="flex flex-col gap-2">
-      <div data-day-nav-bar-controls className="flex justify-between items-center px-1 h-8">
-        <div className="flex items-center gap-2 px-4">
-          <button
-            data-day-nav-bar-calendar-btn
-            onClick={() => router.push('/dashboard/calendar')}
-            className="p-2 text-app-text-secondary hover:text-app-text hover:bg-app-primary-light border border-app-border hover:border-app-primary/30 rounded-lg transition-all active:scale-95 flex items-center gap-1.5"
-            title="Открыть календарь"
-          >
-            <Calendar size={18} strokeWidth={2.5} />
-            <span className="text-xs font-medium">Календарь</span>
-          </button>
-        </div>
-        {selectedDayId !== todayDayNumber && (
-          <button
-            data-day-nav-bar-today-btn
-            onClick={() => onSelectDay(todayDayNumber)}
-            className="h-9 p-2 bg-app-text text-app-text-inverse border border-app-border-subtle rounded-lg transition-all hover:opacity-90 active:scale-95 flex gap-2 items-center justify-center leading-none"
-            title="Перейти на сегодня"
-          >
-            <Calendar size={16} strokeWidth={2.5} />
-            <span className="font-semibold">Сегодня</span>
-          </button>
-        )}
-      </div>
-
+    <div data-day-nav-bar className="relative flex flex-col gap-2">
+      {/* Scrollable track — overflow-x-auto clips absolute children, so the
+          floating "Сегодня" button lives in the outer relative wrapper instead */}
       <div
         data-day-nav-bar-track
-        className="day-navigation-bar w-full overflow-x-auto pb-2 pt-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="day-navigation-bar w-full overflow-x-auto pb-2 pt-4 pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         <div
           ref={scrollContainerRef}
@@ -146,6 +122,38 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
           })}
         </div>
       </div>
+
+      {/* Floating "Сегодня" button — outside the overflow container so it's
+          not clipped; positioned absolute relative to data-day-nav-bar */}
+      {selectedDayId !== todayDayNumber && (
+        <div
+          className={cn(
+            'absolute inset-y-0 flex items-center pointer-events-none z-10',
+            selectedDayId !== null && selectedDayId < todayDayNumber
+              ? 'left-0 bg-gradient-to-r from-app-bg to-transparent pr-3 pl-1'
+              : 'right-0 bg-gradient-to-l from-app-bg to-transparent pl-3 pr-1'
+          )}
+        >
+          <button
+            data-day-nav-bar-today-btn
+            onClick={() => onSelectDay(todayDayNumber)}
+            className="pointer-events-auto h-9 px-3 bg-app-text text-app-text-inverse rounded-lg transition-all hover:opacity-90 active:scale-95 flex gap-1.5 items-center text-sm font-semibold shadow-app-md"
+            title="Перейти на сегодня"
+          >
+            {selectedDayId !== null && selectedDayId < todayDayNumber ? (
+              <>
+                <span>Сегодня</span>
+                <ChevronRight size={16} strokeWidth={2.5} />
+              </>
+            ) : (
+              <>
+                <ChevronLeft size={16} strokeWidth={2.5} />
+                <span>Сегодня</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 };

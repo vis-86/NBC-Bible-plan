@@ -5,7 +5,7 @@ import React from 'react';
 export const VerseOfTheDay: React.FC = () => {
   return (
     <div data-verse-of-day className="relative bg-app-surface-muted rounded-3xl p-6 border border-app-border overflow-hidden">
-      <div className="absolute -top-2 -left-2 text-app-text-subtle opacity-50 pointer-events-none" aria-hidden>
+      <div className="absolute bottom-0 right-0 text-app-text-subtle opacity-50 pointer-events-none pb-3 pr-3" aria-hidden>
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-16 h-16">
           <path
             fillRule="evenodd"
