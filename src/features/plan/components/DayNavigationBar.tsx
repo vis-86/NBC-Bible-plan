@@ -75,7 +75,7 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
           floating "Сегодня" button lives in the outer relative wrapper instead */}
       <div
         data-day-nav-bar-track
-        className="day-navigation-bar w-full overflow-x-auto pb-2 pt-4 pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        className="day-navigation-bar w-full overflow-x-auto pb-2 pt-8 pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
       >
         <div
           ref={scrollContainerRef}
