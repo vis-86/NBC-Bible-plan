@@ -1,3 +1,5 @@
+[← Настройка Directus](DIRECTUS_SETUP_GUIDE.md) · [Back to README](../README.md) · [ИИ-интеграция →](AI_INTEGRATION_GUIDE.md)
+
 # Схема базы данных Directus (SQLite)
 
 Этот документ содержит описание структуры таблиц, используемых в приложении Bible Plan.
@@ -99,3 +101,9 @@
 
 ---
 *Документация обновлена автоматически на основе анализа SQLite базы данных.*
+
+## See Also
+
+- [Настройка Directus](DIRECTUS_SETUP_GUIDE.md) — настройка коллекций в CMS
+- [ИИ-интеграция](AI_INTEGRATION_GUIDE.md) — таблица `chat_history`
+- [История чата](CHAT_HISTORY_SETUP.md) — настройка хранения чата

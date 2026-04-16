@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "Directus Backend Architecture": {
+      "source": "gumpen-app/directapp",
+      "sourceType": "github",
+      "computedHash": "79cb77fb8933a96a0c03736c652a1d9533bbf0d592d7013dd17cc3b07e21cb08"
+    },
+    "Directus Development Workflow": {
+      "source": "gumpen-app/directapp",
+      "sourceType": "github",
+      "computedHash": "46f0073948aec5e551d915da311a40c10bda1d464f703cda1df1abf369caa256"
+    }
+  }
+}

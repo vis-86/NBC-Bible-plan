@@ -1,3 +1,5 @@
+[← История чата](CHAT_HISTORY_SETUP.md) · [Back to README](../README.md) · [Telegram уведомления →](TELEGRAM_DAILY_NOTIFICATION_FLOW.md)
+
 # GraphQL API для обновления прогресса
 
 ## Обзор
@@ -81,4 +83,8 @@ GraphQL endpoint использует Directus SDK для обновления �
 - Обновление существующей записи
 - Удаление записи при сбросе прогресса (`count: 0`)
 
+## See Also
 
+- [Схема БД](database-schema.md) — структура таблицы `reading`
+- [Настройка Directus](DIRECTUS_SETUP_GUIDE.md) — коллекции и разрешения
+- [Архитектура](architecture.md) — паттерн Typed API Client

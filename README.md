@@ -1,40 +1,53 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# NBC Bible Plan
 
-## AI Integration
+> Структурированный план чтения Библии для церковной общины NBC.
 
-This project uses an AI integration through Directus and n8n. For setup instructions, see [AI Integration Guide](docs/AI_INTEGRATION_GUIDE.md).
+Веб-приложение для прихожан Нового Баптистского Собора, которое предоставляет ежедневный план чтения Библии с отслеживанием прогресса, встроенной читалкой и ИИ-ассистентом «Чат с пастором». Авторизация через Telegram Bot, данные хранятся в SQLite, контент управляется через Directus CMS.
 
-## Getting Started
-
-First, run the development server:
+## Быстрый старт
 
 ```bash
+# 1. Установите зависимости
+npm install
+
+# 2. Настройте переменные окружения
+cp .env.example .env.local
+# Обязательно: NEXT_PUBLIC_DIRECTUS_URL, DIRECTUS_ADMIN_TOKEN, TELEGRAM_BOT_TOKEN
+
+# 3. Запустите dev-сервер
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Приложение откроется на [http://localhost:3000/app](http://localhost:3000/app).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Ключевые функции
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **План чтения** — ежедневные и недельные задания из Directus CMS
+- **Прогресс** — отслеживание по главам и дням в SQLite
+- **Читалка** — встроенный просмотр глав с навигацией и настройками шрифта
+- **Календарь** — обзор прошедших и предстоящих дней чтения
+- **Стих дня** — ежедневный текст из Directus
+- **Чат с пастором** — ИИ-ассистент через n8n + Directus Flow (опционально)
+- **Telegram Auth** — авторизация через Telegram Bot с проверкой HMAC-SHA256
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Документация
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Руководство | Описание |
+|-------------|----------|
+| [Быстрый старт](docs/getting-started.md) | Установка, настройка, первый запуск |
+| [Архитектура](docs/architecture.md) | FSD-структура, паттерны, слои |
+| [Конфигурация](docs/configuration.md) | Переменные окружения, настройки |
+| [Деплой](docs/deployment.md) | Сборка, nginx, PM2, copy-prod.sh |
+| [Настройка Directus](docs/DIRECTUS_SETUP_GUIDE.md) | Коллекции, роли, разрешения |
+| [Схема БД](docs/database-schema.md) | Таблицы SQLite и их структура |
+| [ИИ-интеграция](docs/AI_INTEGRATION_GUIDE.md) | Настройка n8n + Directus Flow |
+| [История чата](docs/CHAT_HISTORY_SETUP.md) | Хранение истории переписки |
+| [GraphQL API](docs/GRAPHQL_API.md) | Схема и запросы GraphQL |
+| [Telegram уведомления](docs/TELEGRAM_DAILY_NOTIFICATION_FLOW.md) | Ежедневная рассылка |
+| [nginx](docs/nginx.md) | Конфигурация reverse proxy |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Лицензия
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Частный проект NBC. Все права защищены.

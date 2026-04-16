@@ -1,3 +1,5 @@
+[← GraphQL API](GRAPHQL_API.md) · [Back to README](../README.md) · [nginx →](nginx.md)
+
 # Flow для ежедневной рассылки плана чтения в Telegram
 
 Этот документ описывает настройку Flow в Directus для автоматической ежедневной рассылки плана чтения всем пользователям Telegram.
@@ -512,4 +514,10 @@ Flow: "Ежедневная рассылка плана чтения"
 - Логирование неудачных отправок
 - Повторная попытка отправки
 - Уведомление администратора об ошибках
+
+## See Also
+
+- [Настройка Directus](DIRECTUS_SETUP_GUIDE.md) — создание Flow в Directus
+- [Схема БД](database-schema.md) — таблица `reminder` для уведомлений
+- [ИИ-интеграция](AI_INTEGRATION_GUIDE.md) — другие Flow в Directus
 

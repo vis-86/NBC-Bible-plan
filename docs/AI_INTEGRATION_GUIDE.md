@@ -1,3 +1,5 @@
+[← Схема БД](database-schema.md) · [Back to README](../README.md) · [История чата →](CHAT_HISTORY_SETUP.md)
+
 # Инструкция по интеграции ИИ через Directus и n8n
 
 Мы перешли от прямого использования Gemini SDK к проксированию запросов через Directus Flow в n8n. Это позволяет использовать любые модели ИИ, доступные в n8n, и централизованно управлять логикой.
@@ -57,3 +59,9 @@ NEXT_PUBLIC_DIRECTUS_AI_FLOW_ID="ai-service"
 - **Безопасность**: API ключи ИИ хранятся только в n8n.
 - **Гибкость**: Вы можете поменять модель ИИ (на GPT-4, Claude или локальную Llama) в n8n, не меняя код приложения.
 - **Логика**: Вы можете добавить в n8n проверку по базе знаний (RAG), поиск по вашим файлам или дополнительные API вызовы.
+
+## See Also
+
+- [Конфигурация](configuration.md) — переменные `NEXT_PUBLIC_AI_ENABLE`, `NEXT_PUBLIC_DIRECTUS_AI_FLOW_ID`
+- [История чата](CHAT_HISTORY_SETUP.md) — хранение истории переписки
+- [Настройка Directus](DIRECTUS_SETUP_GUIDE.md) — создание Flow в Directus

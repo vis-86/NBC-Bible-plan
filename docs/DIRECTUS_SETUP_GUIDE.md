@@ -1,3 +1,5 @@
+[← Деплой](deployment.md) · [Back to README](../README.md) · [Схема БД →](database-schema.md)
+
 # Инструкция по настройке Directus для Bible Plan
 
 Для правильной работы Mini App необходимо выполнить следующие шаги в панели управления Directus.
@@ -58,4 +60,10 @@ TELEGRAM_BOT_TOKEN=your_bot_token
 
 В текущей реализации API `/api/auth/telegram` проверяет данные от Telegram и автоматически регистрирует пользователя в Directus. 
 Для полноценной работы сессий на стороне клиента (Mini App) рекомендуется настроить Directus на использование того же домена или использовать прокси (уже реализовано в `src/lib/directus.ts`).
+
+## See Also
+
+- [Конфигурация](configuration.md) — переменные окружения Directus
+- [Схема БД](database-schema.md) — структура таблиц
+- [ИИ-интеграция](AI_INTEGRATION_GUIDE.md) — настройка AI Flow
 
