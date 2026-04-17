@@ -154,8 +154,8 @@ function DashboardPageInner() {
 
   if (authLoading || (loading && plan.length === 0)) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-stone-50 dark:bg-stone-900">
-        <div className="text-stone-600 dark:text-stone-400">Загрузка...</div>
+      <div className="flex min-h-screen items-center justify-center bg-app-bg">
+        <div className="text-app-text-muted">Загрузка...</div>
       </div>
     );
   }
@@ -212,8 +212,8 @@ export default function DashboardPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-stone-50 dark:bg-stone-900">
-          <div className="text-stone-600 dark:text-stone-400">Загрузка...</div>
+        <div className="flex min-h-screen items-center justify-center bg-app-bg">
+          <div className="text-app-text-muted">Загрузка...</div>
         </div>
       }
     >
