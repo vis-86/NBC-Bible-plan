@@ -248,10 +248,23 @@ export function getChapterTextByTranslation(
   chapter: number,
   translationId?: string
 ): string | null {
-  const bookData = loadBookDataByTranslation(bookName, translationId);
-  if (!bookData) return null;
   const chapterKey = String(chapter);
-  return bookData.chapters[chapterKey] || null;
+
+  const readChapter = (tid: string | undefined): string | null => {
+    const bookData = loadBookDataByTranslation(bookName, tid);
+    if (!bookData) return null;
+    return bookData.chapters[chapterKey] || null;
+  };
+
+  const primary = readChapter(translationId);
+  if (primary != null) return primary;
+
+  // Частичный датасет (например, неполный index.json после тестового импорта): книга/глава в переводе отсутствуют
+  if (translationId && translationId !== 'rst') {
+    return readChapter('rst');
+  }
+
+  return null;
 }
 
 /**

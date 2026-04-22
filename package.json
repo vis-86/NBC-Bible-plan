@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "deploy": "./copy-prod.sh"
+    "deploy": "./copy-prod.sh",
+    "bible:import": "tsx scripts/bible-import/cli.ts",
+    "bible:import:smoke": "tsx scripts/bible-import/smoke.ts"
   },
   "dependencies": {
     "@directus/sdk": "^20.3.0",
@@ -35,6 +37,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.0.10",
     "tailwindcss": "^4",
+    "tsx": "^4.19.4",
     "typescript": "^5"
   }
 }

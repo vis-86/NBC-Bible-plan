@@ -10,6 +10,7 @@ import { parseReadingItem } from '@/shared/utils/bible';
 import { useTheme } from '@/components/ThemeProvider';
 import { useReadingSettings } from '../hooks/useReadingSettings';
 import { useBibleText } from '../hooks/useBibleText';
+import { translationIdForBook } from '../bible-text-cache';
 import { useChapterNavigation } from '../hooks/useChapterNavigation';
 import { ReadingHeader } from './ReadingHeader';
 import { ReadingContent } from './ReadingContent';
@@ -50,7 +51,10 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
 
   const { effectiveTheme } = useTheme();
   const { settings, updateSettings, isLoading: settingsLoading } = useReadingSettings();
-  const { text, loading } = useBibleText(reading);
+  const bibleTextTranslationId = reading
+    ? translationIdForBook(reading.book, settings.ot_translation, settings.nt_translation)
+    : 'rst';
+  const { text, loading } = useBibleText(reading, bibleTextTranslationId);
   const {
     currentItemState,
     currentReadingState,

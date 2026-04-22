@@ -3,9 +3,12 @@ import { BibleReference } from '@/types';
 import { bibleApi } from '@/shared/services/api/endpoints';
 import { getCachedText, setCachedText } from '../bible-text-cache';
 
-export function useBibleText(reference: BibleReference | null) {
+/**
+ * @param translationId — перевод для текущей книги (`ot_translation` или `nt_translation`), как на сервере.
+ */
+export function useBibleText(reference: BibleReference | null, translationId: string) {
   const [text, setText] = useState<string>(() =>
-    reference ? getCachedText(reference.book, reference.chapter) ?? '' : ''
+    reference ? getCachedText(reference.book, reference.chapter, translationId) ?? '' : ''
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +20,7 @@ export function useBibleText(reference: BibleReference | null) {
       return;
     }
 
-    const cached = getCachedText(reference.book, reference.chapter);
+    const cached = getCachedText(reference.book, reference.chapter, translationId);
     if (cached !== undefined) {
       setText(cached);
       setError(null);
@@ -33,7 +36,7 @@ export function useBibleText(reference: BibleReference | null) {
       try {
         const response = await bibleApi.getText(reference.book, reference.chapter);
         const result = response.text || '';
-        setCachedText(reference.book, reference.chapter, result);
+        setCachedText(reference.book, reference.chapter, translationId, result);
         setText(result);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Не удалось загрузить текст';
@@ -45,7 +48,7 @@ export function useBibleText(reference: BibleReference | null) {
     };
 
     loadText();
-  }, [reference?.book, reference?.chapter]);
+  }, [reference?.book, reference?.chapter, translationId]);
 
   return { text, loading, error };
 }

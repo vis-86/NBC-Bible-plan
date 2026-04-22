@@ -248,7 +248,8 @@ export async function getReadingSettings(directusUserId: string, userAccessToken
   );
 
   if (settings.length === 0) {
-    // Возвращаем настройки по умолчанию
+    // Возвращаем настройки по умолчанию.
+    // Поля `ot_translation` / `nt_translation` — строки; допустимые значения задаются в приложении (`BibleTranslationId`).
     return {
       font_size: 20,
       line_height: 1.6,
