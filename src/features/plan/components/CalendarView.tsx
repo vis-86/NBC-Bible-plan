@@ -26,12 +26,59 @@ interface CalendarMonth {
 interface CalendarDay {
   dayNumber: number; // день месяца (1-31)
   dayId: number | null; // ID дня плана или null если день не в плане
-  isCompleted: boolean;
+  status: 'completed' | 'missed' | 'future' | null;
   isToday: boolean;
   isSelected: boolean; // день отмечен галочкой
   isOtherMonth: boolean; // день из другого месяца
-  isMissed: boolean; // день пропущен (прошедший и не прочитанный)
 }
+
+const getCalendarDayStatus = (
+  dayId: number | null,
+  completed: boolean,
+  todayDayNumber: number
+): 'completed' | 'missed' | 'future' | null => {
+  if (dayId === null) return null;
+  if (completed) return 'completed';
+  if (dayId < todayDayNumber) return 'missed';
+  return 'future';
+};
+
+const getCalendarDayCubeClasses = (day: CalendarDay): string => {
+  if (day.isOtherMonth) {
+    return 'aspect-square flex items-center justify-center relative transition-all duration-200 rounded-lg text-app-text-subtle border-0 bg-transparent cursor-default';
+  }
+
+  const statusTextClasses =
+    day.status === 'completed'
+      ? 'text-app-text-inverse'
+      : day.status === 'missed'
+        ? 'text-app-missed-text'
+        : 'text-app-text';
+
+  const statusBgClasses =
+    day.status === 'completed'
+      ? 'bg-app-success border border-app-success'
+      : day.status === 'missed'
+        ? 'bg-app-missed border border-app-missed-text/30'
+        : 'bg-app-surface border border-app-border';
+
+  const todayClasses =
+    day.isToday && !day.isSelected && day.status !== 'completed'
+      ? 'border-app-border-strong bg-app-surface-muted'
+      : '';
+
+  const selectedClasses = day.isSelected ? 'ring-2 ring-app-primary ring-offset-1 ring-offset-app-bg' : '';
+
+  return [
+    'aspect-square flex items-center justify-center relative transition-all duration-200 rounded-lg cursor-pointer active:scale-95',
+    statusTextClasses,
+    statusBgClasses,
+    todayClasses,
+    selectedClasses,
+  ]
+    .filter(Boolean)
+    .join(' ');
+};
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   plan,
@@ -100,11 +147,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         calendarDays.push({
           dayNumber,
           dayId: null,
-          isCompleted: false,
+          status: null,
           isToday: false,
           isSelected: false,
           isOtherMonth: true,
-          isMissed: false
         });
       }
 
@@ -122,16 +168,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                        date.getMonth() === today.getMonth() &&
                        date.getDate() === today.getDate();
 
-        const isMissed = planDayId !== null && planDayId < todayDayNumber && !planDay?.completed;
-        
+        const completed = planDay?.completed || false;
+        const status = getCalendarDayStatus(planDayId, completed, todayDayNumber);
+        console.debug('[CalendarView] day status computed', {
+          dayId: planDayId,
+          status,
+          completed,
+          todayDayNumber
+        });
+
         calendarDays.push({
           dayNumber: day,
           dayId: planDayId,
-          isCompleted: planDay?.completed || false,
+          status,
           isToday,
           isSelected: planDayId !== null && selectedDays.has(planDayId),
-          isOtherMonth: false,
-          isMissed
+          isOtherMonth: false
         });
       }
 
@@ -142,11 +194,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         calendarDays.push({
           dayNumber: day,
           dayId: null,
-          isCompleted: false,
+          status: null,
           isToday: false,
           isSelected: false,
           isOtherMonth: true,
-          isMissed: false
         });
       }
 
@@ -240,6 +291,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       const day = planMap.get(dayId);
       return day && !day.completed;
     });
+    console.debug('[CalendarView] bulk action executed', {
+      action: 'mark_selected_complete',
+      selectedDays: selectedDaysArray,
+      affectedStatuses: { uncompleted: daysToMark.length }
+    });
 
     for (const dayId of daysToMark) {
       try {
@@ -270,6 +326,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       const day = planMap.get(dayId);
       return day && day.completed;
     });
+    console.debug('[CalendarView] bulk action executed', {
+      action: 'unmark_selected_complete',
+      selectedDays: selectedDaysArray,
+      affectedStatuses: { completed: daysToUnmark.length }
+    });
 
     for (const dayId of daysToUnmark) {
       try {
@@ -293,6 +354,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     if (!lastActionDaysRef.current) return;
 
     const daysToRevert = lastActionDaysRef.current;
+    console.debug('[CalendarView] bulk action executed', {
+      action: 'undo_last_bulk_action',
+      selectedDays: daysToRevert,
+      affectedStatuses: { total: daysToRevert.length }
+    });
 
     // Отменяем последнее действие
     for (const dayId of daysToRevert) {
@@ -334,6 +400,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     lastActionDaysRef.current = missedDays.map(day => day.id);
 
     // Отмечаем все пропущенные дни как прочитанные
+    console.debug('[CalendarView] bulk action executed', {
+      action: 'mark_all_missed_complete',
+      selectedDays: missedDays.map(day => day.id),
+      affectedStatuses: { missed: missedDays.length }
+    });
     for (const day of missedDays) {
       try {
         await onToggleComplete(day.id);
@@ -411,28 +482,39 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             {/* Calendar Grid */}
             <div className="grid grid-cols-7 gap-1">
               {month.days.map((day, index) => (
-                <button
-                  key={`${month.year}-${month.month}-${index}`}
-                  onClick={() => handleDayClick(day)}
-                  disabled={day.dayId === null}
-                  onDoubleClick={() => handleDayDoubleClick(day)}
-                  className={`
-                    aspect-square flex items-center justify-center relative
-                    transition-all duration-200 rounded-lg
-                    ${day.isOtherMonth ? 'text-app-text-subtle' : day.isMissed ? 'text-app-accent' : 'text-app-text'}
-                    ${day.isSelected 
-                      ? 'border-2 border-app-primary bg-app-primary-light' 
-                      : day.isMissed
-                        ? 'border border-app-missed-text/30 bg-app-missed hover:bg-app-missed/70'
-                        : day.isOtherMonth 
-                          ? 'border-0 bg-transparent' 
-                          : 'border border-app-border bg-app-surface hover:bg-app-surface-muted'
-                    }
-                    ${day.isToday && !day.isSelected && !day.isMissed ? 'border-app-border-strong bg-app-surface-muted' : ''}
-                    ${day.dayId !== null ? 'cursor-pointer' : 'cursor-default'}
-                    ${day.isOtherMonth ? '' : 'active:scale-95'}
-                  `}
-                >
+                (() => {
+                  const dayClassName = getCalendarDayCubeClasses(day);
+                  if (!day.isOtherMonth && day.status === null) {
+                    console.warn('[CalendarView] status mismatch detected', {
+                      dayId: day.dayId,
+                      status: day.status,
+                      visualState: 'non-other-month day has null status'
+                    });
+                  }
+
+                  console.debug('[CalendarView] day cube classes resolved', {
+                    dayId: day.dayId,
+                    status: day.status,
+                    isSelected: day.isSelected,
+                    className: dayClassName
+                  });
+                  console.debug('[CalendarView] day cube attrs set', {
+                    dayId: day.dayId,
+                    status: day.status,
+                    selected: day.isSelected
+                  });
+
+                  return (
+                    <button
+                      key={`${month.year}-${month.month}-${index}`}
+                      onClick={() => handleDayClick(day)}
+                      disabled={day.dayId === null}
+                      onDoubleClick={() => handleDayDoubleClick(day)}
+                      data-day-nav-cube={day.dayId ?? undefined}
+                      data-day-nav-cube-status={day.status ?? undefined}
+                      data-day-nav-cube-selected={day.isSelected || undefined}
+                      className={dayClassName}
+                    >
                   {/* Checkmark for selected days - centered */}
                   {day.isSelected && !day.isOtherMonth && (
                     <Check
@@ -443,10 +525,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   )}
 
                   {/* Checkmark for completed days */}
-                  {day.isCompleted && !day.isSelected && !day.isOtherMonth && (
+                  {day.status === 'completed' && !day.isSelected && !day.isOtherMonth && (
                     <Check
-                      size={10}
-                      className="absolute top-1 right-1 text-app-success"
+                      size={12}
+                      className="absolute top-1 right-1 text-white"
                       strokeWidth={3}
                     />
                   )}
@@ -462,7 +544,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       {day.dayNumber}
                     </span>
                   )}
-                </button>
+                    </button>
+                  );
+                })()
               ))}
             </div>
           </div>

@@ -31,14 +31,10 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
   onMarkAllRead,
 }) => {
   const router = useRouter();
-  const totalItems = day.items?.length ?? day.readings?.length ?? 1;
   const strokeDashoffset = CIRCLE - (CIRCLE * yearProgress) / 100;
   const allItemsCompleted =
     (day.items ?? []).length > 0 ? day.items!.every((item) => item.completed) : Boolean(day.completed);
 
-  const estimatedMinutes = totalItems * 3;
-  const displayTime =
-    estimatedMinutes < 60 ? `~${estimatedMinutes} мин` : `~${Math.round(estimatedMinutes / 60)} ч`;
   const title = isToday ? 'Чтение на сегодня' : `Чтение на ${formatDateShort(day.dateStr)}`;
 
   return (
@@ -47,7 +43,7 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
         <div className="absolute top-0 right-0 w-64 h-64 bg-app-primary-muted rounded-full blur-3xl -mr-16 -mt-16" aria-hidden />
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-app-success-muted rounded-full blur-2xl -ml-10 -mb-10" aria-hidden />
 
-        <div className="relative bg-app-overlay-inner backdrop-blur-sm rounded-[28px] p-6 border border-white/5">
+        <div className="relative bg-app-overlay-inner backdrop-blur-sm rounded-[28px] p-4 border border-white/5">
           <div data-today-reading-card-header className="flex justify-between items-center mb-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
@@ -67,10 +63,13 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                 </span>
               </div>
               <h2 data-today-reading-card-title className="text-2xl font-bold text-app-overlay-text mb-1">{title}</h2>
-              <p data-today-reading-card-time className="text-app-overlay-text/50 text-sm">Примерное время: {displayTime}</p>
             </div>
 
-            <div data-today-reading-card-progress className="relative w-12 h-12 flex items-center justify-center flex-shrink-0">
+            <div 
+              onClick={() => router.push(`/dashboard/calendar`)}
+              data-today-reading-card-progress 
+              className="relative w-12 h-12 flex items-center justify-center flex-shrink-0"
+              >
               <svg className="w-full h-full transform -rotate-90" aria-label={`Годовой прогресс: ${yearProgress}%`}>
                 <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="3" fill="none" className="text-white/10" />
                 <circle

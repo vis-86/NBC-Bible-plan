@@ -1,152 +1,134 @@
-# Plan: Refactor Bottom Navigation Bar
+# Plan: CalendarView — унификация цветовых кубиков дат с data-day-nav-cube
 
-**Дата:** 2026-04-16  
+**Дата:** 2026-04-22  
 **Режим:** Fast  
 **Тесты:** нет  
-**Логирование:** стандартное  
+**Логирование:** verbose  
+**Документация:** warn-only
 
 ---
 
-## Контекст и задачи
+## Контекст
 
-Рефакторинг нижней навигационной панели как Senior Frontend Developer:
+Нужно привести визуал и логику кубиков дат в `src/features/plan/components/CalendarView.tsx` к тем же правилам, что используются в `data-day-nav-cube` из `src/features/plan/components/DayNavigationBar.tsx`.
 
-1. **Вынести в отдельную компоненту** — `BottomNavBar`
-2. **Убрать "Закладки"** — показывать только 3 пункта (Главная, Библия, Профиль) когда AI отключён
-3. **Индикатор снизу под названием** вместо точки сверху над иконкой
-4. **Починить навигацию с любого экрана** — перевести на URL-based подход через `usePathname`/`router.push`, убрать зависимость от `onChangeView` пропа
+Целевое поведение по статусам:
 
-### Root Cause бага навигации
+- `completed` (прочитано)
+- `missed` (пропущено)
+- `future` / непрочитано (не прочитано и не пропущено)
 
-На страницах `/dashboard/settings` и `/dashboard/read/*` в `DashboardLayout` передаётся `onChangeView={() => {}}`. Клик по "Библия" вызывает `onChangeView(AppView.READER)`, которая ничего не делает. Переход на читалку не происходит.
+---
 
-**Решение:** Весь нижний navbar переводим на `router.push()` + `usePathname()` для определения активного пункта. `onChangeView` нужен только для CHAT (переключение вью внутри `/dashboard`).
+## Settings
+
+- **Testing:** no (по запросу пользователя)
+- **Logging:** verbose (DEBUG-уровень в ключевых вычислениях статуса и массовых действиях)
+- **Docs:** no (warn-only)
 
 ---
 
 ## Задачи
 
-### Phase 1 — Компонент BottomNavBar
+### Phase 1 — Единая модель статуса и стилей для кубиков
 
-#### Task 1: Создать `BottomNavBar` component
+#### [x] Task 1: Вынести и унифицировать статус дня в `CalendarView`
 
-**Файл:** `src/shared/components/layout/BottomNavBar.tsx`
+**Файл:** `src/features/plan/components/CalendarView.tsx`
 
-**Что делает:**
-- Принимает пропы: `onChangeView?: (view: AppView) => void` (для CHAT/REFERENCE переключения внутри dashboard)
-- Определяет активный пункт через `usePathname()` и `useSearchParams()`:
-  - pathname === `/dashboard` или `/app/dashboard` → HOME активен
-  - pathname начинается с `/dashboard/read` → READER активен (но nav скрыт на этой странице)
-  - pathname === `/dashboard/settings` → SETTINGS активен
-  - searchParams.get('view') === 'chat' → CHAT активен
-- Навигация через `router.push()` для всех пунктов:
-  - HOME → `router.push('/dashboard')`
-  - READER → `router.push('/dashboard/read/Бытие/1')`
-  - CHAT → `router.push('/dashboard?view=chat')` ИЛИ `onChangeView(AppView.CHAT)` если уже на `/dashboard`
-  - SETTINGS → `router.push('/dashboard/settings')`
-- Показывает только активные пункты (без "Закладок" когда AI выключен):
-  - AI включён: Главная, Библия, Пастырь, Профиль
-  - AI выключен: Главная, Библия, Профиль
-- Индикатор активного пункта — точка **под** label-ом (`absolute -bottom-1.5`)
-- Стилизация точно как в оригинале (glass-nav, rounded-[24px], etc.)
+**Deliverable:**
 
-```tsx
-// Структура nav item
-interface NavItem {
-  id: string;
-  icon: React.ComponentType<{ className?: string; size?: number }>;
-  label: string;
-  href?: string;             // для router.push
-  view?: AppView;            // для onChangeView (только CHAT)
-  isFilled?: boolean;
-}
-```
+- Добавить локальный тип статуса дня, совместимый с `DayNavigationBar`: `completed | missed | future`.
+- Создать функцию `getCalendarDayStatus(...)`, которая вычисляет статус по той же логике:
+  - `completed`, если день отмечен как прочитанный;
+  - `missed`, если день меньше `todayDayNumber` и не прочитан;
+  - `future`, если не попадает в первые два случая.
+- Исключить дублирующие разрозненные проверки (`isCompleted`, `isMissed`) из JSX, оставив единый источник истины через `status`.
 
-**Логирование:**
-```
-console.debug('[BottomNavBar] navigate', { to: href, from: pathname })
-```
+**Логирование (обязательно):**
+
+- `console.debug('[CalendarView] day status computed', { dayId, status, completed, todayDayNumber })` при формировании данных календаря.
+
+**Dependency notes:** базовая задача для всех последующих задач по UI.
 
 ---
 
-#### Task 2: Обновить `DashboardLayout` — использовать `BottomNavBar`
+### Phase 2 — Синхронизация цветов и data-атрибутов с DayNavigationBar
 
-**Файл:** `src/shared/components/layout/DashboardLayout.tsx`
+#### [x] Task 2: Применить цветовую схему data-day-nav-cube в ячейках календаря
 
-**Изменения:**
-- Импортировать `BottomNavBar`
-- Убрать весь inline nav код (navItems, handleNav, блок `<nav>`)
-- Условие показа nav переключить на URL-based: если pathname содержит `/read/` — скрываем nav. Иначе показываем.
-- Оставить пропы `currentView` и `onChangeView` для обратной совместимости, но передавать `onChangeView` в `BottomNavBar`
-- `hideBottomNav` проп оставить как запасной вариант
+**Файл:** `src/features/plan/components/CalendarView.tsx`
 
-```tsx
-// В DashboardLayout вместо inline nav:
-const pathname = usePathname();
-const isReaderPage = pathname.includes('/read/');
+**Deliverable:**
 
-{!isReaderPage && !hideBottomNav && (
-  <BottomNavBar onChangeView={onChangeView} />
-)}
-```
+- Выстроить className-ветвление по статусу, зеркально `DayNavigationBar`:
+  - `completed`: `bg-app-success` + контрастный текст (`text-app-text-inverse`);
+  - `missed`: `text-app-missed-text` (+ `bg-app-missed`, если нужен фон для читаемости);
+  - `future`: `text-app-text`.
+- Сохранить иерархию выделения выбранного дня (`isSelected`) так, чтобы selected-стили не ломали статусную индикацию.
+- Проверить, что иконка `Check` визуально согласована с `data-day-nav-cube` (позиция/контраст/размер).
 
----
+**Логирование (обязательно):**
 
-### Phase 2 — Dashboard page: поддержка ?view= param
+- `console.debug('[CalendarView] day cube classes resolved', { dayId, status, isSelected, className })`.
 
-#### Task 3: Читать `?view=` параметр в `DashboardPage`
-
-**Файл:** `src/app/dashboard/page.tsx`
-
-**Изменения:**
-- Добавить `useSearchParams()` (обернуть компонент в Suspense или использовать existing Suspense boundary)
-- При монтировании читать `searchParams.get('view')` и инициализировать `currentView`:
-  ```ts
-  const viewParam = searchParams.get('view');
-  const initialView = viewParam === 'chat' ? AppView.CHAT : AppView.PLAN;
-  const [currentView, setCurrentView] = useState<AppView>(initialView);
-  ```
-- При изменении `currentView` (через `onChangeView`) обновлять URL без перезагрузки через `router.replace`:
-  ```ts
-  // В handleChangeView:
-  if (view === AppView.CHAT) router.replace('/dashboard?view=chat', { scroll: false });
-  else if (view === AppView.PLAN) router.replace('/dashboard', { scroll: false });
-  ```
-- Это обеспечит: перейдя на `/dashboard/settings` и кликнув "Пастырь" в nav → попадёт на `/dashboard?view=chat`
-
-**Логирование:**
-```
-console.debug('[DashboardPage] view from URL param', { viewParam, initialView })
-```
+**Dependency notes:** зависит от Task 1 (единый `status`).
 
 ---
 
-### Phase 3 — Cleanup
+#### [x] Task 3: Добавить статусные data-атрибуты в календарные кубики
 
-#### Task 4: Удалить `BookMarked` из импортов `DashboardLayout`
+**Файл:** `src/features/plan/components/CalendarView.tsx`
 
-**Файл:** `src/shared/components/layout/DashboardLayout.tsx`
+**Deliverable:**
 
-- Убрать импорт `BookMarked` из `lucide-react` (больше не используется)
-- Убрать импорт `AppView` если не используется в layout (перенесено в BottomNavBar)
-- Убрать тип `navItems` и `handleNav` функцию
-- Проверить что пропы интерфейса `DashboardLayoutProps` всё ещё корректны
+- Добавить атрибуты для консистентности и будущей автопроверки UI:
+  - `data-day-nav-cube`
+  - `data-day-nav-cube-status` (`completed | missed | future`)
+  - `data-day-nav-cube-selected` (`true/false`).
+- Гарантировать соответствие атрибутов итоговому отображению (цвет/иконка/статус).
+
+**Логирование (обязательно):**
+
+- `console.debug('[CalendarView] day cube attrs set', { dayId, status, selected: isSelected })`.
+
+**Dependency notes:** зависит от Task 1 и Task 2.
+
+---
+
+### Phase 3 — Валидация поведения и cleanup
+
+#### [x] Task 4: Проверить сценарии состояний и убрать лишнюю логику
+
+**Файл:** `src/features/plan/components/CalendarView.tsx`
+
+**Deliverable:**
+
+- Пройти ключевые сценарии в коде компонента:
+  - прошлый непрочитанный день -> `missed`;
+  - прочитанный день -> `completed`;
+  - текущий/будущий непрочитанный -> `future`.
+- Удалить или упростить устаревшие условные ветки и классы, которые дублируют новую status-модель.
+- Убедиться, что массовые действия (`mark selected`, `mark missed`) не конфликтуют с новой визуальной моделью.
+
+**Логирование (обязательно):**
+
+- `console.debug('[CalendarView] bulk action executed', { action, selectedDays, affectedStatuses })`.
+- `console.warn('[CalendarView] status mismatch detected', { dayId, status, visualState })` при выявлении несоответствия.
+
+**Dependency notes:** зависит от Task 1-3.
 
 ---
 
 ## Итого файлы
 
-| Действие | Файл |
-|----------|------|
-| CREATE | `src/shared/components/layout/BottomNavBar.tsx` |
-| MODIFY | `src/shared/components/layout/DashboardLayout.tsx` |
-| MODIFY | `src/app/dashboard/page.tsx` |
+- MODIFY: `src/features/plan/components/CalendarView.tsx`
 
 ---
 
-## Архитектурные решения
+## Примечания по реализации
 
-- **URL-first навигация**: активный пункт определяется из `usePathname()`, а не из проп `currentView`. Это делает nav независимым от состояния страницы.
-- **CHAT как исключение**: единственный пункт, который не имеет отдельного route — управляется через `?view=chat` query param и `onChangeView`. Это сохраняет текущую архитектуру без лишних новых страниц.
-- **Обратная совместимость**: `DashboardLayout` сохраняет все пропы (`currentView`, `onChangeView`, `hideBottomNav`) — Read и Settings страницы не требуют изменений.
-- **Без Suspense overhead**: `useSearchParams` в DashboardPage уже клиентский компонент (`'use client'`), Next.js требует обернуть в Suspense — добавим `<Suspense>` на уровне export.
+- Ориентиром для логики и цвета является `src/features/plan/components/DayNavigationBar.tsx`.
+- Архитектурно изменение локально для feature `plan` и не нарушает границы FSD (`features -> shared`).
+- Тестовые задачи исключены по явному выбору пользователя.
+
