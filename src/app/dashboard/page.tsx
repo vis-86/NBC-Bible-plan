@@ -176,7 +176,13 @@ function DashboardPageInner() {
 
     return (
       <>
-        <div className={currentView === AppView.PLAN ? 'block h-full' : 'hidden'}>
+        <div
+          className={
+            currentView === AppView.PLAN
+              ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+              : 'hidden'
+          }
+        >
           <PlanView
             plan={plan}
             readChapters={readChapters}
@@ -189,10 +195,22 @@ function DashboardPageInner() {
         </div>
         {isAIEnabled() && (
           <>
-            <div className={currentView === AppView.CHAT ? 'block h-full' : 'hidden'}>
+            <div
+              className={
+                currentView === AppView.CHAT
+                  ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+                  : 'hidden'
+              }
+            >
               <PastorChat />
             </div>
-            <div className={currentView === AppView.REFERENCE ? 'block h-full' : 'hidden'}>
+            <div
+              className={
+                currentView === AppView.REFERENCE
+                  ? 'flex min-h-0 flex-1 flex-col overflow-hidden'
+                  : 'hidden'
+              }
+            >
               <ReferenceTool />
             </div>
           </>
@@ -203,7 +221,9 @@ function DashboardPageInner() {
 
   return (
     <DashboardLayout currentView={currentView} onChangeView={handleChangeView}>
-      {renderContent()}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {renderContent()}
+      </div>
     </DashboardLayout>
   );
 }

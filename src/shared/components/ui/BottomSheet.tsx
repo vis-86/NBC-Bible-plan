@@ -12,36 +12,28 @@ interface BottomSheetProps {
   disableOverlay?: boolean; // Отключает overlay для возможности взаимодействия с контентом под ним
 }
 
-export const BottomSheet: React.FC<BottomSheetProps> = ({
-  isOpen,
-  onClose,
-  title,
-  children,
-  maxHeight = 'max-h-[80vh]',
-  disableOverlay = false
-}) => {
+const LOG_FIX = process.env.DEBUG_FIX === '1' || process.env.NODE_ENV === 'development';
+
+/**
+ * Ренерится только при открытом шите: при закрытии размонтируется — состояние drag сбрасывается
+ * без useEffect + setState (eslint react-hooks/set-state-in-effect).
+ */
+const BottomSheetOpenContent: React.FC<
+  Omit<BottomSheetProps, 'isOpen'>
+> = ({ onClose, title, children, maxHeight = 'max-h-[80vh]', disableOverlay = false }) => {
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const touchStartY = useRef<number | null>(null);
-  const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isOpen) {
-      setDragY(0);
-      setIsDragging(false);
-      touchStartY.current = null;
+    if (LOG_FIX) {
+      console.debug('[FIX] BottomSheet inner mounted', { maxHeight, disableOverlay });
     }
-  }, [isOpen]);
+  }, [maxHeight, disableOverlay]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    // Начинаем отслеживание только если касание началось в области handle bar или header
-    const target = e.target as HTMLElement;
-    const isHandleArea = target.closest('.handle-area') || target.closest('.sheet-header');
-    
-    if (isHandleArea) {
-      touchStartY.current = e.touches[0].clientY;
-      setIsDragging(true);
-    }
+    touchStartY.current = e.touches[0].clientY;
+    setIsDragging(true);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
@@ -50,22 +42,23 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     const currentY = e.touches[0].clientY;
     const deltaY = currentY - touchStartY.current;
 
-    // Разрешаем только свайп вниз
     if (deltaY > 0) {
       setDragY(deltaY);
-      e.preventDefault(); // Предотвращаем скролл страницы
+      e.preventDefault();
     }
   };
 
   const handleTouchEnd = () => {
     if (!isDragging) return;
 
-    const threshold = 100; // Минимальное расстояние для закрытия
-    
+    const threshold = 100;
+
     if (dragY > threshold) {
+      if (LOG_FIX) {
+        console.debug('[FIX] BottomSheet drag dismissed', { dragY, threshold });
+      }
       onClose();
     } else {
-      // Возвращаем на место с анимацией
       setDragY(0);
     }
 
@@ -73,24 +66,26 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
     touchStartY.current = null;
   };
 
-  if (!isOpen) return null;
+  const dragHandlers = {
+    onTouchStart: handleTouchStart,
+    onTouchMove: handleTouchMove,
+    onTouchEnd: handleTouchEnd
+  };
 
   return (
     <>
-      {/* Overlay */}
       {!disableOverlay && (
-        <div 
+        <div
+          data-bottom-sheet-overlay
           className="fixed inset-0 z-[60] bg-black/20 transition-opacity"
           onClick={onClose}
         />
       )}
-      
-      {/* Bottom Sheet */}
-      <div 
-        ref={sheetRef}
-        className={`fixed bottom-0 left-0 right-0 z-[70] bg-app-surface rounded-t-3xl shadow-app-lg ${maxHeight} overflow-hidden flex flex-col ${
-          isDragging ? '' : 'animate-slide-up'
-        }`}
+
+      {/* Внешний слой: только transform для drag. Иначе iOS/WebKit часто ломает scroll внутри transformed flex. */}
+      <div
+        data-bottom-sheet
+        className={`fixed bottom-0 left-0 right-0 z-[70] ${isDragging ? '' : 'animate-slide-up'}`}
         style={{
           transform: `translateY(${dragY}px)`,
           transition: isDragging ? 'none' : 'transform 0.3s ease-out',
@@ -101,47 +96,57 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
             e.stopPropagation();
           }
         }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
-        {/* Handle bar */}
-        <div 
-          className="handle-area flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing"
-          style={{ pointerEvents: 'auto' }}
+        <div
+          data-bottom-sheet-panel
+          className={`flex w-full flex-col overflow-hidden rounded-t-3xl bg-app-surface shadow-app-lg ${maxHeight}`}
         >
-          <div className="w-12 h-1 bg-app-border rounded-full" />
-        </div>
-
-        {/* Header */}
-        {title && (
-          <div 
-            className="sheet-header px-6 py-2.5 border-b border-app-border flex items-center justify-between"
-            style={{ pointerEvents: 'auto' }}
+          <div
+            data-bottom-sheet-handle
+            className="handle-area flex cursor-grab justify-center pt-3 pb-2 active:cursor-grabbing"
+            {...dragHandlers}
           >
-            {typeof title === 'string' ? (
-              <h2 className="text-lg font-bold text-app-text">{title}</h2>
-            ) : (
-              <div className="flex-1">{title}</div>
-            )}
-            <button
-              onClick={onClose}
-              className="p-1.5 text-app-text-muted hover:text-app-text active:scale-90 transition-transform"
-            >
-              <X size={18} />
-            </button>
+            <div className="h-1 w-12 rounded-full bg-app-border" />
           </div>
-        )}
 
-        {/* Content */}
-        <div 
-          className="flex-1 overflow-y-auto px-6 py-3"
-          style={{ pointerEvents: 'auto' }}
-        >
-          {children}
+          {title && (
+            <div
+              data-bottom-sheet-header
+              className="sheet-header flex items-center justify-between border-b border-app-border px-6 py-2.5"
+              {...dragHandlers}
+            >
+              {typeof title === 'string' ? (
+                <h2 className="text-lg font-bold text-app-text">{title}</h2>
+              ) : (
+                <div className="flex-1">{title}</div>
+              )}
+              <button
+                type="button"
+                data-bottom-sheet-close-button
+                onClick={onClose}
+                className="p-1.5 text-app-text-muted transition-transform hover:text-app-text active:scale-90"
+              >
+                <X size={18} />
+              </button>
+            </div>
+          )}
+
+          <div
+            data-bottom-sheet-body
+            className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain px-6 py-3 [-webkit-overflow-scrolling:touch]"
+          >
+            {children}
+          </div>
         </div>
       </div>
     </>
   );
 };
 
+export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, ...openProps }) => {
+  if (!isOpen) {
+    return null;
+  }
+
+  return <BottomSheetOpenContent {...openProps} />;
+};

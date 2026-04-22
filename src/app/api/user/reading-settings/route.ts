@@ -14,7 +14,9 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const settings = await getReadingSettings(session.directus_id, session.access_token);
+    // Только server-side: сессия уже проверена. Админ-клиент + фильтр по directus_id —
+    // иначе 403/ошибки у роли пользователя на коллекции `reading_settings` и сессии без access_token (Telegram).
+    const settings = await getReadingSettings(session.directus_id);
 
     return NextResponse.json({ settings });
   } catch (error) {
@@ -46,7 +48,7 @@ export async function POST(request: NextRequest) {
 
     const settings = await request.json();
 
-    await saveReadingSettings(session.directus_id, settings, session.access_token);
+    await saveReadingSettings(session.directus_id, settings);
 
     return NextResponse.json({ success: true });
   } catch (error) {

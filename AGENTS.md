@@ -149,6 +149,10 @@ See `ENV_SETUP.md` for full reference. Critical vars:
 | .ai-factory/ARCHITECTURE.md | Architecture decisions and patterns |
 | .ai-factory/rules/base.md | Coding conventions and rules |
 
+## DOM data attributes
+
+Для разметки «якорей» в DOM (E2E, аналитика) используй **kebab-case** `data-{компонент-в-kebab}-{зона}`, не `data-component`. Пример: `TodayReadingCard` → `data-today-reading-card`, `data-today-reading-card-day-counter`. Подробнее — раздел **DOM data attributes** в `.ai-factory/rules/base.md`.
+
 ## MCP Servers (configured in `.cursor/mcp.json`)
 
 | Server | Purpose |

@@ -25,10 +25,12 @@ export function useReadingSettings() {
   const [settings, setSettings] = useState<ReadingSettings>(defaultSettings);
   const [loading, setLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadSettings = async () => {
       try {
+        setLoadError(null);
         const response = await readingSettingsApi.getSettings();
         if (response.settings) {
           setSettings({
@@ -49,6 +51,7 @@ export function useReadingSettings() {
         }
       } catch (error) {
         console.error('Error loading settings:', error);
+        setLoadError('Не удалось загрузить настройки чтения');
       } finally {
         setIsLoading(false);
       }
@@ -74,7 +77,8 @@ export function useReadingSettings() {
     settings,
     updateSettings,
     loading,
-    isLoading
+    isLoading,
+    loadError
   };
 }
 

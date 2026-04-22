@@ -85,6 +85,7 @@ export default function CalendarPage() {
 
   return (
     <DashboardLayout currentView={AppView.PLAN} onChangeView={() => {}} hideBottomNav={true}>
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <CalendarView
         plan={plan}
         onSelectReading={handleSelectReading}
@@ -92,6 +93,7 @@ export default function CalendarPage() {
         onToggleItem={handleToggleItem}
         onBack={() => router.push('/dashboard')}
       />
+      </div>
     </DashboardLayout>
   );
 }

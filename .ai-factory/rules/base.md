@@ -35,6 +35,16 @@
 - Use `cn()` utility (from `@/shared/utils/cn`) for conditional class merging
 - Prefer named exports over default exports
 
+## DOM data attributes (стабильные хуки для тестов / аналитики)
+
+- **Не использовать** `data-component="PascalCase"`.
+- **Использовать** kebab-case, производное от имени компонента, по образцу `TodayReadingCard`:
+  - корень: `data-today-reading-card`;
+  - вложенные зоны: суффикс через дефис — `data-today-reading-card-header`, `data-today-reading-card-day-counter`, `data-today-reading-card-start-btn`.
+- **Правило имени:** `PascalCase` → слова в lower case и через дефис: `BottomSheet` → `data-bottom-sheet`, `ReadingSettingsForm` → `data-reading-settings-form`, `DashboardReadingSettingsSection` → `data-dashboard-reading-settings-section`.
+- **Вложенные части общего UI:** префикс совпадает с корневым компонентом, дальше роль: `data-bottom-sheet-overlay`, `data-bottom-sheet-panel`, `data-bottom-sheet-handle`, `data-bottom-sheet-body`.
+- Динамические маркеры (строка/id) — как в карточке: `data-today-reading-card-item={id}`.
+
 ## Error Handling
 
 - API routes: return `NextResponse.json({ error: ... }, { status: ... })`
