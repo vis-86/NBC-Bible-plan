@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Check, ChevronRight, Play } from 'lucide-react';
+import { Calendar, Check, CheckCheck, ChevronRight, Play } from 'lucide-react';
 import { ReadingPlanDay, BibleReference } from '@/types';
 import { formatDateShort, parseReadingItem } from '@/shared/utils/bible';
 
@@ -14,6 +14,7 @@ interface TodayReadingCardProps {
   onToggleItem: (dayId: number, itemNumber: number) => void;
   onSelectReading: (day: ReadingPlanDay, reading: BibleReference) => void;
   onStartReading: () => void;
+  onMarkAllRead: () => void;
 }
 
 const CIRCLE = 2 * Math.PI * 20;
@@ -27,10 +28,13 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
   onToggleItem,
   onSelectReading,
   onStartReading,
+  onMarkAllRead,
 }) => {
   const router = useRouter();
   const totalItems = day.items?.length ?? day.readings?.length ?? 1;
   const strokeDashoffset = CIRCLE - (CIRCLE * yearProgress) / 100;
+  const allItemsCompleted =
+    (day.items ?? []).length > 0 ? day.items!.every((item) => item.completed) : Boolean(day.completed);
 
   const estimatedMinutes = totalItems * 3;
   const displayTime =
@@ -159,6 +163,16 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
             <Play className="w-5 h-5 fill-current" aria-hidden />
             Начать чтение
           </button>
+          {!allItemsCompleted && <button
+            type="button"
+            data-today-reading-card-mark-all-btn
+            onClick={onMarkAllRead}
+            disabled={allItemsCompleted}
+            className="mt-6 w-full py-0 bg-transparent text-app-success font-semibold hover:opacity-80 active:scale-[0.99] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
+          >
+            <CheckCheck className="w-4 h-4" aria-hidden />
+            Отметить всё
+          </button>}
         </div>
       </div>
     </section>

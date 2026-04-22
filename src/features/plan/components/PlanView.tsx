@@ -30,6 +30,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
   plan,
   readChapters,
   onSelectReading,
+  onToggleComplete,
   onToggleItem,
   onToggleChapter,
   userName = 'Пользователь'
@@ -204,6 +205,23 @@ export const PlanView: React.FC<PlanViewProps> = ({
     }
   };
 
+  const handleMarkAllRead = async () => {
+    if (!selectedDay) return;
+
+    const dayItems = selectedDay.items ?? [];
+    if (dayItems.length > 0) {
+      const incompleteItems = dayItems.filter((item) => !item.completed);
+      incompleteItems.forEach((item) => {
+        onToggleItem(selectedDay.id, item.item);
+      });
+      return;
+    }
+
+    if (!selectedDay.completed) {
+      await onToggleComplete(selectedDay.id);
+    }
+  };
+
   if (showDetailedProgress) {
     return (
       <BibleProgress
@@ -260,6 +278,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
           onToggleItem={onToggleItem}
           onSelectReading={onSelectReading}
           onStartReading={handleStartReading}
+          onMarkAllRead={handleMarkAllRead}
         />
       )}
 
