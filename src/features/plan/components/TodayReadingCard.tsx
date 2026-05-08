@@ -11,10 +11,12 @@ interface TodayReadingCardProps {
   totalDays: number;
   isToday: boolean;
   yearProgress: number;
-  onToggleItem: (dayId: number, itemNumber: number) => void;
+  onToggleItem: (dayId: number, itemNumber: number) => Promise<void>;
   onSelectReading: (day: ReadingPlanDay, reading: BibleReference) => void;
   onStartReading: () => void;
-  onMarkAllRead: () => void;
+  onMarkAllRead: () => Promise<void>;
+  /** Блокировка во время мутации прогресса (useTransition в PlanContext) */
+  markAllReadDisabled?: boolean;
 }
 
 const CIRCLE = 2 * Math.PI * 20;
@@ -29,6 +31,7 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
   onSelectReading,
   onStartReading,
   onMarkAllRead,
+  markAllReadDisabled = false,
 }) => {
   const router = useRouter();
   const strokeDashoffset = CIRCLE - (CIRCLE * yearProgress) / 100;
@@ -103,7 +106,9 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                           data-today-reading-card-item-checkbox={item.item}
                           type="checkbox"
                           checked={item.completed}
-                          onChange={() => onToggleItem(day.id, item.item)}
+                          onChange={() => {
+                            void onToggleItem(day.id, item.item);
+                          }}
                           className="peer appearance-none w-6 h-6 rounded-full border-2 border-white/30 checked:bg-app-success checked:border-app-success transition-colors cursor-pointer"
                         />
                         <Check
@@ -165,8 +170,10 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
           {!allItemsCompleted && <button
             type="button"
             data-today-reading-card-mark-all-btn
-            onClick={onMarkAllRead}
-            disabled={allItemsCompleted}
+            onClick={() => {
+              void onMarkAllRead();
+            }}
+            disabled={allItemsCompleted || markAllReadDisabled}
             className="mt-6 w-full py-0 bg-transparent text-app-success font-semibold hover:opacity-80 active:scale-[0.99] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
           >
             <CheckCheck className="w-4 h-4" aria-hidden />

@@ -9,7 +9,6 @@ import BibleProgress from '@/components/BibleProgress';
 import { VerseOfTheDay } from './VerseOfTheDay';
 import { DayNavigationBar } from './DayNavigationBar';
 import { TodayReadingCard } from './TodayReadingCard';
-import { useDayCompletion } from '../hooks/useDayCompletion';
 import { CompletionModal } from '@/features/reading/components/CompletionModal';
 import { parseReadingItem } from '@/shared/utils/bible';
 import { getWeekDateRange, getWeekNumber, formatDateDDMM, formatHeaderDate } from '@/shared/utils/date';
@@ -21,7 +20,7 @@ interface PlanViewProps {
   readChapters: Set<string>;
   onSelectReading: (day: ReadingPlanDay, reading: BibleReference) => void;
   onToggleComplete: (dayId: number) => Promise<void>;
-  onToggleItem: (dayId: number, itemNumber: number) => void;
+  onToggleItem: (dayId: number, itemNumber: number) => Promise<void>;
   onToggleChapter: (book: string, chapter: number) => void;
   userName?: string;
 }
@@ -37,9 +36,10 @@ export const PlanView: React.FC<PlanViewProps> = ({
 }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { selectedDayId, setSelectedDayId } = usePlanContext();
+  const { selectedDayId, setSelectedDayId, isPending } = usePlanContext();
   const [showDetailedProgress, setShowDetailedProgress] = useState(false);
   const [lastCompletedDay, setLastCompletedDay] = useState<ReadingPlanDay | null>(null);
+  const [completionModalOpen, setCompletionModalOpen] = useState(false);
   const [weeklyWeeks, setWeeklyWeeks] = useState<WeeklyPlanWeek[]>([]);
   const [weeklyLoading, setWeeklyLoading] = useState(false);
   const [weeklyError, setWeeklyError] = useState<string | null>(null);
@@ -173,23 +173,21 @@ export const PlanView: React.FC<PlanViewProps> = ({
     );
 
     if (newlyCompletedDay) {
-      // Показываем модалку при ручной отметке через "Отметить всё"
+      // День в плане уже с completed: true — useDayCompletion не видит переход false→true.
+      // Открываем поздравление явно по факту появления дня в множестве завершённых.
       setLastCompletedDay(newlyCompletedDay);
+      setCompletionModalOpen(true);
     }
 
     prevCompletedDaysRef.current = currentCompletedDays;
   }, [filteredPlan, todayDay]);
 
-  // В PlanView показываем модалку только при ручной отметке (переход false -> true)
-  // alwaysShowIfCompleted: false, так как lastCompletedDay устанавливается только для только что завершенных дней
-  const completion = useDayCompletion(lastCompletedDay, { todayDay, alwaysShowIfCompleted: false });
-
   // Сбрасываем отслеживаемый день после закрытия модального окна
   useEffect(() => {
-    if (!completion.showModal && lastCompletedDay) {
+    if (!completionModalOpen && lastCompletedDay) {
       setLastCompletedDay(null);
     }
-  }, [completion.showModal, lastCompletedDay]);
+  }, [completionModalOpen, lastCompletedDay]);
 
   const handleStartReading = () => {
     if (!selectedDay) return;
@@ -210,10 +208,11 @@ export const PlanView: React.FC<PlanViewProps> = ({
 
     const dayItems = selectedDay.items ?? [];
     if (dayItems.length > 0) {
-      const incompleteItems = dayItems.filter((item) => !item.completed);
-      incompleteItems.forEach((item) => {
-        onToggleItem(selectedDay.id, item.item);
-      });
+      const hasIncomplete = dayItems.some((item) => !item.completed);
+      if (hasIncomplete) {
+        // Один запрос UpdateProgress(count: null) — то же, что полное завершение дня в Directus
+        await onToggleComplete(selectedDay.id);
+      }
       return;
     }
 
@@ -279,6 +278,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
           onSelectReading={onSelectReading}
           onStartReading={handleStartReading}
           onMarkAllRead={handleMarkAllRead}
+          markAllReadDisabled={isPending}
         />
       )}
 
@@ -358,10 +358,11 @@ export const PlanView: React.FC<PlanViewProps> = ({
       </section>
 
       <CompletionModal
-        isOpen={completion.showModal}
-        onClose={completion.closeModal}
+        isOpen={completionModalOpen}
+        onClose={() => setCompletionModalOpen(false)}
         day={lastCompletedDay}
         totalDays={filteredPlan.length}
+        actionLabel="Отлично"
       />
     </div>
   );

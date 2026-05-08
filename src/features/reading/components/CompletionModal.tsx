@@ -10,6 +10,7 @@ interface CompletionModalProps {
   onClose: () => void;
   day: ReadingPlanDay | null;
   totalDays?: number;
+  actionLabel?: string;
 }
 
 export const CompletionModal: React.FC<CompletionModalProps> = ({
@@ -17,9 +18,9 @@ export const CompletionModal: React.FC<CompletionModalProps> = ({
   onClose,
   day,
   totalDays = 365,
+  actionLabel = 'Продолжить',
 }) => {
   const iconRef = useRef<CircleCheckIconHandle>(null);
-  const currentYear = new Date().getFullYear();
   const completionProgress = Math.min(1, Math.max(0, day ? day.id / totalDays : 0));
 
   useEffect(() => {
@@ -54,7 +55,7 @@ export const CompletionModal: React.FC<CompletionModalProps> = ({
             className="h-full bg-app-success completion-progress-fill"
             style={
               {
-                ['--completion-progress' as any]: completionProgress
+                ['--completion-progress' as string & keyof React.CSSProperties]: String(completionProgress),
               } as React.CSSProperties
             }
           />
@@ -65,7 +66,7 @@ export const CompletionModal: React.FC<CompletionModalProps> = ({
           onClick={onClose}
           className="mt-8 w-full py-4 bg-app-text text-app-text-inverse rounded-2xl font-bold active:scale-95 transition-all hover:opacity-90"
         >
-          Продолжить
+          {actionLabel}
         </button>
       </div>
     </BottomSheet>

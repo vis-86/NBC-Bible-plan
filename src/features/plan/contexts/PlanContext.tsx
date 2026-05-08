@@ -1,11 +1,25 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useTransition, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useRef, useTransition, useMemo } from 'react';
 import { ReadingPlanDay, BibleReference, PlanItem } from '@/types';
 import { planApi, progressApi } from '@/shared/services/api/endpoints';
 import { ApiClientError } from '@/shared/services/api/client';
 import { dayOfYearToDateStr, parseReadingItem } from '@/shared/utils/bible';
 import { graphqlClient, progressMutations } from '@/shared/services/api/graphql';
+
+type ProgressApiRow = {
+  day: number;
+  id: number;
+  count: number | null;
+  completed_items?: number[] | null;
+};
+
+type PlanApiItem = {
+  id: number;
+  numbers: number;
+  read: string;
+  item: number;
+};
 
 interface PlanContextType {
   plan: ReadingPlanDay[];
@@ -26,11 +40,16 @@ const PlanContext = createContext<PlanContextType | undefined>(undefined);
 
 export function PlanProvider({ children }: { children: React.ReactNode }) {
   const [plan, setPlan] = useState<ReadingPlanDay[]>([]);
+  const planRef = useRef<ReadingPlanDay[]>(plan);
   const [readChapters, setReadChapters] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedDayId, setSelectedDayId] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    planRef.current = plan;
+  }, [plan]);
 
   const fetchPlan = useCallback(async () => {
     if (plan.length > 0) return; // Don't fetch if already loaded
@@ -47,7 +66,7 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
 
       const progressMap = new Map<number, { id: number; count: number | null; completedItems: number[] | null }>();
       if (progressData && Array.isArray(progressData)) {
-        progressData.forEach((p: any) => {
+        (progressData as ProgressApiRow[]).forEach((p) => {
           progressMap.set(p.day, { 
             id: p.id, 
             count: p.count,
@@ -56,8 +75,8 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      const dayGroups = new Map<number, any[]>();
-      planData.forEach((item: any) => {
+      const dayGroups = new Map<number, PlanApiItem[]>();
+      (planData as PlanApiItem[]).forEach((item) => {
         const dayNum = item.numbers;
         if (!dayGroups.has(dayNum)) {
           dayGroups.set(dayNum, []);
@@ -77,7 +96,7 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
         const isFullyCompleted = progress !== undefined && readCount === null;
         const dateStr = dayOfYearToDateStr(dayNumber, currentYear);
         
-        const planItems: PlanItem[] = items.map((item: any) => {
+        const planItems: PlanItem[] = items.map((item) => {
           const ref = parseReadingItem(item.read);
           
           // Определяем статус прочтения:
@@ -123,6 +142,7 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
       mappedPlan.sort((a, b) => a.id - b.id);
 
       setPlan(mappedPlan);
+      planRef.current = mappedPlan;
       setReadChapters(chapters);
 
       // Initialize selectedDayId to today if not set
@@ -155,32 +175,28 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggleItem = useCallback(async (dayId: number, itemNumber: number) => {
-    const day = plan.find(d => d.id === dayId);
+    const day = planRef.current.find((d) => d.id === dayId);
     if (!day) return;
 
-    const item = day.items.find(i => i.item === itemNumber);
+    const item = day.items.find((i) => i.item === itemNumber);
     if (!item) return;
 
     const wasItemCompleted = item.completed;
-    
-    // Получаем список всех прочитанных глав после переключения
+
     const completedItemNumbers = day.items
-      .filter(i => (i.item === itemNumber ? !wasItemCompleted : i.completed))
-      .map(i => i.item)
+      .filter((i) => (i.item === itemNumber ? !wasItemCompleted : i.completed))
+      .map((i) => i.item)
       .sort((a, b) => a - b);
-    
-    // Определяем, все ли главы прочитаны
+
     const allItemsCompleted = completedItemNumbers.length === day.totalItems;
-    
-    // Вычисляем count для обратной совместимости (максимальный последовательный номер)
+
     let newCount: number | null;
     if (allItemsCompleted) {
-      newCount = null; // Весь день прочитан
+      newCount = null;
     } else if (completedItemNumbers.length === 0) {
-      newCount = 0; // Ничего не прочитано
+      newCount = 0;
     } else {
-      // Находим максимальный последовательный номер для обратной совместимости
-      const sortedItemNumbers = day.items.map(i => i.item).sort((a, b) => a - b);
+      const sortedItemNumbers = day.items.map((i) => i.item).sort((a, b) => a - b);
       let maxSequentialItem = 0;
       for (const itemNum of sortedItemNumbers) {
         if (completedItemNumbers.includes(itemNum)) {
@@ -192,22 +208,55 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
       newCount = maxSequentialItem;
     }
 
-    startTransition(() => {
-      setPlan(prevPlan => prevPlan.map(d => {
-        if (d.id !== dayId) return d;
-        const isFullyCompleted = allItemsCompleted;
-        const updatedItems = d.items.map(i => ({
-          ...i,
-          completed: completedItemNumbers.includes(i.item)
-        }));
-        
-        return {
-          ...d,
-          items: updatedItems,
-          readCount: newCount,
-          completed: isFullyCompleted
-        };
+    planRef.current = planRef.current.map((d) => {
+      if (d.id !== dayId) return d;
+      const updatedItems = d.items.map((i) => ({
+        ...i,
+        completed: completedItemNumbers.includes(i.item),
       }));
+
+      return {
+        ...d,
+        items: updatedItems,
+        readCount: newCount,
+        completed: allItemsCompleted,
+      };
+    });
+
+    startTransition(() => {
+      setPlan((prevPlan) =>
+        prevPlan.map((d) => {
+          if (d.id !== dayId) return d;
+          const updatedItems = d.items.map((i) => ({
+            ...i,
+            completed: completedItemNumbers.includes(i.item),
+          }));
+
+          return {
+            ...d,
+            items: updatedItems,
+            readCount: newCount,
+            completed: allItemsCompleted,
+          };
+        })
+      );
+
+      setReadChapters((prev) => {
+        const next = new Set(prev);
+        if (allItemsCompleted) {
+          day.readings.forEach((r) => next.add(`${r.book}_${r.chapter}`));
+          return next;
+        }
+
+        const toggledRef = parseReadingItem(item.readText);
+        if (toggledRef) {
+          const chapterKey = `${toggledRef.book}_${toggledRef.chapter}`;
+          if (wasItemCompleted) next.delete(chapterKey);
+          else next.add(chapterKey);
+        }
+
+        return next;
+      });
     });
 
     try {
@@ -217,31 +266,48 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
       // but fetchPlan() in catch block of callers is also an option
       throw error;
     }
-  }, [plan, updateProgress]);
+  }, [updateProgress]);
 
   const toggleComplete = useCallback(async (dayId: number) => {
-    const day = plan.find(d => d.id === dayId);
+    const day = planRef.current.find((d) => d.id === dayId);
     if (!day) return;
 
     const isCompleted = day.completed;
 
-    startTransition(() => {
-      setPlan(prevPlan => prevPlan.map(d => 
-        d.id === dayId ? { 
-          ...d, 
-          completed: !isCompleted,
-          readCount: !isCompleted ? null : 0,
-          items: d.items.map(item => ({ ...item, completed: !isCompleted }))
-        } : d
-      ));
+    planRef.current = planRef.current.map((d) =>
+      d.id === dayId
+        ? {
+            ...d,
+            completed: !isCompleted,
+            readCount: !isCompleted ? null : 0,
+            items: d.items.map((item) => ({ ...item, completed: !isCompleted })),
+          }
+        : d
+    );
 
-      if (!isCompleted) {
-        setReadChapters(prev => {
-          const next = new Set(prev);
-          day.readings.forEach(r => next.add(`${r.book}_${r.chapter}`));
-          return next;
-        });
-      }
+    startTransition(() => {
+      setPlan((prevPlan) =>
+        prevPlan.map((d) =>
+          d.id === dayId
+            ? {
+                ...d,
+                completed: !isCompleted,
+                readCount: !isCompleted ? null : 0,
+                items: d.items.map((item) => ({ ...item, completed: !isCompleted })),
+              }
+            : d
+        )
+      );
+
+      setReadChapters((prev) => {
+        const next = new Set(prev);
+        if (!isCompleted) {
+          day.readings.forEach((r) => next.add(`${r.book}_${r.chapter}`));
+        } else {
+          day.readings.forEach((r) => next.delete(`${r.book}_${r.chapter}`));
+        }
+        return next;
+      });
     });
 
     try {
@@ -250,7 +316,7 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       throw error;
     }
-  }, [plan, updateProgress]);
+  }, [updateProgress]);
 
   const value = useMemo(() => ({
     plan,

@@ -32,6 +32,8 @@ import { graphqlClient, progressMutations } from '@/shared/services/api/graphql'
 
 // Обновить прогресс дня через GraphQL
 const mutation = progressMutations.updateProgress(dayId, count);
+// Частичный прогресс по пунктам дня (массив номеров пунктов плана):
+// const mutation = progressMutations.updateProgress(dayId, count, [1, 2, 3]);
 await graphqlClient.mutate(mutation);
 ```
 
@@ -63,10 +65,11 @@ await toggleComplete(dayId);
 ### updateProgress
 
 ```graphql
-mutation UpdateProgress($day: Int!, $count: Int) {
-  updateProgress(day: $day, count: $count) {
+mutation UpdateProgress($day: Int!, $count: Int, $completedItems: [Int]) {
+  updateProgress(day: $day, count: $count, completedItems: $completedItems) {
     day
     count
+    completedItems
     success
   }
 }
@@ -74,7 +77,8 @@ mutation UpdateProgress($day: Int!, $count: Int) {
 
 **Параметры**:
 - `day`: Номер дня (обязательный)
-- `count`: Количество прочитанных глав или `null` для полного завершения дня
+- `count`: Количество прочитанных пунктов по старой схеме (последовательно с 1), либо `null` для **полного завершения дня** (в Directus: `count: null`, `completed_items` сбрасываются)
+- `completedItems` (опционально): массив номеров пунктов (`item`) с частичным прогрессом; при `count: null` на сервере не используется — полный день задаётся только `count`
 
 ## Интеграция с Directus
 
