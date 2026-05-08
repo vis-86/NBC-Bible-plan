@@ -50,7 +50,7 @@ Created: 2026-05-08
 
 ### Phase 1: Hook — изоляция scroll-логики
 
-- [ ] **Task 1: Создать `useDayNavCarousel` hook**
+- [x] **Task 1: Создать `useDayNavCarousel` hook**
 
   **Файл:** `src/features/plan/hooks/useDayNavCarousel.ts` (новый).
 
@@ -100,7 +100,7 @@ Created: 2026-05-08
 
   **Зависимости:** ни одной (только React + `motion`).
 
-- [ ] **Task 2: ResizeObserver для пересчёта halfViewportPadding**
+- [x] **Task 2: ResizeObserver для пересчёта halfViewportPadding**
 
   **Файл:** тот же `useDayNavCarousel.ts`.
 
@@ -108,7 +108,7 @@ Created: 2026-05-08
 
   **Блокируется:** Task 1.
 
-- [ ] **Task 2.5: Initial mount centering (без анимации)**
+- [x] **Task 2.5: Initial mount centering (без анимации)**
 
   **Файл:** `useDayNavCarousel.ts` + интеграция в `DayNavigationBar.tsx`.
 
@@ -126,7 +126,7 @@ Created: 2026-05-08
 
 ### Phase 2: Визуал кольца через motion
 
-- [ ] **Task 3: Обернуть кубики в `motion.div` с transform по расстоянию до центра**
+- [x] **Task 3: Обернуть кубики в `motion.div` с transform по расстоянию до центра**
 
   **Файл:** `src/features/plan/components/DayNavigationBar.tsx`.
 
@@ -155,7 +155,7 @@ Created: 2026-05-08
 
   **Блокируется:** Task 1.
 
-- [ ] **Task 4: «Защёлкивающаяся» анимация при смене центра**
+- [x] **Task 4: «Защёлкивающаяся» анимация при смене центра**
 
   **Файл:** тот же `DayNavigationBar.tsx`.
 
@@ -187,7 +187,7 @@ Created: 2026-05-08
 
 ### Phase 3: Интеграция и контракт
 
-- [ ] **Task 5: Заменить scroll-логику в `DayNavigationBar` на новый hook + spacer'ы**
+- [x] **Task 5: Заменить scroll-логику в `DayNavigationBar` на новый hook + spacer'ы**
 
   **Файл:** `src/features/plan/components/DayNavigationBar.tsx`.
 
@@ -234,7 +234,7 @@ Created: 2026-05-08
 
   **Блокируется:** Task 1, 3.
 
-- [ ] **Task 6: Программный recenter при внешнем изменении `selectedDayId`**
+- [x] **Task 6: Программный recenter при внешнем изменении `selectedDayId`**
 
   **Файл:** тот же.
 
@@ -248,7 +248,7 @@ Created: 2026-05-08
 
   **Блокируется:** Task 1, 2.5, 5.
 
-- [ ] **Task 7: Кнопка «Сегодня» — переключить источник на `centerDayId`**
+- [x] **Task 7: Кнопка «Сегодня» — переключить источник на `centerDayId`**
 
   **Файл:** тот же.
 
@@ -264,7 +264,7 @@ Created: 2026-05-08
 
 ### Phase 4: Polish & QA
 
-- [ ] **Task 8: a11y и клавиатурная навигация**
+- [x] **Task 8: a11y и клавиатурная навигация**
 
   **Файл:** тот же.
 
@@ -298,6 +298,26 @@ Created: 2026-05-08
   **Лог:** `dlog('keyboard nav', { key, from, to })`.
 
   **Блокируется:** Task 5.
+
+- [x] **Task A: Рамка следует за `centerDayId`, убран `ring-offset`**
+
+  **Файлы:** `DayNavigationBar.tsx`.
+
+  **Изменения:**
+  - `getDayCubeClasses(status, isCenter)` — второй аргумент переименован в `isCenter`; убран `ring-offset-1 ring-offset-app-bg` (рамка flush с кубиком)
+  - `CubeMotionProps` — добавлен `isCenter: boolean`; `isSelected` сохранён только для `aria-selected`
+  - `React.memo` comparator — добавлено `prev.isCenter === next.isCenter`
+  - Рендер-луп — `const isCenter = id === centerDayId`, передаётся в `CubeMotion`
+  - Рамка визуально следует за центральным кубиком во время свайпа; `aria-selected` по-прежнему на `selectedDayId`
+
+- [x] **Task B: Оптимизация ref-sync — 9 отдельных `useEffect` → 2 `useLayoutEffect`**
+
+  **Файлы:** `useDayNavCarousel.ts`, `DayNavigationBar.tsx`.
+
+  **Изменения:**
+  - `useDayNavCarousel.ts`: 5 отдельных `useEffect(() => { ref.current = value }, [value])` заменены одним `useLayoutEffect(() => { ... })` без deps (запускается синхронно после каждого рендера)
+  - `DayNavigationBar.tsx`: аналогично, 4 → 1 `useLayoutEffect`
+  - Итого: -9 `useEffect`-вызовов, -8 async flush'ей; refs всегда актуальны до следующего paint
 
 - [ ] **Task 9: Ручное QA через chromeDevtools MCP**
 

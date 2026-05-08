@@ -1,10 +1,27 @@
 'use client';
 
-import React, { useMemo, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import {
+  motion,
+  useAnimate,
+  useReducedMotion,
+  useTransform,
+  type MotionValue,
+} from 'motion/react';
 import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ReadingPlanDay } from '@/types';
 import { formatDateShort, getDayOfWeek } from '@/shared/utils/bible';
 import { cn } from '@/shared/utils/cn';
+import { useDayNavCarousel } from '../hooks/useDayNavCarousel';
+
+const dlog: (...args: unknown[]) => void =
+  process.env.NODE_ENV !== 'production'
+    ? (...args) => console.debug('[day-nav]', ...args)
+    : () => {};
+
+const CUBE_WIDTH_PX = 56;
+const GAP_PX = 12;
+const STRIDE_PX = CUBE_WIDTH_PX + GAP_PX;
 
 interface DayNavigationBarProps {
   plan: ReadingPlanDay[];
@@ -13,216 +30,416 @@ interface DayNavigationBarProps {
   onSelectDay: (dayId: number) => void;
 }
 
-/**
- * Получает стили для кубика дня навигации
- */
-const getDayCubeStyles = (status: 'completed' | 'missed' | 'future', isSelected: boolean): string => {
-  const baseStyles = 'day-navigation-cube flex-shrink-0 w-14 h-16 rounded-lg flex flex-col items-center justify-center relative transition-all duration-200 hover:scale-105 active:scale-95';
+type DayStatus = 'completed' | 'missed' | 'future';
 
-  const statusStyles = {
+const getDayStatusForId = (
+  day: ReadingPlanDay,
+  todayDayNumber: number,
+): DayStatus => {
+  if (day.completed) return 'completed';
+  if (day.id < todayDayNumber) return 'missed';
+  return 'future';
+};
+
+const getStatusLabel = (status: DayStatus): string => {
+  switch (status) {
+    case 'completed':
+      return 'выполнено';
+    case 'missed':
+      return 'пропущено';
+    case 'future':
+      return 'предстоит';
+  }
+};
+
+const getDayCubeClasses = (status: DayStatus, isCenter: boolean): string => {
+  const base =
+    'day-navigation-cube flex-shrink-0 w-14 h-16 rounded-lg flex flex-col items-center justify-center relative active:scale-95 snap-center will-change-transform [transform-origin:center_bottom]';
+  const statusStyles: Record<DayStatus, string> = {
     completed: 'bg-app-success text-app-text-inverse',
     missed: 'text-app-missed-text',
     future: 'text-app-text',
   };
-
-  const selectedRing = isSelected ? 'ring-2 ring-offset-1 ring-offset-app-bg' : '';
-  const selectedRingColor = {
+  const ringColor: Record<DayStatus, string> = {
     completed: 'ring-app-success',
     missed: 'ring-app-missed-text',
     future: 'ring-app-text-muted',
   };
-
-  return `${baseStyles} ${statusStyles[status]} ${selectedRing} ${isSelected ? selectedRingColor[status] : ''}`;
+  const ring = isCenter ? `ring-2 ${ringColor[status]}` : '';
+  return `${base} ${statusStyles[status]} ${ring}`;
 };
+
+interface CubeMotionProps {
+  day: ReadingPlanDay;
+  status: DayStatus;
+  isSelected: boolean;
+  isCenter: boolean;
+  indexInTrack: number;
+  leadingSpacerPx: number;
+  trackWidthPx: number;
+  scrollX: MotionValue<number>;
+  reduceMotion: boolean;
+  onClick: (dayId: number) => void;
+}
+
+const CubeMotionInner: React.FC<CubeMotionProps> = ({
+  day,
+  status,
+  isSelected,
+  isCenter,
+  indexInTrack,
+  leadingSpacerPx,
+  trackWidthPx,
+  scrollX,
+  reduceMotion,
+  onClick,
+}) => {
+  // [FIX] Compute scale directly from scrollX in a single useTransform.
+  // Avoids chaining two motion-values which doubles re-subscription cost
+  // and increases the chance of "stale frame" jumps when parent re-renders.
+  const scale = useTransform(scrollX, (x) => {
+    if (trackWidthPx === 0) return 1;
+    const cubeCenter =
+      leadingSpacerPx + indexInTrack * STRIDE_PX + CUBE_WIDTH_PX / 2;
+    const dist = Math.abs(cubeCenter - (x + trackWidthPx / 2));
+    if (dist <= STRIDE_PX) return 1.0 + ((0.92 - 1.0) * dist) / STRIDE_PX;
+    if (dist <= 2 * STRIDE_PX)
+      return 0.92 + ((0.85 - 0.92) * (dist - STRIDE_PX)) / STRIDE_PX;
+    if (dist <= 3 * STRIDE_PX)
+      return 0.85 + ((0.78 - 0.85) * (dist - 2 * STRIDE_PX)) / STRIDE_PX;
+    return 0.78;
+  });
+  const opacity = useTransform(scrollX, (x) => {
+    if (trackWidthPx === 0) return 1;
+    const cubeCenter =
+      leadingSpacerPx + indexInTrack * STRIDE_PX + CUBE_WIDTH_PX / 2;
+    const dist = Math.abs(cubeCenter - (x + trackWidthPx / 2));
+    if (dist <= STRIDE_PX) return 1.0 + ((0.85 - 1.0) * dist) / STRIDE_PX;
+    if (dist <= 2 * STRIDE_PX)
+      return 0.85 + ((0.55 - 0.85) * (dist - STRIDE_PX)) / STRIDE_PX;
+    if (dist <= 3 * STRIDE_PX)
+      return 0.55 + ((0.4 - 0.55) * (dist - 2 * STRIDE_PX)) / STRIDE_PX;
+    return 0.4;
+  });
+
+  const handleClick = useCallback(() => onClick(day.id), [onClick, day.id]);
+
+  const formattedDate = formatDateShort(day.dateStr);
+  const dayOfWeek = getDayOfWeek(day.dateStr);
+  const ariaLabel = `День ${day.id}, ${formattedDate}, ${getStatusLabel(status)}`;
+
+  return (
+    <motion.button
+      id={`day-nav-cube-${day.id}`}
+      data-day-nav-cube={day.id}
+      data-day-nav-cube-status={status}
+      data-day-nav-cube-selected={isSelected || undefined}
+      role="option"
+      aria-selected={isSelected}
+      aria-label={ariaLabel}
+      onClick={handleClick}
+      className={getDayCubeClasses(status, isCenter)}
+      style={reduceMotion ? undefined : { scale, opacity }}
+    >
+      {status === 'completed' && (
+        <Check
+          data-day-nav-cube-check
+          size={14}
+          className="day-navigation-cube-check absolute top-1 right-1 text-white"
+          strokeWidth={3}
+        />
+      )}
+
+      <span
+        data-day-nav-cube-weekday
+        className="text-[10px] uppercase font-medium opacity-80 mb-0.5"
+      >
+        {dayOfWeek}
+      </span>
+
+      <span
+        data-day-nav-cube-pulse
+        data-day-nav-cube-number
+        className="day-navigation-cube-number text-base font-black leading-tight"
+        style={{ display: 'inline-block', transformOrigin: 'center' }}
+      >
+        {day.id}
+      </span>
+
+      <span
+        data-day-nav-cube-date
+        className="day-navigation-cube-date text-[10px] font-medium opacity-80"
+      >
+        {formattedDate}
+      </span>
+    </motion.button>
+  );
+};
+
+// [FIX] Memo with custom comparator — re-render only on meaningful prop changes.
+// Without this, every parent re-render (e.g. URL useSearchParams update fires 4-5x
+// on each snap) rebuilds all 365 cubes and tears down their useTransform motion-values,
+// producing a visible jump at snap.
+const CubeMotion = React.memo(CubeMotionInner, (prev, next) => {
+  return (
+    prev.day === next.day &&
+    prev.status === next.status &&
+    prev.isSelected === next.isSelected &&
+    prev.isCenter === next.isCenter &&
+    prev.indexInTrack === next.indexInTrack &&
+    prev.leadingSpacerPx === next.leadingSpacerPx &&
+    prev.trackWidthPx === next.trackWidthPx &&
+    prev.scrollX === next.scrollX &&
+    prev.reduceMotion === next.reduceMotion &&
+    prev.onClick === next.onClick
+  );
+});
 
 export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
   plan,
   selectedDayId,
   todayDayNumber,
-  onSelectDay
+  onSelectDay,
 }) => {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const trackRef = useRef<HTMLDivElement>(null);
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const filteredPlan = useMemo(() => plan.filter(d => d.id > 0), [plan]);
-  const [isTodayCubeVisible, setIsTodayCubeVisible] = useState(true);
-  // Куда уехал куб "сегодня" когда он не виден: 'right' = сегодня правее видимой зоны
-  const [todayCubeOffscreen, setTodayCubeOffscreen] = useState<'left' | 'right'>('right');
+  const filteredPlan = useMemo(() => plan.filter((d) => d.id > 0), [plan]);
+  const dayIds = useMemo(() => filteredPlan.map((d) => d.id), [filteredPlan]);
+  const dayMap = useMemo(() => {
+    const map = new Map<number, ReadingPlanDay>();
+    for (const d of filteredPlan) map.set(d.id, d);
+    return map;
+  }, [filteredPlan]);
+
+  const reduceMotion = useReducedMotion() ?? false;
+
+  const [scope, animate] = useAnimate<HTMLDivElement>();
+
+  const {
+    leadingSpacerPx,
+    trailingSpacerPx,
+    trackWidthPx,
+    centerDayId,
+    snappedDayId,
+    scrollX,
+    scrollToDay,
+  } = useDayNavCarousel({
+    trackRef: scope,
+    dayIds,
+    selectedDayId,
+    onSnapToDay: onSelectDay,
+    cubeWidthPx: CUBE_WIDTH_PX,
+    gapPx: GAP_PX,
+  });
+
+  const prevPulsedDayRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (snappedDayId === null) return;
+    if (snappedDayId === prevPulsedDayRef.current) return;
+    prevPulsedDayRef.current = snappedDayId;
+    if (reduceMotion) return;
+    const root = scope.current;
+    if (!root) return;
+    const el = root.querySelector<HTMLElement>(
+      `[data-day-nav-cube="${snappedDayId}"] [data-day-nav-cube-pulse]`,
+    );
+    if (!el) {
+      dlog('snap pulse skipped (cube not in DOM)', snappedDayId);
+      return;
+    }
+    try {
+      // [FIX] Pulse amplitude lowered (1.08 vs 1.18) and overshoot ease replaced
+      // with smooth ease-out — the previous overshoot was perceived as a "jump"
+      // when combined with cube-rebuilds on parent re-render.
+      animate(
+        el,
+        { scale: [1.08, 1.0] },
+        { duration: 0.16, ease: [0.16, 1, 0.3, 1] },
+      ).then(() => undefined).catch(() => undefined);
+      dlog('snap pulse for', snappedDayId);
+    } catch (err) {
+      dlog('snap pulse error', err);
+    }
+  }, [snappedDayId, reduceMotion, animate, scope]);
 
   useEffect(() => {
-    if (scrollContainerRef.current && selectedDayId) {
-      const selectedElement = scrollContainerRef.current.querySelector(
-        `[data-day-nav-cube="${selectedDayId}"]`
-      );
-      if (selectedElement) {
-        selectedElement.scrollIntoView({
-          block: 'nearest',
-          inline: 'center'
-        });
+    dlog('reduce-motion =', reduceMotion);
+  }, [reduceMotion]);
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (dayIds.length === 0) return;
+      const currentId = centerDayId ?? selectedDayId ?? dayIds[0];
+      const currentIdx = dayIds.indexOf(currentId);
+      if (currentIdx < 0) return;
+      let targetIdx: number | null = null;
+      switch (event.key) {
+        case 'ArrowLeft':
+          targetIdx = Math.max(0, currentIdx - 1);
+          break;
+        case 'ArrowRight':
+          targetIdx = Math.min(dayIds.length - 1, currentIdx + 1);
+          break;
+        case 'Home':
+          targetIdx = 0;
+          break;
+        case 'End':
+          targetIdx = dayIds.length - 1;
+          break;
+        default:
+          return;
       }
+      if (targetIdx === null || targetIdx === currentIdx) return;
+      event.preventDefault();
+      const targetDayId = dayIds[targetIdx];
+      dlog('keyboard nav', { key: event.key, from: currentId, to: targetDayId });
+      scrollToDay(targetDayId, 'smooth');
+    },
+    [dayIds, centerDayId, selectedDayId, scrollToDay],
+  );
+
+  // [FIX] Stable ref for click handler — without this, handleCubeClick reference
+  // changes on every centerDayId tick (which fires on each scroll frame), busting
+  // CubeMotion's React.memo and causing all 365 cubes to rerender on every scroll.
+  const centerDayIdRef = useRef<number | null>(centerDayId);
+  const selectedDayIdRef = useRef<number | null>(selectedDayId);
+  const onSelectDayRef = useRef(onSelectDay);
+  const scrollToDayRef = useRef(scrollToDay);
+  useLayoutEffect(() => {
+    centerDayIdRef.current = centerDayId;
+    selectedDayIdRef.current = selectedDayId;
+    onSelectDayRef.current = onSelectDay;
+    scrollToDayRef.current = scrollToDay;
+  });
+
+  const handleCubeClick = useCallback((dayId: number) => {
+    if (dayId === centerDayIdRef.current) {
+      if (selectedDayIdRef.current !== dayId) {
+        onSelectDayRef.current(dayId);
+      }
+      return;
     }
-  }, [selectedDayId, filteredPlan.length]);
+    dlog('cube click → smooth scroll to', dayId);
+    scrollToDayRef.current(dayId, 'smooth');
+  }, []);
 
-  useEffect(() => {
-    // root должен быть клипающий overflow-x-auto контейнер (track),
-    // а не внутренний min-w-max flex — тот никогда не скрывает содержимое
-    const track = trackRef.current;
-    const inner = scrollContainerRef.current;
-    if (!track || !inner) return;
+  const showTodayButton =
+    centerDayId !== null && centerDayId !== todayDayNumber;
+  const todayIsRight =
+    centerDayId !== null && centerDayId < todayDayNumber;
 
-    const todayEl = inner.querySelector<HTMLElement>(
-      `[data-day-nav-cube="${todayDayNumber}"]`
-    );
-    if (!todayEl) return;
-
-    observerRef.current?.disconnect();
-
-    observerRef.current = new IntersectionObserver(
-      ([entry]) => {
-        setIsTodayCubeVisible(entry.isIntersecting);
-        if (!entry.isIntersecting && entry.rootBounds) {
-          // Куб левее левого края трека — он "уехал влево", сегодня слева
-          // Куб правее правого края — он "уехал вправо", сегодня справа
-          const dir = entry.boundingClientRect.left < entry.rootBounds.left ? 'left' : 'right';
-          setTodayCubeOffscreen(dir);
-        }
-      },
-      { root: track, threshold: 0.8 }
-    );
-    observerRef.current.observe(todayEl);
-
-    return () => {
-      observerRef.current?.disconnect();
-    };
-  }, [todayDayNumber, filteredPlan.length]);
-
-  const getDayStatus = (day: ReadingPlanDay): 'completed' | 'missed' | 'future' => {
-    if (day.completed) {
-      return 'completed';
-    }
-    if (day.id < todayDayNumber) {
-      return 'missed';
-    }
-    return 'future';
-  };
+  const handleTodayClick = useCallback(() => {
+    dlog('today button click');
+    scrollToDay(todayDayNumber, 'smooth');
+  }, [scrollToDay, todayDayNumber]);
 
   return (
     <div data-day-nav-bar className="relative flex flex-col gap-2">
-      {/* Scrollable track — overflow-x-auto clips absolute children, so the
-          floating "Сегодня" button lives in the outer relative wrapper instead */}
       <div
-        ref={trackRef}
+        ref={scope}
         data-day-nav-bar-track
-        className="day-navigation-bar w-full overflow-x-auto pb-2 pt-8 pb-8 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        role="listbox"
+        aria-label="Дни плана чтения"
+        tabIndex={0}
+        onKeyDown={handleKeyDown}
+        aria-activedescendant={
+          selectedDayId !== null ? `day-nav-cube-${selectedDayId}` : undefined
+        }
+        className={cn(
+          'day-navigation-bar w-full overflow-x-auto pt-8 pb-8',
+          'snap-x snap-mandatory',
+          '[scroll-snap-stop:normal]',
+          '[touch-action:pan-x]',
+          '[overscroll-behavior-x:contain]',
+          '[overflow-anchor:none]',
+          'outline-none focus-visible:[box-shadow:inset_0_0_0_2px_var(--app-primary-muted)]',
+          '[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
+        )}
       >
         <div
-          ref={scrollContainerRef}
           data-day-nav-bar-scroll
-          className="day-navigation-bar-scroll flex gap-3 min-w-max"
+          className="flex items-center"
+          style={{ minWidth: 'max-content' }}
         >
-          {filteredPlan.map(day => {
-            const status = getDayStatus(day);
-            const isSelected = selectedDayId === day.id;
-            const formattedDate = formatDateShort(day.dateStr);
-            const dayOfWeek = getDayOfWeek(day.dateStr);
-
-            return (
-              <button
-                key={day.id}
-                data-day-nav-cube={day.id}
-                data-day-nav-cube-status={status}
-                data-day-nav-cube-selected={isSelected || undefined}
-                onClick={() => onSelectDay(day.id)}
-                className={getDayCubeStyles(status, isSelected)}
-              >
-                {status === 'completed' && (
-                  <Check
-                    data-day-nav-cube-check
-                    size={14}
-                    className="day-navigation-cube-check absolute top-1 right-1 text-white"
-                    strokeWidth={3}
-                  />
-                )}
-
-                <span data-day-nav-cube-weekday className="text-[10px] uppercase font-medium opacity-80 mb-0.5">
-                  {dayOfWeek}
-                </span>
-
-                <span data-day-nav-cube-number className="day-navigation-cube-number text-base font-black leading-tight">
-                  {day.id}
-                </span>
-
-                <span data-day-nav-cube-date className="day-navigation-cube-date text-[10px] font-medium opacity-80">
-                  {formattedDate}
-                </span>
-              </button>
-            );
-          })}
+          <div
+            aria-hidden
+            className="shrink-0"
+            style={{ width: `${leadingSpacerPx}px` }}
+          />
+          <div className="flex gap-3">
+            {dayIds.map((id, i) => {
+              const day = dayMap.get(id);
+              if (!day) return null;
+              const status = getDayStatusForId(day, todayDayNumber);
+              const isSelected = id === selectedDayId;
+              const isCenter = id === centerDayId;
+              return (
+                <CubeMotion
+                  key={id}
+                  day={day}
+                  status={status}
+                  isSelected={isSelected}
+                  isCenter={isCenter}
+                  indexInTrack={i}
+                  leadingSpacerPx={leadingSpacerPx}
+                  trackWidthPx={trackWidthPx}
+                  scrollX={scrollX}
+                  reduceMotion={reduceMotion}
+                  onClick={handleCubeClick}
+                />
+              );
+            })}
+          </div>
+          <div
+            aria-hidden
+            className="shrink-0"
+            style={{ width: `${trailingSpacerPx}px` }}
+          />
         </div>
       </div>
 
-      {/* Floating "Сегодня" button — outside the overflow container so it's
-          not clipped; positioned absolute relative to data-day-nav-bar.
-          Логика стороны:
-          - today правее вьюпорта (прошлое выбрано или куб уехал вправо) → кнопка СЛЕВА, шеврон →
-          - today левее вьюпорта (будущее выбрано или куб уехал влево) → кнопка СПРАВА, шеврон ← */}
-      {(!isTodayCubeVisible || selectedDayId !== todayDayNumber) && (() => {
-        const todayIsRight =
-          (selectedDayId !== null && selectedDayId < todayDayNumber) ||
-          (selectedDayId === todayDayNumber && todayCubeOffscreen === 'right');
-
-        return (
-          <div
+      {showTodayButton && (
+        <div
+          className={cn(
+            'absolute inset-y-2 flex items-top pointer-events-none z-10',
+            todayIsRight
+              ? 'left-0 bg-gradient-to-r from-app-bg via-app-bg/80 to-transparent w-28 pl-2 justify-start'
+              : 'right-0 bg-gradient-to-l from-app-bg via-app-bg/80 to-transparent w-28 pr-2 justify-end',
+          )}
+        >
+          <button
+            data-day-nav-bar-today-btn
+            onClick={handleTodayClick}
+            aria-label="Перейти на сегодня"
             className={cn(
-              'absolute inset-y-0 flex items-center pointer-events-none z-10',
-              todayIsRight
-                ? 'left-0 bg-gradient-to-r from-app-bg via-app-bg/80 to-transparent w-28 pl-0'
-                : 'right-0 bg-gradient-to-l from-app-bg via-app-bg/80 to-transparent w-28 pr-0'
+              'pointer-events-auto group flex items-center gap-1 h-5 rounded-md',
+              'bg-app-primary text-app-text-inverse',
+              'text-xs font-bold tracking-wide',
+              'shadow-app-sm transition-all duration-200',
+              'hover:scale-105 hover:shadow-app-md active:scale-95',
+              todayIsRight ? 'ml-1 pl-1 pr-1.5' : 'mr-1 pl-1.5 pr-1',
             )}
           >
-            <button
-              data-day-nav-bar-today-btn
-              onClick={() => {
-                onSelectDay(todayDayNumber);
-                // Прямой скролл нужен когда selectedDayId уже равен todayDayNumber —
-                // в этом случае deps useEffect не меняются и scrollIntoView не вызывается
-                scrollContainerRef.current
-                  ?.querySelector<HTMLElement>(`[data-day-nav-cube="${todayDayNumber}"]`)
-                  ?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-              }}
-              aria-label="Перейти на сегодня"
-              className={cn(
-                'pointer-events-auto group flex items-center gap-1 h-8 rounded-full',
-                'bg-app-primary text-app-text-inverse',
-                'text-xs font-bold tracking-wide',
-                'shadow-app-sm transition-all duration-200',
-                'hover:scale-105 hover:shadow-app-md active:scale-95',
-                todayIsRight ? 'ml-1 pl-3 pr-2.5' : 'mr-1 pl-2.5 pr-3'
-              )}
-            >
-              {todayIsRight ? (
-                <>
-                  <span>Сегодня</span>
-                  <ChevronRight
-                    size={13}
-                    strokeWidth={3}
-                    className="transition-transform duration-200 group-hover:translate-x-0.5"
-                  />
-                </>
-              ) : (
-                <>
-                  <ChevronLeft
-                    size={13}
-                    strokeWidth={3}
-                    className="transition-transform duration-200 group-hover:-translate-x-0.5"
-                  />
-                  <span>Сегодня</span>
-                </>
-              )}
-            </button>
-          </div>
-        );
-      })()}
+            {todayIsRight ? (
+              <>
+                <span>Сегодня</span>
+                <ChevronRight
+                  size={13}
+                  strokeWidth={3}
+                  className="transition-transform duration-200 group-hover:translate-x-0.5"
+                />
+              </>
+            ) : (
+              <>
+                <ChevronLeft
+                  size={13}
+                  strokeWidth={3}
+                  className="transition-transform duration-200 group-hover:-translate-x-0.5"
+                />
+                <span>Сегодня</span>
+              </>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 };
