@@ -131,6 +131,7 @@ See `ENV_SETUP.md` for full reference. Critical vars:
 | Getting Started | docs/getting-started.md | Installation, setup, first run |
 | Architecture | docs/architecture.md | FSD structure, patterns, layers |
 | Configuration | docs/configuration.md | Environment variables reference |
+| Authentication | docs/authentication.md | Invite+password, Telegram link, sessions, PWA |
 | Deployment | docs/deployment.md | Build, nginx, PM2, copy-prod.sh |
 | Directus Setup | docs/DIRECTUS_SETUP_GUIDE.md | Directus CMS configuration |
 | DB Schema | docs/database-schema.md | SQLite and Directus schema |

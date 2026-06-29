@@ -1,4 +1,4 @@
-[← Конфигурация](configuration.md) · [Back to README](../README.md) · [Настройка Directus →](DIRECTUS_SETUP_GUIDE.md)
+[← Аутентификация](authentication.md) · [Back to README](../README.md) · [Настройка Directus →](DIRECTUS_SETUP_GUIDE.md)
 
 # Деплой
 

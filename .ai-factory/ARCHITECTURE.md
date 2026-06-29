@@ -52,19 +52,40 @@ shared/services/api/
 └── graphql.ts        → GraphQL query helpers
 ```
 
-## Pattern: Auth — Lucia + SQLite + Telegram
+## Pattern: Auth — Invite + Password (canonical), Telegram link (secondary)
 
-**Decision:** Lucia v3 handles session management; Telegram Bot handles user identity.
+**Decision:** Псевдонимный аккаунт (логин+пароль) — каноническая идентичность и ЕДИНСТВЕННЫЙ
+источник создания аккаунтов. Telegram (заблокирован в РФ) — вторичный канал: mini-app только
+ПРИВЯЗЫВАЕТ tg_id к существующему аккаунту, не создаёт. Это исключает дубли by design.
 
-**Auth Flow:**
-1. User opens Telegram → Telegram WebApp injects `initData`
-2. Client POSTs `initData` to `/api/auth/telegram`
-3. Server verifies HMAC-SHA256 signature with `TELEGRAM_BOT_TOKEN`
-4. Server calls `findOrCreateUser()` → creates Directus user if new
-5. Lucia creates session → sets httpOnly cookie
-6. Middleware (`src/middleware.ts`) guards `/dashboard/*` routes
+**Web/PWA flow (основной):**
+1. Поддержка/админ генерит invite-ссылку: `POST /api/auth/invite/create` (защищён `INVITE_ADMIN_SECRET`) → подписанный (HMAC `INVITE_SECRET`) one-time токен
+2. Пользователь открывает `/activate?token=...&mode=activate` → задаёт логин+пароль(+имя)
+3. `POST /api/auth/activate` → `createLocalUser` (email `{login}@local`) → consume token → сессия
+4. Вход: `/login` → `POST /api/auth/login` (логин→`{login}@local` → Directus `/auth/login`)
+5. Сброс пароля = `mode=reset` токен (по userId) через ту же страницу/эндпоинт
 
-**Session Storage:** SQLite via `better-sqlite3` (local file, fast, zero-config)
+**Telegram flow (вторично, VPN):**
+1. mini-app → `POST /api/auth/telegram` → `getUserByTelegramId`
+   - привязан → сессия, `{ linked: true }`
+   - НЕ привязан → `{ linked: false }` (аккаунт НЕ создаётся; клиент ветвится по `linked`, не `res.ok` — иначе redirect-loop)
+2. Привязка: `POST /api/auth/telegram/link` (логин+пароль один раз) → `linkTelegramToUser`
+
+**One-time tokens:** `auth_used_tokens` (Directus) хранит использованные `jti`.
+
+**Sessions:** iron-session — зашифрованный+подписанный httpOnly cookie (`bible-plan-session`),
+30 дней. `SESSION_SECRET` валидируется лениво (не на этапе сборки). Middleware (`src/middleware.ts`,
+async) гардит `/dashboard/*`. Lucia/SQLite (`database/*.db`) — vestigial, не используется.
+
+## Pattern: Data access — admin-client + directus_id (без user access_token)
+
+**Decision:** API-роуты данных (`plan`, `progress`, `app-settings`, `graphql`, `reading-settings`)
+ходят в Directus через **admin-client** с фильтрацией по `directus_id` из сессии. Сессия НЕ хранит
+Directus user access_token.
+
+**Rationale:** Directus user-токен короткоживущий (~15 мин) без refresh → на пароль-пути давал бы
+логаут каждые ~15 мин. Admin-токен не истекает; сервер доверенный (см. proxy-паттерн). Per-user
+Directus permissions на API-слое сознательно не используются.
 
 ## Pattern: Environment-Based Feature Flags
 

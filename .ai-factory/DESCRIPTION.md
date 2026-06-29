@@ -13,8 +13,10 @@ Web application for the New Baptist Church (NBC) community — a structured Bibl
 - **Calendar View** — monthly calendar for reviewing past/future reading days
 - **Verse of the Day** — daily scripture from Directus
 - **AI Chat** ("Chat with Pastor") — AI assistant via n8n + Directus Flow
-- **Telegram Auth** — authentication via Telegram Bot (initData verification)
-- **Lucia Auth** — session management on top of SQLite
+- **Invite + Password Auth** — псевдонимный вход (логин→`{login}@local` + пароль). Аккаунты заводятся ТОЛЬКО через invite-ссылку (подписанный one-time токен); та же ссылка = сброс пароля
+- **Telegram Auth (вторично)** — mini-app для VPN; initData верифицируется, аккаунты НЕ создаются — только привязка tg_id к существующему аккаунту
+- **PWA** — устанавливаемое приложение вне Telegram (manifest + service worker, basePath-aware)
+- **Sessions** — iron-session: зашифрованный+подписанный httpOnly cookie (без Directus access_token; доступ к данным через admin-client + directus_id)
 - **User Settings** — reading font size, theme preferences
 
 ## Tech Stack
@@ -26,7 +28,8 @@ Web application for the New Baptist Church (NBC) community — a structured Bibl
 - **Icons:** Lucide React
 - **UI Components:** shadcn/ui (components.json configured)
 - **Markdown:** react-markdown + remark-gfm + rehype-raw
-- **Auth:** Lucia v3 + `better-sqlite3` (SQLite) + Telegram Bot
+- **Auth:** iron-session (sealed cookie) + Directus password auth + Telegram link; validation via `zod`
+- **Tests:** Vitest (auth lib/API unit tests)
 - **CMS / Data:** Directus CMS with `@directus/sdk` v20
 - **AI Workflow:** n8n workflows triggered via Directus Flows
 - **GraphQL:** Custom GraphQL API route (Apollo or fetch-based)
@@ -56,7 +59,8 @@ src/
 
 - **Language:** UI is Russian; code and comments in English
 - **Deployment:** Standalone mode, deployed behind nginx with `NEXT_PUBLIC_BASE_PATH=/app`
-- **Auth:** Cookie-based sessions via Lucia; Telegram initData verified server-side
+- **Auth:** Псевдонимная модель (логин+пароль, без email/телефона/ФИО → минимум ФЗ-152; сервер в РФ). iron-session sealed httpOnly cookie. Telegram initData verified server-side. Требуются env `SESSION_SECRET`, `INVITE_SECRET`, `INVITE_ADMIN_SECRET`
+- **PWA:** Установка вне Telegram; SW отдаётся из-под basePath (`/app/sw.js`) для совместимости с nginx-деплоем
 - **AI:** Feature-flagged via `NEXT_PUBLIC_AI_ENABLE`; disabled by default
 - **Performance:** React Compiler enabled (`babel-plugin-react-compiler`)
 - **Security:** Auth token stored in httpOnly cookies; Directus admin token server-only
