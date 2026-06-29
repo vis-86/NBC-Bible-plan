@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/session';
 
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const basePath = request.nextUrl.basePath || '';
   
   // Защищенные маршруты (учитываем basePath)
@@ -19,7 +19,7 @@ export function middleware(request: NextRequest) {
   );
 
   if (isProtectedPath) {
-    const session = getSessionFromRequest(request);
+    const session = await getSessionFromRequest(request);
     
     if (!session) {
       // Редирект на страницу логина с учетом basePath
