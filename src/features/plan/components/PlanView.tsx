@@ -10,7 +10,7 @@ import { VerseOfTheDay } from './VerseOfTheDay';
 import { DayNavigationBar } from './DayNavigationBar';
 import { TodayReadingCard } from './TodayReadingCard';
 import { CompletionModal } from '@/features/reading/components/CompletionModal';
-import { parseReadingItem } from '@/shared/utils/bible';
+import { parseReadingItem, normalizeBookNameForUrl } from '@/shared/utils/bible';
 import { getWeekDateRange, getWeekNumber, formatDateDDMM, formatHeaderDate } from '@/shared/utils/date';
 import { weeklyPlanApi, WeeklyPlanWeek } from '@/shared/services/api/endpoints';
 import { ApiClientError } from '@/shared/services/api/client';
@@ -335,7 +335,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   onClick={(e) => {
                     e.preventDefault();
                     const ref = parseReadingItem(it.read);
-                    if (ref) router.push(`/dashboard/read/${encodeURIComponent(ref.book)}/${ref.chapter}`);
+                    if (ref) router.push(`/dashboard/read/${encodeURIComponent(normalizeBookNameForUrl(ref.book))}/${ref.chapter}`);
                   }}
                   className="flex items-center justify-between p-3 rounded-xl bg-app-surface-muted hover:bg-app-surface-elevated transition-colors group"
                 >

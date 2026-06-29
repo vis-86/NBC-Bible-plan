@@ -9,7 +9,7 @@ import { useProgress } from '@/features/plan/hooks/useProgress';
 import { CalendarView } from '@/features/plan/components/CalendarView';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { AppView } from '@/types';
-import { parseReadingItem } from '@/shared/utils/bible';
+import { parseReadingItem, normalizeBookNameForUrl } from '@/shared/utils/bible';
 import { BibleReference } from '@/types';
 
 export default function CalendarPage() {
@@ -25,18 +25,18 @@ export default function CalendarPage() {
   }, [authLoading, user, plan.length, fetchPlan]);
 
   const handleSelectReading = (day: any, reading: BibleReference) => {
+    const normalizedBook = normalizeBookNameForUrl(reading.book);
     const item = day.items.find((i: any) => {
       const itemReading = parseReadingItem(i.readText);
-      return itemReading && itemReading.book === reading.book && itemReading.chapter === reading.chapter;
+      return itemReading && normalizeBookNameForUrl(itemReading.book) === normalizedBook && itemReading.chapter === reading.chapter;
     });
-    
-    let path = `/dashboard/read/${encodeURIComponent(reading.book)}/${reading.chapter}`;
-    
+
+    let path = `/dashboard/read/${encodeURIComponent(normalizedBook)}/${reading.chapter}`;
+
     if (item) {
       path += `?day=${day.id}&item=${item.item}`;
     }
-    
-    // Переход к чтению - BottomSheet закроется автоматически при навигации
+
     router.push(path);
   };
 

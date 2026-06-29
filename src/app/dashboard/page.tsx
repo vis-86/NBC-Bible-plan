@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AppView, BibleReference } from '@/types';
-import { parseReadingItem } from '@/shared/utils/bible';
+import { parseReadingItem, normalizeBookNameForUrl } from '@/shared/utils/bible';
 import { useAuth } from '@/hooks/useAuth';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PlanView } from '@/features/plan/components/PlanView';
@@ -107,12 +107,13 @@ function DashboardPageInner() {
   };
 
   const handleSelectReading = (day: any, reading: BibleReference) => {
+    const normalizedBook = normalizeBookNameForUrl(reading.book);
     const item = day.items.find((i: any) => {
       const itemReading = parseReadingItem(i.readText);
-      return itemReading && itemReading.book === reading.book && itemReading.chapter === reading.chapter;
+      return itemReading && normalizeBookNameForUrl(itemReading.book) === normalizedBook && itemReading.chapter === reading.chapter;
     });
 
-    let path = `/dashboard/read/${encodeURIComponent(reading.book)}/${reading.chapter}`;
+    let path = `/dashboard/read/${encodeURIComponent(normalizedBook)}/${reading.chapter}`;
 
     if (item) {
       path += `?day=${day.id}&item=${item.item}`;

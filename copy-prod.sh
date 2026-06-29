@@ -121,7 +121,7 @@ SERVER_PATH="/home/nbc/workspace"
 echo "Отправка архива на сервер..."
 scp -P $SSH_PORT pkg.tar.gz $SSH_USER@$SSH_HOST:$SERVER_PATH
 
-# Очистка временных файлов
+# Очистка временных файлов n@isypbg
 rm -rf ./pkg
 rm pkg.tar.gz
 

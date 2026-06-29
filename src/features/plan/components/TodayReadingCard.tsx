@@ -119,7 +119,13 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                       <button
                         type="button"
                         data-today-reading-card-item-link={item.item}
-                        onClick={() => reading && onSelectReading(day, reading)}
+                        onClick={() => {
+                          if (reading) {
+                            onSelectReading(day, reading);
+                          } else {
+                            console.warn('[TodayReadingCard] could not parse reading item for navigation', item.readText);
+                          }
+                        }}
                         className="flex-1 text-left"
                       >
                         <span className="text-lg font-medium text-app-overlay-text/80 group-hover:text-app-overlay-text transition-colors">

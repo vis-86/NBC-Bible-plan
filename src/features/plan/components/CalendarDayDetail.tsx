@@ -20,10 +20,12 @@ export const CalendarDayDetail: React.FC<CalendarDayDetailProps> = ({
   onSelectReading,
   onClose
 }) => {
-  const handleChapterClick = (reading: BibleReference | null) => {
+  const handleChapterClick = (reading: BibleReference | null, rawText?: string) => {
     if (reading) {
-      onClose(); // Закрываем BottomSheet перед переходом
+      onClose();
       onSelectReading(day, reading);
+    } else {
+      console.warn('[CalendarDayDetail] could not parse reading item for navigation', rawText);
     }
   };
 
@@ -70,7 +72,7 @@ export const CalendarDayDetail: React.FC<CalendarDayDetailProps> = ({
               return (
                 <button
                   key={item.id}
-                  onClick={() => handleChapterClick(reading)}
+                  onClick={() => handleChapterClick(reading, item.readText)}
                   className="w-full flex items-center gap-3 py-2 px-2 hover:bg-app-surface-muted rounded transition-colors text-left"
                 >
                   {/* Checkbox */}
