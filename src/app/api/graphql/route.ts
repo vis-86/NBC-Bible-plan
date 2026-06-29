@@ -1,7 +1,7 @@
 // @ts-nocheck - Directus SDK typing issue with custom schema
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession, deleteSession, isTokenExpiredError } from '@/lib/session';
-import { getDirectusAdminClient, getDirectusUserClient } from '@/lib/directus';
+import { getSession } from '@/lib/session';
+import { getDirectusAdminClient } from '@/lib/directus';
 
 type DirectusClient = ReturnType<typeof getDirectusAdminClient>;
 import { readItems, createItem, updateItem, deleteItem } from '@directus/sdk';
@@ -24,18 +24,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Query is required' }, { status: 400 });
     }
 
-    const client: DirectusClient = session.access_token
-      ? getDirectusUserClient(session.access_token)
-      : getDirectusAdminClient();
+    // T6: всегда admin-клиент + фильтрация по directus_id (без user access_token).
+    const client: DirectusClient = getDirectusAdminClient();
 
     const result = await executeGraphQLQuery(client, session.directus_id, query, variables);
 
     return NextResponse.json({ data: result });
   } catch (error: any) {
-    if (isTokenExpiredError(error)) {
-      const res = NextResponse.json({ error: 'Session expired' }, { status: 401 });
-      return deleteSession(res);
-    }
     console.error('GraphQL error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },

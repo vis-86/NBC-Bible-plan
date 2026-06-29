@@ -14,7 +14,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const settings = await getAppSettings(session.directus_id, session.access_token);
+    const settings = await getAppSettings(session.directus_id);
 
     return NextResponse.json({ settings });
   } catch (error) {
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await saveAppSettings(session.directus_id, { theme }, session.access_token);
+    await saveAppSettings(session.directus_id, { theme });
 
     return NextResponse.json({ success: true });
   } catch (error) {

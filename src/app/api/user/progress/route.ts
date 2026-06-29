@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSession, deleteSession, isTokenExpiredError } from '@/lib/session';
+import { getSession } from '@/lib/session';
 import { getUserProgress, updateUserProgress } from '@/lib/directus-data';
 
 /**
@@ -14,14 +14,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const progress = await getUserProgress(session.directus_id, session.access_token);
+    const progress = await getUserProgress(session.directus_id);
 
     return NextResponse.json({ progress });
   } catch (error) {
-    if (isTokenExpiredError(error)) {
-      const res = NextResponse.json({ error: 'Session expired' }, { status: 401 });
-      return deleteSession(res);
-    }
     console.error('Error getting user progress:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -61,7 +57,7 @@ export async function POST(request: NextRequest) {
       directusUserId: session.directus_id
     });
 
-    await updateUserProgress(session.directus_id, day, count, session.access_token);
+    await updateUserProgress(session.directus_id, day, count);
 
     console.log('POST /api/user/progress: progress updated successfully', {
       day,
@@ -70,10 +66,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    if (isTokenExpiredError(error)) {
-      const res = NextResponse.json({ error: 'Session expired' }, { status: 401 });
-      return deleteSession(res);
-    }
     console.error('Error updating user progress:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
