@@ -1,9 +1,12 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Plus_Jakarta_Sans, Lora } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
 import ThemeProvider from "@/components/ThemeProvider";
+import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,6 +34,20 @@ const lora = Lora({
 export const metadata: Metadata = {
   title: "NBC Bible Plan",
   description: "План чтения Библии Нижегородской Библейской Церкви",
+  applicationName: "NBC Bible Plan",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Bible Plan",
+  },
+  icons: {
+    icon: `${basePath}/icons/icon-192.png`,
+    apple: `${basePath}/icons/apple-touch-icon.png`,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#1f2937",
 };
 
 export default function RootLayout({
@@ -98,6 +115,7 @@ export default function RootLayout({
             {children}
           </AuthProvider>
         </ThemeProvider>
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );
