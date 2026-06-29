@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { hasTelegramWebAppObject, isTelegramWebApp, initTelegramWebApp, getTelegramInitData } from '@/lib/telegram';
 import { getApiPath, getBasePath } from '@/lib/utils';
 
@@ -12,7 +11,7 @@ const inputClass =
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState('');
+  const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -76,7 +75,7 @@ function LoginForm() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ login: login.trim(), password }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -153,17 +152,19 @@ function LoginForm() {
           )}
 
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-app-text">
-              Email
+            <label htmlFor="login" className="block text-sm font-medium text-app-text">
+              Логин
             </label>
             <input
-              id="email"
-              type="email"
+              id="login"
+              type="text"
+              autoCapitalize="none"
+              autoCorrect="off"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
               className={inputClass}
-              placeholder="your@email.com"
+              placeholder="ваш логин"
             />
           </div>
 
@@ -190,18 +191,6 @@ function LoginForm() {
             {loading ? 'Вход...' : 'Войти'}
           </button>
         </form>
-
-        <div className="text-center text-sm">
-          <span className="text-app-text-secondary">
-            Нет аккаунта?{' '}
-          </span>
-          <Link
-            href="/register"
-            className="font-medium text-app-text hover:underline"
-          >
-            Зарегистрироваться
-          </Link>
-        </div>
       </div>
     </div>
   );
