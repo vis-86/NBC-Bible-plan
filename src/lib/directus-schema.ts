@@ -49,5 +49,11 @@ export interface DirectusSchema {
     directus_user_id: string;
     theme: 'light' | 'dark' | 'system';
   };
+  /** Одноразовость invite/reset токенов: хранится только jti (не сам токен). */
+  auth_used_tokens: {
+    id: number;
+    jti: string;
+    used_at?: string;
+  };
 }
 

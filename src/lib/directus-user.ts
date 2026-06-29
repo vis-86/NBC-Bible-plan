@@ -1,6 +1,105 @@
 // @ts-nocheck - Directus SDK typing issue with custom schema
 import { getDirectusAdminClient } from '@/lib/directus';
-import { readItems, createItem, createUser, readRoles } from '@directus/sdk';
+import { readItems, createItem, createUser, readUsers, updateUser, readRoles } from '@directus/sdk';
+
+/** Синтетический email-домен для псевдонимных веб-аккаунтов (без реальных ПД, ФЗ-152). */
+export const LOCAL_EMAIL_DOMAIN = 'local';
+
+const DEBUG = (process.env.LOG_LEVEL ?? 'debug') === 'debug';
+function debug(...args: unknown[]) {
+  if (DEBUG) console.debug('[directus-user]', ...args);
+}
+
+/** Находит id роли «Чтец» (или null, если не найдена). */
+async function getReaderRoleId(adminClient: ReturnType<typeof getDirectusAdminClient>): Promise<string | null> {
+  const roles = await adminClient.request(readRoles({ filter: { name: { _eq: 'Чтец' } }, limit: 1 }));
+  return roles.length > 0 ? roles[0].id : null;
+}
+
+/** Преобразует логин-handle в синтетический email `{login}@local`. */
+export function loginToEmail(login: string): string {
+  return login.includes('@') ? login : `${login.toLowerCase()}@${LOCAL_EMAIL_DOMAIN}`;
+}
+
+export class LoginTakenError extends Error {
+  constructor(login: string) {
+    super(`Login already taken: ${login}`);
+    this.name = 'LoginTakenError';
+  }
+}
+
+/**
+ * Создаёт псевдонимного веб-пользователя по логину+паролю.
+ * email = `{login}@local`. Бросает LoginTakenError при занятом логине.
+ * @returns directus user id
+ */
+export async function createLocalUser(
+  login: string,
+  password: string,
+  displayName?: string
+): Promise<string> {
+  const adminClient = getDirectusAdminClient();
+  const email = loginToEmail(login);
+
+  const existing = await adminClient.request(
+    readUsers({ filter: { email: { _eq: email } }, limit: 1, fields: ['id'] })
+  );
+  if (existing.length > 0) {
+    debug('login taken', login);
+    throw new LoginTakenError(login);
+  }
+
+  const roleId = await getReaderRoleId(adminClient);
+  const newUser = await adminClient.request(
+    createUser({
+      role: roleId,
+      email,
+      password,
+      first_name: displayName || login,
+      external_identifier: `web_${login.toLowerCase()}`,
+      status: 'active',
+    })
+  );
+  debug('local user created', newUser.id, login);
+  return newUser.id;
+}
+
+/** Устанавливает новый пароль пользователя через admin API (для reset). */
+export async function setUserPassword(userId: string, password: string): Promise<void> {
+  const adminClient = getDirectusAdminClient();
+  await adminClient.request(updateUser(userId, { password }));
+  debug('password set for user', userId);
+}
+
+/** Создаёт mapping tg_id → directus_user. Бросает, если tg_id уже привязан к другому юзеру. */
+export async function linkTelegramToUser(directusUserId: string, telegramUserId: number): Promise<void> {
+  const adminClient = getDirectusAdminClient();
+  const existing = await adminClient.request(
+    readItems('telegram_user_mapping', {
+      filter: { telegram_user_id: { _eq: telegramUserId } },
+      limit: 1,
+    })
+  );
+  if (existing.length > 0) {
+    const mappedId = (existing[0] as any).directus_user_id;
+    if (mappedId === directusUserId) return; // уже привязан к этому же юзеру — идемпотентно
+    throw new TelegramAlreadyLinkedError(telegramUserId);
+  }
+  await adminClient.request(
+    createItem('telegram_user_mapping', {
+      directus_user_id: directusUserId,
+      telegram_user_id: telegramUserId,
+    })
+  );
+  debug('telegram linked', telegramUserId, '->', directusUserId);
+}
+
+export class TelegramAlreadyLinkedError extends Error {
+  constructor(telegramUserId: number) {
+    super(`Telegram id ${telegramUserId} already linked to another account`);
+    this.name = 'TelegramAlreadyLinkedError';
+  }
+}
 
 export interface TelegramUser {
   id: number;
@@ -9,62 +108,9 @@ export interface TelegramUser {
   username?: string;
 }
 
-/**
- * Находит или создает пользователя в Directus на основе Telegram данных
- */
-export async function findOrCreateUser(telegramUser: TelegramUser): Promise<string> {
-  const adminClient = getDirectusAdminClient();
-
-  // 1. Ищем маппинг пользователя
-  const mappings = await adminClient.request(
-    readItems('telegram_user_mapping', {
-      filter: { telegram_user_id: { _eq: telegramUser.id } },
-      limit: 1,
-    })
-  );
-
-  if (mappings.length > 0) {
-    return (mappings[0] as any).directus_user_id;
-  }
-
-  // 2. Если пользователя нет, создаем его
-  // Ищем роль "Чтец"
-  const roles = await adminClient.request(
-    readRoles({
-      filter: { name: { _eq: 'Чтец' } },
-      limit: 1,
-    })
-  );
-
-  const readerRoleId = roles.length > 0 ? roles[0].id : null;
-  if (!readerRoleId) {
-    console.warn('Role "Чтец" not found in Directus, creating user without role or with default');
-  }
-
-  // Создаем пользователя в Directus
-  const newUser = await adminClient.request(
-    createUser({
-      role: readerRoleId,
-      first_name: telegramUser.first_name,
-      last_name: telegramUser.last_name,
-      external_identifier: `tg_${telegramUser.id}`,
-      email: `${telegramUser.id}@telegram.bot`, // Фейковый email для Directus
-      status: 'active',
-    })
-  );
-
-  const directusUserId = newUser.id;
-
-  // Создаем маппинг
-  await adminClient.request(
-    createItem('telegram_user_mapping', {
-      directus_user_id: directusUserId,
-      telegram_user_id: telegramUser.id,
-    })
-  );
-
-  return directusUserId;
-}
+// findOrCreateUser удалён намеренно: mini-app больше НЕ создаёт аккаунты
+// (RESEARCH, Вариант 1). Привязка существующего аккаунта — через linkTelegramToUser
+// после проверки логина/пароля (см. /api/auth/telegram/link). Это исключает дубли.
 
 /**
  * Получает Directus User ID по Telegram ID
