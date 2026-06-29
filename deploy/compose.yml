@@ -1,0 +1,101 @@
+name: nbc-bible
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: directus
+      POSTGRES_USER: directus
+      POSTGRES_PASSWORD: ${PG_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U directus -d directus"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+
+  directus:
+    image: directus/directus:11
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      KEY: ${DIRECTUS_KEY}
+      SECRET: ${DIRECTUS_SECRET}
+      DB_CLIENT: pg
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_DATABASE: directus
+      DB_USER: directus
+      DB_PASSWORD: ${PG_PASSWORD}
+      ADMIN_EMAIL: ${DIRECTUS_ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${DIRECTUS_ADMIN_PASSWORD}
+      PUBLIC_URL: ${DIRECTUS_PUBLIC_URL}
+      WEBSOCKETS_ENABLED: "true"
+      # CORS: allow the app origin
+      CORS_ENABLED: "true"
+      CORS_ORIGIN: "true"
+    volumes:
+      - directus_uploads:/directus/uploads
+      - directus_extensions:/directus/extensions
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8055/server/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    networks: [internal]
+
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH}
+        NEXT_PUBLIC_DIRECTUS_URL: ${NEXT_PUBLIC_DIRECTUS_URL}
+        NEXT_PUBLIC_AI_ENABLE: ${NEXT_PUBLIC_AI_ENABLE}
+    restart: unless-stopped
+    depends_on:
+      directus:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH}
+      # All Directus access is server-side (no browser usage of this URL),
+      # so route it over the internal Docker network — independent of DNS/TLS.
+      DIRECTUS_URL: http://directus:8055
+      NEXT_PUBLIC_DIRECTUS_URL: http://directus:8055
+      DIRECTUS_ADMIN_TOKEN: ${DIRECTUS_ADMIN_TOKEN}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      JWT_SECRET: ${JWT_SECRET}
+      NEXT_PUBLIC_DIRECTUS_AI_FLOW_ID: ${NEXT_PUBLIC_DIRECTUS_AI_FLOW_ID:-ai-service}
+    volumes:
+      - app_db:/app/database
+    networks: [internal]
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    depends_on: [app, directus]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certbot/www:/var/www/certbot:ro
+      - ./nginx/certbot/conf:/etc/letsencrypt:ro
+    networks: [internal]
+
+volumes:
+  pgdata:
+  directus_uploads:
+  directus_extensions:
+  app_db:
+
+networks:
+  internal:

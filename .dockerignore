@@ -1,0 +1,11 @@
+node_modules
+.next
+.git
+pkg
+pkg.tar.gz
+.env.local
+deploy/.env
+deploy/nginx/certbot
+**/*.log
+.DS_Store
+План Чтения НБЦ
