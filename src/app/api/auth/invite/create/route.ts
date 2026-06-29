@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   const token = signInviteToken({ kind, userId });
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-  const url = `${appUrl}${basePath}/activate?token=${encodeURIComponent(token)}`;
+  const url = `${appUrl}${basePath}/activate?token=${encodeURIComponent(token)}&mode=${kind}`;
 
   debug('issued %s url for userId=%s', kind, userId ?? '-');
   return NextResponse.json({ url, token });

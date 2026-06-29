@@ -4,9 +4,13 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { hasTelegramWebAppObject, isTelegramWebApp, initTelegramWebApp, getTelegramInitData } from '@/lib/telegram';
 import { getApiPath, getBasePath } from '@/lib/utils';
+import TelegramLinkForm from '@/features/auth/components/TelegramLinkForm';
 
 const inputClass =
   'mt-1 block w-full rounded-md border border-app-border bg-app-surface-muted px-3 py-2 text-app-text placeholder-app-text-subtle focus:border-app-primary/50 focus:outline-none focus:ring-1 focus:ring-app-primary/30';
+
+// Контакт поддержки для забытого логина/пароля.
+const SUPPORT_CONTACT = 'https://t.me/nbc_support';
 
 function LoginForm() {
   const router = useRouter();
@@ -17,6 +21,8 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [telegramLoading, setTelegramLoading] = useState(true);
   const [telegramVerificationFailed, setTelegramVerificationFailed] = useState(false);
+  // initData для формы привязки, когда tg_id ещё не связан с аккаунтом.
+  const [tgLinkInitData, setTgLinkInitData] = useState<string | null>(null);
 
   useEffect(() => {
     const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -49,10 +55,21 @@ function LoginForm() {
           body: JSON.stringify({ initData }),
         });
 
-        if (verifyRes.ok) {
+        const data = await verifyRes.json().catch(() => ({}));
+
+        // ВАЖНО: ветвимся по data.linked, НЕ по verifyRes.ok — иначе при linked:false
+        // редирект на /dashboard → middleware вернёт на /login → бесконечный цикл.
+        if (verifyRes.ok && data.linked) {
           const redirect = searchParams.get('redirect') || '/dashboard';
           const url = redirect.startsWith('http') ? redirect : `${window.location.origin}${getBasePath()}${redirect}`;
           window.location.href = url;
+          return;
+        }
+
+        if (verifyRes.ok && data.linked === false) {
+          // tg_id не привязан — показываем форму однократной привязки.
+          setTgLinkInitData(initData);
+          setTelegramLoading(false);
           return;
         }
       } catch (err) {
@@ -114,6 +131,15 @@ function LoginForm() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
         <div className="text-app-text-muted">Проверка аутентификации...</div>
+      </div>
+    );
+  }
+
+  // tg_id ещё не привязан — показываем форму однократной привязки аккаунта.
+  if (tgLinkInitData) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
+        <TelegramLinkForm initData={tgLinkInitData} />
       </div>
     );
   }
@@ -191,6 +217,13 @@ function LoginForm() {
             {loading ? 'Вход...' : 'Войти'}
           </button>
         </form>
+
+        <div className="text-center text-sm text-app-text-secondary">
+          Забыли пароль или логин?{' '}
+          <a href={SUPPORT_CONTACT} className="font-medium text-app-text hover:underline">
+            Напишите в поддержку
+          </a>
+        </div>
       </div>
     </div>
   );
