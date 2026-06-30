@@ -98,7 +98,9 @@ export const bibleApi = {
 
 export const appSettingsApi = {
   getSettings: async (): Promise<AppSettingsResponse> => {
-    return apiClient.get<AppSettingsResponse>('/api/user/app-settings');
+    // Bootstrap темы выполняется на каждой странице (ThemeProvider), включая публичные
+    // (/activate, /login). skipAuth — чтобы 401 без сессии не редиректил на /login.
+    return apiClient.get<AppSettingsResponse>('/api/user/app-settings', { skipAuth: true });
   },
   updateSettings: async (settings: { theme: AppThemePreference }): Promise<void> => {
     return apiClient.post('/api/user/app-settings', settings);

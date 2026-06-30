@@ -50,9 +50,14 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      if (response.status === 401) {
+      // skipAuth = «этот запрос не привязан к сессии» (напр. bootstrap темы на публичных
+      // страницах /activate, /login). Его 401 НЕ должен дёргать глобальный redirect на /login,
+      // иначе invite-ссылка сразу перебрасывает на логин (см. ThemeProvider).
+      if (response.status === 401 && !skipAuth) {
         const onSessionExpired = (globalThis as unknown as { __onSessionExpired?: () => void }).__onSessionExpired;
         onSessionExpired?.();
+      } else if (response.status === 401 && skipAuth && process.env.NODE_ENV !== 'production') {
+        console.debug('[FIX] 401 on skipAuth request, suppressing session-expired redirect:', endpoint);
       }
       let errorMessage = `HTTP error: ${response.statusText}`;
       try {
