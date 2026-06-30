@@ -73,6 +73,9 @@ services:
       DIRECTUS_URL: http://directus:8055
       NEXT_PUBLIC_DIRECTUS_URL: http://directus:8055
       DIRECTUS_ADMIN_TOKEN: ${DIRECTUS_ADMIN_TOKEN}
+      SESSION_SECRET: ${SESSION_SECRET}
+      INVITE_ADMIN_SECRET: ${INVITE_ADMIN_SECRET}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       # runtime секрет регистрации (можно менять/снимать без пересборки; пусто ⇒ 503)
       REGISTER_CHURCH_CODE: ${REGISTER_CHURCH_CODE:-}
