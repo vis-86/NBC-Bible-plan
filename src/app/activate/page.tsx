@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { getApiPath, getBasePath } from '@/lib/utils';
 
 const inputClass =
@@ -11,7 +11,6 @@ const inputClass =
 const SUPPORT_CONTACT = 'https://t.me/nbc_support';
 
 function ActivateForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get('token') || '';
   const isReset = searchParams.get('mode') === 'reset';
