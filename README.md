@@ -29,7 +29,8 @@ npm run dev
 - **Календарь** — обзор прошедших и предстоящих дней чтения
 - **Стих дня** — ежедневный текст из Directus
 - **Чат с пастором** — ИИ-ассистент через n8n + Directus Flow (опционально)
-- **Вход по логину+паролю** — псевдонимный (без email/телефона); аккаунты через invite-ссылку
+- **Вход по логину+паролю** — псевдонимный (без email/телефона); аккаунты через invite-ссылку или код церкви
+- **Регистрация по коду церкви** — опциональная self-registration на `/register` (флаг + общий секрет)
 - **Telegram-привязка** — mini-app для VPN; авто-вход после однократной привязки (без авто-создания)
 - **PWA** — установка вне Telegram (manifest + service worker, basePath-aware)
 
@@ -42,7 +43,7 @@ npm run dev
 | [Быстрый старт](docs/getting-started.md) | Установка, настройка, первый запуск |
 | [Архитектура](docs/architecture.md) | FSD-структура, паттерны, слои |
 | [Конфигурация](docs/configuration.md) | Переменные окружения, настройки |
-| [Аутентификация](docs/authentication.md) | Invite+пароль, Telegram-привязка, сессии, PWA |
+| [Аутентификация](docs/authentication.md) | Invite+пароль, код церкви, Telegram-привязка, сессии, PWA |
 | [Деплой](docs/deployment.md) | Сборка, nginx, PM2, copy-prod.sh |
 | [Настройка Directus](docs/DIRECTUS_SETUP_GUIDE.md) | Коллекции, роли, разрешения |
 | [Схема БД](docs/database-schema.md) | Таблицы SQLite и их структура |

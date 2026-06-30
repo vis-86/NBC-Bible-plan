@@ -13,13 +13,17 @@
   invite-ссылка → /activate → логин + пароль (+ имя) → сессия
   та же подписанная ссылка (mode=reset) = сброс пароля
 
+  ИЛИ self-registration (если включена флагом):
+  /register → логин + пароль + код церкви → сессия
+
 TELEGRAM mini-app — вторично (VPN)
   initData → привязан?  ─да→ авто-вход
                         └─нет→ форма привязки (логин+пароль один раз) → дальше авто-вход
 ```
 
-- **Единственный источник аккаунтов** — invite на вебе. Telegram только **привязывает** `tg_id`
-  к существующему аккаунту (не создаёт), поэтому дубли невозможны by design.
+- **Источники аккаунтов** — invite на вебе **и** (опционально) self-registration по коду церкви.
+  Telegram только **привязывает** `tg_id` к существующему аккаунту (не создаёт), поэтому дубли
+  невозможны by design.
 - **Логин** — произвольный псевдоним; внутри маппится в синтетический email `{login}@local`.
   Подсказка в форме: не использовать настоящие имя/телефон.
 
@@ -29,6 +33,7 @@ TELEGRAM mini-app — вторично (VPN)
 |--------------|-----------|--------|
 | `POST /api/auth/invite/create` | Сгенерировать invite/reset-ссылку | `Authorization: Bearer ${INVITE_ADMIN_SECRET}` |
 | `POST /api/auth/activate` | Активация (создание аккаунта) или сброс пароля по токену | one-time токен + rate-limit |
+| `POST /api/auth/register` | Self-registration: логин+пароль+код церкви → аккаунт + сессия | код церкви (timing-safe) + rate-limit (5/час) |
 | `POST /api/auth/login` | Вход по логину+паролю (`{login}@local` → Directus) | rate-limit |
 | `POST /api/auth/telegram` | Mini-app вход. `{ linked: true }` + сессия / `{ linked: false }` | initData (HMAC) |
 | `POST /api/auth/telegram/link` | Однократная привязка `tg_id` к аккаунту | initData + логин/пароль + rate-limit |
@@ -58,6 +63,28 @@ Stateful токены в коллекции Directus `auth_invites` (`src/lib/in
 > параллельных активейта одной ссылки могут оба пройти. Для закрытого круга (one-time + TTL)
 > риск принят осознанно.
 
+## Self-registration по коду церкви
+
+Альтернатива invite-ссылкам: общий **код церкви** (озвучивается на собрании). Регистрация =
+`логин + пароль + код` на странице `/register` → `POST /api/auth/register` → аккаунт + сессия.
+Работает параллельно invite-модели (её не трогает; reset пароля по-прежнему через поддержку/invite).
+
+- **Два флага (включать вместе):**
+  - `REGISTER_CHURCH_CODE` — server-only секрет (runtime). Пусто/не задано ⇒ роут отвечает **503**
+    (регистрация выключена). Источник истины — сервер.
+  - `NEXT_PUBLIC_REGISTER_ENABLED` — клиентский UI-флаг (build-time инлайнинг). Включает CTA
+    «Зарегистрироваться» и шаги по коду церкви на лендинге. Тоггл ⇒ **пересборка** образа.
+- **Безопасность:** код общий и брутфорсимый, поэтому `verifyChurchCode` использует
+  `crypto.timingSafeEqual` с guard по длине (`src/lib/register-access.ts`), а главный барьер —
+  rate-limit `register:${ip}` (5 попыток в час). Код церкви и пароль **никогда** не логируются.
+- **Ответы роута:** 200 (+сессия) / 400 (валидация) / 403 (неверный код) / 409 (логин занят) /
+  429 (rate-limit) / 503 (выключено). Runtime: Node.js (нужен `crypto.timingSafeEqual`).
+- **Лендинг:** при включённой регистрации primary-CTA = «Зарегистрироваться» (→ `/register`),
+  шаги «Как начать» — по коду церкви; при выключенной — graceful fallback на invite-копию и
+  «Получить доступ» (поддержка).
+- **Ротация/отключение:** сменить `REGISTER_CHURCH_CODE` (без пересборки) либо снять секрет
+  (мгновенно 503). UI-флаг убирается пересборкой.
+
 ## Сессии
 
 `iron-session` — зашифрованный + подписанный httpOnly cookie `bible-plan-session` (30 дней).
@@ -84,6 +111,7 @@ service worker `src/app/sw.js/route.ts`. SW намеренно раздаётс�
 
 См. [Конфигурация](configuration.md) и `ENV_SETUP.md`: `SESSION_SECRET`,
 `INVITE_ADMIN_SECRET`, `NEXT_PUBLIC_APP_URL`, `TELEGRAM_BOT_TOKEN`, `DIRECTUS_ADMIN_TOKEN`.
+Для self-registration: `REGISTER_CHURCH_CODE` (runtime) + `NEXT_PUBLIC_REGISTER_ENABLED` (build-time).
 
 ## Directus
 

@@ -53,6 +53,29 @@
 
 ---
 
+### `REGISTER_CHURCH_CODE`
+
+**Описание:** Общий «код церкви» для self-registration (`/register`). Пусто/не задано ⇒ регистрация выключена (роут `/api/auth/register` отвечает 503)  
+**Тип:** Строка (секрет)  
+**Runtime:** да — можно менять/снимать **без пересборки**  
+**⚠️ Только server-side!** Никогда не добавляйте `NEXT_PUBLIC_` префикс. Сравнение timing-safe, rate-limit 5/час  
+**Где используется:** `src/lib/register-access.ts`, `POST /api/auth/register`
+
+---
+
+### `NEXT_PUBLIC_REGISTER_ENABLED`
+
+**Описание:** Клиентский UI-флаг self-registration: показывает CTA «Зарегистрироваться» и шаги по коду церкви на лендинге  
+**Тип:** `'true'` или `'1'` для включения  
+**По умолчанию:** не установлено (UI регистрации скрыт, лендинг в invite-модели)  
+**Build-time:** да — инлайнится в бандл, тоггл ⇒ **пересборка** образа  
+**Где используется:** `isRegisterEnabled()` (`src/shared/utils/constants.ts`), лендинг, `/register`
+
+> **Включать оба вместе.** `REGISTER_CHURCH_CODE` (runtime) — защита и источник истины (503 без секрета);
+> `NEXT_PUBLIC_REGISTER_ENABLED` (build-time) — только UI. Рассинхрон ⇒ UI покажет CTA, а роут вернёт 503 (или наоборот).
+
+---
+
 ### `NEXT_PUBLIC_BASE_PATH`
 
 **Описание:** Базовый путь приложения при деплое не в корень домена  
@@ -87,6 +110,10 @@ TELEGRAM_BOT_TOKEN=your_bot_token
 NEXT_PUBLIC_DIRECTUS_AI_FLOW_ID=ai-service
 NEXT_PUBLIC_AI_ENABLE=true
 NEXT_PUBLIC_BASE_PATH=/app
+
+# Self-registration по коду церкви (включать оба вместе)
+REGISTER_CHURCH_CODE=dev-church-code
+NEXT_PUBLIC_REGISTER_ENABLED=true
 ```
 
 ### Production (приложение в поддиректории `/app`)
@@ -119,7 +146,7 @@ PORT=3000
 
 ## Безопасность
 
-1. `DIRECTUS_ADMIN_TOKEN` и `TELEGRAM_BOT_TOKEN` — секреты, **никогда** не коммитьте в git
+1. `DIRECTUS_ADMIN_TOKEN`, `TELEGRAM_BOT_TOKEN`, `REGISTER_CHURCH_CODE` — секреты, **никогда** не коммитьте в git
 2. Переменные с префиксом `NEXT_PUBLIC_` доступны в браузере — не храните там секреты
 3. Используйте `.env.local` для локальной разработки (файл в `.gitignore`)
 4. На сервере используйте системные переменные окружения или файлы конфигурации PM2/systemd
