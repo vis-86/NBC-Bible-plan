@@ -127,19 +127,21 @@ fi
 wait "$BPID" || { echo "  BUILD FAILED:"; tail -n 30 "$LOG"; exit 1; }
 tail -n 6 "$LOG"
 
-NEW_IMG="$(docker compose images "$APP_SERVICE" -q 2>/dev/null || true)"
 echo "  recreating container ..."
 docker compose up -d "$APP_SERVICE"
 
-# wait for running
+# wait for running, then read the new container's actual image id
+CID=""
 for _ in $(seq 1 20); do
-  s="$(docker inspect -f '{{.State.Status}}' "$(docker compose ps -q "$APP_SERVICE")" 2>/dev/null || true)"
+  CID="$(docker compose ps -q "$APP_SERVICE" 2>/dev/null || true)"
+  s="$(docker inspect -f '{{.State.Status}}' "$CID" 2>/dev/null || true)"
   [ "$s" = "running" ] && break
   sleep 2
 done
+NEW_IMG="$(docker inspect -f '{{.Image}}' "$CID" 2>/dev/null | sed 's/^sha256://' || true)"
 echo "  app status: ${s:-unknown}  (image: ${OLD_IMG:0:12} -> ${NEW_IMG:0:12})"
 echo "  recent logs:"
-docker compose logs --since 30s "$APP_SERVICE" 2>&1 | tail -8
+docker logs "$CID" 2>&1 | tail -8
 REMOTE
 
 # ---- 3. smoke check ---------------------------------------------------------
