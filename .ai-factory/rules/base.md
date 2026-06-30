@@ -72,10 +72,13 @@
 
 ## Authentication
 
-- Lucia v3 sessions stored in SQLite via `better-sqlite3`
-- Session cookie: httpOnly, server-side only
-- Telegram auth: verified via `TELEGRAM_BOT_TOKEN` in `/api/auth/telegram/route.ts`
-- Middleware (`src/middleware.ts`) protects `/dashboard` routes
+- **Sessions:** `iron-session` — зашифрованный+подписанный httpOnly cookie `bible-plan-session` (`src/lib/session.ts`). `SESSION_SECRET` валидируется лениво (не на этапе `next build`). Сессия хранит `directus_id` + имя, **без** Directus access_token. (Lucia/`better-sqlite3` — vestigial, не используется.)
+- **Аккаунты создаются ТОЛЬКО через invite на вебе** (`/api/auth/invite/create` → `/api/auth/activate`). Логин — псевдоним, маппится в `{login}@local`. Без email/телефона/ФИО (ФЗ-152).
+- **Invite/reset токены:** HMAC-подписанные one-time (`src/lib/invite.ts`), `jti` в коллекции `auth_used_tokens`. Та же ссылка = активация (`mode=activate`) и сброс пароля (`mode=reset`).
+- **Telegram (вторично):** mini-app только привязывает `tg_id` к существующему аккаунту (`/api/auth/telegram/link`); `/api/auth/telegram` НЕ создаёт аккаунты. Клиент ветвится по `data.linked`, не по `res.ok` (иначе redirect-loop).
+- **Доступ к данным:** admin-client + фильтр по `directus_id` из сессии (без user access_token Directus).
+- **Валидация:** zod-схемы (`src/lib/validators/auth.schemas.ts`) + rate-limit (`src/lib/rate-limiter.ts`) на всех auth-эндпоинтах.
+- Middleware (`src/middleware.ts`, async) защищает `/dashboard`.
 
 ## Deployment
 
