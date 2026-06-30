@@ -61,8 +61,8 @@ shared/services/api/
 **Web/PWA flow (основной):**
 1. Поддержка/админ генерит invite-ссылку: запись в Directus `auth_invites` (вручную в Admin UI через Flow ИЛИ `POST /api/auth/invite/create`, защищён `INVITE_ADMIN_SECRET`)
 2. Пользователь открывает `/activate?token=...&mode=activate` → задаёт логин+пароль(+имя)
-3. `POST /api/auth/activate` → `findValidInvite` (kind/user из записи) → `createLocalUser` (email `{login}@local`) → `consumeInvite` → сессия
-4. Вход: `/login` → `POST /api/auth/login` (логин→`{login}@local` → Directus `/auth/login`)
+3. `POST /api/auth/activate` → `findValidInvite` (kind/user из записи) → `createLocalUser` (email `{login}@local.baptistnn.ru`) → `consumeInvite` → сессия
+4. Вход: `/login` → `POST /api/auth/login` (логин→`{login}@local.baptistnn.ru` → Directus `/auth/login`)
 5. Сброс пароля = `mode=reset` токен (по userId) через ту же страницу/эндпоинт
 
 **Telegram flow (вторично, VPN):**

@@ -21,7 +21,7 @@ async function getReaderRoleId(adminClient: ReturnType<typeof getDirectusAdminCl
   return roles.length > 0 ? roles[0].id : null;
 }
 
-/** Преобразует логин-handle в синтетический email `{login}@local`. */
+/** Преобразует логин-handle в синтетический email `{login}@local.baptistnn.ru`. */
 export function loginToEmail(login: string): string {
   return login.includes('@') ? login : `${login.toLowerCase()}@${LOCAL_EMAIL_DOMAIN}`;
 }
@@ -35,7 +35,7 @@ export class LoginTakenError extends Error {
 
 /**
  * Создаёт псевдонимного веб-пользователя по логину+паролю.
- * email = `{login}@local`. Бросает LoginTakenError при занятом логине.
+ * email = `{login}@local.baptistnn.ru`. Бросает LoginTakenError при занятом логине.
  * @returns directus user id
  */
 export async function createLocalUser(

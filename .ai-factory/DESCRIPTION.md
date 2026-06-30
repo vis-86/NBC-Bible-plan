@@ -13,7 +13,7 @@ Web application for the New Baptist Church (NBC) community — a structured Bibl
 - **Calendar View** — monthly calendar for reviewing past/future reading days
 - **Verse of the Day** — daily scripture from Directus
 - **AI Chat** ("Chat with Pastor") — AI assistant via n8n + Directus Flow
-- **Invite + Password Auth** — псевдонимный вход (логин→`{login}@local` + пароль). Аккаунты заводятся через invite-ссылку (stateful токен `auth_invites`); та же ссылка = сброс пароля
+- **Invite + Password Auth** — псевдонимный вход (логин→`{login}@local.baptistnn.ru` + пароль). Аккаунты заводятся через invite-ссылку (stateful токен `auth_invites`); та же ссылка = сброс пароля
 - **Self-registration по коду церкви** — `/register` (login + password + churchCode). Общий секрет `REGISTER_CHURCH_CODE` (timing-safe, rate-limit 5/час); включается флагами `REGISTER_CHURCH_CODE` (runtime) + `NEXT_PUBLIC_REGISTER_ENABLED` (build-time UI). Без секрета роут `/api/auth/register` → 503. Параллельна invite-модели
 - **Telegram Auth (вторично)** — mini-app для VPN; initData верифицируется, аккаунты НЕ создаются — только привязка tg_id к существующему аккаунту
 - **PWA** — устанавливаемое приложение вне Telegram (manifest + service worker, basePath-aware)

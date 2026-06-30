@@ -12,7 +12,7 @@ function debug(...args: unknown[]) {
 
 /**
  * POST /api/auth/login
- * Вход по логину (handle) и паролю. Логин нормализуется в `{login}@local`;
+ * Вход по логину (handle) и паролю. Логин нормализуется в `{login}@local.baptistnn.ru`;
  * email с явным доменом проходит как есть (backward-compat для Directus email-аккаунтов).
  */
 export async function POST(request: NextRequest) {

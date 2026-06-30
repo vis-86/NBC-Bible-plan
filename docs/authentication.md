@@ -24,7 +24,7 @@ TELEGRAM mini-app — вторично (VPN)
 - **Источники аккаунтов** — invite на вебе **и** (опционально) self-registration по коду церкви.
   Telegram только **привязывает** `tg_id` к существующему аккаунту (не создаёт), поэтому дубли
   невозможны by design.
-- **Логин** — произвольный псевдоним; внутри маппится в синтетический email `{login}@local`.
+- **Логин** — произвольный псевдоним; внутри маппится в синтетический email `{login}@local.baptistnn.ru`.
   Подсказка в форме: не использовать настоящие имя/телефон.
 
 ## Эндпоинты
@@ -34,7 +34,7 @@ TELEGRAM mini-app — вторично (VPN)
 | `POST /api/auth/invite/create` | Сгенерировать invite/reset-ссылку | `Authorization: Bearer ${INVITE_ADMIN_SECRET}` |
 | `POST /api/auth/activate` | Активация (создание аккаунта) или сброс пароля по токену | one-time токен + rate-limit |
 | `POST /api/auth/register` | Self-registration: логин+пароль+код церкви → аккаунт + сессия | код церкви (timing-safe) + rate-limit (5/час) |
-| `POST /api/auth/login` | Вход по логину+паролю (`{login}@local` → Directus) | rate-limit |
+| `POST /api/auth/login` | Вход по логину+паролю (`{login}@local.baptistnn.ru` → Directus) | rate-limit |
 | `POST /api/auth/telegram` | Mini-app вход. `{ linked: true }` + сессия / `{ linked: false }` | initData (HMAC) |
 | `POST /api/auth/telegram/link` | Однократная привязка `tg_id` к аккаунту | initData + логин/пароль + rate-limit |
 | `POST /api/auth/logout` | Выход | — |
@@ -117,7 +117,7 @@ service worker `src/app/sw.js/route.ts`. SW намеренно раздаётс�
 
 Коллекции: `telegram_user_mapping` (`directus_user_id`, `telegram_user_id`), `auth_invites`
 (`token`, `kind`, `user`, `label`, `expires_at`, `used_at`, `invite_url`). Пользователи создаются
-с ролью «Чтец» и синтетическим email `{login}@local`.
+с ролью «Чтец» и синтетическим email `{login}@local.baptistnn.ru`.
 
 ## See Also
 

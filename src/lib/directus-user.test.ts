@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { loginToEmail, LOCAL_EMAIL_DOMAIN } from './directus-user';
 
 describe('loginToEmail', () => {
-  it('appends @local for a bare handle', () => {
+  it('appends the synthetic domain for a bare handle', () => {
     expect(loginToEmail('ivan_nbc')).toBe(`ivan_nbc@${LOCAL_EMAIL_DOMAIN}`);
   });
 

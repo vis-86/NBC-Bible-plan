@@ -50,7 +50,7 @@ export const InviteCreateSchema = z.object({
 
 /**
  * Самостоятельная регистрация по «коду церкви».
- * login + password создают псевдонимный аккаунт ({login}@local, без PII);
+ * login + password создают псевдонимный аккаунт ({login}@local.baptistnn.ru, без PII);
  * churchCode — общий секрет церкви, проверяется на сервере (timing-safe).
  * Проверка самого кода — в register-access (НЕ в схеме): здесь только формат.
  */
