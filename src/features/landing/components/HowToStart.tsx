@@ -2,8 +2,9 @@
 
 import React from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { Send, Smartphone, KeyRound, type LucideIcon } from 'lucide-react';
-import { AccessButton } from './cta';
+import { Send, Smartphone, KeyRound, Hash, UserPlus, type LucideIcon } from 'lucide-react';
+import { AccessButton, RegisterButton } from './cta';
+import { isRegisterEnabled } from '@/shared/utils/constants';
 import { revealContainer, revealItem, revealViewport } from './anim';
 
 interface Step {
@@ -12,7 +13,8 @@ interface Step {
   text: string;
 }
 
-const STEPS: Step[] = [
+/** Шаги invite-модели: доступ строго по личной ссылке из поддержки. */
+const INVITE_STEPS: Step[] = [
   {
     icon: Send,
     title: 'Напишите нам',
@@ -30,12 +32,34 @@ const STEPS: Step[] = [
   },
 ];
 
+/** Шаги по коду церкви: код озвучивают на собрании, регистрация самостоятельная. */
+const CHURCH_CODE_STEPS: Step[] = [
+  {
+    icon: Hash,
+    title: 'Возьмите код церкви',
+    text: 'Его называют на собрании или подскажет служитель.',
+  },
+  {
+    icon: UserPlus,
+    title: 'Откройте регистрацию',
+    text: 'Придумайте логин и пароль — ни почты, ни лишних данных не нужно.',
+  },
+  {
+    icon: KeyRound,
+    title: 'Введите код церкви',
+    text: 'Готово — вы внутри и можете начинать читать.',
+  },
+];
+
 /**
- * Секция «Как начать» — три шага invite-модели. Регистрация строго по личной
- * ссылке: self-registration нет, поэтому единственная CTA ведёт в поддержку.
+ * Секция «Как начать». При включённой регистрации (`isRegisterEnabled()`) —
+ * три шага по коду церкви + CTA «Зарегистрироваться» (→ /register). При выключенной —
+ * invite-модель: шаги по личной ссылке + CTA в поддержку (graceful fallback).
  */
 export const HowToStart: React.FC = () => {
   const reduceMotion = useReducedMotion() ?? false;
+  const registerEnabled = isRegisterEnabled();
+  const steps = registerEnabled ? CHURCH_CODE_STEPS : INVITE_STEPS;
 
   return (
     <section className="py-16 sm:py-20" data-landing-how-to-start>
@@ -44,7 +68,9 @@ export const HowToStart: React.FC = () => {
           Как начать
         </h2>
         <p className="mt-4 text-lg leading-relaxed text-app-text-secondary">
-          Доступ — по приглашению от церкви. Три шага, и вы читаете.
+          {registerEnabled
+            ? 'Нужен код церкви. Три шага, и вы читаете.'
+            : 'Доступ — по приглашению от церкви. Три шага, и вы читаете.'}
         </p>
       </div>
 
@@ -55,7 +81,7 @@ export const HowToStart: React.FC = () => {
         whileInView="show"
         viewport={revealViewport}
       >
-        {STEPS.map(({ icon: Icon, title, text }, i) => (
+        {steps.map(({ icon: Icon, title, text }, i) => (
           <motion.li
             key={title}
             variants={revealItem}
@@ -74,7 +100,7 @@ export const HowToStart: React.FC = () => {
       </motion.ol>
 
       <div className="mt-10 flex justify-center">
-        <AccessButton label="Написать в поддержку" />
+        {registerEnabled ? <RegisterButton /> : <AccessButton label="Написать в поддержку" />}
       </div>
     </section>
   );

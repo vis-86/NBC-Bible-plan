@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { AccessButton, LoginButton } from './cta';
+import { PrimaryCta, LoginButton } from './cta';
 import { revealItem, revealViewport } from './anim';
 
 /**
@@ -30,7 +30,7 @@ export const FinalCta: React.FC = () => {
         </p>
 
         <div className="mt-9 flex flex-wrap justify-center gap-3.5">
-          <AccessButton />
+          <PrimaryCta />
           <LoginButton />
         </div>
       </motion.div>

@@ -4,7 +4,7 @@ import React from 'react';
 import { motion, useReducedMotion, type Variants } from 'motion/react';
 import { Check } from 'lucide-react';
 import { PhoneMockup } from './PhoneMockup';
-import { AccessButton, LoginButton } from './cta';
+import { PrimaryCta, LoginButton } from './cta';
 
 const container: Variants = {
   hidden: {},
@@ -68,7 +68,7 @@ export const Hero: React.FC = () => {
           variants={rise}
           className="mt-9 flex flex-wrap justify-center gap-3.5 lg:justify-start"
         >
-          <AccessButton />
+          <PrimaryCta />
           <LoginButton />
         </motion.div>
 
