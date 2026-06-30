@@ -5,6 +5,7 @@ import {
   LoginSchema,
   ActivateSchema,
   TelegramLinkSchema,
+  RegisterSchema,
 } from './auth.schemas';
 
 describe('auth.schemas', () => {
@@ -44,5 +45,20 @@ describe('auth.schemas', () => {
       TelegramLinkSchema.safeParse({ initData: 'x', login: 'ivan', password: 'secret123' }).success
     ).toBe(true);
     expect(TelegramLinkSchema.safeParse({ initData: '', login: 'ivan', password: 'p' }).success).toBe(false);
+  });
+
+  it('RegisterSchema requires login + password + churchCode, displayName optional', () => {
+    expect(
+      RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123', churchCode: 'code' }).success
+    ).toBe(true);
+    expect(
+      RegisterSchema.safeParse({ login: 'ivan_nbc', displayName: 'Иван', password: 'secret123', churchCode: 'code' }).success
+    ).toBe(true);
+    // churchCode обязателен
+    expect(RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123' }).success).toBe(false);
+    expect(RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123', churchCode: '' }).success).toBe(false);
+    // невалидный логин / короткий пароль
+    expect(RegisterSchema.safeParse({ login: 'ab', password: 'secret123', churchCode: 'code' }).success).toBe(false);
+    expect(RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'short', churchCode: 'code' }).success).toBe(false);
   });
 });

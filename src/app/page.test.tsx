@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+
+const pushMock = vi.hoisted(() => vi.fn());
 
 // Хуки и навигация мокаются, чтобы рендерить лендинг изолированно.
 vi.mock('@/hooks/useAuth', () => ({
@@ -10,7 +12,7 @@ vi.mock('@/hooks/usePWAInstall', () => ({
   usePWAInstall: () => ({ canInstall: false, installed: false, install: vi.fn() }),
 }));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
+  useRouter: () => ({ push: pushMock, replace: vi.fn(), prefetch: vi.fn() }),
 }));
 
 import Home from './page';
@@ -71,5 +73,34 @@ describe('Лендинг (page.tsx)', () => {
       expect(link).toHaveAttribute('target', '_blank');
       expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
     }
+  });
+});
+
+describe('Лендинг при включённой регистрации (NEXT_PUBLIC_REGISTER_ENABLED=true)', () => {
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_REGISTER_ENABLED;
+    pushMock.mockReset();
+  });
+
+  it('показывает CTA «Зарегистрироваться» и шаги по коду церкви вместо invite', () => {
+    process.env.NEXT_PUBLIC_REGISTER_ENABLED = 'true';
+    render(<Home />);
+
+    // Primary CTA заменён на «Зарегистрироваться»; «Получить доступ» больше нет.
+    expect(screen.getAllByText('Зарегистрироваться').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('link', { name: /Получить доступ/ })).not.toBeInTheDocument();
+
+    // Шаги по коду церкви, а не invite.
+    expect(screen.getByText('Возьмите код церкви')).toBeInTheDocument();
+    expect(screen.getByText('Введите код церкви')).toBeInTheDocument();
+    expect(screen.queryByText('Напишите нам')).not.toBeInTheDocument();
+  });
+
+  it('кнопка «Зарегистрироваться» ведёт на /register', () => {
+    process.env.NEXT_PUBLIC_REGISTER_ENABLED = 'true';
+    render(<Home />);
+
+    fireEvent.click(screen.getAllByText('Зарегистрироваться')[0]);
+    expect(pushMock).toHaveBeenCalledWith('/register');
   });
 });
