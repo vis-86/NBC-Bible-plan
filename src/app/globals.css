@@ -53,6 +53,10 @@
   --app-missed: #fecaca;           /* red-200 bg */
   --app-missed-text: #dc2626;      /* red-600 text */
 
+  /* ── Warm spiritual accent (decorative, landing «Sacred Minimal») ─── */
+  --warm: #c79a4b;                 /* warm gold */
+  --warm-soft: #f4e7cf;            /* warm gold tint */
+
   /* ── Borders ─────────────────────────────────────────────────────── */
   --app-border: rgba(0,0,0,0.06);
   --app-border-subtle: rgba(0,0,0,0.04);

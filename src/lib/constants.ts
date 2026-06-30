@@ -1,6 +1,12 @@
 import { PastorPersona, PastorType } from '../types';
 import { getBasePath } from './utils';
 
+/**
+ * Контакт поддержки церкви (Telegram). Единая точка для логина, активации и лендинга:
+ * сюда отправляем за восстановлением доступа и за invite-ссылкой на регистрацию.
+ */
+export const SUPPORT_CONTACT = 'https://t.me/nbc_support';
+
 export const PASTORS: PastorPersona[] = [
   {
     id: PastorType.THEOLOGIAN,

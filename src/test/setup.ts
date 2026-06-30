@@ -1,3 +1,7 @@
+// jest-dom матчеры (toBeInTheDocument и т.п.) — регистрируются через expect.extend,
+// безопасно для node-тестов (DOM нужен только при их использовании, под jsdom).
+import '@testing-library/jest-dom/vitest';
+
 // Глобальные env-моки для всех тестов.
 process.env.SESSION_SECRET ||= 'test-session-secret-minimum-32-characters!!';
 process.env.INVITE_ADMIN_SECRET ||= 'test-invite-admin-secret';

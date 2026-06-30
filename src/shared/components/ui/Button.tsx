@@ -3,7 +3,7 @@
 import React from 'react';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'ghost';
+  variant?: 'primary' | 'secondary' | 'ghost' | 'inverse';
   size?: 'sm' | 'md' | 'lg';
   children: React.ReactNode;
 }
@@ -21,6 +21,8 @@ export const Button: React.FC<ButtonProps> = ({
     primary: 'bg-app-primary text-app-text-inverse hover:opacity-90 shadow-app-sm',
     secondary: 'bg-app-surface-muted text-app-text-secondary hover:bg-app-surface-elevated',
     ghost: 'bg-transparent text-app-text-secondary hover:bg-app-surface-muted',
+    // Чёрная первичная CTA эталона «Sacred Minimal»: тёмный фон + инверсный текст.
+    inverse: 'bg-app-text text-app-text-inverse hover:opacity-90 shadow-app-sm',
   };
 
   const sizeStyles = {

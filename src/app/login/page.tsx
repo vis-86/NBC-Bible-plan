@@ -4,13 +4,11 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { hasTelegramWebAppObject, isTelegramWebApp, initTelegramWebApp, getTelegramInitData } from '@/lib/telegram';
 import { getApiPath, getBasePath } from '@/lib/utils';
+import { SUPPORT_CONTACT } from '@/lib/constants';
 import TelegramLinkForm from '@/features/auth/components/TelegramLinkForm';
 
 const inputClass =
   'mt-1 block w-full rounded-md border border-app-border bg-app-surface-muted px-3 py-2 text-app-text placeholder-app-text-subtle focus:border-app-primary/50 focus:outline-none focus:ring-1 focus:ring-app-primary/30';
-
-// Контакт поддержки для забытого логина/пароля.
-const SUPPORT_CONTACT = 'https://t.me/nbc_support';
 
 function LoginForm() {
   const router = useRouter();

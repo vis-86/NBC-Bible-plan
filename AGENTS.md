@@ -39,7 +39,7 @@ bible-plan/
 │   │   │   ├── calendar/             # Calendar view
 │   │   │   └── settings/             # User settings
 │   │   ├── login/                    # Login page
-│   │   ├── register/                 # Registration page
+│   │   ├── activate/                 # Invite activation + password reset (invite-only model)
 │   │   ├── page.tsx                  # Landing page
 │   │   ├── layout.tsx                # Root layout
 │   │   └── globals.css               # Global styles + Tailwind v4 config
@@ -48,11 +48,15 @@ bible-plan/
 │   │   │   ├── components/           # PlanView, DayNavigationBar, TodayReadingCard, VerseOfTheDay, etc.
 │   │   │   ├── hooks/                # usePlan, useProgress, useDayCompletion
 │   │   │   └── contexts/             # PlanContext
-│   │   └── reading/                  # Bible reader feature slice
-│   │       ├── components/           # ReadingView, ReadingHeader, BookPicker, ChapterPicker, etc.
-│   │       ├── hooks/                # useBibleText, useChapterNavigation, useReadingSettings
-│   │       ├── types.ts              # Reading-specific types
-│   │       └── bible-text-cache.ts   # Client-side cache for bible text
+│   │   ├── reading/                  # Bible reader feature slice
+│   │   │   ├── components/           # ReadingView, ReadingHeader, BookPicker, ChapterPicker, etc.
+│   │   │   ├── hooks/                # useBibleText, useChapterNavigation, useReadingSettings
+│   │   │   ├── types.ts              # Reading-specific types
+│   │   │   └── bible-text-cache.ts   # Client-side cache for bible text
+│   │   └── landing/                  # Public landing slice (orchestrated by app/page.tsx)
+│   │       ├── components/           # Header, Hero, About, HowToStart, InstallGuide, FinalCta, Footer, Atmosphere, PhoneMockup, cta
+│   │       ├── components/anim.ts    # Shared motion reveal variants
+│   │       └── index.ts              # Barrel of section components
 │   ├── shared/
 │   │   ├── components/
 │   │   │   ├── layout/               # DashboardLayout, navigation

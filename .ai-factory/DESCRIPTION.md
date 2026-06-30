@@ -29,7 +29,7 @@ Web application for the New Baptist Church (NBC) community — a structured Bibl
 - **UI Components:** shadcn/ui (components.json configured)
 - **Markdown:** react-markdown + remark-gfm + rehype-raw
 - **Auth:** iron-session (sealed cookie) + Directus password auth + Telegram link; validation via `zod`
-- **Tests:** Vitest (auth lib/API unit tests)
+- **Tests:** Vitest (auth lib/API unit tests, node env); component tests via @testing-library/react + jsdom (per-file `// @vitest-environment jsdom`)
 - **CMS / Data:** Directus CMS with `@directus/sdk` v20
 - **AI Workflow:** n8n workflows triggered via Directus Flows
 - **GraphQL:** Custom GraphQL API route (Apollo or fetch-based)
