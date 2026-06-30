@@ -2,8 +2,13 @@
 import { getDirectusAdminClient } from '@/lib/directus';
 import { readItems, createItem, createUser, readUsers, updateUser, readRoles } from '@directus/sdk';
 
-/** Синтетический email-домен для псевдонимных веб-аккаунтов (без реальных ПД, ФЗ-152). */
-export const LOCAL_EMAIL_DOMAIN = 'local';
+/**
+ * Синтетический email-домен для псевдонимных веб-аккаунтов (без реальных ПД, ФЗ-152).
+ * Должен быть с реальным TLD: Directus валидирует формат email и отклоняет
+ * single-label домены вроде `@local` ("Value has to be a valid email address").
+ * `local.baptistnn.ru` — поддомен своего домена без MX: формат валиден, почта не доставляется.
+ */
+export const LOCAL_EMAIL_DOMAIN = 'local.baptistnn.ru';
 
 const DEBUG = (process.env.LOG_LEVEL ?? 'debug') === 'debug';
 function debug(...args: unknown[]) {
