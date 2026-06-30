@@ -13,7 +13,8 @@ Web application for the New Baptist Church (NBC) community — a structured Bibl
 - **Calendar View** — monthly calendar for reviewing past/future reading days
 - **Verse of the Day** — daily scripture from Directus
 - **AI Chat** ("Chat with Pastor") — AI assistant via n8n + Directus Flow
-- **Invite + Password Auth** — псевдонимный вход (логин→`{login}@local` + пароль). Аккаунты заводятся ТОЛЬКО через invite-ссылку (подписанный one-time токен); та же ссылка = сброс пароля
+- **Invite + Password Auth** — псевдонимный вход (логин→`{login}@local` + пароль). Аккаунты заводятся через invite-ссылку (stateful токен `auth_invites`); та же ссылка = сброс пароля
+- **Self-registration по коду церкви** — `/register` (login + password + churchCode). Общий секрет `REGISTER_CHURCH_CODE` (timing-safe, rate-limit 5/час); включается флагами `REGISTER_CHURCH_CODE` (runtime) + `NEXT_PUBLIC_REGISTER_ENABLED` (build-time UI). Без секрета роут `/api/auth/register` → 503. Параллельна invite-модели
 - **Telegram Auth (вторично)** — mini-app для VPN; initData верифицируется, аккаунты НЕ создаются — только привязка tg_id к существующему аккаунту
 - **PWA** — устанавливаемое приложение вне Telegram (manifest + service worker, basePath-aware)
 - **Sessions** — iron-session: зашифрованный+подписанный httpOnly cookie (без Directus access_token; доступ к данным через admin-client + directus_id)
@@ -59,7 +60,7 @@ src/
 
 - **Language:** UI is Russian; code and comments in English
 - **Deployment:** Standalone mode, deployed behind nginx with `NEXT_PUBLIC_BASE_PATH=/app`
-- **Auth:** Псевдонимная модель (логин+пароль, без email/телефона/ФИО → минимум ФЗ-152; сервер в РФ). iron-session sealed httpOnly cookie. Telegram initData verified server-side. Invite/reset токены — stateful записи в Directus `auth_invites`. Требуются env `SESSION_SECRET`, `INVITE_ADMIN_SECRET`
+- **Auth:** Псевдонимная модель (логин+пароль, без email/телефона/ФИО → минимум ФЗ-152; сервер в РФ). iron-session sealed httpOnly cookie. Telegram initData verified server-side. Invite/reset токены — stateful записи в Directus `auth_invites`. Self-registration по коду церкви (`REGISTER_CHURCH_CODE`, timing-safe + rate-limit). Требуются env `SESSION_SECRET`, `INVITE_ADMIN_SECRET`; опц. `REGISTER_CHURCH_CODE` + `NEXT_PUBLIC_REGISTER_ENABLED` для регистрации
 - **PWA:** Установка вне Telegram; SW отдаётся из-под basePath (`/app/sw.js`) для совместимости с nginx-деплоем
 - **AI:** Feature-flagged via `NEXT_PUBLIC_AI_ENABLE`; disabled by default
 - **Performance:** React Compiler enabled (`babel-plugin-react-compiler`)

@@ -57,6 +57,8 @@ services:
         NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH}
         NEXT_PUBLIC_DIRECTUS_URL: ${NEXT_PUBLIC_DIRECTUS_URL}
         NEXT_PUBLIC_AI_ENABLE: ${NEXT_PUBLIC_AI_ENABLE}
+        # build-time: тоггл регистрации требует пересборки образа
+        NEXT_PUBLIC_REGISTER_ENABLED: ${NEXT_PUBLIC_REGISTER_ENABLED}
     restart: unless-stopped
     depends_on:
       directus:
@@ -72,6 +74,8 @@ services:
       NEXT_PUBLIC_DIRECTUS_URL: http://directus:8055
       DIRECTUS_ADMIN_TOKEN: ${DIRECTUS_ADMIN_TOKEN}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      # runtime секрет регистрации (можно менять/снимать без пересборки; пусто ⇒ 503)
+      REGISTER_CHURCH_CODE: ${REGISTER_CHURCH_CODE:-}
       JWT_SECRET: ${JWT_SECRET}
       NEXT_PUBLIC_DIRECTUS_AI_FLOW_ID: ${NEXT_PUBLIC_DIRECTUS_AI_FLOW_ID:-ai-service}
     volumes:

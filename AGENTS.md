@@ -24,7 +24,7 @@ bible-plan/
 ├── src/
 │   ├── app/                          # Next.js App Router
 │   │   ├── api/
-│   │   │   ├── auth/                 # login, logout, session, telegram
+│   │   │   ├── auth/                 # login, logout, session, telegram, activate, register
 │   │   │   ├── bible/                # [book]/[chapter], books
 │   │   │   ├── plan/                 # reading plan, weekly plan
 │   │   │   ├── user/                 # progress, app-settings, reading-settings
@@ -39,7 +39,8 @@ bible-plan/
 │   │   │   ├── calendar/             # Calendar view
 │   │   │   └── settings/             # User settings
 │   │   ├── login/                    # Login page
-│   │   ├── activate/                 # Invite activation + password reset (invite-only model)
+│   │   ├── activate/                 # Invite activation + password reset (invite model)
+│   │   ├── register/                 # Self-registration по коду церкви (gated by NEXT_PUBLIC_REGISTER_ENABLED)
 │   │   ├── page.tsx                  # Landing page
 │   │   ├── layout.tsx                # Root layout
 │   │   └── globals.css               # Global styles + Tailwind v4 config
@@ -111,6 +112,8 @@ bible-plan/
 | `src/app/dashboard/page.tsx` | Main app page — renders PlanView |
 | `src/middleware.ts` | Auth guard — redirects unauthenticated users |
 | `src/app/api/auth/telegram/route.ts` | Telegram OAuth handler |
+| `src/app/api/auth/register/route.ts` | Self-registration по коду церкви (rate-limit + timing-safe verify) |
+| `src/lib/register-access.ts` | `isRegistrationOpen()` / `verifyChurchCode()` — контроль доступа к регистрации |
 | `src/features/plan/components/PlanView.tsx` | Core plan UI — week view, day selection |
 | `src/shared/services/api/endpoints.ts` | All API calls with TypeScript types |
 | `next.config.ts` | Next.js config — basePath, standalone output |

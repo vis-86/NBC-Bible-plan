@@ -12,7 +12,8 @@
 #   - /opt/nbc/bible-plan/deploy/.env  contains all runtime secrets the app needs:
 #       SESSION_SECRET, INVITE_ADMIN_SECRET, DIRECTUS_ADMIN_TOKEN,
 #       NEXT_PUBLIC_APP_URL, NEXT_PUBLIC_BASE_PATH, NEXT_PUBLIC_DIRECTUS_URL,
-#       TELEGRAM_BOT_TOKEN, ... (see ENV_SETUP.md)
+#       TELEGRAM_BOT_TOKEN, REGISTER_CHURCH_CODE (runtime),
+#       NEXT_PUBLIC_REGISTER_ENABLED (build-time), ... (see ENV_SETUP.md)
 #   - deploy/compose.yml passes those through as ${VAR} in the app service.
 #
 # Usage:
