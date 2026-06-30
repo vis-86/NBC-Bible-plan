@@ -48,10 +48,24 @@ export const InviteCreateSchema = z.object({
   userId: z.string().optional(),
 });
 
+/**
+ * Самостоятельная регистрация по «коду церкви».
+ * login + password создают псевдонимный аккаунт ({login}@local, без PII);
+ * churchCode — общий секрет церкви, проверяется на сервере (timing-safe).
+ * Проверка самого кода — в register-access (НЕ в схеме): здесь только формат.
+ */
+export const RegisterSchema = z.object({
+  login: LoginHandleSchema,
+  displayName: DisplayNameSchema.optional(),
+  password: PasswordSchema,
+  churchCode: z.string().min(1, 'Укажите код церкви').max(128),
+});
+
 export type LoginInput = z.infer<typeof LoginSchema>;
 export type ActivateInput = z.infer<typeof ActivateSchema>;
 export type TelegramLinkInput = z.infer<typeof TelegramLinkSchema>;
 export type InviteCreateInput = z.infer<typeof InviteCreateSchema>;
+export type RegisterInput = z.infer<typeof RegisterSchema>;
 
 /** Хелпер: первое сообщение об ошибке из ZodError (zod v4: .issues). */
 export function firstZodError(error: z.ZodError): string {
