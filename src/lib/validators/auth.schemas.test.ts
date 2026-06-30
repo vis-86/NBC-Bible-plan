@@ -6,6 +6,7 @@ import {
   ActivateSchema,
   TelegramLinkSchema,
   RegisterSchema,
+  firstZodError,
 } from './auth.schemas';
 
 describe('auth.schemas', () => {
@@ -60,5 +61,15 @@ describe('auth.schemas', () => {
     // невалидный логин / короткий пароль
     expect(RegisterSchema.safeParse({ login: 'ab', password: 'secret123', churchCode: 'code' }).success).toBe(false);
     expect(RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'short', churchCode: 'code' }).success).toBe(false);
+  });
+
+  it('RegisterSchema gives a friendly message for missing/empty churchCode', () => {
+    const missing = RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123' });
+    expect(missing.success).toBe(false);
+    if (!missing.success) expect(firstZodError(missing.error)).toBe('Укажите код церкви');
+
+    const empty = RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123', churchCode: '' });
+    expect(empty.success).toBe(false);
+    if (!empty.success) expect(firstZodError(empty.error)).toBe('Укажите код церкви');
   });
 });

@@ -58,7 +58,7 @@ export const RegisterSchema = z.object({
   login: LoginHandleSchema,
   displayName: DisplayNameSchema.optional(),
   password: PasswordSchema,
-  churchCode: z.string().min(1, 'Укажите код церкви').max(128),
+  churchCode: z.string({ error: 'Укажите код церкви' }).min(1, 'Укажите код церкви').max(128),
 });
 
 export type LoginInput = z.infer<typeof LoginSchema>;
