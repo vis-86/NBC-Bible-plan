@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { hasTelegramWebAppObject, isTelegramWebApp, initTelegramWebApp, getTelegramInitData } from '@/lib/telegram';
 import { getApiPath, getBasePath } from '@/lib/utils';
 import { SUPPORT_CONTACT } from '@/lib/constants';
+import { isRegisterEnabled } from '@/shared/utils/constants';
 import TelegramLinkForm from '@/features/auth/components/TelegramLinkForm';
 
 const inputClass =
@@ -216,11 +217,25 @@ function LoginForm() {
           </button>
         </form>
 
-        <div className="text-center text-sm text-app-text-secondary">
-          Забыли пароль или логин?{' '}
-          <a href={SUPPORT_CONTACT} className="font-medium text-app-text hover:underline">
-            Напишите в поддержку
-          </a>
+        <div className="space-y-2 text-center text-sm text-app-text-secondary">
+          {isRegisterEnabled() && (
+            <p>
+              Нет аккаунта?{' '}
+              <button
+                type="button"
+                onClick={() => router.push('/register')}
+                className="font-medium text-app-text hover:underline"
+              >
+                Зарегистрироваться
+              </button>
+            </p>
+          )}
+          <p>
+            Забыли пароль или логин?{' '}
+            <a href={SUPPORT_CONTACT} className="font-medium text-app-text hover:underline">
+              Напишите в поддержку
+            </a>
+          </p>
         </div>
       </div>
     </div>
