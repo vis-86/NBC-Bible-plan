@@ -59,9 +59,9 @@ shared/services/api/
 ПРИВЯЗЫВАЕТ tg_id к существующему аккаунту, не создаёт. Это исключает дубли by design.
 
 **Web/PWA flow (основной):**
-1. Поддержка/админ генерит invite-ссылку: `POST /api/auth/invite/create` (защищён `INVITE_ADMIN_SECRET`) → подписанный (HMAC `INVITE_SECRET`) one-time токен
+1. Поддержка/админ генерит invite-ссылку: запись в Directus `auth_invites` (вручную в Admin UI через Flow ИЛИ `POST /api/auth/invite/create`, защищён `INVITE_ADMIN_SECRET`)
 2. Пользователь открывает `/activate?token=...&mode=activate` → задаёт логин+пароль(+имя)
-3. `POST /api/auth/activate` → `createLocalUser` (email `{login}@local`) → consume token → сессия
+3. `POST /api/auth/activate` → `findValidInvite` (kind/user из записи) → `createLocalUser` (email `{login}@local`) → `consumeInvite` → сессия
 4. Вход: `/login` → `POST /api/auth/login` (логин→`{login}@local` → Directus `/auth/login`)
 5. Сброс пароля = `mode=reset` токен (по userId) через ту же страницу/эндпоинт
 
@@ -71,7 +71,7 @@ shared/services/api/
    - НЕ привязан → `{ linked: false }` (аккаунт НЕ создаётся; клиент ветвится по `linked`, не `res.ok` — иначе redirect-loop)
 2. Привязка: `POST /api/auth/telegram/link` (логин+пароль один раз) → `linkTelegramToUser`
 
-**One-time tokens:** `auth_used_tokens` (Directus) хранит использованные `jti`.
+**Invite/reset токены:** stateful записи в Directus `auth_invites` (`token` unique, `kind`, `user`, `expires_at`, `used_at`, `invite_url`). Одноразовость = `used_at`, TTL = `expires_at`. HMAC/`INVITE_SECRET` не используются.
 
 **Sessions:** iron-session — зашифрованный+подписанный httpOnly cookie (`bible-plan-session`),
 30 дней. `SESSION_SECRET` валидируется лениво (не на этапе сборки). Middleware (`src/middleware.ts`,

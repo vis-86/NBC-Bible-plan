@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSession, SessionData } from '@/lib/session';
-import { verifyInviteToken, consumeToken } from '@/lib/invite';
+import { findValidInvite, consumeInvite } from '@/lib/invite';
 import { createLocalUser, setUserPassword, LoginTakenError } from '@/lib/directus-user';
 import { getDirectusAdminClient } from '@/lib/directus';
 import { readUsers } from '@directus/sdk';
@@ -36,8 +36,8 @@ export async function POST(request: NextRequest) {
   }
   const { token, login, displayName, password } = parsed.data;
 
-  const payload = await verifyInviteToken(token);
-  if (!payload) {
+  const invite = await findValidInvite(token);
+  if (!invite) {
     return NextResponse.json(
       { error: 'Ссылка недействительна или истекла. Обратитесь в поддержку.' },
       { status: 400 }
@@ -47,23 +47,24 @@ export async function POST(request: NextRequest) {
   try {
     let directusUserId: string;
 
-    if (payload.kind === 'activate') {
+    if (invite.kind === 'activate') {
       if (!login) {
         return NextResponse.json({ error: 'Укажите логин' }, { status: 400 });
       }
       directusUserId = await createLocalUser(login, password, displayName);
       debug('account created', directusUserId, login);
+      // activate: помечаем invite использованным + привязываем созданного юзера
+      await consumeInvite(invite.id, directusUserId);
     } else {
       // reset
-      if (!payload.userId) {
+      if (!invite.user) {
         return NextResponse.json({ error: 'Некорректный токен сброса' }, { status: 400 });
       }
-      await setUserPassword(payload.userId, password);
-      directusUserId = payload.userId;
+      await setUserPassword(invite.user, password);
+      directusUserId = invite.user;
       debug('password reset for', directusUserId);
+      await consumeInvite(invite.id);
     }
-
-    await consumeToken(payload.jti);
 
     // T6: сессия не хранит Directus access_token — данные читаются admin-клиентом по directus_id.
     const admin = getDirectusAdminClient();

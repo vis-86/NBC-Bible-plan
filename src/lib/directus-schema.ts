@@ -49,11 +49,26 @@ export interface DirectusSchema {
     directus_user_id: string;
     theme: 'light' | 'dark' | 'system';
   };
-  /** Одноразовость invite/reset токенов: хранится только jti (не сам токен). */
-  auth_used_tokens: {
+  /**
+   * Stateful invite/reset токены. Админ генерит запись в Directus UI (Flow заполняет
+   * token/expires_at/invite_url) ИЛИ программно через createInvite. Одноразовость = used_at,
+   * TTL = expires_at самой записи.
+   */
+  auth_invites: {
     id: number;
-    jti: string;
-    used_at?: string;
+    /** секрет ссылки (unique) */
+    token: string;
+    kind: 'activate' | 'reset';
+    /** reset: цель; activate: заполняется после активации; иначе null */
+    user?: string | null;
+    /** «для кого» (новый юзер, аккаунта ещё нет) */
+    label?: string | null;
+    /** TTL */
+    expires_at: string;
+    /** одноразовость: проставляется при использовании */
+    used_at?: string | null;
+    /** готовая ссылка активации/сброса */
+    invite_url?: string | null;
   };
 }
 

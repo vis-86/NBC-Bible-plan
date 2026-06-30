@@ -59,7 +59,7 @@ src/
 
 - **Language:** UI is Russian; code and comments in English
 - **Deployment:** Standalone mode, deployed behind nginx with `NEXT_PUBLIC_BASE_PATH=/app`
-- **Auth:** Псевдонимная модель (логин+пароль, без email/телефона/ФИО → минимум ФЗ-152; сервер в РФ). iron-session sealed httpOnly cookie. Telegram initData verified server-side. Требуются env `SESSION_SECRET`, `INVITE_SECRET`, `INVITE_ADMIN_SECRET`
+- **Auth:** Псевдонимная модель (логин+пароль, без email/телефона/ФИО → минимум ФЗ-152; сервер в РФ). iron-session sealed httpOnly cookie. Telegram initData verified server-side. Invite/reset токены — stateful записи в Directus `auth_invites`. Требуются env `SESSION_SECRET`, `INVITE_ADMIN_SECRET`
 - **PWA:** Установка вне Telegram; SW отдаётся из-под basePath (`/app/sw.js`) для совместимости с nginx-деплоем
 - **AI:** Feature-flagged via `NEXT_PUBLIC_AI_ENABLE`; disabled by default
 - **Performance:** React Compiler enabled (`babel-plugin-react-compiler`)

@@ -40,14 +40,23 @@ TELEGRAM mini-app — вторично (VPN)
 
 ## Invite / reset токены
 
-Подписанные HMAC-SHA256 (`INVITE_SECRET`) one-time токены вида `base64url(payload).base64url(sig)`.
+Stateful токены в коллекции Directus `auth_invites` (`src/lib/invite.ts`). HMAC/`INVITE_SECRET`
+больше не используются — секрет ссылки = поле `token` (unique).
 
-- `payload`: `{ kind: 'activate' | 'reset', jti, exp, userId? }`.
-- Одноразовость — коллекция Directus `auth_used_tokens` (хранится только `jti`).
-- TTL по умолчанию 7 дней. Проверяются подпись (timing-safe), срок и неиспользованность.
+- Запись: `{ token, kind: 'activate' | 'reset', user, label, expires_at, used_at, invite_url }`.
+- Одноразовость = поле `used_at`, TTL = поле `expires_at` (по умолчанию 7 дней).
+- `findValidInvite(token)` ищет запись с `used_at = null` и `expires_at > now`; `kind`/`user`
+  берутся **из записи** (не из URL-параметра `mode`). `consumeInvite(id, userId?)` проставляет
+  `used_at` (+`user` для activate).
+- Создание: вручную в Directus UI (Flow заполняет `token`/`expires_at`/`invite_url`) **или**
+  программно `createInvite()` (`POST /api/auth/invite/create`, защищён `INVITE_ADMIN_SECRET`).
 
-«Забыл логин/пароль» → поддержка находит пользователя в Directus и выдаёт `reset`-ссылку
-(`mode=reset`), которая ведёт на ту же страницу `/activate`.
+«Забыл логин/пароль» → поддержка создаёт `reset`-приглашение на пользователя в Directus и выдаёт
+ссылку (`mode=reset`), которая ведёт на ту же страницу `/activate`.
+
+> **Гонка одноразовости:** проверка `used_at` и его запись не атомарны — теоретически два
+> параллельных активейта одной ссылки могут оба пройти. Для закрытого круга (one-time + TTL)
+> риск принят осознанно.
 
 ## Сессии
 
@@ -73,13 +82,14 @@ service worker `src/app/sw.js/route.ts`. SW намеренно раздаётс�
 
 ## Переменные окружения
 
-См. [Конфигурация](configuration.md) и `ENV_SETUP.md`: `SESSION_SECRET`, `INVITE_SECRET`,
+См. [Конфигурация](configuration.md) и `ENV_SETUP.md`: `SESSION_SECRET`,
 `INVITE_ADMIN_SECRET`, `NEXT_PUBLIC_APP_URL`, `TELEGRAM_BOT_TOKEN`, `DIRECTUS_ADMIN_TOKEN`.
 
 ## Directus
 
-Коллекции: `telegram_user_mapping` (`directus_user_id`, `telegram_user_id`), `auth_used_tokens`
-(`jti`, `used_at`). Пользователи создаются с ролью «Чтец» и синтетическим email `{login}@local`.
+Коллекции: `telegram_user_mapping` (`directus_user_id`, `telegram_user_id`), `auth_invites`
+(`token`, `kind`, `user`, `label`, `expires_at`, `used_at`, `invite_url`). Пользователи создаются
+с ролью «Чтец» и синтетическим email `{login}@local`.
 
 ## See Also
 

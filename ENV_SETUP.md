@@ -16,7 +16,6 @@
 | Переменная | Назначение | Как сгенерировать |
 |------------|-----------|-------------------|
 | `SESSION_SECRET` | Пароль для iron-session (шифрование+подпись cookie). **Обязателен в prod**, ≥32 символов. | `openssl rand -hex 32` |
-| `INVITE_SECRET` | HMAC-подпись invite/reset токенов активации и сброса пароля. | `openssl rand -hex 32` |
 | `INVITE_ADMIN_SECRET` | Защита эндпоинта `POST /api/auth/invite/create` (выдача invite-ссылок). | `openssl rand -hex 24` |
 | `NEXT_PUBLIC_APP_URL` | Базовый URL приложения для построения invite/reset ссылок. | — |
 
@@ -31,7 +30,8 @@
 ## Directus коллекции (создать вручную в Admin)
 
 - `telegram_user_mapping` — `directus_user_id`, `telegram_user_id` (уже есть)
-- `auth_used_tokens` — `jti` (string, unique), `used_at` (timestamp). Одноразовость invite/reset токенов.
+- `auth_invites` — stateful invite/reset токены. Поля: `token` (string, unique), `kind` (string: `activate`\|`reset`), `user` (m2o → `directus_users`, nullable), `label` (string, nullable), `expires_at` (timestamp), `used_at` (timestamp, nullable), `invite_url` (string, nullable). Одноразовость = `used_at`, TTL = `expires_at`.
+  - **Flow** (event hook `items.create`, non-blocking): если `token` пуст → сгенерировать, `expires_at = now+7д`, `invite_url = {NEXT_PUBLIC_APP_URL}{NEXT_PUBLIC_BASE_PATH}/activate?token={token}&mode={kind}`. Обслуживает ручной admin-UI путь (админ создаёт запись → копирует `invite_url`). Программный `createInvite` заполняет поля сам и на Flow не полагается.
 
 ## Замечания
 

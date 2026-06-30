@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { signInviteToken } from '@/lib/invite';
+import { createInvite } from '@/lib/invite';
 import { InviteCreateSchema, firstZodError } from '@/lib/validators/auth.schemas';
 
 const DEBUG = (process.env.LOG_LEVEL ?? 'debug') === 'debug';
@@ -39,10 +39,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Для reset требуется userId' }, { status: 400 });
   }
 
-  const token = signInviteToken({ kind, userId });
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
-  const url = `${appUrl}${basePath}/activate?token=${encodeURIComponent(token)}&mode=${kind}`;
+  const { url, token } = await createInvite({ kind, userId });
 
   debug('issued %s url for userId=%s', kind, userId ?? '-');
   return NextResponse.json({ url, token });

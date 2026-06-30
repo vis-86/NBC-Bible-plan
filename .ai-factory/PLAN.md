@@ -1,82 +1,104 @@
-# План: Развёртывание NBC Bible Plan на новом prod-сервере (Docker Compose)
+# Invite-слой на Directus-backed `auth_invites` (Вариант A)
 
-**Дата:** 2026-06-29
-**Режим:** fast (plan + execute по SSH)
-**Сервер:** `root@168.222.202.131` (Ubuntu 24.04.4 LTS, Docker 29.6.1, Compose v5.2.0, 2 vCPU / 3.9 GB RAM / 34 GB free)
+**Branch:** `feature/add-pwa-auth` (без новой ветки — расширяет существующую auth-фичу)
+**Created:** 2026-06-30
+**Type:** Refactor
 
 ## Settings
-- **Testing:** smoke-проверки end-to-end (curl/health), без unit-тестов (инфраструктурная задача)
-- **Logging:** verbose — подробный вывод на каждом шаге (compose logs, healthchecks)
-- **Docs:** обновить `docs/deployment.md` после стабилизации стека (warn-only)
-- **Roadmap Linkage:** Milestone "none" — Rationale: инфраструктурная задача восстановления prod
 
-## Контекст / Что случилось
-Старый сервер `194.87.252.17` умер, бэкапа нет. На нём в одном хосте жили: nginx(TLS) → Next.js standalone (:3000) + **Directus CMS** (`/directus`) + Postgres/SQLite Directus. Потеряны данные Directus: план чтения, стих дня, профили, прогресс чтения.
+- **Tests:** yes (переписать `invite.test.ts` под DB-lookup с моком Directus)
+- **Logging:** verbose (DEBUG в invite-слое)
+- **Docs:** обновить ENV_SETUP, docs/authentication.md, ARCHITECTURE.md (входит в A4)
 
-**Что НЕ потеряно (реконструируемо из repo):**
-- Текст Библии — self-hosted в `data/bible/*` (NRT, Kassian)
-- План чтения 2026 — `csv/csv-plan.csv` (полный 365-дневный) + `csv/bible_plan_2026_weekly_final.csv` (недельный/Притчи)
-- Схема Directus — описана в `docs/database-schema.md` (snapshot'а нет → пересоздаём через API)
+## Roadmap Linkage
 
-**Что регенерируется само:** аккаунты/сессии пользователей (Lucia SQLite + Directus users) — создаются при входе через Telegram.
+- **Milestone:** "none" — ROADMAP.md отсутствует.
 
-## Целевая архитектура (Docker Compose)
+---
+
+## Контекст и цель
+
+Сейчас invite — **stateless HMAC-токены** (`src/lib/invite.ts`, `INVITE_SECRET`, коллекция
+`auth_used_tokens`, эндпоинт `/api/auth/invite/create`). Генерация возможна только через curl
+с admin-секретом — не дружелюбно для админов.
+
+**Цель:** перейти на **stateful токены в коллекции Directus `auth_invites`**, чтобы админы
+генерили приглашения прямо из Directus UI (Create item / Manual Flow), а приложение упростилось
+(минус `INVITE_SECRET`, минус `auth_used_tokens`).
+
 ```
-Internet :80/:443
-  └─ nginx (container, TLS Let's Encrypt)
-       ├─ /directus → directus:8055
-       └─ /app      → app(Next.js standalone):3000
-Внутренняя сеть:
-  postgres:16 (vol pgdata) ─ directus:11 (vol uploads) ─ app ─ nginx ─ certbot
+АДМИН (Directus UI)                         НОВЫЙ ПОЛЬЗОВАТЕЛЬ
+Create auth_invites:                        открывает invite_url → /activate
+  kind=activate, label="Иван"               придумывает логин+пароль
+  → Flow: token + expires_at + invite_url   → createLocalUser (аккаунт создаётся)
+  → копирует invite_url, шлёт                → Directus: invite.used_at + invite.user
 ```
-Всё описано в `deploy/` (compose.yml, .env, Dockerfile, nginx/) → воспроизводимо, в git.
 
-## ⚠️ Внешние блокеры (вне SSH, на стороне Игоря)
-1. **DNS:** `bible.baptistnn.ru` сейчас → `194.87.252.17` (мёртвый). Нужно сменить A-запись на `168.222.202.131`. Блокирует выпуск TLS (Let's Encrypt HTTP-01). До репойнта поднимаем стек на HTTP/по IP.
-2. **Telegram bot token:** в repo два разных токена (`copy-prod.sh`→`5895...`, `.env.local`→`6277...`). Подтвердить, какой бот обслуживает Mini App (влияет на верификацию initData). Если домен остаётся `bible.baptistnn.ru` — со стороны BotFather менять ничего не нужно.
+- Новый пользователь = **generic activate-invite** (без `user`; аккаунт создаётся при активации,
+  затем `user`/`used_at` заполняются обратно).
+- `reset` = invite с заполненным `user` (существующий аккаунт).
+- Одноразовость и TTL = поля `used_at` / `expires_at` самой записи.
 
-## Tasks
+## Коллекция `auth_invites`
 
-### Phase 0 — Подготовка сервера
-1. **Swap + базовая подготовка** — добавить 2 GB swapfile (RAM 3.9 GB маловато для сборки Next.js + Directus), включить, в `/etc/fstab`. Установить `git`, `jq`, `rsync`, `curl`. Лог: вывод `free -h`, `swapon --show`.
-2. **Firewall (ufw)** — СНАЧАЛА `ufw allow 22,80,443`, проверить правила, потом `ufw --force enable`. Критично: не потерять SSH. Лог: `ufw status verbose`.
-3. **Структура каталогов** — `/opt/nbc/bible-plan` (код+deploy), volume-каталоги. Лог: `tree -L 2 /opt/nbc`.
+| Поле | Тип | Назначение |
+|------|-----|-----------|
+| `token` | string, unique | секрет ссылки (генерит Flow) |
+| `kind` | string (activate\|reset) | тип приглашения |
+| `user` | m2o → directus_users, null | reset: цель; activate: заполняется после активации |
+| `label` | string, null | «для кого» (новый юзер, аккаунта ещё нет) |
+| `expires_at` | timestamp | TTL (Flow: now+7д) |
+| `used_at` | timestamp, null | одноразовость |
+| `invite_url` | string, null | готовая ссылка (Flow), админ копирует |
 
-### Phase 1 — Каркас стека
-4. **Перенос проекта на сервер** — `rsync` исходников (без `node_modules`, `.next`, `.git`) + `csv/`, `data/`, `public/`, `scripts/` в `/opt/nbc/bible-plan`. Лог: размер переданного, `du -sh data`.
-5. **`deploy/Dockerfile` (Next.js standalone)** — multi-stage (deps→build→runner), `COPY data ./data` (рантайм-чтение Библии), `COPY public`, `.next/static`, `.next/standalone`. Volume для `database/` (SQLite Lucia). ENV из compose. Лог: build args.
-6. **`deploy/compose.yml` + `deploy/.env`** — сервисы postgres/directus/app/nginx, сети, volumes, healthchecks, секреты (сгенерировать: PG пароль, Directus KEY/SECRET, admin pass). Лог: `docker compose config`.
-7. **`deploy/nginx/`** — conf с `/directus`→directus:8055 и `/app`→app:3000, заготовка под TLS, ACME webroot. Лог: `nginx -t`.
+**Flow** (event hook `items.create` на `auth_invites`): если `token` пуст → сгенерировать;
+`expires_at = now+7д`; `invite_url = {APP_URL}{BASE_PATH}/activate?token={token}&mode={kind}`.
 
-### Phase 2 — Данные-слой
-8. **Поднять postgres + directus** — `docker compose up -d postgres directus`, дождаться healthy, проверить инициализацию Directus (`/server/health`). Лог: `compose logs directus`.
-9. **Создать статический admin-токен** — залогиниться в Directus, создать static token для admin-пользователя → положить в `deploy/.env` как `DIRECTUS_ADMIN_TOKEN`. Лог: проверка `GET /users/me`.
+> **Важно (timing):** Flow — non-blocking action-hook, ответ `createItem` вернётся ДО заполнения
+> `token`/`invite_url`. Поэтому Flow обслуживает **только admin-UI путь** (админ создал item →
+> скопировал `invite_url` из записи). Программный `createInvite` (A2) НЕ полагается на Flow:
+> генерит `token`/`expires_at`/`invite_url` сам app-side и вставляет уже заполненную запись
+> (Flow видит непустой token → no-op).
 
-### Phase 3 — Восстановление data model + данных Directus
-10. **Bootstrap data model** — `deploy/directus-bootstrap.mjs`: создать через Directus API коллекции и поля по `docs/database-schema.md`: `plan`(numbers,day,read,item), `reading`(user_id,day,directus_user_id,count,completed_items,year), `weeks`(num_1..num_7), `weekly_plan`, `telegram_user_mapping`(directus_user_id,telegram_user_id). Лог: список созданных коллекций.
-11. **chat_history + роль "Чтец"** — выполнить `scripts/mi-001.sh` (chat_history) и `scripts/create-telegram-role.sh` (роль/политика из `telegram-reader-policy.json`) с новым токеном. Лог: ответы API.
-12. **Реимпорт плана из CSV** — `scripts/update-plan-from-csv.sh` (CSV_FILE=`csv/csv-plan.csv`, полный 365-дн.) + `scripts/import-weekly-plan-from-csv.mjs` (Притчи/недельный) + `scripts/populate-sort-key.mjs`. Проверить count дней/глав. Лог: статистика импорта.
+---
 
-### Phase 4 — Приложение
-13. **Сборка и запуск app** — собрать образ Next.js (build на сервере со swap), `docker compose up -d app`. Env: `NEXT_PUBLIC_DIRECTUS_URL` (внутр. http://directus:8055 для server-side / публичный для клиента через nginx), `DIRECTUS_ADMIN_TOKEN`, `TELEGRAM_BOT_TOKEN`, `JWT_SECRET`, `NEXT_PUBLIC_BASE_PATH=/app`, `NEXT_PUBLIC_AI_ENABLE` выкл. Лог: `compose logs app`, проверка `:3000/app`.
+## Задачи
 
-### Phase 5 — Reverse proxy + TLS  *(после DNS-репойнта)*
-14. **nginx HTTP up + smoke** — поднять nginx, проверить `http://168.222.202.131/app` и `/directus` (по IP/Host-заголовку). Лог: curl-коды.
-15. **TLS (certbot)** — после смены DNS на `168.222.202.131`: выпустить сертификат Let's Encrypt для `bible.baptistnn.ru`, включить 443, redirect 80→443, автопродление. Лог: `certbot certificates`.
+### A1 — Directus `auth_invites` + Flow + schema interface ✅
+**Файлы:** Directus Admin (коллекция + Flow — вручную, задокументировать); `src/lib/directus-schema.ts` (+ интерфейс `auth_invites`, − `auth_used_tokens`).
+**Зависимости:** нет.
+**Статус:** ✅ Полностью готово. `directus-schema.ts` обновлён (код). Коллекция `auth_invites` **создана в Directus** (`bible.baptistnn.ru/directus`, v11.17.4) через API — все поля + unique на `token` + m2o `user→directus_users` (on delete SET NULL) + `token` special `uuid` (авто-генерация при пустом значении). **Flow `auth_invites: fill token/url`** (action, items.create) собран и проверён end-to-end: ручное создание в Admin UI → авто-token + авто `invite_url` + `expires_at`=now+7д; программный `createInvite` (с готовым `invite_url`) Flow пропускает. Ключевой нюанс Directus 11: опция триггера — `collections` (мн.ч.), `$trigger.key` = новый id.
 
-### Phase 6 — Финал
-16. **End-to-end проверка** — открыть `https://bible.baptistnn.ru/app`, вход через Telegram, план чтения, чтение главы, отметка прочитанного, Directus админка. Подтвердить Telegram bot token. Лог: чек-лист.
-17. **Бэкапы** — cron `pg_dump` Directus БД + архив uploads/SQLite в `/opt/nbc/backups` (ежедневно, ротация 7-14 дней). Чтобы «нет бэкапа» больше не повторилось. Лог: тестовый дамп.
+### A2 — Rewrite `src/lib/invite.ts` на DB-токены  *(blocked by A1)* ✅
+- Убрать HMAC/`INVITE_SECRET`. `findValidInvite(token)` → lookup (token + used_at null + expires_at>now) → `{ id, kind, user }` | null. `consumeInvite(id, createdUserId?)` → `used_at=now` (+`user` для activate). Опц. `createInvite({kind,userId?,label?})`.
+- `createInvite` генерит `token`(`crypto.randomUUID()`)/`expires_at`(now+7д)/`invite_url`(`{APP_URL}{BASE_PATH}/activate?token=…&mode={kind}`) **app-side** и вставляет заполненную запись (не полагается на Flow — см. timing-заметку выше), возвращает `{ url }`.
+- **Гонка одноразовости:** `consumeInvite` через `updateItem(used_at)` теряет guard от unique-`jti` старой модели — два параллельных активейта могут пройти `findValidInvite` и оба создать аккаунт. Для закрытого круга риск низкий; либо conditional update (`filter: used_at null` в самом update), либо принять осознанно. Зафиксировать в коде комментом.
+- DEBUG-логи на found/consumed/отказ.
 
-## Commit Plan
-Файлы деплоя коммитим в repo (новая папка `deploy/`):
-- После Phase 1: `chore(deploy): add Docker Compose stack (app+directus+postgres+nginx)`
-- После Phase 3: `chore(deploy): add directus data-model bootstrap + reimport scripts`
-- После Phase 5: `docs(deploy): document new prod server setup`
+### A3 — Update routes  *(blocked by A2)* ✅
+- `src/app/api/auth/activate/route.ts` → `findValidInvite`/`consumeInvite`; kind/userId из записи (`invite.kind`/`invite.user`, НЕ из URL `mode`); activate → `consumeInvite(id, newUserId)`. Маппинг старых полей: `payload.userId`→`invite.user`, `payload.jti`→`invite.id`, `payload.kind`→`invite.kind`.
+- `src/app/api/auth/invite/create/route.ts` → `createInvite(...)` → `{ url }` (url строит `createInvite`, не сам роут; защита Bearer `INVITE_ADMIN_SECRET` сохраняется как программный путь).
+- Вычистить ссылки на `INVITE_SECRET`/`auth_used_tokens` (вкл. `src/test/setup.ts`). Импортёры старых экспортов `signInviteToken`/`verifyInviteToken`/`consumeToken`: activate-route, invite/create-route, `invite.test.ts`.
 
-## Заметки по реализации
-- Next.js standalone читает `data/bible/*` через `process.cwd()/data` — обязательно в образе.
-- `database/` (better-sqlite3 Lucia) — на volume, writable.
-- Два Telegram-токена в repo — использовать активный из `copy-prod.sh` (`5895...`), подтвердить у Игоря.
-- AI («Чат с пастором») — отключён (`NEXT_PUBLIC_AI_ENABLE` не задан), n8n/AI Flow отложены.
-- Старый `copy-prod.sh` (scp на мёртвый `194.87.252.17:28043`) заменяется compose-деплоем.
+### A4 — Tests + docs  *(blocked by A3)* ✅
+- `src/lib/invite.test.ts` переписать под DB-lookup: мок Directus добавляет `updateItem` (для `consumeInvite`) и новую форму фильтра (`token`+`used_at` null+`expires_at`>now); кейсы: валид/used/expired/not-found/consume + `createInvite` (генерит token/url).
+- `src/test/setup.ts` (− INVITE_SECRET), `ENV_SETUP.md` (− INVITE_SECRET, + `auth_invites`/Flow), `docs/authentication.md`, `.ai-factory/ARCHITECTURE.md` (`auth_used_tokens` → `auth_invites`).
+- **Rules/описание (active context — иначе будущие агенты введены в заблуждение):** `.ai-factory/rules/base.md:77` (HMAC+`auth_used_tokens` → DB `auth_invites`); `.ai-factory/DESCRIPTION.md:62` (− `INVITE_SECRET` из обязательных env; `INVITE_ADMIN_SECRET` остаётся).
+
+---
+
+## Порядок выполнения
+
+```
+A1 (Directus collection+Flow, schema) → A2 (invite.ts DB) → A3 (routes) → A4 (tests+docs)
+```
+
+Линейная цепочка, 4 задачи — один коммит в конце (`refactor(auth): DB-backed invites via Directus auth_invites`), либо по задаче.
+
+## Prerequisites
+- Доступ к Directus Admin (создать `auth_invites` + Flow) до A2/A3-тестирования вживую.
+- После A3: `INVITE_SECRET` можно удалить из `.env.local`/прода; `auth_used_tokens` — удалить из Directus (опц.).
+
+## Заметки
+- Безопасность: activate-ссылка = «кто угодно с ссылкой создаст аккаунт» — приемлемо для закрытого круга (one-time + TTL).
+- `@ts-nocheck` в `invite.ts` сохраняется (как в `directus-user.ts` — Directus custom-schema typing).
