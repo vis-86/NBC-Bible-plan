@@ -1,73 +1,86 @@
 # Research
 
-Updated: 2026-06-29 23:32
+Updated: 2026-07-01 00:32
 Status: active
 
 ## Active Summary (input for /aif-plan)
 <!-- aif:active-summary:start -->
-Topic: Аутентификация и регистрация для PWA вне Telegram (Telegram заблокирован в РФ).
+Topic: Новый раздел «Песни» — список + просмотр (chordpro → html) + поиск. Перенос
+рендера из соседнего проекта chordpro-app. Офлайн — отдельным этапом позже.
 
-Goal: Сделать приложение доступным как PWA без Telegram, с простой регистрацией,
-псевдонимно (минимум проблем с ФЗ-152). Telegram mini-app остаётся вторичным каналом
-для пользователей через VPN — там вход без ввода логина/пароля через привязку tg-аккаунта.
+Goal: Дать community НБЦ каталог песен в формате ChordPro: список с поиском, просмотр
+песни с аккордами над текстом (мобильный single-column рендер). Переиспользовать ядро
+рендера из chordpro-app по максимуму, без затаскивания его тяжёлой поверхности.
 
-Constraints:
-- Закрытый узкий круг (community НБЦ) — все участники известны лично.
-- Сервер в РФ → локализация ПД (ФЗ-152 ст.18 ч.5) выполнена.
-- Псевдонимная модель (логин/имя + пароль, без email/телефона/ФИО) → обязательства
-  оператора ПД почти нулевые. Подсказка в форме «не вводите настоящее имя/телефон».
-- Переиспользовать существующий код по максимуму.
+Источник (chordpro-app): /Users/igorvasilev/Projects/nbc/nbc-music-chordpro/chordpro-app
+- Стек источника ≠ наш: Vite SPA + MUI v7 + react-router v7 + zustand + fuse.js.
+- Наш стек: Next 16 App Router + Tailwind v4/shadcn + lucide + Directus + iron-session.
+- => перенос послойный, НЕ drop-in.
 
-Существующий фундамент (в коде уже есть):
-- Идентичность = Directus users + коллекция `telegram_user_mapping` (tg_id → directus_user_id).
-- Синтетические email уже используются (Telegram-юзеры: `{id}@telegram.bot`).
-- `/api/auth/login` — нативный Directus `/auth/login` (email+password) → сессия.
-- `/api/auth/telegram` — verify initData → findOrCreateUser → сессия.
-- `/login` page + middleware-guard на `/dashboard`.
-- Сессия = self-rolled httpOnly cookie `bible-plan-session` = НЕПОДПИСАННЫЙ JSON
-  {directus_id, name, [access_token]}. Lucia в deps, но фактически НЕ используется.
-- PWA — greenfield (нет manifest/SW). basePath = `/app`.
+Что переносим (мобильный рендер chordpro → html, цепочка БЕЗ MUI):
+  parseSongBlocks(content)        shared/lib/chordpro/songParser.ts   ← pure TS, as-is
+    └→ SongBlock                  React + .css, no MUI
+         └→ ChordProHtmlColumn    React + .css
+              └→ LineRenderer     React + .css
+                   └→ ChordRenderer + lineParser   ← аккорд-над-словом, pure
+  Из MobileBlocksLayout берём только маппинг блоков; выкидываем scrollIntoView/
+  active-block (это для автоскролла/подсветки — вне скоупа).
+  Парсер as-is: songParser.ts, lineParser.ts, chordProUtils.ts (+ chordProParser.ts
+  для метаданных при импорте).
 
 Decisions (зафиксировано):
-- Канонический аккаунт = invite + password на вебе. ЕДИНСТВЕННЫЙ источник создания аккаунтов.
-- Telegram mini-app — только ПРИВЯЗКА к существующему аккаунту (не создаёт аккаунты).
-- ВАРИАНТ 1 ВЫБРАН: все заводятся через invite на вебе (веб работает без Telegram).
-  Мини-апп только привязывает tg_id к существующему directus_user. Дублей нет by design.
-- ОТКЛОНЕНО: выдуманный логин (проблема «забыл логин» = мёртвый аккаунт), секретное слово
-  (лишнее поле/флоу), публичная self-service регистрация (abuse-surface), Telegram Login
-  Widget на вебе (Telegram заблокирован в РФ), полный переход на Lucia (избыточно сейчас).
+- DATA SOURCE = Directus collection `songs`, content = сырой chordpro-текст.
+  Консистентно с остальным app (plan/reading/chat_history живут в Directus), прод
+  пересобирается из исходников. Разовый import-скрипт из 97 .chordpro
+  (прецедент: scripts/bible-import/cli.ts).
+- SCOPE v1 = ТОЛЬКО список + просмотр + поиск. Мобильный single-column рендер
+  (chordpro → html). OUT: транспонирование, колонки, автоскролл, сетлисты,
+  рисование/аннотации, A4 PDF, font-size контролы.
+- ПОИСК = fuse.js на клиенте (97 песен — мало). Грузим список один раз, индекс по
+  title + artist/subtitle. Directus-фильтр — оверкилл.
+- NAV = 5-й пункт в BottomNavBar (иконка lucide `Music`, href /dashboard/songs).
+- ТЕМА: ported `.css` (ChordProHtml.css + классы song-block-*) с фикс-цветами →
+  перекрасить под тему проекта (var(--app-*), поддержка dark/light). Это основной
+  объём работы «с правкой».
 
-Целевая модель:
-- ВЕБ/PWA (основной): invite-ссылка (подписанный одноразовый токен с TTL) → задать пароль
-  (+ отображаемое имя) → вход через существующий /api/auth/login.
-  ТА ЖЕ подписанная ссылка = механизм сброса пароля (онбординг и recovery — один флоу).
-- TELEGRAM MINI-APP (вторично, VPN): initData → если tg_id есть в mapping → авто-вход без
-  логина/пароля; если нет → «Привязать аккаунт»: ввести login+password ОДИН раз → вставить
-  строку mapping (tg_id → существующий directus_user) → дальше всегда авто-вход.
-- КРИТИЧНО: убрать авто-создание юзера в findOrCreateUser при неизвестном initData
-  (иначе дубли: веб-аккаунт A + tg-аккаунт B с раздельным прогрессом).
-- Подписать session-cookie HMAC серверным секретом (раз появляются пароли; подделка
-  directus_id в неподписанном JSON = захват аккаунта). Убрать Directus access_token из cookie.
+Целевой скелет (FSD проекта):
+  src/features/songs/
+    lib/        songParser, lineParser, chordProUtils   (порт as-is)
+    components/ SongList, SongCard, SongView, SongBlock, ChordProHtmlColumn,
+                LineRenderer, ChordRenderer + songs.css (перекрашенный)
+    hooks/      useSongs(), useSongSearch(fuse)
+    services/   songsApi → /api/directus proxy
+  src/app/dashboard/songs/page.tsx          ← список + поиск
+  src/app/dashboard/songs/[slug]/page.tsx   ← просмотр песни
+  BottomNavBar: + { id:'songs', icon: Music, href:'/dashboard/songs' }
+  scripts/songs-import/cli.ts               ← разовый импорт 97 .chordpro → Directus
 
-Open questions:
-- Где живёт `login`: как Directus email `{login}@local` (переиспользует /api/auth/login)
-  или как отдельное поле + uuid-email. Решить на этапе плана.
-- Генерация invite-ссылок на старте: руками через Directus admin (0 кода) vs кастомная
-  кнопка «сгенерировать invite». MVP — можно через Directus admin.
-- Удаление аккаунта (право на забвение) — простое при псевдонимной модели, добавить.
-- PWA manifest/SW: учесть basePath `/app` в scope/start_url; iOS standalone — server-set
-  httpOnly cookie НЕ под 7-дневным лимитом ITP, сессии переживут.
+Open questions (решить на /aif-plan):
+- Схема `songs` в Directus: id, title, slug(unique), subtitle/artist, content(chordpro),
+  key, tempo, time, status(published/draft), sort. Теги/категории — отложить.
+- Slug в URL: файлы уже slug-named, но кириллица (`1-аллилуйя…`) → encodeURIComponent
+  либо использовать numeric id. Решить на плане.
+- Payload: список тянет только title/artist/slug (НЕ весь content); полный content —
+  на странице песни по slug.
+- Песни как Server Component (fetch на сервере) vs client + apiClient — определить
+  по паттерну reading/plan фич.
+
+Future-note (офлайн, отдельный этап):
+- bible-plan уже PWA (src/app/sw.js + manifest, basePath /app). Офлайн-песни позже =
+  закэшировать ответы songs-API + страницы в SW (cache-first) или localStorage-снапшот
+  списка. Directus остаётся источником; useSongs() спроектировать так, чтобы кэш-слой
+  вставлялся потом без переписывания.
 
 Success signals:
-- Регистрация без формы-выдумки: открыл invite-ссылку → задал пароль → работает на всех
-  устройствах. 1 действие.
-- VPN-юзер в мини-аппе: после однократной привязки входит без логина/пароля.
-- Нет дублей аккаунтов. Нет хранения email/телефона/ФИО → ФЗ-152 практически вне игры.
-- Session-cookie подписан, подделка directus_id невозможна.
+- Раздел «Песни» в нижней навигации; список 97 песен с рабочим поиском (fuzzy, терпит
+  опечатки/раскладку).
+- Открытие песни → корректный рендер аккордов над текстом, читается на телефоне,
+  совпадает по теме с остальным приложением (dark/light).
+- Ядро рендера переиспользовано из chordpro-app, без MUI/zustand/router в нашем коде.
 
-Next step: /aif-plan — спланировать invite+password флоу (set-password по подписанной
-ссылке = регистрация и сброс), привязку Telegram в мини-аппе, отключение авто-создания
-юзеров, подпись session-cookie.
+Next step: /aif-plan full — раздел «Песни»: Directus-коллекция + import-скрипт, порт
+рендера chordpro→html (songParser/LineRenderer/ChordRenderer), список+поиск(fuse),
+страницы /dashboard/songs и /dashboard/songs/[slug], пункт в BottomNavBar.
 <!-- aif:active-summary:end -->
 
 ## Sessions
@@ -97,4 +110,36 @@ Links (paths):
 - src/app/api/auth/login/route.ts (Directus password auth — переиспользуем)
 - src/app/api/auth/telegram/route.ts (initData verify)
 - src/middleware.ts (guard /dashboard), next.config.ts (basePath /app)
+
+### 2026-07-01 00:32 — Раздел «Песни»: chordpro→html, перенос рендера из chordpro-app
+What changed:
+- Новая тема. Перенос раздела песен (список/просмотр/поиск) из соседнего chordpro-app.
+- Установлено ключевое расхождение: источник = Vite/MUI/router/zustand, наш = Next/
+  Tailwind/Directus → перенос послойный, не drop-in.
+- Зафиксирован объём: data = Directus collection `songs` (recommended), scope v1 = только
+  список+просмотр+поиск, nav = 5-й пункт BottomNavBar.
+- Уточнение скоупа: переносим ТОЛЬКО мобильный рендер (chordpro → html, single-column),
+  без viewer-контролов. Офлайн — отдельным этапом позже (PWA уже есть).
+
+Key notes:
+- Цепочка рендера БЕЗ MUI: parseSongBlocks → SongBlock → ChordProHtmlColumn → LineRenderer
+  → ChordRenderer + lineParser. Парсер (songParser/lineParser/chordProUtils) — pure TS,
+  переносится as-is.
+- Главный объём «с правкой» = перекрасить ported .css под тему проекта (var(--app-*),
+  dark/light).
+- Поиск — fuse.js на клиенте (97 песен). Список грузит только title/artist/slug.
+- Разовый import-скрипт 97 .chordpro → Directus по образцу scripts/bible-import/cli.ts.
+- Future: офлайн через SW cache-first; useSongs() готовить под вставку кэш-слоя.
+
+Links (paths):
+- Источник: /Users/igorvasilev/Projects/nbc/nbc-music-chordpro/chordpro-app
+  - src/shared/lib/chordpro/{songParser,lineParser,chordProUtils,chordProParser}.ts
+  - src/components/SongViewer/{SongBlock,ChordProHtmlColumn,LineRenderer,ChordRenderer,
+    lineParser,MobileBlocksLayout}.tsx + ChordProHtml.css
+  - public/data/*.chordpro (97 файлов, slug-named)
+- Наш проект (точки интеграции):
+  - src/shared/components/layout/BottomNavBar.tsx (+ пункт Music)
+  - src/app/dashboard/ (новый раздел songs/), src/features/ (новый features/songs/)
+  - scripts/bible-import/cli.ts (прецедент import-скрипта)
+  - src/app/sw.js (PWA — для будущего офлайна)
 <!-- aif:sessions:end -->

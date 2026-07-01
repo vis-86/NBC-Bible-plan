@@ -1,0 +1,320 @@
+/*
+ * Стили рендера ChordPro, портированы из chordpro-app (ChordProHtml.css).
+ * Все цвета переведены на тему проекта (var(--app-*)) — работает в light и dark.
+ * A4/печать и 2-колоночный режим выпилены (вне scope v1): рендер одноколоночный.
+ */
+.cproSongBody {
+  background-color: var(--app-bg);
+  color: var(--app-text);
+  border: none;
+  font-family: Verdana, Arial, Helvetica, sans-serif;
+  overflow: visible;
+}
+
+.cproColumn {
+  float: none;
+  width: 100%;
+  font-size: 1em; /* базируется на fontSize контейнера */
+  white-space: pre-wrap;
+  box-sizing: border-box;
+}
+
+.cproSongSection {
+  display: block;
+  page-break-inside: avoid;
+}
+.cproComment {
+  display: block;
+  font-weight: normal;
+  line-height: 2;
+  text-transform: uppercase;
+  color: var(--app-text-secondary);
+  border-radius: 0.2em;
+}
+.cproCommentItalic {
+  font-style: italic;
+}
+.cproCommentBox {
+  border: 1px solid var(--app-border);
+  padding: 0.2em 0.5em;
+}
+
+.cproSongLine {
+  display: block;
+  line-height: 1.1em;
+  padding-top: .2em;
+  letter-spacing: 0.1px !important;
+}
+.cproSongLine::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+.single .cproColumn {
+  max-width: 420px;
+}
+.cproSongLine .chordWrapper .chord {
+  font-size: 1em;
+}
+.lyricsOnly {
+  line-height: 1;
+}
+
+.chordWrapper {
+  display: inline-block;
+  position: relative;
+  vertical-align: bottom;
+}
+
+.cproSongLine .chordWrapper .chord {
+  font-family: Verdana, Arial, Helvetica, sans-serif;
+  color: var(--app-primary);
+  background-color: transparent;
+  border: none;
+  position: relative;
+  font-weight: bold;
+  white-space: nowrap;
+  padding: 0 .1em 0 0;
+  float: left;
+  letter-spacing: 0.02em;
+  font-size: 0.85em; /* Немного меньше основного текста, как в оригинале */
+  line-height: 1.2; /* Улучшенная читаемость */
+}
+
+/* Стили для отдельных символов аккорда */
+.chordSign {
+  display: inline-block;
+  position: relative;
+}
+
+/* Группировка токенов (для многосимвольных модификаторов) */
+.chordToken {
+  display: inline-block;
+}
+
+/* Ноты (A, B, C, D, E, F, G, H) */
+.chordSignNote {
+  font-weight: bold;
+}
+
+/* Диезы */
+.chordSignSharp {
+  font-weight: bold;
+}
+
+/* Бемоли */
+.chordSignFlat {
+  font-weight: bold;
+}
+
+/* Цифры (септимы, ноны и т.д.) */
+.chordSignNumber {
+  font-weight: bold;
+}
+
+/* Слэш (для басовых нот, например A/C#) */
+.chordSignSlash {
+  font-weight: normal;
+  opacity: 0.8;
+  margin: 0 0.05em;
+}
+
+/* Минор (m) */
+.chordSignMinor {
+  font-weight: bold;
+}
+
+/* Скобки */
+.chordSignBracket {
+  font-weight: normal;
+  opacity: 0.3;
+}
+
+/* Модификаторы (+, -, sus, add и т.д.) */
+.chordSignModifier {
+  font-weight: bold;
+  font-size: 0.9em;
+}
+.chordToken + .chordSignNumber {
+  top: 0.2em;
+}
+.chordSignNumber,
+.chordSignModifier,
+.chordSignFlat,
+.chordSignSharp {
+  font-size: 0.8em;
+  vertical-align: super;
+}
+
+.chordsOnly .chordWrapper .chord {
+  padding: 0;
+  float: none;
+}
+.chordsOnly .chordWrapper .chordLyrics {
+  float: none;
+}
+.chordLyrics {
+  float: left;
+  clear: both;
+}
+/* Компактное отображение: уменьшаем расстояние между аккордами и словами */
+.wordWrapper .chordWrapper:not(:last-child) .chord {
+  margin-right: .08em;
+}
+.cproSongLine .chordWrapper + .chordWrapper .chord {
+  margin-left: .05em;
+}
+
+.wordWrapper {
+  white-space: nowrap;
+}
+.chordLyricsSpace {
+  opacity: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Когда слово заканчивается аккордом - добавляем отступ справа для последнего аккорда */
+.wordWrapper-with-end-chord .chordWrapper:last-child > .chord {
+  margin-right: 0.15em;
+}
+
+/* Когда слово начинается аккордом - добавляем отступ слева для первого аккорда */
+.wordWrapper-with-start-chord .chordWrapper:first-child > .chord {
+  margin-left: 0.15em;
+}
+/* Подсветка .wordWrapper-min-3, когда рядом есть .wordWrapper-with-end-chord */
+.wordWrapper-with-end-chord + .wordWrapper-min-3 > .wordWrapper-with-start-chord,
+.wordWrapper-min-3:has(+ .wordWrapper-only-lyric) > .chordWrapper > .chord,
+.wordWrapper-min-3:has(+ .wordWrapper-with-end-chord) > .wordWrapper-with-start-chord {
+  width: 1ch;
+}
+
+/* Стили для слова, которое заканчивается аккордом, когда следующее слово начинается аккордом */
+.wordWrapper-with-end-chord:has(+ .wordWrapper-with-end-chord) .chordWrapper:last-child > .chord {
+  margin-right: 0.25em;
+  width: 1ch;
+}
+.wordWrapper-with-end-chord:has(+ .wordWrapper-with-start-chord) .chordWrapper:last-child > .chord {
+  margin-right: 0.25em;
+  width: auto;
+}
+
+/* Дополнительный отступ, когда слово заканчивается аккордом и следующее начинается аккордом */
+.wordWrapper-with-end-chord + .wordWrapper-with-start-chord .chordWrapper:first-child > .chord {
+  margin-left: 0.25em;
+}
+
+.wordWrapper-with-end-chord:has(+ .wordWrapper-only-lyric) .chordWrapper:last-child > .chord {
+  width: 1ch;
+  margin-right: 0.25em;
+}
+
+/* Табличный режим рендеринга */
+.cproTableLine {
+  border-collapse: collapse;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.cproTableLine + .cproTableLine {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.cproTableLine td {
+  white-space: pre;
+  margin: 0;
+  padding: 0;
+  vertical-align: bottom;
+}
+
+.cproTableChords {
+  font-size: 0.75em;
+  font-weight: bold;
+  color: var(--app-primary);
+  page-break-after: avoid;
+  line-height: 1.2;
+}
+
+.cproTableChords td {
+  padding-bottom: 0.2em;
+}
+
+.cproTableLyrics {
+  font-size: 1em;
+  line-height: 1.4;
+}
+
+.cproTableLyricsCell {
+  padding-top: 0;
+  white-space: pre-wrap;
+}
+
+.cproTableLine td.indent {
+  padding-left: 2em;
+}
+
+/* Стили для аккордов в табличном режиме */
+.cproTableLine .chordWrapper {
+  display: inline-block;
+  float: none;
+}
+
+.cproTableLine .chordWrapper .chord {
+  float: none;
+  padding: 0;
+}
+
+.cproTableLine .chordWrapper .chordLyrics {
+  display: none;
+}
+
+/* Стили для специальных символов в табличном режиме */
+.cproSpecialSymbol {
+  color: var(--app-primary);
+  font-weight: normal;
+  font-size: inherit;
+  display: inline-block;
+}
+
+code.chord {
+  font-family: inherit;
+}
+
+/* Шапка и layout SongView (одноколоночный просмотр) */
+.song-view-header {
+  margin-bottom: 1rem;
+}
+.song-view-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--app-text);
+  margin: 0;
+  line-height: 1.2;
+}
+.song-view-subtitle {
+  font-size: 0.95rem;
+  color: var(--app-text-secondary);
+  margin: 0.25rem 0 0;
+}
+.song-view-meta {
+  display: inline-block;
+  margin-top: 0.5rem;
+  padding: 0.15em 0.6em;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--app-primary);
+  background-color: var(--app-primary-muted);
+  border-radius: 999px;
+}
+.song-blocks-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.song-block-content {
+  overflow-x: auto;
+}
