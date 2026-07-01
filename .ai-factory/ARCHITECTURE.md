@@ -94,6 +94,12 @@ Directus permissions на API-слое сознательно не исполь�
 **Current flags:**
 - `NEXT_PUBLIC_AI_ENABLE` — toggles AI chat ("Chat with Pastor")
 - `NEXT_PUBLIC_BASE_PATH` — deployment base path
+- `NEXT_PUBLIC_REGISTER_ENABLED` — toggles the self-registration UI (form vs invite stub)
+- `NEXT_PUBLIC_REGISTER_REQUIRE_CODE` — build-time UI mirror of server `isChurchCodeRequired()`; default `true`, `false`/`0` hides the church-code field
+
+**Server-side registration flags (runtime, source of truth):**
+- `REGISTER_CHURCH_CODE` — secret; set ⇒ church code required (timing-safe compare)
+- `REGISTER_OPEN_NO_CODE` — `true`/`1` ⇒ registration open without a code (only honored when `REGISTER_CHURCH_CODE` is empty). Neither set ⇒ registration closed (503). See `src/lib/register-access.ts` (`isRegistrationOpen` / `isChurchCodeRequired`).
 
 ## Pattern: Standalone Deployment with Base Path
 
