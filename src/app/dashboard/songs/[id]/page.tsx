@@ -1,8 +1,8 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { ChevronLeft } from 'lucide-react';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
+import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { useSong } from '@/features/songs/hooks/useSong';
 import { SongView } from '@/features/songs/components/SongView';
@@ -20,18 +20,7 @@ export default function SongPage() {
     // hideBottomNav — фокус-режим чтения (как /read/): нижняя навигация скрыта.
     <DashboardLayout onChangeView={() => {}} hideBottomNav>
       <div data-song-page className="flex min-h-0 flex-1 flex-col">
-        <header className="flex items-center gap-2 border-b border-app-border px-2 py-2">
-          <button
-            type="button"
-            data-song-page-back
-            onClick={handleBack}
-            aria-label="Назад к списку"
-            className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-app-text-secondary transition-colors hover:text-app-text active:scale-95"
-          >
-            <ChevronLeft size={22} />
-            <span className="text-sm font-medium">Песни</span>
-          </button>
-        </header>
+        <PageHeader title={song?.title ?? ''} onBack={handleBack} backAriaLabel="Назад к списку" />
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           {error ? (

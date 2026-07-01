@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { ArrowLeft, Check, Info, X } from 'lucide-react';
+import { Check, Info, X } from 'lucide-react';
 import { ReadingPlanDay, BibleReference } from '@/types';
 import { Modal } from '@/shared/components/ui/Modal';
 import { Toast } from '@/shared/components/ui/Toast';
 import { BottomSheet } from '@/shared/components/ui/BottomSheet';
+import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { CalendarDayDetail } from './CalendarDayDetail';
 
 interface CalendarViewProps {
@@ -429,22 +430,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       className="flex flex-col h-full bg-app-bg text-app-text overflow-y-auto"
     >
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-app-surface border-b border-app-border px-4 py-3 flex items-center gap-4 shadow-app-sm">
-        <button
-          onClick={onBack}
-          className="p-2 hover:bg-app-surface-muted rounded-lg transition-colors active:scale-95 text-app-text-secondary"
-          aria-label="Назад"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-lg font-bold text-app-text">Календарь</h1>
-        {missedDays.length === 0 && (
-          <div className="flex items-center gap-1.5 text-sm font-medium text-app-success ml-auto">
-            <Check size={16} strokeWidth={2.5} />
-            <span>Все по плану</span>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Календарь"
+        onBack={onBack}
+        right={
+          missedDays.length === 0 ? (
+            <div className="flex items-center gap-1.5 text-sm font-medium text-app-success">
+              <Check size={16} strokeWidth={2.5} />
+              <span>Все по плану</span>
+            </div>
+          ) : undefined
+        }
+      />
 
       {/* Calendar */}
       <div className="flex-1 p-4 space-y-6 relative z-0">
