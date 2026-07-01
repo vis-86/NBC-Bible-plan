@@ -91,10 +91,10 @@ data/songs/*.chordpro                 (97 файлов, в репо)
 - [x] **#57** `songsApi` в endpoints.ts + типы ответов *(blocked by #56)*
 
 ### Фаза 3 — UI: хуки, страницы, навигация
-- **#58** Хуки `useSongs` + `useSong` + `useSongSearch` (fuse.js, +зависимость) *(blocked by #57)*
-- **#59** Страница списка `/dashboard/songs` + SearchBar/SongList/SongCard *(blocked by #58)*
-- **#60** Страница песни `/dashboard/songs/[id]` *(blocked by #54, #58)*
-- **#61** Пункт «Песни» (Music) в BottomNavBar *(blocked by #59)*
+- [x] **#58** Хуки `useSongs` + `useSong` + `useSongSearch` (fuse.js, +зависимость) *(blocked by #57)*
+- [x] **#59** Страница списка `/dashboard/songs` + SearchBar/SongList/SongCard *(blocked by #58)*
+- [x] **#60** Страница песни `/dashboard/songs/[id]` *(blocked by #54, #58)*
+- [x] **#61** Пункт «Песни» (Music) в BottomNavBar *(blocked by #59)*
 
 ## Commit Plan
 

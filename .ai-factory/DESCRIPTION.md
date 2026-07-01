@@ -13,6 +13,7 @@ Web application for the New Baptist Church (NBC) community — a structured Bibl
 - **Calendar View** — monthly calendar for reviewing past/future reading days
 - **Verse of the Day** — daily scripture from Directus
 - **AI Chat** ("Chat with Pastor") — AI assistant via n8n + Directus Flow
+- **Songs (ChordPro)** — каталог песен community: список + нечёткий поиск (fuse.js) + просмотр (ChordPro→HTML, аккорды над текстом, одноколоночный фокус-режим). Data source — Directus `songs` (сырой ChordPro в `content`); наполнение через `songs:bootstrap`/`songs:import` из `data/songs/*.chordpro`
 - **Invite + Password Auth** — псевдонимный вход (логин→`{login}@local.baptistnn.ru` + пароль). Аккаунты заводятся через invite-ссылку (stateful токен `auth_invites`); та же ссылка = сброс пароля
 - **Self-registration по коду церкви** — `/register` (login + password + churchCode). Общий секрет `REGISTER_CHURCH_CODE` (timing-safe, rate-limit 5/час); включается флагами `REGISTER_CHURCH_CODE` (runtime) + `NEXT_PUBLIC_REGISTER_ENABLED` (build-time UI). Без секрета роут `/api/auth/register` → 503. Параллельна invite-модели
 - **Telegram Auth (вторично)** — mini-app для VPN; initData верифицируется, аккаунты НЕ создаются — только привязка tg_id к существующему аккаунту
@@ -29,6 +30,7 @@ Web application for the New Baptist Church (NBC) community — a structured Bibl
 - **Icons:** Lucide React
 - **UI Components:** shadcn/ui (components.json configured)
 - **Markdown:** react-markdown + remark-gfm + rehype-raw
+- **Search:** fuse.js (клиентский нечёткий поиск по каталогу песен)
 - **Auth:** iron-session (sealed cookie) + Directus password auth + Telegram link; validation via `zod`
 - **Tests:** Vitest (auth lib/API unit tests, node env); component tests via @testing-library/react + jsdom (per-file `// @vitest-environment jsdom`)
 - **CMS / Data:** Directus CMS with `@directus/sdk` v20
