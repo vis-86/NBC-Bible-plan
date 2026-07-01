@@ -4,18 +4,21 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getApiPath, getBasePath } from '@/lib/utils';
 import { SUPPORT_CONTACT } from '@/lib/constants';
-import { isRegisterEnabled } from '@/shared/utils/constants';
+import { isRegisterEnabled, isRegisterCodeRequired } from '@/shared/utils/constants';
 
 const inputClass =
   'mt-1 block w-full rounded-md border border-app-border bg-app-surface-muted px-3 py-2 text-app-text placeholder-app-text-subtle focus:border-app-primary/50 focus:outline-none focus:ring-1 focus:ring-app-primary/30';
 
 /**
- * Самостоятельная регистрация по коду церкви: login + displayName? + password + churchCode.
- * Без authed-redirect (консистентно с /login). При выключенном флаге — graceful-заглушка
- * со ссылкой в поддержку (invite-fallback). Серверный роут — источник истины (503 без секрета).
+ * Самостоятельная регистрация: login + displayName? + password (+ churchCode, если требуется).
+ * Поле «Код церкви» показывается по build-time флагу isRegisterCodeRequired() и зеркалит
+ * серверный isChurchCodeRequired(). Без authed-redirect (консистентно с /login). При выключенном
+ * флаге регистрации — graceful-заглушка со ссылкой в поддержку (invite-fallback).
+ * Серверный роут — источник истины (503 без секрета/флага, 403 при неверном коде).
  */
 function RegisterForm() {
   const router = useRouter();
+  const codeRequired = isRegisterCodeRequired();
   const [login, setLogin] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
@@ -47,7 +50,7 @@ function RegisterForm() {
           login: login.trim(),
           displayName: displayName.trim() || undefined,
           password,
-          churchCode: churchCode.trim(),
+          churchCode: codeRequired ? churchCode.trim() : undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -68,7 +71,9 @@ function RegisterForm() {
       <div>
         <h2 className="text-2xl font-semibold text-app-text">Регистрация</h2>
         <p className="mt-2 text-sm text-app-text-secondary">
-          Введите код церкви и придумайте логин — не используйте настоящие имя и телефон.
+          {codeRequired
+            ? 'Введите код церкви и придумайте логин — не используйте настоящие имя и телефон.'
+            : 'Придумайте логин — не используйте настоящие имя и телефон.'}
         </p>
       </div>
 
@@ -79,14 +84,16 @@ function RegisterForm() {
           </div>
         )}
 
-        <div>
-          <label htmlFor="churchCode" className="block text-sm font-medium text-app-text">Код церкви</label>
-          <input
-            id="churchCode" type="text" required autoCapitalize="none" autoCorrect="off"
-            value={churchCode} onChange={(e) => setChurchCode(e.target.value)}
-            className={inputClass} placeholder="код с собрания"
-          />
-        </div>
+        {codeRequired && (
+          <div>
+            <label htmlFor="churchCode" className="block text-sm font-medium text-app-text">Код церкви</label>
+            <input
+              id="churchCode" type="text" required autoCapitalize="none" autoCorrect="off"
+              value={churchCode} onChange={(e) => setChurchCode(e.target.value)}
+              className={inputClass} placeholder="код с собрания"
+            />
+          </div>
+        )}
 
         <div>
           <label htmlFor="login" className="block text-sm font-medium text-app-text">Логин</label>

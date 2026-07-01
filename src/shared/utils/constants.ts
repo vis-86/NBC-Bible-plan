@@ -17,3 +17,14 @@ export function isRegisterEnabled(): boolean {
   return registerEnabled === 'true' || registerEnabled === '1';
 }
 
+/**
+ * Требуется ли показывать поле «Код церкви» в форме регистрации.
+ * Клиентский флаг (build-time инлайнинг), зеркалит серверный isChurchCodeRequired().
+ * Default = true (обратная совместимость: билды без переменной показывают поле как раньше).
+ * @returns false только если NEXT_PUBLIC_REGISTER_REQUIRE_CODE явно 'false' или '0'
+ */
+export function isRegisterCodeRequired(): boolean {
+  const requireCode = process.env.NEXT_PUBLIC_REGISTER_REQUIRE_CODE;
+  return !(requireCode === 'false' || requireCode === '0');
+}
+

@@ -49,16 +49,17 @@ export const InviteCreateSchema = z.object({
 });
 
 /**
- * Самостоятельная регистрация по «коду церкви».
+ * Самостоятельная регистрация.
  * login + password создают псевдонимный аккаунт ({login}@local.baptistnn.ru, без PII);
- * churchCode — общий секрет церкви, проверяется на сервере (timing-safe).
- * Проверка самого кода — в register-access (НЕ в схеме): здесь только формат.
+ * churchCode — общий секрет церкви. ОПЦИОНАЛЕН: в режиме «без кода» (REGISTER_OPEN_NO_CODE)
+ * поле может отсутствовать. Обязательность и само сравнение — на сервере
+ * (register-access: isChurchCodeRequired + verifyChurchCode, timing-safe). Здесь только формат.
  */
 export const RegisterSchema = z.object({
   login: LoginHandleSchema,
   displayName: DisplayNameSchema.optional(),
   password: PasswordSchema,
-  churchCode: z.string({ error: 'Укажите код церкви' }).min(1, 'Укажите код церкви').max(128),
+  churchCode: z.string().max(128).optional(),
 });
 
 export type LoginInput = z.infer<typeof LoginSchema>;

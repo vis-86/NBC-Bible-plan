@@ -4,7 +4,7 @@ import { createLocalUser, LoginTakenError } from '@/lib/directus-user';
 import { getDirectusAdminClient } from '@/lib/directus';
 import { readUsers } from '@directus/sdk';
 import { RegisterSchema, firstZodError } from '@/lib/validators/auth.schemas';
-import { isRegistrationOpen, verifyChurchCode } from '@/lib/register-access';
+import { isRegistrationOpen, isChurchCodeRequired, verifyChurchCode } from '@/lib/register-access';
 import { checkRateLimit, clientIp } from '@/lib/rate-limiter';
 
 // crypto.timingSafeEqual (register-access) требует Node.js runtime, не edge.
@@ -17,11 +17,12 @@ function debug(...args: unknown[]) {
 
 /**
  * POST /api/auth/register
- * Самостоятельная регистрация по коду церкви: login + password + churchCode.
+ * Самостоятельная регистрация: login + password (+ churchCode, если код требуется).
  * Параллельна invite-модели (/api/auth/activate её не трогает).
  *
- * Барьеры по порядку: rate-limit → zod → 503(выключено) → 403(код) → 409(дубль).
- * Логи без PII: никогда не логируем пароль и код церкви.
+ * Барьеры по порядку: rate-limit → 503(выключено) → zod → 403(код, только если требуется) → 409(дубль).
+ * Код церкви обязателен лишь когда задан секрет REGISTER_CHURCH_CODE; иначе (режим
+ * REGISTER_OPEN_NO_CODE) шаг 403 пропускается. Логи без PII: не логируем пароль и код церкви.
  */
 export async function POST(request: NextRequest) {
   const ip = clientIp(request);
@@ -50,9 +51,16 @@ export async function POST(request: NextRequest) {
   }
   const { login, displayName, password, churchCode } = parsed.data;
 
-  if (!verifyChurchCode(churchCode)) {
-    debug('invalid church code attempt', ip);
-    return NextResponse.json({ error: 'Неверный код церкви' }, { status: 403 });
+  // Код церкви проверяем только когда он требуется (задан секрет REGISTER_CHURCH_CODE).
+  // В режиме «без кода» (REGISTER_OPEN_NO_CODE) присланный churchCode игнорируется.
+  if (isChurchCodeRequired()) {
+    if (!verifyChurchCode(churchCode ?? '')) {
+      debug('invalid church code attempt', ip);
+      return NextResponse.json({ error: 'Неверный код церкви' }, { status: 403 });
+    }
+    debug('church code check passed');
+  } else {
+    debug('church code not required, skipping check');
   }
 
   try {
