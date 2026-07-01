@@ -316,5 +316,13 @@ code.chord {
   gap: 1rem;
 }
 .song-block-content {
+  /* Горизонтальный скролл для широких строк с аккордами. */
   overflow-x: auto;
+  /* ВАЖНО: без явного overflow-y спека вычисляет его в `auto` (раз overflow-x
+     не `visible`) → блок становится вертикальным scroll-контейнером и
+     перехватывает свайп страницы (на iOS — rubber-band «дёргает» блок).
+     Гасим вертикаль и отдаём вертикальный тач странице. */
+  overflow-y: hidden;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
 }
