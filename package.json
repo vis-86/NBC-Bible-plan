@@ -10,6 +10,8 @@
     "deploy": "./copy-prod.sh",
     "bible:import": "tsx scripts/bible-import/cli.ts",
     "bible:import:smoke": "tsx scripts/bible-import/smoke.ts",
+    "songs:bootstrap": "tsx scripts/songs-import/bootstrap.ts",
+    "songs:import": "tsx scripts/songs-import/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"

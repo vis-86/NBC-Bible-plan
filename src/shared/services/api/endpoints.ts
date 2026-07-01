@@ -1,5 +1,7 @@
 import { apiClient } from './client';
 import { BibleReference, ReadingPlanDay, PlanItem } from '@/types';
+// Type-only import (стирается при компиляции) — доменные типы фичи songs.
+import type { SongListResponse, SongResponse } from '@/features/songs/types';
 
 // Types for API responses
 export interface PlanResponse {
@@ -93,6 +95,15 @@ export const bibleApi = {
   getText: async (book: string, chapter: number): Promise<BibleTextResponse> => {
     const encodedBook = encodeURIComponent(book);
     return apiClient.get<BibleTextResponse>(`/api/bible/${encodedBook}/${chapter}`);
+  },
+};
+
+export const songsApi = {
+  getSongs: async (): Promise<SongListResponse> => {
+    return apiClient.get<SongListResponse>('/api/songs');
+  },
+  getSong: async (id: string | number): Promise<SongResponse> => {
+    return apiClient.get<SongResponse>(`/api/songs/${id}`);
   },
 };
 

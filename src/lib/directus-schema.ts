@@ -54,6 +54,29 @@ export interface DirectusSchema {
    * token/expires_at/invite_url) ИЛИ программно через createInvite. Одноразовость = used_at,
    * TTL = expires_at самой записи.
    */
+  /**
+   * Каталог песен (ChordPro). `content` — сырой ChordPro; метаданные вынесены
+   * в поля для списка/поиска. Коллекция создаётся bootstrap-скриптом
+   * (scripts/songs-import/bootstrap.ts), наполняется import-скриптом (#62).
+   * ВНИМАНИЕ: поле называется `song_key` (не `key`), т.к. `key` — зарезервировано.
+   */
+  songs: {
+    id: number;
+    title: string;
+    subtitle?: string | null;
+    /** Тональность (директива {key}). */
+    song_key?: string | null;
+    tempo?: number | null;
+    time?: string | null;
+    /** Сырой ChordPro-контент. */
+    content: string;
+    /** Стабильный slug из имени файла (уникальный). */
+    slug: string;
+    status?: string;
+    sort?: number | null;
+    date_created?: string;
+    date_updated?: string;
+  };
   auth_invites: {
     id: number;
     /** секрет ссылки (unique) */

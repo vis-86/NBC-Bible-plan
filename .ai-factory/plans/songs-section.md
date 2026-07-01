@@ -85,10 +85,10 @@ data/songs/*.chordpro                 (97 файлов, в репо)
 - [x] **#54** `SongView`: обёртка chordpro → single-column (порт MobileBlocksLayout без scroll/active) *(blocked by #53)*
 
 ### Фаза 2 — Directus + серверный слой данных
-- **#55** Directus `songs` в DirectusSchema + bootstrap-скрипт коллекции (idempotent, npm `songs:bootstrap`)
-- **#62** Импорт данных: 97 .chordpro → Directus (`data/songs/`, parse+upsert, npm `songs:import`) *(blocked by #52, #55)*
-- **#56** API-роуты `/api/songs` и `/api/songs/[id]` (admin-client proxy, стиль NextResponse.json) *(blocked by #55)*
-- **#57** `songsApi` в endpoints.ts + типы ответов *(blocked by #56)*
+- [x] **#55** Directus `songs` в DirectusSchema + bootstrap-скрипт коллекции (idempotent, npm `songs:bootstrap`)
+- [x] **#62** Импорт данных: 97 .chordpro → Directus (`data/songs/`, parse+upsert, npm `songs:import`) *(blocked by #52, #55)*
+- [x] **#56** API-роуты `/api/songs` и `/api/songs/[id]` (admin-client proxy, стиль NextResponse.json) *(blocked by #55)*
+- [x] **#57** `songsApi` в endpoints.ts + типы ответов *(blocked by #56)*
 
 ### Фаза 3 — UI: хуки, страницы, навигация
 - **#58** Хуки `useSongs` + `useSong` + `useSongSearch` (fuse.js, +зависимость) *(blocked by #57)*

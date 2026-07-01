@@ -20,3 +20,13 @@ export interface Song {
 
 /** Краткая карточка песни для списка/поиска (без тяжёлого `content`). */
 export type SongSummary = Omit<Song, 'content'>;
+
+/** Ответ `GET /api/songs` — список кратких карточек. */
+export interface SongListResponse {
+  songs: SongSummary[];
+}
+
+/** Ответ `GET /api/songs/[id]` — одна песня с полным контентом. */
+export interface SongResponse {
+  song: Song;
+}
