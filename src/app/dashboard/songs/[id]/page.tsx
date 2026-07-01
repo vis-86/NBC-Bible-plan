@@ -35,8 +35,8 @@ export default function SongPage() {
             </div>
           ) : (
             <SongView
+              // title не прокидываем: он уже показан в PageHeader сверху (без дубля).
               content={song.content}
-              title={song.title}
               subtitle={song.subtitle}
               songKey={song.key}
               tempo={song.tempo}
