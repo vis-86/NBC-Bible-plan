@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const {
   checkRateLimitMock,
   isRegistrationOpenMock,
+  isChurchCodeRequiredMock,
   verifyChurchCodeMock,
   createLocalUserMock,
   createSessionMock,
@@ -19,6 +20,7 @@ const {
   return {
     checkRateLimitMock: vi.fn(),
     isRegistrationOpenMock: vi.fn(),
+    isChurchCodeRequiredMock: vi.fn(),
     verifyChurchCodeMock: vi.fn(),
     createLocalUserMock: vi.fn(),
     createSessionMock: vi.fn(async (_d: unknown, res: unknown) => res),
@@ -32,6 +34,7 @@ vi.mock('@/lib/rate-limiter', () => ({
 }));
 vi.mock('@/lib/register-access', () => ({
   isRegistrationOpen: isRegistrationOpenMock,
+  isChurchCodeRequired: isChurchCodeRequiredMock,
   verifyChurchCode: verifyChurchCodeMock,
 }));
 vi.mock('@/lib/directus-user', () => ({
@@ -60,6 +63,7 @@ describe('POST /api/auth/register', () => {
   beforeEach(() => {
     checkRateLimitMock.mockReset().mockReturnValue(true);
     isRegistrationOpenMock.mockReset().mockReturnValue(true);
+    isChurchCodeRequiredMock.mockReset().mockReturnValue(true);
     verifyChurchCodeMock.mockReset().mockReturnValue(true);
     createLocalUserMock.mockReset().mockResolvedValue('user-1');
     createSessionMock.mockClear();
@@ -87,8 +91,8 @@ describe('POST /api/auth/register', () => {
     expect(res.status).toBe(503);
   });
 
-  it('returns 400 on invalid body (missing churchCode)', async () => {
-    const res = await POST(req({ login: 'ivan_nbc', displayName: 'Иван', password: 'secret123' }));
+  it('returns 400 on invalid body (bad login)', async () => {
+    const res = await POST(req({ login: 'ab', password: 'secret123', churchCode: 'church-2026' }));
     expect(res.status).toBe(400);
     expect(verifyChurchCodeMock).not.toHaveBeenCalled();
   });
@@ -98,6 +102,22 @@ describe('POST /api/auth/register', () => {
     const res = await POST(req(validBody));
     expect(res.status).toBe(403);
     expect(createLocalUserMock).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when code required but churchCode missing', async () => {
+    verifyChurchCodeMock.mockReturnValue(false); // verifyChurchCode('') → false
+    const res = await POST(req({ login: 'ivan_nbc', password: 'secret123' }));
+    expect(res.status).toBe(403);
+    expect(verifyChurchCodeMock).toHaveBeenCalledWith('');
+    expect(createLocalUserMock).not.toHaveBeenCalled();
+  });
+
+  it('registers without a code when code is not required (200)', async () => {
+    isChurchCodeRequiredMock.mockReturnValue(false);
+    const res = await POST(req({ login: 'ivan_nbc', displayName: 'Иван', password: 'secret123' }));
+    expect(res.status).toBe(200);
+    expect(verifyChurchCodeMock).not.toHaveBeenCalled();
+    expect(createLocalUserMock).toHaveBeenCalledOnce();
   });
 
   it('returns 409 when login is taken', async () => {

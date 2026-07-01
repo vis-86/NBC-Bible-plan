@@ -6,7 +6,6 @@ import {
   ActivateSchema,
   TelegramLinkSchema,
   RegisterSchema,
-  firstZodError,
 } from './auth.schemas';
 
 describe('auth.schemas', () => {
@@ -48,28 +47,20 @@ describe('auth.schemas', () => {
     expect(TelegramLinkSchema.safeParse({ initData: '', login: 'ivan', password: 'p' }).success).toBe(false);
   });
 
-  it('RegisterSchema requires login + password + churchCode, displayName optional', () => {
+  it('RegisterSchema requires login + password, churchCode + displayName optional', () => {
     expect(
       RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123', churchCode: 'code' }).success
     ).toBe(true);
     expect(
       RegisterSchema.safeParse({ login: 'ivan_nbc', displayName: 'Иван', password: 'secret123', churchCode: 'code' }).success
     ).toBe(true);
-    // churchCode обязателен
-    expect(RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123' }).success).toBe(false);
-    expect(RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123', churchCode: '' }).success).toBe(false);
-    // невалидный логин / короткий пароль
+    // churchCode опционален (обязательность решает сервер: isChurchCodeRequired)
+    expect(RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123' }).success).toBe(true);
+    expect(RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123', churchCode: '' }).success).toBe(true);
+    // login/password по-прежнему валидируются
     expect(RegisterSchema.safeParse({ login: 'ab', password: 'secret123', churchCode: 'code' }).success).toBe(false);
     expect(RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'short', churchCode: 'code' }).success).toBe(false);
-  });
-
-  it('RegisterSchema gives a friendly message for missing/empty churchCode', () => {
-    const missing = RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123' });
-    expect(missing.success).toBe(false);
-    if (!missing.success) expect(firstZodError(missing.error)).toBe('Укажите код церкви');
-
-    const empty = RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123', churchCode: '' });
-    expect(empty.success).toBe(false);
-    if (!empty.success) expect(firstZodError(empty.error)).toBe('Укажите код церкви');
+    // churchCode ограничен по длине
+    expect(RegisterSchema.safeParse({ login: 'ivan_nbc', password: 'secret123', churchCode: 'x'.repeat(129) }).success).toBe(false);
   });
 });
