@@ -247,7 +247,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
   const headerDate = formatHeaderDate(new Date());
 
   return (
-    <div data-plan-view className="flex flex-col h-full bg-app-bg text-app-text overflow-y-auto pb-32">
+    <div data-plan-view className="flex flex-col h-full bg-app-bg text-app-text overflow-y-auto">
       <header data-plan-view-header className="px-6 pt-10 pb-2 flex justify-between items-end">
         <div>
           <div className="flex items-center gap-2 mb-1">

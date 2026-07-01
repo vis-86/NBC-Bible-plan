@@ -76,7 +76,7 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
   return (
     <nav
       data-dashboard-layout-bottom-nav
-      className="fixed bottom-6 left-4 right-4 max-w-md mx-auto h-[72px] glass-nav rounded-[24px] flex items-center justify-around px-2 z-50 border border-app-border shadow-2xl safe-area-bottom"
+      className="fixed bottom-0 left-0 right-0 max-w-md mx-auto min-h-[64px] pt-2 glass-nav rounded-t-[24px] flex items-center justify-around z-50 border-t border-app-border dock-nav-safe-b dock-nav-safe-x"
       aria-label="Основная навигация"
     >
       {navItems.map((item) => {

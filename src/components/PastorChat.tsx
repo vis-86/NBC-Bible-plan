@@ -452,7 +452,7 @@ const PastorChat: React.FC = () => {
       </div>
 
       {/* Input Area */}
-      <div className="bg-white p-3 border-t border-stone-200 safe-area-bottom">
+      <div className="bg-white p-3 border-t border-stone-200">
         <div className="flex items-end gap-3 max-w-4xl mx-auto w-full">
           <textarea
             ref={textareaRef}

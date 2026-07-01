@@ -34,7 +34,7 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout currentView={AppView.SETTINGS} onChangeView={() => {}}>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain bg-app-bg pb-safe">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain bg-app-bg">
         <div className="mx-auto max-w-md px-4 py-6">
           <h1 className="text-xl font-semibold text-app-text mb-6">
             Настройки

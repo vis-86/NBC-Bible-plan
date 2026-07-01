@@ -322,6 +322,30 @@ select,
     padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* ── Docked bottom nav ───────────────────────────────────────────────
+   --dock-nav-h — single source of truth for the docked nav row height.
+   Used by BottomNavBar (min-h) and by the content clearance (.pb-nav). */
+:root {
+    --dock-nav-h: 64px;
+}
+
+/* Bottom padding inside the docked bar: lift content above the home indicator. */
+.dock-nav-safe-b {
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+/* Horizontal padding for the docked bar: keep icons clear of rounded/notched
+   screen edges, but never less than 16px. */
+.dock-nav-safe-x {
+    padding-left: max(1rem, env(safe-area-inset-left));
+    padding-right: max(1rem, env(safe-area-inset-right));
+}
+
+/* Content clearance so scrollable pages don't hide behind the docked bar. */
+.pb-nav {
+    padding-bottom: calc(var(--dock-nav-h) + env(safe-area-inset-bottom));
+}
+
 /* Bottom sheet animation */
 @keyframes slide-up {
     from {

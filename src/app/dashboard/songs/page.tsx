@@ -29,7 +29,7 @@ export default function SongsPage() {
           <SearchBar onSearch={handleSearch} />
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-28">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4">
           {error ? (
             <ErrorMessage message={error} />
           ) : loading && songs.length === 0 ? (
