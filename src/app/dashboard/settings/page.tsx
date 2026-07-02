@@ -7,6 +7,7 @@ import { AppView } from '@/types';
 import { useTheme } from '@/components/ThemeProvider';
 import type { AppThemePreference } from '@/shared/services/api/endpoints';
 import { DashboardReadingSettingsSection } from '@/features/reading/components/DashboardReadingSettingsSection';
+import { PageHeader } from '@/shared/components/layout/PageHeader';
 
 const themeOptions: Array<{ value: AppThemePreference; label: string }> = [
   { value: 'light', label: 'Светлая' },
@@ -34,12 +35,9 @@ export default function SettingsPage() {
 
   return (
     <DashboardLayout currentView={AppView.SETTINGS} onChangeView={() => {}}>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain bg-app-bg">
-        <div className="mx-auto max-w-md px-4 py-6">
-          <h1 className="text-xl font-semibold text-app-text mb-6">
-            Настройки
-          </h1>
-
+      <div className="flex min-h-0 flex-1 flex-col">
+        <PageHeader variant="page" title="Настройки" />
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain bg-app-bg px-4 py-6">
           <section className="space-y-3">
             <h2 className="text-sm font-medium text-app-text-secondary">
               Тема интерфейса

@@ -39,4 +39,24 @@ describe('PageHeader', () => {
     render(<PageHeader title="Календарь" onBack={vi.fn()} />);
     expect(screen.queryByText('Все по плану')).toBeNull();
   });
+
+  it('по умолчанию (variant=view) с onBack рендерит кнопку «назад»', () => {
+    const { container } = render(<PageHeader title="Календарь" onBack={vi.fn()} />);
+    expect(container.querySelector('[data-page-header-back]')).not.toBeNull();
+  });
+
+  it('variant=page без onBack не рендерит кнопку «назад», но показывает заголовок', () => {
+    const { container } = render(<PageHeader variant="page" title="Песни" />);
+    expect(container.querySelector('[data-page-header-back]')).toBeNull();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Песни');
+  });
+
+  it('рендерит below-слот (children) под заголовком', () => {
+    render(
+      <PageHeader variant="page" title="Песни">
+        <input aria-label="Поиск" />
+      </PageHeader>
+    );
+    expect(screen.getByLabelText('Поиск')).toBeTruthy();
+  });
 });

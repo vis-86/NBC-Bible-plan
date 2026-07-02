@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
+import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { useSongs } from '@/features/songs/hooks/useSongs';
 import { useSongSearch } from '@/features/songs/hooks/useSongSearch';
@@ -24,10 +25,9 @@ export default function SongsPage() {
   return (
     <DashboardLayout onChangeView={() => {}}>
       <div data-songs-page className="flex min-h-0 flex-1 flex-col">
-        <header className="px-4 pt-6 pb-3">
-          <h1 className="mb-4 text-2xl font-bold text-app-text">Песни</h1>
+        <PageHeader variant="page" title="Песни">
           <SearchBar onSearch={handleSearch} />
-        </header>
+        </PageHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4">
           {error ? (
