@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { Check, Info, X } from 'lucide-react';
+import { BookOpen, Check, Info, X } from 'lucide-react';
 import { ReadingPlanDay, BibleReference } from '@/types';
+import { getDayFirstReading } from '@/shared/utils/bible';
 import { Toast } from '@/shared/components/ui/Toast';
 import { BottomSheet } from '@/shared/components/ui/BottomSheet';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
@@ -366,6 +367,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setShowContextMenu(false);
   };
 
+  const handleNavigateToDay = (day: ReadingPlanDay) => {
+    const reading = getDayFirstReading(day);
+    console.debug('[CalendarView] navigate to day reading', { dayId: day.id, resolved: reading });
+    if (!reading) return;
+    handleClearSelection();
+    onSelectReading(day, reading);
+  };
+
   // Вычисляем пропущенные дни (прошедшие дни, которые не отмечены как прочитанные)
   const missedDays = useMemo(() => {
     return filteredPlan.filter(day => {
@@ -528,16 +537,30 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {selectedDaysInfo.days.map(day => (
                 <div
                   key={day.id}
-                  className="flex items-center justify-between p-2 bg-app-surface-muted rounded-lg"
+                  className="flex items-center justify-between gap-2 p-2 bg-app-surface-muted rounded-lg"
                 >
                   <span className="text-sm font-medium text-app-text">
                     День {day.id}
                   </span>
-                  {day.completed && (
-                    <span className="text-xs text-app-success font-medium">
-                      Прочитано
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {day.completed && (
+                      <span className="text-xs text-app-success font-medium">
+                        Прочитано
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleNavigateToDay(day);
+                      }}
+                      aria-label={`Перейти к чтению дня ${day.id}`}
+                      className="flex items-center gap-1 text-xs font-medium text-app-text-secondary px-2 py-1 rounded-md hover:bg-app-surface-elevated active:scale-95 transition-all"
+                    >
+                      <BookOpen size={14} strokeWidth={2.5} />
+                      <span>Читать</span>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

@@ -1,4 +1,4 @@
-import { BibleReference } from '@/types';
+import { BibleReference, ReadingPlanDay } from '@/types';
 
 const BOOK_ABBREVIATIONS: Record<string, string> = {
   // ── Ветхий Завет — аббревиатуры ──────────────────────────────────────────
@@ -320,6 +320,27 @@ export function parseReadingItem(readingStr: string): BibleReference | null {
   }
 
   console.warn('[bible] parseReadingItem: unrecognized format', { readingStr });
+  return null;
+}
+
+/**
+ * Resolves the reference a "go to reading" action should open for a plan day.
+ * Priority: first unread item → first item → first legacy reading → null.
+ * Shared by CalendarDayDetail ("Начать чтение") and CalendarView's selected-days sheet.
+ */
+export function getDayFirstReading(day: ReadingPlanDay): BibleReference | null {
+  if (day.items && day.items.length > 0) {
+    const firstUnread = day.items.find(item => !item.completed);
+    const target = firstUnread ?? day.items[0];
+    const reading = parseReadingItem(target.readText);
+    if (reading) return reading;
+  }
+
+  if (day.readings && day.readings.length > 0) {
+    return day.readings[0];
+  }
+
+  console.warn('[getDayFirstReading] no readable reference for day', day.id);
   return null;
 }
 

@@ -3,7 +3,7 @@
 import React from 'react';
 import { Check, ChevronRight } from 'lucide-react';
 import { ReadingPlanDay, BibleReference } from '@/types';
-import { parseReadingItem, getFullBookName } from '@/shared/utils/bible';
+import { parseReadingItem, getFullBookName, getDayFirstReading } from '@/shared/utils/bible';
 
 interface CalendarDayDetailProps {
   day: ReadingPlanDay;
@@ -41,22 +41,11 @@ export const CalendarDayDetail: React.FC<CalendarDayDetailProps> = ({
     await onToggleComplete(day.id);
   };
 
-  // Находим первую непрочитанную главу для кнопки "Начать чтение"
-  const firstUnreadItem = day.items?.find(item => !item.completed);
-  const firstUnreadReading = firstUnreadItem ? parseReadingItem(firstUnreadItem.readText) : null;
-
   const handleStartReading = () => {
     onClose(); // Закрываем BottomSheet перед переходом
-    if (firstUnreadReading) {
-      onSelectReading(day, firstUnreadReading);
-    } else if (day.items && day.items.length > 0) {
-      // Если все прочитано, открываем первую главу
-      const firstReading = parseReadingItem(day.items[0].readText);
-      if (firstReading) {
-        onSelectReading(day, firstReading);
-      }
-    } else if (day.readings && day.readings.length > 0) {
-      onSelectReading(day, day.readings[0]);
+    const reading = getDayFirstReading(day);
+    if (reading) {
+      onSelectReading(day, reading);
     }
   };
 
