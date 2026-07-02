@@ -32,6 +32,7 @@ interface PlanContextType {
   setSelectedDayId: (id: number | null) => void;
   toggleItem: (dayId: number, itemNumber: number) => Promise<void>;
   toggleComplete: (dayId: number) => Promise<void>;
+  toggleCompleteMany: (dayIds: number[], completed: boolean) => Promise<void>;
   setPlan: React.Dispatch<React.SetStateAction<ReadingPlanDay[]>>;
   setReadChapters: React.Dispatch<React.SetStateAction<Set<string>>>;
 }
@@ -318,6 +319,55 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
     }
   }, [updateProgress]);
 
+  const toggleCompleteMany = useCallback(async (dayIds: number[], completed: boolean) => {
+    if (dayIds.length === 0) return;
+
+    // Defensively drop ids not present in the current plan so phantom days
+    // never reach the optimistic update or the batch payload.
+    const idSet = new Set(dayIds.filter((id) => planRef.current.some((d) => d.id === id)));
+    if (idSet.size === 0) return;
+
+    console.log('[PlanContext] toggleCompleteMany', { count: idSet.size, completed });
+
+    const applyToDay = (d: ReadingPlanDay): ReadingPlanDay =>
+      idSet.has(d.id)
+        ? {
+            ...d,
+            completed,
+            readCount: completed ? null : 0,
+            items: d.items.map((item) => ({ ...item, completed })),
+          }
+        : d;
+
+    planRef.current = planRef.current.map(applyToDay);
+    const affectedDays = planRef.current.filter((d) => idSet.has(d.id));
+
+    startTransition(() => {
+      setPlan((prevPlan) => prevPlan.map(applyToDay));
+
+      setReadChapters((prev) => {
+        const next = new Set(prev);
+        affectedDays.forEach((d) => {
+          d.readings.forEach((r) => {
+            const key = `${r.book}_${r.chapter}`;
+            if (completed) next.add(key);
+            else next.delete(key);
+          });
+        });
+        return next;
+      });
+    });
+
+    try {
+      await graphqlClient.mutate(
+        progressMutations.updateProgressBatch(Array.from(idSet), completed)
+      );
+    } catch (error) {
+      console.error('[PlanContext] toggleCompleteMany failed', error);
+      throw error;
+    }
+  }, []);
+
   const value = useMemo(() => ({
     plan,
     readChapters,
@@ -329,9 +379,10 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
     setSelectedDayId,
     toggleItem,
     toggleComplete,
+    toggleCompleteMany,
     setPlan,
     setReadChapters
-  }), [plan, readChapters, loading, error, selectedDayId, isPending, fetchPlan, toggleItem, toggleComplete]);
+  }), [plan, readChapters, loading, error, selectedDayId, isPending, fetchPlan, toggleItem, toggleComplete, toggleCompleteMany]);
 
   return (
     <PlanContext.Provider value={value}>

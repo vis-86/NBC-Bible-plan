@@ -16,7 +16,7 @@ export default function CalendarPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { plan, loading, error, fetchPlan } = usePlan();
-  const { toggleItem, toggleComplete } = useProgress();
+  const { toggleItem, toggleComplete, toggleCompleteMany } = useProgress();
 
   useEffect(() => {
     if (!authLoading && user && plan.length === 0) {
@@ -58,6 +58,15 @@ export default function CalendarPage() {
     }
   };
 
+  const handleToggleCompleteMany = async (dayIds: number[], completed: boolean) => {
+    try {
+      await toggleCompleteMany(dayIds, completed);
+    } catch (error) {
+      console.error('Error toggling multiple days:', error);
+      await fetchPlan();
+    }
+  };
+
   if (authLoading || (loading && plan.length === 0)) {
     return (
       <DashboardLayout currentView={AppView.PLAN} onChangeView={() => {}}>
@@ -91,6 +100,7 @@ export default function CalendarPage() {
         onSelectReading={handleSelectReading}
         onToggleComplete={handleToggleComplete}
         onToggleItem={handleToggleItem}
+        onToggleCompleteMany={handleToggleCompleteMany}
         onBack={() => router.push('/dashboard')}
       />
       </div>

@@ -14,6 +14,7 @@ interface CalendarViewProps {
   onSelectReading: (day: ReadingPlanDay, reading: BibleReference) => void;
   onToggleComplete: (dayId: number) => Promise<void>;
   onToggleItem: (dayId: number, itemNumber: number) => Promise<void>;
+  onToggleCompleteMany: (dayIds: number[], completed: boolean) => Promise<void>;
   onBack: () => void;
 }
 
@@ -86,6 +87,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onSelectReading,
   onToggleComplete,
   onToggleItem,
+  onToggleCompleteMany,
   onBack
 }) => {
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set());
@@ -93,7 +95,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
   const [selectedDayId, setSelectedDayId] = useState<number | null>(null);
-  const lastActionDaysRef = useRef<number[] | null>(null);
+  // Tracks the last bulk action so it can be undone. Stores ONLY the days that
+  // actually changed plus the direction applied — undo re-applies the inverse
+  // to exactly those days (never the untouched ones that were merely selected).
+  const lastActionRef = useRef<{ days: number[]; completed: boolean } | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const filteredPlan = useMemo(() => plan.filter(d => d.id > 0), [plan]);
 
@@ -171,12 +176,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
         const completed = planDay?.completed || false;
         const status = getCalendarDayStatus(planDayId, completed, todayDayNumber);
-        console.debug('[CalendarView] day status computed', {
-          dayId: planDayId,
-          status,
-          completed,
-          todayDayNumber
-        });
 
         calendarDays.push({
           dayNumber: day,
@@ -284,27 +283,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const handleMarkSelected = async () => {
     if (!selectedDaysInfo) return;
 
-    // Сохраняем информацию о последнем действии для возможности отмены
-    lastActionDaysRef.current = [...selectedDaysArray];
-
     // Отмечаем только неотмеченные дни как прочитанные
     const daysToMark = selectedDaysArray.filter(dayId => {
       const day = planMap.get(dayId);
       return day && !day.completed;
     });
+    if (daysToMark.length === 0) return;
+
+    // Сохраняем ТОЛЬКО реально изменённые дни для отмены
+    lastActionRef.current = { days: daysToMark, completed: true };
     console.debug('[CalendarView] bulk action executed', {
       action: 'mark_selected_complete',
-      selectedDays: selectedDaysArray,
-      affectedStatuses: { uncompleted: daysToMark.length }
+      days: daysToMark,
+      completed: true
     });
 
-    for (const dayId of daysToMark) {
-      try {
-        await onToggleComplete(dayId);
-      } catch (error) {
-        console.error(`Error marking day ${dayId} as complete:`, error);
-      }
-    }
+    await onToggleCompleteMany(daysToMark, true);
 
     const count = daysToMark.length;
     setToastMessage(
@@ -319,27 +313,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const handleUnmarkSelected = async () => {
     if (!selectedDaysInfo) return;
 
-    // Сохраняем информацию о последнем действии для возможности отмены
-    lastActionDaysRef.current = [...selectedDaysArray];
-
     // Снимаем отметку только с отмеченных дней
     const daysToUnmark = selectedDaysArray.filter(dayId => {
       const day = planMap.get(dayId);
       return day && day.completed;
     });
+    if (daysToUnmark.length === 0) return;
+
+    // Сохраняем ТОЛЬКО реально изменённые дни для отмены
+    lastActionRef.current = { days: daysToUnmark, completed: false };
     console.debug('[CalendarView] bulk action executed', {
       action: 'unmark_selected_complete',
-      selectedDays: selectedDaysArray,
-      affectedStatuses: { completed: daysToUnmark.length }
+      days: daysToUnmark,
+      completed: false
     });
 
-    for (const dayId of daysToUnmark) {
-      try {
-        await onToggleComplete(dayId);
-      } catch (error) {
-        console.error(`Error unmarking day ${dayId}:`, error);
-      }
-    }
+    await onToggleCompleteMany(daysToUnmark, false);
 
     const count = daysToUnmark.length;
     setToastMessage(
@@ -352,34 +341,25 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const handleUndo = useCallback(async () => {
-    if (!lastActionDaysRef.current) return;
+    const lastAction = lastActionRef.current;
+    if (!lastAction) return;
 
-    const daysToRevert = lastActionDaysRef.current;
     console.debug('[CalendarView] bulk action executed', {
       action: 'undo_last_bulk_action',
-      selectedDays: daysToRevert,
-      affectedStatuses: { total: daysToRevert.length }
+      days: lastAction.days,
+      completed: !lastAction.completed
     });
 
-    // Отменяем последнее действие
-    for (const dayId of daysToRevert) {
-      const day = planMap.get(dayId);
-      if (day) {
-        try {
-          await onToggleComplete(dayId);
-        } catch (error) {
-          console.error(`Error reverting day ${dayId}:`, error);
-        }
-      }
-    }
+    // Отменяем последнее действие — инверсия направления только для изменённых дней
+    await onToggleCompleteMany(lastAction.days, !lastAction.completed);
 
-    lastActionDaysRef.current = null;
+    lastActionRef.current = null;
     setShowToast(false);
-  }, [planMap, onToggleComplete]);
+  }, [onToggleCompleteMany]);
 
   const handleToastClose = useCallback(() => {
     setShowToast(false);
-    lastActionDaysRef.current = null;
+    lastActionRef.current = null;
   }, []);
 
   const handleClearSelection = () => {
@@ -397,24 +377,21 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const handleMarkAllMissed = async () => {
     if (missedDays.length === 0) return;
 
-    // Сохраняем информацию о последнем действии для возможности отмены
-    lastActionDaysRef.current = missedDays.map(day => day.id);
+    const missedDayIds = missedDays.map(day => day.id);
 
-    // Отмечаем все пропущенные дни как прочитанные
+    // Сохраняем ТОЛЬКО реально изменённые дни для отмены
+    lastActionRef.current = { days: missedDayIds, completed: true };
+
+    // Отмечаем все пропущенные дни как прочитанные — одним запросом
     console.debug('[CalendarView] bulk action executed', {
       action: 'mark_all_missed_complete',
-      selectedDays: missedDays.map(day => day.id),
-      affectedStatuses: { missed: missedDays.length }
+      days: missedDayIds,
+      completed: true
     });
-    for (const day of missedDays) {
-      try {
-        await onToggleComplete(day.id);
-      } catch (error) {
-        console.error(`Error marking day ${day.id} as complete:`, error);
-      }
-    }
 
-    const count = missedDays.length;
+    await onToggleCompleteMany(missedDayIds, true);
+
+    const count = missedDayIds.length;
     setToastMessage(
       `Отмечено ${count} ${count === 1 ? 'пропущенный день' : count < 5 ? 'пропущенных дня' : 'пропущенных дней'} как прочитанные`
     );
@@ -481,25 +458,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {month.days.map((day, index) => (
                 (() => {
                   const dayClassName = getCalendarDayCubeClasses(day);
-                  if (!day.isOtherMonth && day.status === null) {
-                    console.warn('[CalendarView] status mismatch detected', {
-                      dayId: day.dayId,
-                      status: day.status,
-                      visualState: 'non-other-month day has null status'
-                    });
-                  }
-
-                  console.debug('[CalendarView] day cube classes resolved', {
-                    dayId: day.dayId,
-                    status: day.status,
-                    isSelected: day.isSelected,
-                    className: dayClassName
-                  });
-                  console.debug('[CalendarView] day cube attrs set', {
-                    dayId: day.dayId,
-                    status: day.status,
-                    selected: day.isSelected
-                  });
 
                   return (
                     <button
