@@ -4,7 +4,7 @@ import { getSession } from '@/lib/session';
 import { getDirectusAdminClient } from '@/lib/directus';
 
 type DirectusClient = ReturnType<typeof getDirectusAdminClient>;
-import { readItems, createItem, updateItem, deleteItem } from '@directus/sdk';
+import { readItems, createItem, createItems, updateItem, updateItems, deleteItem, deleteItems } from '@directus/sdk';
 
 /**
  * GraphQL API endpoint для точечных обновлений
@@ -62,6 +62,111 @@ async function executeMutation(
 ) {
   const mutationMatch = query.match(/mutation\s+(\w+)/);
   const operationName = mutationMatch ? mutationMatch[1] : '';
+
+  // NOTE: must be dispatched BEFORE the `UpdateProgress` branch below — the
+  // string `updateProgress` is a substring of `updateProgressBatch`, so the
+  // single-day guard (`query.includes('updateProgress')`) would otherwise
+  // swallow batch mutations and fail with "Invalid day parameter".
+  if (operationName === 'UpdateProgressBatch' || query.includes('updateProgressBatch')) {
+    const { days, completed } = variables || {};
+
+    if (!Array.isArray(days) || days.length === 0 || !days.every((d) => typeof d === 'number')) {
+      console.warn('[graphql] UpdateProgressBatch: invalid input', { days, completed });
+      throw new Error('Invalid days parameter');
+    }
+
+    if (typeof completed !== 'boolean') {
+      console.warn('[graphql] UpdateProgressBatch: invalid input', { days, completed });
+      throw new Error('Invalid completed parameter');
+    }
+
+    const currentYear = new Date().getFullYear();
+
+    console.log('[graphql] UpdateProgressBatch: start', {
+      directusUserId,
+      dayCount: days.length,
+      completed
+    });
+
+    const existingRecords = await client.request(
+      readItems('reading', {
+        filter: {
+          _and: [
+            { directus_user_id: { _eq: directusUserId } },
+            { day: { _in: days } },
+            { year: { _eq: currentYear } }
+          ]
+        },
+        limit: -1
+      })
+    );
+
+    console.log('[graphql] UpdateProgressBatch: existing rows', {
+      existingRows: existingRecords.length
+    });
+
+    if (!completed) {
+      // Unmark: delete every matching row in a single request.
+      const idsToDelete = (existingRecords as { id: string | number }[]).map((r) => r.id);
+      if (idsToDelete.length > 0) {
+        await client.request(deleteItems('reading', idsToDelete));
+      }
+      console.log('[graphql] UpdateProgressBatch: success', {
+        completed,
+        deleted: idsToDelete.length
+      });
+      return { updateProgressBatch: { days, completed, success: true } };
+    }
+
+    // Mark complete: group existing rows by day, keeping the first row per day
+    // and flagging any duplicates for deletion (mirrors single-day dedup logic).
+    type ReadingRow = { id: string | number; day: number };
+    const rows = existingRecords as ReadingRow[];
+    const firstRowByDay = new Map<number, ReadingRow>();
+    const duplicateIds: (string | number)[] = [];
+    for (const record of rows) {
+      if (firstRowByDay.has(record.day)) {
+        duplicateIds.push(record.id);
+      } else {
+        firstRowByDay.set(record.day, record);
+      }
+    }
+
+    const toCreate = days
+      .filter((day) => !firstRowByDay.has(day))
+      .map((day) => ({
+        directus_user_id: directusUserId,
+        day,
+        count: null,
+        completed_items: null,
+        year: currentYear
+      }));
+    const toUpdateIds = Array.from(firstRowByDay.values()).map((r) => r.id);
+
+    if (toCreate.length > 0) {
+      await client.request(createItems('reading', toCreate));
+    }
+    if (toUpdateIds.length > 0) {
+      await client.request(
+        updateItems('reading', toUpdateIds, {
+          count: null,
+          completed_items: null,
+          year: currentYear
+        })
+      );
+    }
+    if (duplicateIds.length > 0) {
+      await client.request(deleteItems('reading', duplicateIds));
+    }
+
+    console.log('[graphql] UpdateProgressBatch: success', {
+      completed,
+      created: toCreate.length,
+      updated: toUpdateIds.length,
+      deleted: duplicateIds.length
+    });
+    return { updateProgressBatch: { days, completed, success: true } };
+  }
 
   if (operationName === 'UpdateProgress' || query.includes('updateProgress')) {
     const { day, count, completedItems } = variables || {};

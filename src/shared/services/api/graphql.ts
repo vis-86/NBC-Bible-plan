@@ -99,6 +99,21 @@ export const progressMutations = {
       completedItems: completedItems || null
     }
   }),
+  updateProgressBatch: (days: number[], completed: boolean) => ({
+    query: `
+      mutation UpdateProgressBatch($days: [Int!]!, $completed: Boolean!) {
+        updateProgressBatch(days: $days, completed: $completed) {
+          days
+          completed
+          success
+        }
+      }
+    `,
+    variables: {
+      days,
+      completed
+    }
+  }),
 };
 
 export const progressQueries = {
