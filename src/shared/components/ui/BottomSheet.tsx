@@ -99,7 +99,11 @@ const BottomSheetOpenContent: React.FC<
       >
         <div
           data-bottom-sheet-panel
-          className={`flex w-full flex-col overflow-hidden rounded-t-3xl bg-app-surface shadow-app-lg ${maxHeight}`}
+          // pointer-events-auto: когда disableOverlay=true, контейнер выше имеет
+          // pointerEvents:none (чтобы тапы проходили к календарю сквозь пустую
+          // область над панелью). Без этого сама панель и её кнопки — включая
+          // крестик закрытия — тоже становятся некликабельными.
+          className={`pointer-events-auto flex w-full flex-col overflow-hidden rounded-t-3xl bg-app-surface shadow-app-lg ${maxHeight}`}
         >
           <div
             data-bottom-sheet-handle
@@ -124,6 +128,16 @@ const BottomSheetOpenContent: React.FC<
                 type="button"
                 data-bottom-sheet-close-button
                 onClick={onClose}
+                // На тач-устройствах закрываем на touchend и гасим событие:
+                // preventDefault убирает синтетический "ghost click", который
+                // иначе прилетает на элемент под шитом (день календаря) уже после
+                // закрытия и переоткрывает панель. stopPropagation — чтобы не
+                // триггерить drag-хендлеры шапки.
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onClose();
+                }}
                 className="p-1.5 text-app-text-muted transition-transform hover:text-app-text active:scale-90"
               >
                 <X size={18} />
