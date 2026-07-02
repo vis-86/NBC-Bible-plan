@@ -13,6 +13,7 @@ import { isAIEnabled } from '@/shared/utils/constants';
 import { usePlan } from '@/features/plan/hooks/usePlan';
 import { useProgress } from '@/features/plan/hooks/useProgress';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
+import { FullScreenLoader } from '@/shared/components/ui/FullScreenLoader';
 import { preloadChapters } from '@/features/reading/bible-text-cache';
 
 function DashboardPageInner() {
@@ -154,11 +155,7 @@ function DashboardPageInner() {
   };
 
   if (authLoading || (loading && plan.length === 0)) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-app-bg">
-        <div className="text-app-text-muted">Загрузка...</div>
-      </div>
-    );
+    return <FullScreenLoader />;
   }
 
   if (!user) {
@@ -231,13 +228,7 @@ function DashboardPageInner() {
 
 export default function DashboardPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-app-bg">
-          <div className="text-app-text-muted">Загрузка...</div>
-        </div>
-      }
-    >
+    <Suspense fallback={<FullScreenLoader />}>
       <DashboardPageInner />
     </Suspense>
   );

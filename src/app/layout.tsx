@@ -58,9 +58,16 @@ export default function RootLayout({
   return (
     <html lang="ru" suppressHydrationWarning>
       <head>
+        {/*
+          Telegram SDK is loaded lazily, NOT `beforeInteractive`: telegram.org is
+          blocked on most RU networks, and a blocking script from an unreachable
+          host stalls hydration → long white screen on cold PWA launches. Inside a
+          real Telegram mini-app `window.Telegram.WebApp` is injected natively by
+          the client, so this CDN script is only a non-critical fallback.
+        */}
         <Script
           src="https://telegram.org/js/telegram-web-app.js"
-          strategy="beforeInteractive"
+          strategy="lazyOnload"
         />
         <Script
           id="telegram-app-protection"
