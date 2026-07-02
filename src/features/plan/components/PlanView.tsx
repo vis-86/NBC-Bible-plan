@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePlanContext } from '../contexts/PlanContext';
 import { ReadingPlanDay, BibleReference } from '@/types';
 import BibleProgress from '@/components/BibleProgress';
@@ -11,7 +11,7 @@ import { DayNavigationBar } from './DayNavigationBar';
 import { TodayReadingCard } from './TodayReadingCard';
 import { CompletionModal } from '@/features/reading/components/CompletionModal';
 import { parseReadingItem, normalizeBookNameForUrl } from '@/shared/utils/bible';
-import { getWeekDateRange, getWeekNumber, formatDateDDMM, formatHeaderDate } from '@/shared/utils/date';
+import { getWeekDateRange, getWeekNumber, formatDateDDMM, formatHeaderDate, pluralizeDays } from '@/shared/utils/date';
 import { weeklyPlanApi, WeeklyPlanWeek } from '@/shared/services/api/endpoints';
 import { ApiClientError } from '@/shared/services/api/client';
 
@@ -153,6 +153,12 @@ export const PlanView: React.FC<PlanViewProps> = ({
     return filteredPlan.find(d => d.id === selectedDayId) || null;
   }, [filteredPlan, selectedDayId]);
 
+  // Пропущенные дни — прошедшие по плану, но не отмеченные завершёнными.
+  const missedDaysCount = useMemo(
+    () => filteredPlan.filter(d => d.id < todayDayNumber && !d.completed).length,
+    [filteredPlan, todayDayNumber],
+  );
+
   // Отслеживаем завершенные дни для показа модального окна
   // Показываем модалку при ручной отметке через "Отметить всё" на главном экране
   useEffect(() => {
@@ -281,6 +287,30 @@ export const PlanView: React.FC<PlanViewProps> = ({
           markAllReadDisabled={isPending}
         />
       )}
+
+      <div className="px-4 mb-6">
+        <button
+          type="button"
+          data-plan-view-calendar-cta
+          data-plan-view-calendar-cta-missed={missedDaysCount > 0 || undefined}
+          onClick={() => router.push('/dashboard/calendar')}
+          aria-label={
+            missedDaysCount > 0
+              ? `Открыть календарь, чтобы отметить ${missedDaysCount} пропущенных дней`
+              : 'Открыть календарь'
+          }
+          className={
+            missedDaysCount > 0
+              ? 'w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-app-accent/20 bg-app-accent-muted text-app-accent font-semibold hover:bg-app-accent/20 active:scale-[0.99] transition-all'
+              : 'w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-app-border bg-app-surface text-app-text-secondary font-semibold hover:bg-app-surface-muted hover:text-app-text active:scale-[0.99] transition-all'
+          }
+        >
+          <Calendar size={18} aria-hidden />
+          {missedDaysCount > 0
+            ? `Пропущено ${missedDaysCount} ${pluralizeDays(missedDaysCount)} — отметить`
+            : 'Открыть календарь'}
+        </button>
+      </div>
 
       <section data-plan-view-sections className="px-4 mb-6 grid grid-cols-1 gap-4">
         <div data-weekly-reading className="bg-app-surface p-5 rounded-3xl border border-app-border shadow-app-sm">

@@ -396,50 +396,59 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
         </div>
       </div>
 
-      {showTodayButton && (
-        <div
+      {/* [FIX] Mask container is always mounted and always the same geometry.
+          Visibility is toggled via opacity + pointer-events so the carousel
+          edges never "jump" when the Today pill appears/disappears or when
+          `todayIsRight` flips sides while scrolling past today. */}
+      <div
+        aria-hidden={!showTodayButton}
+        className={cn(
+          'absolute inset-y-2 flex items-top z-10 w-28',
+          reduceMotion ? undefined : 'transition-opacity duration-200',
+          showTodayButton
+            ? 'opacity-100 pointer-events-none'
+            : 'opacity-0 pointer-events-none',
+          todayIsRight
+            ? 'left-0 bg-gradient-to-r from-app-bg via-app-bg/80 to-transparent pl-2 justify-start'
+            : 'right-0 bg-gradient-to-l from-app-bg via-app-bg/80 to-transparent pr-2 justify-end',
+        )}
+      >
+        <button
+          data-day-nav-bar-today-btn
+          onClick={handleTodayClick}
+          tabIndex={showTodayButton ? 0 : -1}
+          aria-label="Перейти на сегодня"
           className={cn(
-            'absolute inset-y-2 flex items-top pointer-events-none z-10',
-            todayIsRight
-              ? 'left-0 bg-gradient-to-r from-app-bg via-app-bg/80 to-transparent w-28 pl-2 justify-start'
-              : 'right-0 bg-gradient-to-l from-app-bg via-app-bg/80 to-transparent w-28 pr-2 justify-end',
+            'group flex items-center gap-1 h-5 rounded-md',
+            showTodayButton ? 'pointer-events-auto' : 'pointer-events-none',
+            'bg-app-primary text-app-text-inverse',
+            'text-xs font-bold tracking-wide',
+            'shadow-app-sm transition-all duration-200',
+            'hover:scale-105 hover:shadow-app-md active:scale-95',
+            todayIsRight ? 'ml-1 pl-1 pr-1.5' : 'mr-1 pl-1.5 pr-1',
           )}
         >
-          <button
-            data-day-nav-bar-today-btn
-            onClick={handleTodayClick}
-            aria-label="Перейти на сегодня"
-            className={cn(
-              'pointer-events-auto group flex items-center gap-1 h-5 rounded-md',
-              'bg-app-primary text-app-text-inverse',
-              'text-xs font-bold tracking-wide',
-              'shadow-app-sm transition-all duration-200',
-              'hover:scale-105 hover:shadow-app-md active:scale-95',
-              todayIsRight ? 'ml-1 pl-1 pr-1.5' : 'mr-1 pl-1.5 pr-1',
-            )}
-          >
-            {todayIsRight ? (
-              <>
-                <span>Сегодня</span>
-                <ChevronRight
-                  size={13}
-                  strokeWidth={3}
-                  className="transition-transform duration-200 group-hover:translate-x-0.5"
-                />
-              </>
-            ) : (
-              <>
-                <ChevronLeft
-                  size={13}
-                  strokeWidth={3}
-                  className="transition-transform duration-200 group-hover:-translate-x-0.5"
-                />
-                <span>Сегодня</span>
-              </>
-            )}
-          </button>
-        </div>
-      )}
+          {todayIsRight ? (
+            <>
+              <span>Сегодня</span>
+              <ChevronRight
+                size={13}
+                strokeWidth={3}
+                className="transition-transform duration-200 group-hover:translate-x-0.5"
+              />
+            </>
+          ) : (
+            <>
+              <ChevronLeft
+                size={13}
+                strokeWidth={3}
+                className="transition-transform duration-200 group-hover:-translate-x-0.5"
+              />
+              <span>Сегодня</span>
+            </>
+          )}
+        </button>
+      </div>
     </div>
   );
 };

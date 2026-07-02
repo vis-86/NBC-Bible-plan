@@ -71,3 +71,17 @@ export function getDayOfMonthFromStr(dateStr: string): number {
   if (parts.length !== 3) return 0;
   return parseInt(parts[0], 10) || 0;
 }
+
+/**
+ * Русская плюрализация слова «день» по числу.
+ * 1 → «день», 2/3/4 → «дня», 0/5..20 → «дней» (с учётом исключения 11–14).
+ */
+export function pluralizeDays(n: number): string {
+  const abs = Math.abs(Math.trunc(n));
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 14) return 'дней';
+  const mod10 = abs % 10;
+  if (mod10 === 1) return 'день';
+  if (mod10 >= 2 && mod10 <= 4) return 'дня';
+  return 'дней';
+}

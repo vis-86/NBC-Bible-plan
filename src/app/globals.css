@@ -65,7 +65,9 @@
   /* ── Shadows ─────────────────────────────────────────────────────── */
   --app-shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
   --app-shadow-md: 0 4px 16px rgba(0,0,0,0.08);
-  --app-shadow-card: 0 8px 32px rgba(15,23,42,0.12);
+  /* Bottom-weighted with negative spread so horizontal reach (~14px) fits the
+     card's 16px gutter and isn't clipped by the plan-view overflow container. */
+  --app-shadow-card: 0 14px 28px -14px rgba(15,23,42,0.28);
 }
 
 [data-theme="dark"] {
@@ -119,7 +121,8 @@
   /* ── Shadows ─────────────────────────────────────────────────────── */
   --app-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
   --app-shadow-md: 0 4px 16px rgba(0,0,0,0.4);
-  --app-shadow-card: 0 8px 32px rgba(0,0,0,0.5);
+  /* Bottom-weighted with negative spread — see light theme note above. */
+  --app-shadow-card: 0 14px 28px -14px rgba(0,0,0,0.7);
 }
 
 @layer utilities {
