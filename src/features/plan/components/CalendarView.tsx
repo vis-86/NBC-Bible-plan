@@ -3,7 +3,6 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { Check, Info, X } from 'lucide-react';
 import { ReadingPlanDay, BibleReference } from '@/types';
-import { Modal } from '@/shared/components/ui/Modal';
 import { Toast } from '@/shared/components/ui/Toast';
 import { BottomSheet } from '@/shared/components/ui/BottomSheet';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
