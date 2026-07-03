@@ -1,5 +1,31 @@
 import { describe, expect, it, vi } from 'vitest';
-import { routeStrategy, handleStaticAsset, handleNavigation } from './sw-source';
+import { routeStrategy, handleStaticAsset, handleNavigation, OFFLINE_FALLBACK_HTML } from './sw-source';
+
+/**
+ * Регрессия на баг из прода (авиарежим): `handleNavigation` раньше читал
+ * `OFFLINE_FALLBACK_HTML` как module-level константу вместо параметра. Тело
+ * функции сериализуется через `.toString()` и встраивается в генерируемый SW-текст
+ * как есть — прод-минификация Next.js переименовывает такую свободную ссылку
+ * (например, в однобуквенное `y`), а `buildSwBody()` объявляет константу заново под
+ * ОРИГИНАЛЬНЫМ именем, так что минифицированное тело её не находит:
+ * `FetchEvent.respondWith received an error: ReferenceError: Can't find variable: y`
+ * — воспроизведено на реальном устройстве. Этот тест грубо гарантирует, что
+ * сериализуемые функции не ссылаются на module-level константы по имени.
+ */
+describe('сериализуемые SW-функции не должны ссылаться на module-level константы', () => {
+  const moduleLevelNames = ['SW_DISABLED', 'STATIC_CACHE_NAME', 'HTML_CACHE_NAME', 'OFFLINE_FALLBACK_HTML'];
+
+  it.each([
+    ['routeStrategy', routeStrategy],
+    ['handleStaticAsset', handleStaticAsset],
+    ['handleNavigation', handleNavigation],
+  ])('%s ссылается только на свои параметры', (_name, fn) => {
+    const source = fn.toString();
+    for (const identifier of moduleLevelNames) {
+      expect(source).not.toContain(identifier);
+    }
+  });
+});
 
 /** Мок Cache API (match/put/keys) для тестов SW fetch-стратегий без реального браузера. */
 class FakeCache {
@@ -20,31 +46,36 @@ class FakeCache {
 
 describe('routeStrategy', () => {
   it('cache-first для same-origin GET _next/static чанков', () => {
-    expect(routeStrategy('/app/_next/static/chunks/main.js', 'GET', true)).toBe('cache-first-static');
+    expect(routeStrategy('/app/_next/static/chunks/main.js', 'GET', true, 'no-cors')).toBe('cache-first-static');
   });
 
   it('passthrough для non-GET (даже same-origin static-путь)', () => {
-    expect(routeStrategy('/app/_next/static/chunks/main.js', 'POST', true)).toBe('passthrough');
+    expect(routeStrategy('/app/_next/static/chunks/main.js', 'POST', true, 'navigate')).toBe('passthrough');
   });
 
   it('passthrough для cross-origin запросов (напр. telegram.org)', () => {
-    expect(routeStrategy('/js/telegram-web-app.js', 'GET', false)).toBe('passthrough');
+    expect(routeStrategy('/js/telegram-web-app.js', 'GET', false, 'no-cors')).toBe('passthrough');
   });
 
   it('passthrough для любых /api/* маршрутов', () => {
-    expect(routeStrategy('/app/api/bible/genesis/1', 'GET', true)).toBe('passthrough');
+    expect(routeStrategy('/app/api/bible/genesis/1', 'GET', true, 'cors')).toBe('passthrough');
   });
 
   it('passthrough для /api/* даже если путь также содержит _next/static (edge-case)', () => {
-    expect(routeStrategy('/app/api/_next/static/weird', 'GET', true)).toBe('passthrough');
+    expect(routeStrategy('/app/api/_next/static/weird', 'GET', true, 'cors')).toBe('passthrough');
   });
 
-  it('network-first-html для HTML-навигаций (корень)', () => {
-    expect(routeStrategy('/app/', 'GET', true)).toBe('network-first-html');
+  it('network-first-html для настоящих HTML-навигаций (mode=navigate, корень)', () => {
+    expect(routeStrategy('/app/', 'GET', true, 'navigate')).toBe('network-first-html');
   });
 
-  it('network-first-html для HTML-навигаций (dashboard)', () => {
-    expect(routeStrategy('/app/dashboard/read/genesis/1', 'GET', true)).toBe('network-first-html');
+  it('network-first-html для настоящих HTML-навигаций (mode=navigate, dashboard)', () => {
+    expect(routeStrategy('/app/dashboard/read/genesis/1', 'GET', true, 'navigate')).toBe('network-first-html');
+  });
+
+  it('passthrough для RSC/flight-фетчей клиентского router.push (mode!=navigate) — не HTML-навигация', () => {
+    expect(routeStrategy('/app/dashboard/songs', 'GET', true, 'cors')).toBe('passthrough');
+    expect(routeStrategy('/app/dashboard/songs', 'GET', true, 'same-origin')).toBe('passthrough');
   });
 });
 
@@ -80,7 +111,7 @@ describe('handleNavigation', () => {
     const request = new Request('https://app.test/app/dashboard');
     const fetcher = vi.fn().mockResolvedValue(new Response('<html>dashboard</html>', { status: 200 }));
 
-    const res = await handleNavigation(cache, request, fetcher);
+    const res = await handleNavigation(cache, request, fetcher, OFFLINE_FALLBACK_HTML);
 
     expect(await res.text()).toBe('<html>dashboard</html>');
     expect(await cache.match(request)).toBeDefined();
@@ -92,33 +123,39 @@ describe('handleNavigation', () => {
     await cache.put(request, new Response('<html>cached dashboard</html>'));
     const fetcher = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const res = await handleNavigation(cache, request, fetcher);
+    const res = await handleNavigation(cache, request, fetcher, OFFLINE_FALLBACK_HTML);
 
     expect(res.status).not.toBe(503);
     expect(await res.text()).toBe('<html>cached dashboard</html>');
   });
 
-  it('офлайн + страница НЕ посещалась, но другие страницы в кеше -> отдаёт другую закешированную страницу вместо "Offline"', async () => {
+  it('офлайн + страница НЕ посещалась, но другие страницы в кеше -> статическая офлайн-заглушка, НЕ чужой HTML (иначе reload-цикл в App Router)', async () => {
     const cache = new FakeCache();
     const visited = new Request('https://app.test/app/dashboard');
     await cache.put(visited, new Response('<html>app shell</html>'));
     const neverVisited = new Request('https://app.test/app/dashboard/songs/42');
     const fetcher = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const res = await handleNavigation(cache, neverVisited, fetcher);
+    const res = await handleNavigation(cache, neverVisited, fetcher, OFFLINE_FALLBACK_HTML);
 
-    expect(res.status).not.toBe(503);
-    expect(await res.text()).toBe('<html>app shell</html>');
+    // Регрессионный тест: раньше здесь подставлялся HTML другой закешированной
+    // страницы ("тот же бандл, клиентский роутинг подхватит"). На практике
+    // App Router встраивает в документ RSC-payload КОНКРЕТНОГО маршрута — при
+    // расхождении с текущим URL гидратация уходит в бесконечный hard-reload
+    // (воспроизведено вручную в браузере офлайн).
+    const body = await res.text();
+    expect(body).not.toBe('<html>app shell</html>');
+    expect(body).toBe(OFFLINE_FALLBACK_HTML);
   });
 
-  it('офлайн + кеш пуст (самый первый визит без сети) -> bare "Offline" 503', async () => {
+  it('офлайн + кеш пуст (самый первый визит без сети) -> статическая офлайн-заглушка', async () => {
     const cache = new FakeCache();
     const request = new Request('https://app.test/app/dashboard');
     const fetcher = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const res = await handleNavigation(cache, request, fetcher);
+    const res = await handleNavigation(cache, request, fetcher, OFFLINE_FALLBACK_HTML);
 
     expect(res.status).toBe(503);
-    expect(await res.text()).toBe('Offline');
+    expect(await res.text()).toBe(OFFLINE_FALLBACK_HTML);
   });
 });
