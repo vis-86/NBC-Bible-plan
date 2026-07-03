@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createSession } from '@/lib/session';
 import { loginToEmail } from '@/lib/directus-user';
+import { getDirectusAdminClient } from '@/lib/directus';
+import { readUsers } from '@directus/sdk';
 import { LoginSchema, firstZodError } from '@/lib/validators/auth.schemas';
 import { checkRateLimit, clientIp } from '@/lib/rate-limiter';
 
@@ -77,12 +79,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Профиль читаем admin-клиентом по id (как в activate/register), а НЕ из /users/me:
+    // роль «Чтец» (app-access policy $CURRENT_USER) отдаёт через /users/me только `id`,
+    // без first_name — иначе имя не подтягивается в сессию при обычном логине.
+    let profile: { first_name?: string; last_name?: string; email?: string } = user ?? {};
+    try {
+      const admin = getDirectusAdminClient();
+      const users = await admin.request(
+        readUsers({
+          filter: { id: { _eq: String(directusId) } },
+          limit: 1,
+          fields: ['first_name', 'last_name', 'email'],
+        })
+      );
+      if (users[0]) profile = users[0] as typeof profile;
+      debug('[FIX] admin profile fetched', { directusId, first_name: profile.first_name });
+    } catch (e) {
+      // Не роняем логин из-за профиля: имя догрузится при следующем чтении сессии.
+      console.error('[FIX] admin profile fetch failed', { directusId, error: (e as Error)?.message });
+    }
+
     // T6: access_token используется только для запроса /users/me выше; в сессии не храним.
     const sessionData = {
       directus_id: String(directusId),
-      first_name: user?.first_name ?? '',
-      last_name: user?.last_name ?? undefined,
-      username: user?.email ?? undefined,
+      first_name: profile.first_name ?? '',
+      last_name: profile.last_name ?? undefined,
+      username: profile.email ?? user?.email ?? undefined,
     };
 
     const response = NextResponse.json({
