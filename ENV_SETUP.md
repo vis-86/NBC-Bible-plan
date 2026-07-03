@@ -45,7 +45,8 @@ UI-флаги (`NEXT_PUBLIC_*`) должны совпадать с сервер�
 
 | Переменная | Назначение |
 |------------|-----------|
-| `LOG_LEVEL` | `debug` (по умолчанию) — подробные логи auth-флоу; `silent`/`info` — тише |
+| `LOG_LEVEL` | `debug` (по умолчанию) — подробные логи auth-флоу; `silent`/`info` — тише. Server-only, на клиент не попадает |
+| `NEXT_PUBLIC_LOG_LEVEL` | Аналог `LOG_LEVEL` для клиентского кода (offline/SW/sync-модули) — server-only переменные не инлайнятся в браузерный бандл. `debug` по умолчанию |
 | `NEXT_PUBLIC_AI_ENABLE` | Включение AI-чата «Пастор» |
 | `DIRECTUS_AI_FLOW_ID` | UUID Directus Flow для AI |
 

@@ -14,6 +14,7 @@ import { parseReadingItem, normalizeBookNameForUrl } from '@/shared/utils/bible'
 import { getWeekDateRange, getWeekNumber, formatDateDDMM, formatHeaderDate, pluralizeDays } from '@/shared/utils/date';
 import { weeklyPlanApi, WeeklyPlanWeek } from '@/shared/services/api/endpoints';
 import { ApiClientError } from '@/shared/services/api/client';
+import { readThrough } from '@/shared/offline/readThrough';
 
 interface PlanViewProps {
   plan: ReadingPlanDay[];
@@ -124,7 +125,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
       setWeeklyLoading(true);
       setWeeklyError(null);
       try {
-        const res = await weeklyPlanApi.getWeeklyPlan('proverbs');
+        const res = await readThrough('plan:weekly:proverbs', () => weeklyPlanApi.getWeeklyPlan('proverbs'));
         if (!cancelled) setWeeklyWeeks(res.weeks || []);
       } catch (e: unknown) {
         if (ApiClientError.isSessionExpired(e)) return;

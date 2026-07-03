@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BibleReference } from '@/types';
 import { bibleApi } from '@/shared/services/api/endpoints';
-import { getCachedText, setCachedText } from '../bible-text-cache';
+import { getCachedText, setCachedText, getPersistedText, persistText } from '../bible-text-cache';
 
 /**
  * @param translationId — перевод для текущей книги (`ot_translation` или `nt_translation`), как на сервере.
@@ -28,6 +28,8 @@ export function useBibleText(reference: BibleReference | null, translationId: st
       return;
     }
 
+    let cancelled = false;
+
     const loadText = async () => {
       setLoading(true);
       setError(null);
@@ -37,17 +39,35 @@ export function useBibleText(reference: BibleReference | null, translationId: st
         const response = await bibleApi.getText(reference.book, reference.chapter);
         const result = response.text || '';
         setCachedText(reference.book, reference.chapter, translationId, result);
-        setText(result);
+        // Ключуем IDB-запись по переводу из ОТВЕТА сервера, не по translationId клиента —
+        // сессия может резолвить перевод иначе (Task 22).
+        void persistText(response.translation ?? translationId, reference.book, reference.chapter, result);
+        if (!cancelled) setText(result);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Не удалось загрузить текст';
-        setError(errorMessage);
-        console.error('Error loading bible text:', err);
+        // Сеть недоступна (или ответ не пришёл) — пробуем офлайн-фолбэк из IDB, прежде
+        // чем показывать ошибку.
+        const fallback = await getPersistedText(reference.book, reference.chapter, translationId);
+        if (cancelled) return;
+
+        if (fallback !== undefined) {
+          setCachedText(reference.book, reference.chapter, translationId, fallback);
+          setText(fallback);
+          setError(null);
+        } else {
+          const errorMessage = err instanceof Error ? err.message : 'Не удалось загрузить текст';
+          setError(errorMessage);
+          console.error('Error loading bible text:', err);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
 
     loadText();
+
+    return () => {
+      cancelled = true;
+    };
   }, [reference?.book, reference?.chapter, translationId]);
 
   return { text, loading, error };

@@ -18,6 +18,7 @@ Web application for the New Baptist Church (NBC) community — a structured Bibl
 - **Self-registration (код церкви опционален)** — `/register` (login + password, код церкви — по флагу). Расцеплены «регистрация открыта» и «нужен ли код»: секрет `REGISTER_CHURCH_CODE` задан ⇒ код обязателен (timing-safe, rate-limit 5/час); секрет пуст + `REGISTER_OPEN_NO_CODE`=true ⇒ открыто без кода; ни того, ни другого ⇒ роут `/api/auth/register` → 503. UI-флаги build-time: `NEXT_PUBLIC_REGISTER_ENABLED` (форма vs заглушка) + `NEXT_PUBLIC_REGISTER_REQUIRE_CODE` (default true; прячет поле кода). Параллельна invite-модели
 - **Telegram Auth (вторично)** — mini-app для VPN; initData верифицируется, аккаунты НЕ создаются — только привязка tg_id к существующему аккаунту
 - **PWA** — устанавливаемое приложение вне Telegram (manifest + service worker, basePath-aware)
+- **Offline-first PWA** — статический app-shell SW (cache-first `_next/static/**` + NetworkFirst HTML, kill switch); Писание/песни/план читаются офлайн через IndexedDB read-through слой (network-first + IDB fallback), опциональная загрузка «на устройство» с `navigator.storage.persist()`; прогресс отмечается офлайн через write-ahead outbox с LWW-синком при восстановлении сети; офлайн-вход по last-known-user. Секция «Оффлайн-данные» в настройках (скачать/обновить/очистить)
 - **Sessions** — iron-session: зашифрованный+подписанный httpOnly cookie (без Directus access_token; доступ к данным через admin-client + directus_id)
 - **User Settings** — reading font size, theme preferences
 
@@ -32,7 +33,8 @@ Web application for the New Baptist Church (NBC) community — a structured Bibl
 - **Markdown:** react-markdown + remark-gfm + rehype-raw
 - **Search:** fuse.js (клиентский нечёткий поиск по каталогу песен)
 - **Auth:** iron-session (sealed cookie) + Directus password auth + Telegram link; validation via `zod`
-- **Tests:** Vitest (auth lib/API unit tests, node env); component tests via @testing-library/react + jsdom (per-file `// @vitest-environment jsdom`)
+- **Offline storage:** `idb` (typed IndexedDB wrapper) — bibleChapters/songs/apiCache/outbox/meta/manifest, schema-versioned
+- **Tests:** Vitest (auth lib/API unit tests, node env); component tests via @testing-library/react + jsdom (per-file `// @vitest-environment jsdom`); IndexedDB-зависимые тесты через `fake-indexeddb/auto`
 - **CMS / Data:** Directus CMS with `@directus/sdk` v20
 - **AI Workflow:** n8n workflows triggered via Directus Flows
 - **GraphQL:** Custom GraphQL API route (Apollo or fetch-based)
@@ -46,14 +48,18 @@ Feature-Sliced Design (FSD):
 src/
 ├── app/                      # Next.js App Router (pages, layouts, API routes)
 │   ├── api/                  # API routes (auth, bible, plan, user, directus proxy, ai, graphql)
+│   │   └── bible/download/[translation]/  # bulk-выгрузка перевода для офлайн-загрузки
 │   └── dashboard/            # Authenticated pages (main, read, calendar, settings)
 ├── features/
 │   ├── plan/                 # Reading plan feature (PlanView, DayNav, hooks, context)
-│   └── reading/              # Bible reader feature (ReadingView, ChapterPicker, hooks)
+│   ├── reading/               # Bible reader feature (ReadingView, ChapterPicker, hooks)
+│   └── offline/               # Offline data settings UI (OfflineDataSection, useOfflineData)
+├── sw/                        # Static app-shell service worker source (no build step)
 └── shared/
     ├── components/           # Shared UI (layout, animations, bible display, skeletons, ui)
     ├── hooks/                # Shared hooks
     ├── services/             # API client + endpoints + GraphQL
+    ├── offline/               # IndexedDB layer, read-through, write-ahead outbox, sync, download manager
     ├── types/                # Shared types
     └── utils/                # date, bible, cn, api, theme, constants
 ```

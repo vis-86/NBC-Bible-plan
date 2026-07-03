@@ -4,6 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { BottomSheet } from '@/shared/components/ui/BottomSheet';
 import { getApiPath } from '@/shared/utils/api';
+import { readThrough } from '@/shared/offline/readThrough';
+
+const BOOKS_CACHE_KEY = 'bible:books';
 
 interface Book {
   name: string;
@@ -47,15 +50,15 @@ export const BookPicker: React.FC<BookPickerProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(getApiPath('/api/bible/books'), {
-        credentials: 'include',
+      const data = await readThrough(BOOKS_CACHE_KEY, async () => {
+        const response = await fetch(getApiPath('/api/bible/books'), {
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          throw new Error('Не удалось загрузить список книг');
+        }
+        return response.json();
       });
-      
-      if (!response.ok) {
-        throw new Error('Не удалось загрузить список книг');
-      }
-      
-      const data = await response.json();
       setBooks(data.books || []);
     } catch (err: any) {
       console.error('Error fetching books:', err);

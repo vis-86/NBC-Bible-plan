@@ -25,7 +25,7 @@ bible-plan/
 │   ├── app/                          # Next.js App Router
 │   │   ├── api/
 │   │   │   ├── auth/                 # login, logout, session, telegram, activate, register
-│   │   │   ├── bible/                # [book]/[chapter], books
+│   │   │   ├── bible/                # [book]/[chapter], books, download/[translation] (offline bulk export)
 │   │   │   ├── plan/                 # reading plan, weekly plan
 │   │   │   ├── user/                 # progress, app-settings, reading-settings
 │   │   │   ├── directus/[...path]/   # Directus proxy (server-side)
@@ -58,6 +58,11 @@ bible-plan/
 │   │       ├── components/           # Header, Hero, About, HowToStart, InstallGuide, FinalCta, Footer, Atmosphere, PhoneMockup, cta
 │   │       ├── components/anim.ts    # Shared motion reveal variants
 │   │       └── index.ts              # Barrel of section components
+│   │   └── offline/                  # Offline data settings UI
+│   │       ├── components/           # OfflineDataSection
+│   │       └── hooks/                # useOfflineData
+│   ├── sw/
+│   │   └── sw-source.ts              # Static app-shell SW body + routeStrategy (served by app/sw.js/route.ts)
 │   ├── shared/
 │   │   ├── components/
 │   │   │   ├── layout/               # DashboardLayout, navigation
@@ -68,6 +73,7 @@ bible-plan/
 │   │   ├── config/
 │   │   │   └── design-tokens.ts      # TS design token constants (maps to CSS vars)
 │   │   ├── hooks/                    # Shared React hooks
+│   │   ├── offline/                  # IndexedDB layer (idb), read-through, write-ahead outbox, sync, downloadManager
 │   │   ├── services/
 │   │   │   └── api/
 │   │   │       ├── client.ts         # Fetch wrapper + ApiClientError
@@ -116,6 +122,10 @@ bible-plan/
 | `src/lib/register-access.ts` | `isRegistrationOpen()` / `verifyChurchCode()` — контроль доступа к регистрации |
 | `src/features/plan/components/PlanView.tsx` | Core plan UI — week view, day selection |
 | `src/shared/services/api/endpoints.ts` | All API calls with TypeScript types |
+| `src/shared/offline/db.ts` | IndexedDB schema (idb) — bibleChapters/songs/apiCache/outbox/meta/manifest |
+| `src/shared/offline/outbox.ts` + `sync.ts` | Write-ahead outbox для прогресса + replay-движок (LWW) |
+| `src/shared/offline/downloadManager.ts` | Опциональная офлайн-загрузка Писания/песен/плана + очистка |
+| `src/sw/sw-source.ts` + `src/app/sw.js/route.ts` | Статический app-shell service worker |
 | `next.config.ts` | Next.js config — basePath, standalone output |
 
 ## Environment Variables

@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
 import { readingSettingsApi } from '@/shared/services/api/endpoints';
+import { readThrough } from '@/shared/offline/readThrough';
 import type { ReadingSettings } from '@/features/reading/types';
 import { isBibleTranslationId } from '@/lib/bible-translations';
+
+const READING_SETTINGS_CACHE_KEY = 'reading:settings';
 
 function isTextAlign(value: unknown): value is ReadingSettings['text_align'] {
   return value === 'left' || value === 'center' || value === 'justify';
@@ -31,7 +34,7 @@ export function useReadingSettings() {
     const loadSettings = async () => {
       try {
         setLoadError(null);
-        const response = await readingSettingsApi.getSettings();
+        const response = await readThrough(READING_SETTINGS_CACHE_KEY, () => readingSettingsApi.getSettings());
         if (response.settings) {
           setSettings({
             font_size: response.settings.font_size ?? defaultSettings.font_size,

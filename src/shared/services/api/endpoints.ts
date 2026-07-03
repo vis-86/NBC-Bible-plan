@@ -47,6 +47,8 @@ export interface ReadingSettingsResponse {
 
 export interface BibleTextResponse {
   text: string;
+  /** Перевод, фактически отдавший текст (может отличаться от запрошенного — фолбэк на 'rst' для неполных датасетов). */
+  translation?: string;
 }
 
 export type AppThemePreference = 'light' | 'dark' | 'system';

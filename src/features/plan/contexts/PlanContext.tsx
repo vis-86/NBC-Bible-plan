@@ -5,7 +5,8 @@ import { ReadingPlanDay, BibleReference, PlanItem } from '@/types';
 import { planApi, progressApi } from '@/shared/services/api/endpoints';
 import { ApiClientError } from '@/shared/services/api/client';
 import { dayOfYearToDateStr, parseReadingItem } from '@/shared/utils/bible';
-import { graphqlClient, progressMutations } from '@/shared/services/api/graphql';
+import { readThrough } from '@/shared/offline/readThrough';
+import { enqueueSingleProgress, enqueueBatchProgress, getPendingOutboxOverlay } from '@/shared/offline/outbox';
 
 type ProgressApiRow = {
   day: number;
@@ -59,22 +60,30 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     
     try {
-      const planResponse = await planApi.getPlan();
+      const planResponse = await readThrough('plan:days', () => planApi.getPlan());
       const planData = planResponse.plan;
 
-      const progressResponse = await progressApi.getProgress();
+      const progressResponse = await readThrough('plan:progress', () => progressApi.getProgress());
       const progressData = progressResponse.progress;
 
       const progressMap = new Map<number, { id: number; count: number | null; completedItems: number[] | null }>();
       if (progressData && Array.isArray(progressData)) {
         (progressData as ProgressApiRow[]).forEach((p) => {
-          progressMap.set(p.day, { 
-            id: p.id, 
+          progressMap.set(p.day, {
+            id: p.id,
             count: p.count,
             completedItems: p.completed_items || null
           });
         });
       }
+
+      // Оверлей неподтверждённых outbox-мутаций (Task 25) поверх снапшота прогресса —
+      // иначе офлайн-отметки визуально «пропадают» после reload, пока лежат в очереди.
+      const outboxOverlay = await getPendingOutboxOverlay();
+      outboxOverlay.forEach((entry, dayId) => {
+        const existing = progressMap.get(dayId);
+        progressMap.set(dayId, { id: existing?.id ?? dayId, count: entry.count, completedItems: entry.completedItems });
+      });
 
       const dayGroups = new Map<number, PlanApiItem[]>();
       (planData as PlanApiItem[]).forEach((item) => {
@@ -166,13 +175,9 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
   }, [plan.length, selectedDayId]);
 
   const updateProgress = useCallback(async (dayId: number, count: number | null, completedItems?: number[]) => {
-    try {
-      const mutation = progressMutations.updateProgress(dayId, count, completedItems);
-      await graphqlClient.mutate(mutation);
-    } catch (error) {
-      console.error('Error updating progress:', error);
-      throw error;
-    }
+    // Write-ahead outbox (Task 25): пишется в очередь и немедленно пытается отправиться;
+    // не бросает при неудаче попытки — запись остаётся в очереди для sync-движка (Task 26).
+    await enqueueSingleProgress(dayId, count, completedItems);
   }, []);
 
   const toggleItem = useCallback(async (dayId: number, itemNumber: number) => {
@@ -358,14 +363,9 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
       });
     });
 
-    try {
-      await graphqlClient.mutate(
-        progressMutations.updateProgressBatch(Array.from(idSet), completed)
-      );
-    } catch (error) {
-      console.error('[PlanContext] toggleCompleteMany failed', error);
-      throw error;
-    }
+    // Write-ahead outbox (Task 25) — покрывает и batch-путь календаря, иначе офлайн-отметки
+    // из массового выделения дней молча теряются.
+    await enqueueBatchProgress(Array.from(idSet), completed);
   }, []);
 
   const value = useMemo(() => ({

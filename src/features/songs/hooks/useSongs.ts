@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { songsApi } from '@/shared/services/api/endpoints';
+import { readThrough } from '@/shared/offline/readThrough';
 import type { SongSummary } from '../types';
+
+const SONGS_LIST_CACHE_KEY = 'songs:list';
 
 /**
  * Module-level кэш: список песен грузится один раз за сессию (97 песен статичны).
- * `fetchSongsOnce` — ЕДИНАЯ точка загрузки: сюда позже встанет offline cache-слой
- * (SW cache-first) без переписывания хука/страниц (см. план, future).
+ * `fetchSongsOnce` — ЕДИНАЯ точка загрузки: network-first + IDB apiCache фолбэк
+ * (Task 31) — офлайн отдаёт последний загруженный список.
  */
 let cache: SongSummary[] | null = null;
 let inflight: Promise<SongSummary[]> | null = null;
@@ -15,8 +18,7 @@ let inflight: Promise<SongSummary[]> | null = null;
 async function fetchSongsOnce(): Promise<SongSummary[]> {
   if (cache) return cache;
   if (!inflight) {
-    inflight = songsApi
-      .getSongs()
+    inflight = readThrough(SONGS_LIST_CACHE_KEY, () => songsApi.getSongs())
       .then((res) => {
         cache = res.songs;
         return cache;

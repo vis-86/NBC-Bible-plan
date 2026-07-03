@@ -33,6 +33,7 @@ npm run dev
 - **Регистрация по коду церкви** — опциональная self-registration на `/register` (флаг + общий секрет)
 - **Telegram-привязка** — mini-app для VPN; авто-вход после однократной привязки (без авто-создания)
 - **PWA** — установка вне Telegram (manifest + service worker, basePath-aware)
+- **Offline-режим** — Писание/песни/план читаются без сети (IndexedDB), прогресс отмечается офлайн и синкается при восстановлении сети; опциональная загрузка «на устройство» в настройках
 
 ---
 
@@ -44,6 +45,7 @@ npm run dev
 | [Архитектура](docs/architecture.md) | FSD-структура, паттерны, слои |
 | [Конфигурация](docs/configuration.md) | Переменные окружения, настройки |
 | [Аутентификация](docs/authentication.md) | Invite+пароль, код церкви, Telegram-привязка, сессии, PWA |
+| [Offline PWA](docs/offline-pwa.md) | Service worker, IndexedDB, write-ahead outbox, sync, offline-загрузка |
 | [Деплой](docs/deployment.md) | Сборка, nginx, PM2, copy-prod.sh |
 | [Настройка Directus](docs/DIRECTUS_SETUP_GUIDE.md) | Коллекции, роли, разрешения |
 | [Схема БД](docs/database-schema.md) | Таблицы SQLite и их структура |

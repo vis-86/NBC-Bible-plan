@@ -1,4 +1,4 @@
-[← Конфигурация](configuration.md) · [Back to README](../README.md) · [Деплой →](deployment.md)
+[← Конфигурация](configuration.md) · [Back to README](../README.md) · [Offline PWA →](offline-pwa.md)
 
 # Аутентификация
 

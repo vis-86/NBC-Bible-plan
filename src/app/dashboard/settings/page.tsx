@@ -7,6 +7,7 @@ import { AppView } from '@/types';
 import { useTheme } from '@/components/ThemeProvider';
 import type { AppThemePreference } from '@/shared/services/api/endpoints';
 import { DashboardReadingSettingsSection } from '@/features/reading/components/DashboardReadingSettingsSection';
+import { OfflineDataSection } from '@/features/offline/components/OfflineDataSection';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 
 const themeOptions: Array<{ value: AppThemePreference; label: string }> = [
@@ -63,6 +64,7 @@ export default function SettingsPage() {
           </section>
 
           <DashboardReadingSettingsSection />
+          <OfflineDataSection />
         </div>
       </div>
     </DashboardLayout>

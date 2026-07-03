@@ -4,6 +4,7 @@ import { createContext, useEffect, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { getApiPath } from '@/lib/utils';
 import { isTelegramWebApp, initTelegramWebApp } from '@/lib/telegram';
+import { getLastKnownUser, setLastKnownUser, clearLastKnownUser } from '@/shared/offline/lastKnownUser';
 
 interface User {
   directus_id: string;
@@ -50,15 +51,26 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         const data = await response.json();
         if (data.user) {
           setUser(data.user);
+          void setLastKnownUser(data.user);
         } else {
+          // Сервер явно ответил «сессии нет» — это НЕ повод для офлайн-фолбэка.
           setUser(null);
         }
       } else {
+        // response.ok === false — тоже реальное «сессии нет» (напр. 401), а не сетевая ошибка.
         setUser(null);
       }
     } catch (error) {
+      // fetch() упал (сеть недоступна) — единственный случай, где уместен офлайн-вход
+      // по последнему подтверждённому пользователю.
       console.error('Error checking session:', error);
-      setUser(null);
+      const lastKnownUser = await getLastKnownUser<User>();
+      if (lastKnownUser) {
+        console.debug('[AuthProvider] offline — falling back to last-known-user');
+        setUser(lastKnownUser);
+      } else {
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -78,6 +90,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     (globalThis as unknown as { __onSessionExpired?: () => void }).__onSessionExpired = () => {
       setUser(null);
+      void clearLastKnownUser();
       router.push('/login');
       fetch(getApiPath('/api/auth/logout'), { method: 'POST', credentials: 'include' }).catch(() => {});
     };
@@ -93,6 +106,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         credentials: 'include',
       });
       setUser(null);
+      await clearLastKnownUser();
       router.push('/login');
     } catch (error) {
       console.error('Error logging out:', error);
