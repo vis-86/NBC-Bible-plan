@@ -29,6 +29,71 @@ export function routeStrategy(pathname: string, method: string, sameOrigin: bool
 export const SW_DISABLED = false;
 
 const STATIC_CACHE_NAME = 'app-shell-static-v1';
+const HTML_CACHE_NAME = 'app-shell-html-v1';
+
+/** Cache API-подобный интерфейс — совпадает с настоящим `Cache`, но допускает мок в тестах. */
+interface SwCacheLike {
+  match(request: unknown): Promise<Response | undefined>;
+  put(request: unknown, response: Response): Promise<void>;
+  keys(): Promise<readonly unknown[]>;
+}
+
+/**
+ * Чистая (кроме кеша) функция без внешних замыканий — сериализуется через `.toString()`.
+ * cache-first: чанки `_next/static/**` immutable, инвалидация не нужна.
+ */
+export async function handleStaticAsset(
+  cache: SwCacheLike,
+  request: Request,
+  fetcher: (request: Request) => Promise<Response>
+): Promise<Response> {
+  const cached = await cache.match(request);
+  if (cached) return cached;
+  const res = await fetcher(request);
+  if (res.ok) cache.put(request, res.clone());
+  return res;
+}
+
+/**
+ * NetworkFirst для HTML-навигаций — сериализуется через `.toString()`.
+ * Каждый успешно загруженный документ кешируется, поэтому повторный офлайн-визит
+ * на ПОСЕЩЁННУЮ страницу отдаёт её реальный HTML (а не заглушку) — приложение
+ * догружается и дальше работает через клиентский IndexedDB read-through слой.
+ * Если точного совпадения нет (страница не посещалась) — отдаём любую другую
+ * закешированную страницу как app-shell (тот же бандл, клиентский роутинг подхватит),
+ * и только если кеш вообще пуст — самый первый офлайн-визит без единой посещённой
+ * страницы — bare-текст "Offline".
+ */
+export async function handleNavigation(
+  cache: SwCacheLike,
+  request: Request,
+  fetcher: (request: Request) => Promise<Response>
+): Promise<Response> {
+  try {
+    const res = await fetcher(request);
+    if (res.ok) cache.put(request, res.clone());
+    return res;
+  } catch {
+    console.debug('[FIX][SW] navigation fetch failed, trying HTML cache', request.url);
+    const cached = await cache.match(request);
+    if (cached) {
+      console.debug('[FIX][SW] served exact cached page', request.url);
+      return cached;
+    }
+
+    const keys = await cache.keys();
+    if (keys.length > 0) {
+      const fallback = await cache.match(keys[0]);
+      if (fallback) {
+        console.debug('[FIX][SW] no exact match, served fallback cached page for', request.url);
+        return fallback;
+      }
+    }
+
+    console.debug('[FIX][SW] HTML cache empty, returning bare offline response for', request.url);
+    return new Response('Offline', { status: 503, statusText: 'Offline' });
+  }
+}
 
 /** Собирает текст service worker'а. Вызывается только на сервере (route.ts). */
 export function buildSwBody(): string {
@@ -37,7 +102,10 @@ export function buildSwBody(): string {
 
 const SW_DISABLED = ${SW_DISABLED};
 const STATIC_CACHE_NAME = ${JSON.stringify(STATIC_CACHE_NAME)};
+const HTML_CACHE_NAME = ${JSON.stringify(HTML_CACHE_NAME)};
 const routeStrategy = ${routeStrategy.toString()};
+const handleStaticAsset = ${handleStaticAsset.toString()};
+const handleNavigation = ${handleNavigation.toString()};
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -71,30 +139,14 @@ self.addEventListener('fetch', (event) => {
 
   if (strategy === 'cache-first-static') {
     event.respondWith(
-      (async () => {
-        const cache = await caches.open(STATIC_CACHE_NAME);
-        const cached = await cache.match(req);
-        if (cached) return cached;
-        const res = await fetch(req);
-        if (res.ok) cache.put(req, res.clone());
-        return res;
-      })()
+      caches.open(STATIC_CACHE_NAME).then((cache) => handleStaticAsset(cache, req, fetch))
     );
     return;
   }
 
   // network-first-html
   event.respondWith(
-    (async () => {
-      try {
-        return await fetch(req);
-      } catch (err) {
-        const cached = await caches.match(req);
-        if (cached) return cached;
-        console.debug('[SW] navigation offline, no cache for', url.pathname, err);
-        return new Response('Offline', { status: 503, statusText: 'Offline' });
-      }
-    })()
+    caches.open(HTML_CACHE_NAME).then((cache) => handleNavigation(cache, req, fetch))
   );
 });
 `;
