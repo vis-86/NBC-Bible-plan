@@ -188,7 +188,7 @@ function DashboardPageInner() {
             onToggleComplete={handleToggleComplete}
             onToggleItem={handleToggleItem}
             onToggleChapter={handleToggleChapter}
-            userName={user?.first_name}
+            userName={user?.first_name || undefined}
           />
         </div>
         {isAIEnabled() && (
