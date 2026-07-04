@@ -86,3 +86,33 @@
 - `NEXT_PUBLIC_BASE_PATH=/app` — all paths prefixed with `/app`
 - Use `getApiPath()` from `@/shared/utils/api` for constructing API URLs client-side
 - Deploy via `./copy-prod.sh` to production server
+
+## Offline-first (PWA) — read-path parity
+
+> Инвариант: если ресурс объявлен «читается офлайн» (Писание, песни, план — см. DESCRIPTION),
+> то **каждый** read-путь к нему обязан идти через network-first + IDB-фолбэк. Нельзя,
+> чтобы список фичи работал офлайн, а деталь падала (или наоборот).
+
+- **Никакого голого `apiClient.get` / `fetch` для офлайн-ресурса.** Любое клиентское
+  чтение такого ресурса оборачивается в read-through слой:
+  - общий кэш ответов → `readThrough(key, fetcher)` из `@/shared/offline/readThrough`
+    (пишет/читает store `apiCache`); подходит для план/недельный план/книги/настройки/список песен;
+  - выделенный store (контент качается массово, не через `apiCache`) → фиче-локальный
+    read-through, читающий именно этот store: `bibleChapters` (`getPersistedText` в
+    `features/reading/bible-text-cache`), `songs` (`readSongThrough` в
+    `features/songs/lib/offlineSongs`).
+- **List↔detail parity.** Добавляя офлайн-фолбэк к списочному хуку, сразу проверь парный
+  detail-хук (и наоборот): оба идут через один и тот же network-first+IDB слой. Именно
+  рассинхрон списка (`useSongs` через `readThrough`) и детали (`useSong` без фолбэка)
+  давал баг «офлайн: невозможно открыть песню».
+- **Фолбэк читает тот же store, куда пишет download.** Если `downloadManager` кладёт
+  данные в store X (`songs`, `bibleChapters`), read-through этого ресурса обязан читать
+  store X, а не `apiCache`. Ключ фолбэка = ключ записи download (сверяй тип/коэрсию:
+  route-params приходят строкой — `String(id)`).
+- **Слои (FSD).** Доменный read-through живёт в `features/<name>`, а не в `shared/offline`
+  (shared не должен тянуть доменные типы фичи). `shared/offline` держит только
+  дженерик-примитивы (`getDB`, `readThrough`/`apiCache`, outbox, sync).
+- **Тесты.** Офлайн-фича обязана покрывать кейс «fetcher rejects + запись уже лежит в IDB»
+  (сеть упала, но данные скачаны) — именно он выявляет отсутствие фолбэка.
+- **Writes** офлайн-ресурсов идут через write-ahead outbox (`@/shared/offline/outbox` +
+  LWW-sync), не прямым POST.

@@ -1,120 +1,90 @@
 # Research
 
-Updated: 2026-07-02 23:00
+Updated: 2026-07-04 21:00
 Status: active
 
 ## Active Summary (input for /aif-plan)
 <!-- aif:active-summary:start -->
-Topic: Offline-first PWA — Писание, песни и план чтения работают без сети + синхронизация
-прогресса при появлении интернета. В профиле/настройках: показ загруженных offline-данных,
-кнопка «очистить», версия приложения (дата обновления).
+Topic: Архитектурное направление после offline-PWA v1 — уход от хрупкости App Router
+(RSC-транспорт vs app-shell model) через Next `output: 'export'` (SPA) + вынос API в
+отдельный BFF-сервис; плюс чек-лист production-практик PWA (update flow, nginx headers,
+lie-fi, offline E2E).
 
-Goal: Дать community НБЦ пользоваться приложением офлайн (метро, дача, плохая связь):
-читать Писание/песни/план, отмечать прогресс — с прозрачной синхронизацией и управлением
-локальным хранилищем. SCOPE v1 = ПОЛНЫЙ offline (чтение + запись прогресса с синком).
+Goal: Убрать структурный источник offline-багов (per-route HTML с RSC-payload, flight-фетчи
+`?_rsc=`, hard-reload при mismatch) и получить настоящий static app shell с precache-манифестом,
+сохранив 100% кода страниц/FSD. Плюс закрыть production-риски: залипание обновлений SW,
+lie-fi, logout офлайн.
 
-Реалии кодовой базы (обследовано 2026-07-02):
-- SW сейчас ПУСТЫШКА: src/app/sw.js/route.ts отдаёт install/activate + `fetch(){}` (no-op),
-  существует только ради install-prompt в Chrome. Кеширования НОЛЬ.
-- Данные — три разных класса с разной offline-семантикой:
-  ① СТАТИКА (общая, read-only): Писание 14 MB (3 перевода: rst/kassian2019/nrt2019,
-    data/bible/*.json) через /api/bible/{book}/{ch}; песни 388 KB (97 шт) через
-    /api/songs(+/[id]); план+недельный через /api/plan (Directus).
-  ② ЮЗЕР-СТЕЙТ (мутируется): progress (по дням), reading/app settings → GraphQL мутации.
-    Мутации в PlanContext УЖЕ оптимистичные (локальный стейт → потом сеть) — половина
-    синка бесплатно.
-  ③ APP SHELL: Next standalone за nginx, basePath /app.
-- Существующие in-memory кеши (теряются на reload), но уже с правильной формой:
-  bible-text-cache.ts (Map, ключ включает translationId ✅); useSongs (module-cache +
-  коммент «сюда встанет SW cache-first слой» ✅).
+КЛЮЧЕВОЙ ФАКТ (обследовано 2026-07-04): ВСЕ страницы уже `"use client"` (единственный
+server component — root layout.tsx), данные тянутся клиентски через /api/*. Приложение —
+де-факто SPA внутри враждебного транспорта App Router. SSR/RSC-выгоды не используются
+вообще → static export теряет НОЛЬ функциональности страниц.
 
-Decisions (зафиксировано с Игорем):
-- МОДЕЛЬ ЗАГРУЗКИ = OPT-IN «Скачать». Юзер явно тянет перевод(ы)/песни через кнопку,
-  видит размер, может очистить. НЕ тихий precache-всё (14 MB на мобильном неприемлемо).
-  Совпадает с требованием «показать загруженные данные + очистить».
-- SCOPE v1 = ПОЛНЫЙ offline: чтение (Писание/песни/план) + отметки прогресса offline
-  через outbox-очередь и синк при сети.
-- ДВА СЛОЯ ХРАНИЛИЩА (не «или-или»):
-  • SW Cache API — request/response по URL: app shell (precache), /api/bible?translation=X
-    (cache-first, наполняется opt-in загрузкой), /api/songs (cache-first), /api/plan (SWR).
-  • IndexedDB — структурные данные: outbox мутаций прогресса; last-known-user (пускать в
-    приложение офлайн); манифест загруженного (размеры для «показать/очистить»).
-- СИНК ПРОГРЕССА = outbox + replay, LAST-WRITE-WINS по dayId (мутации идемпотентны,
-  настоящего merge-конфликта нет → CRDT НЕ нужен). Триггер replay: событие `online` +
-  опц. Background Sync API. Dedup по последней записи на день.
-- БИБЛИОТЕКА IDB = предложить `idb` (~1 KB промис-обёртка). Сырой IndexedDB болезнен,
-  Dexie избыточен для outbox+манифеста. Обосновать в плане (правило: не тащить зависимость
-  без обоснования).
-- SW-СТРАТЕГИЯ = ВАРИАНТ C (ГИБРИД). Свой SW-body отдаётся через существующий
-  src/app/sw.js/route.ts (basePath /app scope уже решён — serwist/next этого НЕ умеет из
-  коробки за nginx). Precache-манифест чанков Next (с revision-хешами, авто-инвалидация на
-  деплое) генерит `@serwist/build injectManifest` как BUILD-step. Runtime-стратегии пишем
-  сами (cache-first статика, SWR план — ~30 строк, полный контроль, нет риска что Workbox
-  precache-нёт 14 MB Писания). ОТВЕРГНУТО: @serwist/next (конфликт с basePath-отдачей +
-  неизвестная совместимость с Next 16.2.4); чистый ручной precache (хрупкий manifest хешей).
-- ХОЛОДНЫЙ ОФЛАЙН-СТАРТ = В СКОУПЕ v1. Закрыл приложение → нет сети → открыл заново →
-  работает. Именно это требует precache чанков (→ обоснование для @serwist/build). НЕ
-  «только уже открытое приложение переживает потерю сети».
-- ВАЖНО про app-shell: страницы SSR+auth → статического shell-HTML НЕТ. Precache = только
-  JS/CSS-чанки Next; HTML-документы кешируются РАНТАЙМ (NetworkFirst/SWR), не precache;
-  offline-вход обеспечивает last-known-user + клиентский рендер из кешей.
-- ВЕРСИЯ = инжектить build-time timestamp (напр. NEXT_PUBLIC_BUILD_TIME в next.config при
-  сборке) + версия SW-кеша; показать в секции настроек.
+Decisions (зафиксировано с Игорем 2026-07-04):
+- СЕКВЕНИРОВАНИЕ: (1) сейчас — дошипить v1 на текущей ветке feature/offline-pwa (работает,
+  тяжёлое решено: outbox, IDB read-through, download manager, last-known-user — переживут
+  миграцию без изменений); (2) следующая итерация — ВАРИАНТ B (static export + BFF);
+  (3) rewrite на Vite — ОТВЕРГНУТ (C = B + переписать глюe-слой страниц; offline-свойства
+  идентичны, выгода вкусовая, не стоит переписывания работающего кода).
+- ВАРИАНТ B = Next `output: 'export'`: HTML-документы и RSC-payload'ы становятся статикой
+  (enumerable, immutable) → классический precache-манифест (Workbox/@serwist/build) работает
+  из коробки; класс проблем «документ не закеширован» исчезает структурно. Хак
+  src/app/sw.js/route.ts умирает — sw.js обычный файл из-под /app через nginx.
+- Цена B: (a) API routes (auth/bible/plan/songs/graphql/directus/ai/chat/user) → вынос в
+  Hono на node — route handlers уже на Web Request/Response, почти drop-in; iron-session,
+  better-sqlite3, Directus admin-client работают как были; nginx: static из out/ + proxy
+  /api → hono. (b) middleware.ts (86 строк) → auth-guard на клиент (офлайн он и так
+  клиентский, last-known-user), 301 легаси-URL → nginx. Оценка: дни, не недели.
+- Trade-off B (осознанный): теряем опцию SSR/RSC для будущих публичных SEO-страниц —
+  для устанавливаемого PWA за логином опция ничего не стоила.
 
-Как развязаны ключевые тензии:
-- Переводозависимый URL: /api/bible/{book}/{ch} для залогиненного резолвит перевод ИЗ
-  СЕССИИ → один URL, разный контент = яд для кеша. ЛЕЧЕНИЕ: клиент Писания обязан ходить
-  с явным ?translation= (роут уже принимает param) → URL стабилен и кешируем per-перевод.
-- Auth-гейт офлайн: приложение за session-cookie; офлайн /api/auth/me упадёт → риск не
-  пустить юзера в приложение вообще. ЛЕЧЕНИЕ: last-known-user в IDB, useAuth читает кеш
-  офлайн и не блокирует.
-- App shell precache за basePath /app: пути ассетов должны совпасть со scope SW (та же
-  грабля, что решали для отдачи sw.js из-под basePath).
+Чек-лист production-практик PWA (вход для плана B, по убыванию ценности):
+1. UPDATE FLOW (обязательно вместе с B): убрать skipWaiting-на-install (с precache опасен:
+   старая вкладка lazy-грузит чанки, которых уже нет). Паттерн: новый SW ждёт →
+   registration.waiting → toast «Доступна новая версия — Обновить» → postMessage
+   ('SKIP_WAITING') → controllerchange → reload. Плюс registration.update() на
+   visibilitychange (иначе установленное PWA неделями не видит новую версию).
+2. NGINX CACHE HEADERS (обязательно вместе с B): sw.js → no-cache; _next/static/** →
+   immutable, max-age=31536000; HTML → no-cache. Без этого SW-обновления залипают до суток.
+3. LIE-FI (самый заметный UX-выигрыш): (a) NetworkFirst через Promise.race(fetch,
+   timeout 3–4s) → мгновенный fallback в кеш вместо 20–30s белого экрана (captive portal,
+   метро); (b) триггер синка outbox = `online` + успешный HEAD /api/health ping, не голое
+   событие `online` (оно значит «есть интерфейс», не «сервер достижим»).
+4. OFFLINE E2E В CI: закрепить ручные Playwright+CDP прогоны (уже делались для фикса
+   43cce0a) как регрессионный сьют: cold start офлайн; навигация по всем разделам офлайн;
+   отметка прогресса офлайн → синк; деплой новой версии при открытой вкладке.
+5. 401 ≠ NETWORK ERROR: api-client обязан различать «сервер сказал 401 → logout» и «сети
+   нет → last-known-user». Если catch сваливает оба в одно — logout в метро. Проверить
+   grep'ом, закрыть одним explicit-местом в api-client + тест.
+6. ЭСКАЛАЦИОННАЯ ЛЕСТНИЦА СИНКА (держать в голове, НЕ делать сейчас): идемпотентные
+   отметки/LWW → текущий outbox достаточен ✅; разрослись кеш+инвалидация → TanStack Query
+   + IDB persister (замена самописного read-through); multi-device/реальные конфликты/
+   partial replication (офлайн-заметки, чат) → PowerSync/ElectricSQL/Replicache/RxDB —
+   порог, за которым покупают, а не наращивают outbox.
+Первоисточник по стратегиям: Jake Archibald, «The Offline Cookbook».
 
-UI (существующая страница настроек src/app/dashboard/settings/page.tsx — просто новая секция):
-  «Оффлайн-данные»: Писание(перевод) — размер — [Скачать]; Песни — статус; План — статус;
-  [Очистить всё оффлайн-хранилище]. Ниже: «Версия: YYYY.MM.DD (обновлено N дней назад)».
+Open questions (решить на /aif-plan варианта B):
+- Hono: отдельный сервис в том же Docker Compose vs sidecar-процесс (деплой на
+  168.222.202.131, см. memory prod-deploy).
+- manifest.ts → статический manifest.json (basePath /app учесть).
+- Precache-скоуп: _next/static/** + все route HTML + RSC .txt payload'ы попадают в манифест
+  целиком; 14 MB Писания — НЕ попадает (остаётся в IDB-слое, конфликта нет — проверить).
+- Судьба warmAppShell/ignoreSearch-фолбэка после B: precache делает их избыточными —
+  выпилить или оставить как belt-and-suspenders.
+- Auth-guard на клиенте: где именно (layout vs router-обёртка), поведение при истёкшей
+  сессии онлайн vs офлайн (связано с п.5 чек-листа).
 
-Скрытые риски для плана:
-1. Переписывание no-op SW на кеширующий затронет install-prompt и hydration — был фикс
-   b4c2f01 (unblock hydration from telegram.org + loading splash). Осторожно с fetch-хендлером.
-2. Offline сессии нет → клиент Писания ОБЯЗАН слать перевод явно, иначе cache-miss.
-3. Precache app shell в Next standalone за nginx basePath /app — scope/paths.
-4. «Очистить» = caches.delete(имена) + idb.clear + сброс манифеста; не задеть SW-регистрацию.
+Success signals (для B):
+- SW — статический файл с полным precache-манифестом; src/app/sw.js/route.ts и
+  .toString()-сериализация удалены.
+- Cold offline start работает на ЛЮБОМ маршруте без warmAppShell-прогрева.
+- Апгрейд Next не трогает offline-логику (нет зависимости от RSC-транспорта).
+- Update-toast работает: деплой → открытая вкладка предлагает обновиться, без залипания
+  и без битых lazy-чанков.
+- Offline E2E сьют зелёный в CI.
 
-Open questions (решить на /aif-plan):
-- [РЕШЕНО] Стратегия SW = Вариант C (гибрид: свой SW-body через route.ts +
-  @serwist/build injectManifest для precache-манифеста чанков). См. Decisions.
-- Spike: как отдать SW-body с ИНЖЕКТИРОВАННЫМ манифестом через route.ts. Варианты:
-  (a) injectManifest пишет .next-артефакт, route.ts читает его и отдаёт строкой;
-  (b) SW собирается отдельным build-шагом в файл, route.ts инлайнит содержимое.
-  Проверить, что self.__SW_MANIFEST плейсхолдер корректно подставляется при нашей отдаче.
-- Precache-скоуп: только статические чанки Next (_next/static/**), НЕ HTML SSR-страниц,
-  НЕ data/bible. Убедиться что 14 MB Писания не попадает в manifest.
-- Runtime-роутинг document-запросов (HTML) офлайн: NetworkFirst с fallback на кешированный
-  последний dashboard vs отдельная offline-страница. Определить на плане.
-- Outbox схема IDB: {dayId, count, completedItems, ts, op}; ключ по dayId (LWW) vs append-log.
-- Where writes hook in: перехват в PlanContext.updateProgress (всегда в outbox + попытка
-  сети) vs SW-перехват POST /graphql. Клиентский outbox проще и явнее.
-- Показ размера загруженного: считать из манифеста (что качали) vs обход ключей Cache API.
-- Версия: NEXT_PUBLIC_BUILD_TIME на сборке (docker build arg) — согласовать с deploy
-  (rsync + docker compose build на 168.222.202.131; см. memory prod-deploy).
-
-Success signals:
-- ХОЛОДНЫЙ СТАРТ офлайн: приложение закрыто → нет сети → открыл заново → грузится и
-  работает (чанки из precache, вход по last-known-user).
-- В самолётном режиме: вход в приложение (last-known-user), чтение скачанного Писания,
-  всех песен и плана; отметки прогресса ставятся и сохраняются.
-- При возврате сети прогресс, сделанный офлайн, синхронизируется (LWW), без дублей/потерь.
-- В настройках виден список загруженного с размерами, «очистить» реально освобождает
-  Cache API + IndexedDB, версия/дата обновления отображается корректно.
-
-Next step: /aif-plan full — offline-first PWA v1 (Вариант C): свой SW-body через
-src/app/sw.js/route.ts + @serwist/build injectManifest (precache чанков Next для холодного
-старта) + свои runtime-стратегии (cache-first bible?translation/songs, SWR plan, NetworkFirst
-HTML), opt-in download manager, IDB (idb) outbox для прогресса + replay on online (LWW),
-last-known-user для offline-входа, секция «Оффлайн-данные» + версия в настройках,
-build-time timestamp. Начать с spike отдачи SW с инжектированным манифестом через route.ts.
+Next step: дошипить v1 на feature/offline-pwa (merge). Затем `/aif-plan full` — миграция
+на static export + Hono BFF (вариант B) с чек-листом практик 1–5 в скоупе.
 <!-- aif:active-summary:end -->
 
 ## Sessions
@@ -212,4 +182,47 @@ Links (paths):
 - src/app/dashboard/settings/page.tsx (дом для секции «Оффлайн-данные» + версия)
 - data/bible/ (14 MB, 3 перевода), data/songs/ (388 KB)
 - next.config.ts (basePath /app, сюда build-time timestamp)
+
+### 2026-07-04 21:00 — Стратегия после v1: уход от App Router-хрупкости → static export SPA + BFF
+What changed:
+- Вопрос Игоря: Next мешает offline-PWA — перевести в SPA? переписать на Vite+React?
+- КЛЮЧЕВАЯ НАХОДКА: все страницы уже "use client" (server — только root layout), данные
+  клиентски через /api/* → приложение де-факто SPA, SSR/RSC-выгоды не используются. Боль
+  (misclassified flight-фетчи, reload-loop от чужого HTML, .toString()-сериализация SW,
+  warmAppShell, схлопывание сегментов в query) — целиком от ТРАНСПОРТА App Router
+  (per-route документы с RSC-payload, одноразовые ?_rsc=), не от SSR.
+- Сравнены A (остаться/патчить: работает, но налог на каждый апгрейд Next), B (Next
+  `output: 'export'` + вынос API в Hono BFF: структурное решение, код страниц не трогаем,
+  дни работы), C (Vite rewrite = B + переписать глюe-слой; offline-свойства те же —
+  ОТВЕРГНУТ, лечит симптом ценой органа).
+- РЕШЕНИЕ ИГОРЯ: вариант B, секвенированно — сначала дошипить v1 на текущей ветке,
+  миграция на B следующей итерацией. Vite не делать; из состояния B уход на Vite при
+  нужде тривиален (Next к тому моменту — только билдер статики).
+- Зафиксирован чек-лист production-практик PWA (детально в Active Summary): update flow
+  без skipWaiting + toast «Обновить»; nginx cache headers (sw.js no-cache / static
+  immutable / HTML no-cache); lie-fi (race fetch vs timeout 3–4s, ping перед синком);
+  offline E2E в CI (Playwright+CDP); различать 401 vs network error (иначе logout в
+  метро); эскалационная лестница синка (outbox достаточен → TanStack Query persister →
+  PowerSync/ElectricSQL/Replicache — не наращивать outbox за порогом).
+
+Key notes:
+- Route handlers уже на Web Request/Response → в Hono почти drop-in; iron-session/
+  better-sqlite3/Directus admin-client переносятся как есть; nginx: static out/ + proxy
+  /api. middleware.ts: guard → клиент (офлайн и так last-known-user), 301 → nginx.
+- Static export убивает хак src/app/sw.js/route.ts: sw.js — обычный файл, HTML+RSC
+  payload'ы — enumerable/immutable статика → полный precache-манифест, cold start на
+  любом маршруте без прогрева.
+- Осознанный trade-off B: теряем опцию SSR/RSC для будущих SEO-страниц — для PWA за
+  логином не нужна.
+- Защищённый актив (переживает миграцию без изменений): outbox, IDB read-through,
+  download manager, last-known-user, тесты офлайн-слоя.
+- Первоисточник: Jake Archibald, «The Offline Cookbook».
+
+Links (paths):
+- src/sw/sw-source.ts (+ комментарии-хроника граблей RSC/минификации) — умрёт при B
+- src/app/sw.js/route.ts, src/shared/offline/appShell.ts (warmAppShell — станет избыточен)
+- src/middleware.ts (86 строк: guard + 301 — распилить на клиент/nginx)
+- src/app/api/* (9 групп роутов — кандидаты на Hono BFF)
+- next.config.ts (output: 'standalone' → 'export' при B)
+- Коммиты-хроника боли: 07430df, 43cce0a, 8e9cd4a (fix(pwa) на feature/offline-pwa)
 <!-- aif:sessions:end -->
