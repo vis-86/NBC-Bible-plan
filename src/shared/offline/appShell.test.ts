@@ -28,7 +28,7 @@ function res(opts: Partial<FakeRes> & { contentType?: string }): FakeRes {
 }
 
 function installCaches() {
-  const put = vi.fn(async () => {});
+  const put = vi.fn<(url: string, res: unknown) => Promise<void>>(async () => {});
   const cache = { put, match: vi.fn(), keys: vi.fn(async () => []) };
   vi.stubGlobal('caches', { open: vi.fn(async () => cache) });
   return put;
