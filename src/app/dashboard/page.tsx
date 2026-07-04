@@ -94,7 +94,7 @@ function DashboardPageInner() {
 
   useEffect(() => {
     if (currentView === AppView.READER) {
-      router.push('/dashboard/read/Бытие/1');
+      router.push('/dashboard/read?book=Бытие&chapter=1');
     }
   }, [currentView, router]);
 
@@ -114,13 +114,13 @@ function DashboardPageInner() {
       return itemReading && normalizeBookNameForUrl(itemReading.book) === normalizedBook && itemReading.chapter === reading.chapter;
     });
 
-    let path = `/dashboard/read/${encodeURIComponent(normalizedBook)}/${reading.chapter}`;
-
+    const query = new URLSearchParams({ book: normalizedBook, chapter: String(reading.chapter) });
     if (item) {
-      path += `?day=${day.id}&item=${item.item}`;
+      query.set('day', String(day.id));
+      query.set('item', String(item.item));
     }
 
-    router.push(path);
+    router.push(`/dashboard/read?${query.toString()}`);
   };
 
   const handleToggleComplete = async (dayId: number) => {

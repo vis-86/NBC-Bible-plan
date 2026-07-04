@@ -65,7 +65,7 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
 
   const navItems: NavItem[] = [
     { id: 'home', icon: Home, label: 'Главная', href: '/dashboard', isFilled: true },
-    { id: 'bible', icon: BookOpen, label: 'Библия', href: '/dashboard/read/Бытие/1' },
+    { id: 'bible', icon: BookOpen, label: 'Библия', href: '/dashboard/read?book=Бытие&chapter=1' },
     { id: 'songs', icon: Music, label: 'Песни', href: '/dashboard/songs' },
     ...(aiEnabled
       ? [{ id: 'chat', icon: MessageCircle, label: 'Пастырь', view: AppView.CHAT } as NavItem]

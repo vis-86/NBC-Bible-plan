@@ -3,7 +3,8 @@ import { persistApiCache } from './readThrough';
 import { getPendingOutbox } from './outbox';
 import { replayOutbox } from './sync';
 import { getApiPath } from '@/shared/utils/api';
-import { planApi, songsApi, weeklyPlanApi } from '@/shared/services/api/endpoints';
+import { warmAppShell } from './appShell';
+import { planApi, progressApi, songsApi, weeklyPlanApi } from '@/shared/services/api/endpoints';
 import type { BibleTranslationId } from '@/lib/bible-translations';
 
 /**
@@ -162,20 +163,27 @@ export async function downloadSongs(onProgress?: (done: number, total: number) =
 export async function downloadPlan(): Promise<void> {
   await requestPersistentStorage();
 
-  const [planRes, weeklyRes, booksRes] = await Promise.all([
+  const [planRes, progressRes, weeklyRes, booksRes] = await Promise.all([
     planApi.getPlan(),
+    // plan:progress прогреваем тем же логическим ключом, что читает PlanContext.fetchPlan.
+    // Без этого «скачал всё, ни разу не открыв план онлайн» → офлайн read-through по
+    // plan:progress не находит кеша и роняет весь дашборд в «Load failed» (см. FIX_PLAN).
+    progressApi.getProgress(),
     weeklyPlanApi.getWeeklyPlan('proverbs'),
     fetch(getApiPath('/api/bible/books'), { credentials: 'include' }).then((r) => r.json()),
   ]);
 
   await Promise.all([
     persistApiCache('plan:days', planRes),
+    persistApiCache('plan:progress', progressRes),
     persistApiCache('plan:weekly:proverbs', weeklyRes),
     persistApiCache('bible:books', booksRes),
   ]);
 
+  await warmAppShell();
+
   await writeManifestEntry('plan', { downloadedAt: Date.now() });
-  debug('downloaded plan warm-up (plan/weekly/books)');
+  debug('downloaded plan warm-up (plan/weekly/books + app-shell routes)');
 }
 
 export interface ClearOfflineDataResult {

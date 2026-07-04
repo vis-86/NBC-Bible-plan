@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { AppView } from '@/types';
 import BottomNavBar from './BottomNavBar';
+import { warmAppShellOnceOnline } from '@/shared/offline/appShell';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -14,7 +15,18 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, onChangeView, hideBottomNav = false }) => {
   const pathname = usePathname();
-  const isReaderPage = pathname.includes('/read/');
+
+  // Прогрев app-shell документов в HTML-кеш SW при онлайн-загрузке приложения
+  // (один раз за сессию). Даёт офлайн-навигацию к маршрутам, куда ходят клиентским
+  // push (песни/Библия/календарь) — иначе офлайн они падают в 503-заглушку.
+  // DashboardLayout рендерится только для аутентифицированных дашборд-страниц —
+  // значит контекст всегда залогинен, `/dashboard/*` не редиректит на логин.
+  useEffect(() => {
+    void warmAppShellOnceOnline();
+  }, []);
+
+  // Approach C: ридер переехал на /dashboard/read (без сегмента /read/<...>/).
+  const isReaderPage = pathname.startsWith('/dashboard/read');
   // When the docked bottom nav is shown, reserve space so scrollable content
   // isn't hidden behind it (single source of clearance — see .pb-nav / --dock-nav-h).
   const showBottomNav = !isReaderPage && !hideBottomNav;

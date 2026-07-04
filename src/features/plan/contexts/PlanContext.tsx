@@ -63,8 +63,18 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
       const planResponse = await readThrough('plan:days', () => planApi.getPlan());
       const planData = planResponse.plan;
 
-      const progressResponse = await readThrough('plan:progress', () => progressApi.getProgress());
-      const progressData = progressResponse.progress;
+      // Прогресс — это ОБОГАЩЕНИЕ поверх дней плана, а не обязательные данные.
+      // Офлайн (без прогретого plan:progress) read-through пробрасывает ошибку сети;
+      // раньше это уводило весь fetchPlan в catch → «Load failed», хотя plan:days в
+      // кеше есть. Читаем прогресс отдельно и не-фатально: при неудаче рендерим план
+      // без снапшота прогресса — outbox-overlay ниже всё равно накроет офлайн-отметки.
+      let progressData: ProgressApiRow[] | null = null;
+      try {
+        const progressResponse = await readThrough('plan:progress', () => progressApi.getProgress());
+        progressData = progressResponse.progress as ProgressApiRow[] | null;
+      } catch (progressErr) {
+        console.warn('[FIX] plan:progress unavailable offline, rendering plan without progress snapshot', progressErr);
+      }
 
       const progressMap = new Map<number, { id: number; count: number | null; completedItems: number[] | null }>();
       if (progressData && Array.isArray(progressData)) {

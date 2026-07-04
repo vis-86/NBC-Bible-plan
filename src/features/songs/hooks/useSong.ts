@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { songsApi } from '@/shared/services/api/endpoints';
+import { readSongThrough } from '../lib/offlineSongs';
 import type { Song } from '../types';
 
 /** Загрузка одной песни по id (для страницы просмотра). */
@@ -23,11 +24,12 @@ export function useSong(id: string | number | null) {
     setError(null);
     setSong(null);
 
-    songsApi
-      .getSong(id)
-      .then((res) => {
+    // Network-first + IDB-фолбэк: офлайн отдаёт скачанную песню из store `songs`
+    // (раньше здесь был голый apiClient.get → офлайн падал «Песня не найдена»).
+    readSongThrough(id, () => songsApi.getSong(id).then((res) => res.song))
+      .then((loaded) => {
         if (!active) return;
-        setSong(res.song);
+        setSong(loaded);
         console.debug(`[useSong] loaded song ${id}`);
       })
       .catch((err) => {

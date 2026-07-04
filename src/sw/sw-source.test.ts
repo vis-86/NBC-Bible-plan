@@ -31,7 +31,15 @@ describe('сериализуемые SW-функции не должны ссы�
 class FakeCache {
   private store = new Map<string, Response>();
 
-  async match(request: Request): Promise<Response | undefined> {
+  async match(request: Request, options?: { ignoreSearch?: boolean }): Promise<Response | undefined> {
+    if (options?.ignoreSearch) {
+      const target = new URL(request.url);
+      for (const [urlStr, res] of this.store) {
+        const u = new URL(urlStr);
+        if (u.origin === target.origin && u.pathname === target.pathname) return res;
+      }
+      return undefined;
+    }
     return this.store.get(request.url);
   }
 
@@ -69,8 +77,9 @@ describe('routeStrategy', () => {
     expect(routeStrategy('/app/', 'GET', true, 'navigate')).toBe('network-first-html');
   });
 
-  it('network-first-html для настоящих HTML-навигаций (mode=navigate, dashboard)', () => {
-    expect(routeStrategy('/app/dashboard/read/genesis/1', 'GET', true, 'navigate')).toBe('network-first-html');
+  it('network-first-html для настоящих HTML-навигаций (mode=navigate, ридер)', () => {
+    // Approach C: ридер — один маршрут /dashboard/read, глава в search-параметрах.
+    expect(routeStrategy('/app/dashboard/read', 'GET', true, 'navigate')).toBe('network-first-html');
   });
 
   it('passthrough для RSC/flight-фетчей клиентского router.push (mode!=navigate) — не HTML-навигация', () => {
@@ -146,6 +155,37 @@ describe('handleNavigation', () => {
     const body = await res.text();
     expect(body).not.toBe('<html>app shell</html>');
     expect(body).toBe(OFFLINE_FALLBACK_HTML);
+  });
+
+  it('офлайн + ридер: закешированная глава отдаётся для ЛЮБОЙ другой главы через ignoreSearch (approach C)', async () => {
+    // Ридер — один маршрут /dashboard/read?book=&chapter=. Один закешированный документ
+    // должен обслуживать любую другую главу офлайн: pathname тот же, отличается только
+    // search → безопасно (RSC-payload того же маршрута, без reload-цикла).
+    const cache = new FakeCache();
+    const visitedChapter = new Request('https://app.test/app/dashboard/read?book=%D0%91%D1%8B%D1%82%D0%B8%D0%B5&chapter=1');
+    await cache.put(visitedChapter, new Response('<html>reader shell</html>'));
+    const anotherChapter = new Request('https://app.test/app/dashboard/read?book=%D0%98%D1%81%D1%85%D0%BE%D0%B4&chapter=5');
+    const fetcher = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+
+    const res = await handleNavigation(cache, anotherChapter, fetcher, OFFLINE_FALLBACK_HTML);
+
+    expect(res.status).not.toBe(503);
+    expect(await res.text()).toBe('<html>reader shell</html>');
+  });
+
+  it('ignoreSearch не подставляет документ ДРУГОГО pathname (нет кросс-маршрутной подмены)', async () => {
+    const cache = new FakeCache();
+    await cache.put(
+      new Request('https://app.test/app/dashboard/read?book=%D0%91%D1%8B%D1%82%D0%B8%D0%B5&chapter=1'),
+      new Response('<html>reader shell</html>')
+    );
+    // Навигация на ДРУГОЙ маршрут без совпадения pathname → заглушка, не документ ридера.
+    const otherRoute = new Request('https://app.test/app/dashboard/calendar?month=3');
+    const fetcher = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+
+    const res = await handleNavigation(cache, otherRoute, fetcher, OFFLINE_FALLBACK_HTML);
+
+    expect(await res.text()).toBe(OFFLINE_FALLBACK_HTML);
   });
 
   it('офлайн + кеш пуст (самый первый визит без сети) -> статическая офлайн-заглушка', async () => {

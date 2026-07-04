@@ -13,8 +13,34 @@ export async function middleware(request: NextRequest) {
   if (basePath && pathname.startsWith(basePath)) {
     pathWithoutBase = pathname.slice(basePath.length) || '/';
   }
-  
-  const isProtectedPath = protectedPaths.some(path => 
+
+  // Совместимость со старыми URL ридера (approach C, FIX_PLAN): ридер переехал с
+  // сегментов /dashboard/read/<book>/<chapter> на один маршрут /dashboard/read с
+  // book/chapter в search-параметрах. Старые deep-link/закладки редиректим на новый
+  // формат, сохраняя остальные параметры (day/item).
+  const legacyReadMatch = pathWithoutBase.match(/^\/dashboard\/read\/([^/]+)\/([^/]+)\/?$/);
+  if (legacyReadMatch) {
+    const redirectPath = basePath ? `${basePath}/dashboard/read` : '/dashboard/read';
+    const target = new URL(redirectPath, request.nextUrl.origin);
+    target.search = request.nextUrl.search;
+    target.searchParams.set('book', decodeURIComponent(legacyReadMatch[1]));
+    target.searchParams.set('chapter', decodeURIComponent(legacyReadMatch[2]));
+    return NextResponse.redirect(target);
+  }
+
+  // Совместимость со старыми URL детали песни: /dashboard/songs/<id> → /dashboard/song?id=<id>
+  // (approach C: деталь схлопнута в query, чтобы один документ обслуживал любую песню офлайн).
+  // Список /dashboard/songs (без id) сюда не попадает — регэксп требует сегмент после songs/.
+  const legacySongMatch = pathWithoutBase.match(/^\/dashboard\/songs\/([^/]+)\/?$/);
+  if (legacySongMatch) {
+    const redirectPath = basePath ? `${basePath}/dashboard/song` : '/dashboard/song';
+    const target = new URL(redirectPath, request.nextUrl.origin);
+    target.search = request.nextUrl.search;
+    target.searchParams.set('id', decodeURIComponent(legacySongMatch[1]));
+    return NextResponse.redirect(target);
+  }
+
+  const isProtectedPath = protectedPaths.some(path =>
     pathWithoutBase.startsWith(path)
   );
 

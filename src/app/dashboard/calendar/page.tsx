@@ -31,13 +31,13 @@ export default function CalendarPage() {
       return itemReading && normalizeBookNameForUrl(itemReading.book) === normalizedBook && itemReading.chapter === reading.chapter;
     });
 
-    let path = `/dashboard/read/${encodeURIComponent(normalizedBook)}/${reading.chapter}`;
-
+    const query = new URLSearchParams({ book: normalizedBook, chapter: String(reading.chapter) });
     if (item) {
-      path += `?day=${day.id}&item=${item.item}`;
+      query.set('day', String(day.id));
+      query.set('item', String(item.item));
     }
 
-    router.push(path);
+    router.push(`/dashboard/read?${query.toString()}`);
   };
 
   const handleToggleComplete = async (dayId: number) => {

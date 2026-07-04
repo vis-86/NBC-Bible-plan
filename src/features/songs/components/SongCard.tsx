@@ -16,7 +16,7 @@ export const SongCard: React.FC<SongCardProps> = ({ song }) => {
       type="button"
       data-song-card
       data-song-card-item={song.id}
-      onClick={() => router.push(`/dashboard/songs/${song.id}`)}
+      onClick={() => router.push(`/dashboard/song?id=${encodeURIComponent(song.id)}`)}
       className="flex w-full items-center gap-3 rounded-xl border border-app-border bg-app-surface px-4 py-3 text-left transition-transform active:scale-[0.98]"
     >
       <div className="min-w-0 flex-1">

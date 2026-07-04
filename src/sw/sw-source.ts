@@ -42,7 +42,11 @@ export function routeStrategy(
 export const SW_DISABLED = false;
 
 const STATIC_CACHE_NAME = 'app-shell-static-v1';
-const HTML_CACHE_NAME = 'app-shell-html-v1';
+/**
+ * Экспортируется, чтобы downloadManager мог прогреть HTML app-shell тем же кешем,
+ * из которого читает `handleNavigation` (единый источник имени кеша, без дубля строки).
+ */
+export const HTML_CACHE_NAME = 'app-shell-html-v1';
 
 /**
  * Отдаётся офлайн для навигации на маршрут, у которого нет точного совпадения в
@@ -61,7 +65,7 @@ export const OFFLINE_FALLBACK_HTML = `<!doctype html>
 
 /** Cache API-подобный интерфейс — совпадает с настоящим `Cache`, но допускает мок в тестах. */
 interface SwCacheLike {
-  match(request: unknown): Promise<Response | undefined>;
+  match(request: unknown, options?: { ignoreSearch?: boolean }): Promise<Response | undefined>;
   put(request: unknown, response: Response): Promise<void>;
   keys(): Promise<readonly unknown[]>;
 }
@@ -115,7 +119,21 @@ export async function handleNavigation(
       return cached;
     }
 
-    console.debug('[FIX][SW] no exact cached page, returning static offline fallback for', request.url);
+    // Фолбэк по совпадению БЕЗ query (approach C, FIX_PLAN). Ридер переехал на один
+    // маршрут /dashboard/read?book=&chapter=: сегмент маршрута (pathname) один и тот
+    // же для любой главы, отличается только search. Один закешированный документ
+    // /dashboard/read?... обслуживает любую другую главу офлайн. Это БЕЗОПАСНО в
+    // отличие от подстановки HTML другого маршрута: pathname совпадает → RSC-payload
+    // тот же самый маршрут, гидратация не уходит в цикл hard-reload, а книга/глава
+    // читаются клиентом из location.search + IndexedDB. ignoreSearch не может выдать
+    // документ другого pathname, поэтому кросс-маршрутной подмены здесь нет.
+    const cachedIgnoreSearch = await cache.match(request, { ignoreSearch: true });
+    if (cachedIgnoreSearch) {
+      console.debug('[FIX][SW] served cached page ignoring search params', request.url);
+      return cachedIgnoreSearch;
+    }
+
+    console.debug('[FIX][SW] no cached page, returning static offline fallback for', request.url);
     return new Response(offlineFallbackHtml, {
       status: 503,
       statusText: 'Offline',

@@ -366,7 +366,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                   onClick={(e) => {
                     e.preventDefault();
                     const ref = parseReadingItem(it.read);
-                    if (ref) router.push(`/dashboard/read/${encodeURIComponent(normalizeBookNameForUrl(ref.book))}/${ref.chapter}`);
+                    if (ref) router.push(`/dashboard/read?book=${encodeURIComponent(normalizeBookNameForUrl(ref.book))}&chapter=${ref.chapter}`);
                   }}
                   className="flex items-center justify-between p-3 rounded-xl bg-app-surface-muted hover:bg-app-surface-elevated transition-colors group"
                 >

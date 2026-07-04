@@ -2,10 +2,11 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getSongsMock, getSongMock, getPlanMock, getWeeklyPlanMock, mutateMock } = vi.hoisted(() => ({
+const { getSongsMock, getSongMock, getPlanMock, getProgressMock, getWeeklyPlanMock, mutateMock } = vi.hoisted(() => ({
   getSongsMock: vi.fn(),
   getSongMock: vi.fn(),
   getPlanMock: vi.fn(),
+  getProgressMock: vi.fn(),
   getWeeklyPlanMock: vi.fn(),
   mutateMock: vi.fn(),
 }));
@@ -13,6 +14,7 @@ const { getSongsMock, getSongMock, getPlanMock, getWeeklyPlanMock, mutateMock } 
 vi.mock('@/shared/services/api/endpoints', () => ({
   songsApi: { getSongs: getSongsMock, getSong: getSongMock },
   planApi: { getPlan: getPlanMock },
+  progressApi: { getProgress: getProgressMock },
   weeklyPlanApi: { getWeeklyPlan: getWeeklyPlanMock },
 }));
 
@@ -41,6 +43,7 @@ describe('offline/downloadManager', () => {
     getSongsMock.mockReset();
     getSongMock.mockReset();
     getPlanMock.mockReset();
+    getProgressMock.mockReset();
     getWeeklyPlanMock.mockReset();
     mutateMock.mockReset();
   });
@@ -145,8 +148,9 @@ describe('offline/downloadManager', () => {
   });
 
   describe('downloadPlan', () => {
-    it('прогревает apiCache для plan/weekly/books теми же ключами, что читает read-through', async () => {
+    it('прогревает apiCache для plan/progress/weekly/books теми же ключами, что читает read-through', async () => {
       getPlanMock.mockResolvedValue({ plan: [{ id: 1 }] });
+      getProgressMock.mockResolvedValue({ progress: [{ day: 1, id: 10, count: 2 }] });
       getWeeklyPlanMock.mockResolvedValue({ book: 'proverbs', weeks: [] });
       vi.stubGlobal(
         'fetch',
@@ -156,6 +160,9 @@ describe('offline/downloadManager', () => {
       await downloadPlan();
 
       expect(await getApiCache('plan:days')).toEqual({ plan: [{ id: 1 }] });
+      // plan:progress прогревается тем же ключом, что читает PlanContext.fetchPlan —
+      // иначе «скачал всё, ни разу не открыв план» роняет дашборд в «Load failed».
+      expect(await getApiCache('plan:progress')).toEqual({ progress: [{ day: 1, id: 10, count: 2 }] });
       expect(await getApiCache('plan:weekly:proverbs')).toEqual({ book: 'proverbs', weeks: [] });
       expect(await getApiCache('bible:books')).toEqual({ books: [{ name: 'Бытие', chapters: 50 }] });
 
