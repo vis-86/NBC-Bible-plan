@@ -64,6 +64,45 @@ describe('OfflineDataSection', () => {
     await waitFor(() => expect(downloadSongsMock).toHaveBeenCalled());
   });
 
+  it('загрузка одного перевода НЕ показывает индикатор на других (per-item state)', async () => {
+    // висящая загрузка — состояние «loading» не должно уходить, пока не резолвим
+    let resolveDownload: () => void = () => {};
+    downloadBibleTranslationMock.mockReturnValue(
+      new Promise<void>((res) => {
+        resolveDownload = () => res(undefined);
+      })
+    );
+
+    render(<OfflineDataSection />);
+    await waitFor(() => expect(getManifestMock).toHaveBeenCalled());
+
+    const rstButton = screen.getByText('Синодальный').closest('div')!.parentElement!.querySelector('button')!;
+    const nrtButton = screen.getByText('НРТ, 2019').closest('div')!.parentElement!.querySelector('button')!;
+
+    fireEvent.click(rstButton);
+
+    // кликнутый перевод — в загрузке; соседний — по-прежнему «Скачать»
+    await waitFor(() => expect(rstButton).toHaveTextContent(/Загрузка|%/));
+    expect(nrtButton).toHaveTextContent('Скачать');
+
+    resolveDownload();
+  });
+
+  it('«Скачать всё» качает все переводы, песни и план одним кликом', async () => {
+    render(<OfflineDataSection />);
+    await waitFor(() => expect(getManifestMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByText('Скачать всё для офлайна'));
+
+    await waitFor(() => {
+      expect(downloadBibleTranslationMock).toHaveBeenCalledWith('rst', expect.any(Function));
+      expect(downloadBibleTranslationMock).toHaveBeenCalledWith('kassian2019', expect.any(Function));
+      expect(downloadBibleTranslationMock).toHaveBeenCalledWith('nrt2019', expect.any(Function));
+      expect(downloadSongsMock).toHaveBeenCalled();
+      expect(downloadPlanMock).toHaveBeenCalled();
+    });
+  });
+
   it('очистка: требует подтверждения, затем вызывает clear({ force: false })', async () => {
     render(<OfflineDataSection />);
     await waitFor(() => expect(getManifestMock).toHaveBeenCalled());

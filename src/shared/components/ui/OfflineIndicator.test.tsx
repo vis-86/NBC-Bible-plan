@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, fireEvent } from '@testing-library/react';
 import { OfflineIndicator } from './OfflineIndicator';
 
 function setOnLine(value: boolean) {
@@ -51,5 +51,37 @@ describe('OfflineIndicator', () => {
       window.dispatchEvent(new Event('online'));
     });
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('закрывается по кнопке «Скрыть»', () => {
+    setOnLine(false);
+    render(<OfflineIndicator />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Скрыть уведомление' }));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('снова показывается при новом переходе в офлайн после закрытия', () => {
+    setOnLine(false);
+    render(<OfflineIndicator />);
+
+    // закрыли для текущей потери сети
+    fireEvent.click(screen.getByRole('button', { name: 'Скрыть уведомление' }));
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+    // вернулась сеть...
+    setOnLine(true);
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+    // ...и снова пропала — баннер должен вернуться, несмотря на прошлое закрытие
+    setOnLine(false);
+    act(() => {
+      window.dispatchEvent(new Event('offline'));
+    });
+    expect(screen.getByRole('status')).toBeInTheDocument();
   });
 });

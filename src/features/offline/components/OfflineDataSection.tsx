@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useOfflineData } from '../hooks/useOfflineData';
+import { useOfflineData, type OfflineDownloadKey } from '../hooks/useOfflineData';
 import { BIBLE_TRANSLATIONS, type BibleTranslationId } from '@/lib/bible-translations';
 import { getAppBuildTime } from '@/shared/config/appVersion';
 
@@ -18,14 +18,50 @@ function formatDate(ts: number): string {
   return new Date(ts).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+/** Тонкий прогресс-бар для активной загрузки (0..1). */
+function ProgressBar({ value }: { value: number }) {
+  const pct = Math.max(0, Math.min(1, value)) * 100;
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-app-border" aria-hidden>
+      <div
+        className="h-full rounded-full bg-app-primary transition-[width] duration-300 ease-out"
+        style={{ width: `${pct}%` }}
+      />
+    </div>
+  );
+}
+
+/** Текст кнопки скачивания одного элемента: %/«Загрузка…» → «Обновить»/«Скачать». */
+function downloadLabel(loading: boolean, progress: number | null, hasEntry: boolean): string {
+  if (loading) return progress !== null ? `${Math.round(progress * 100)}%` : 'Загрузка…';
+  return hasEntry ? 'Обновить' : 'Скачать';
+}
+
 export function OfflineDataSection() {
-  const { manifest, pendingOutboxCount, categoryState, downloadTranslation, downloadSongsAction, downloadPlanAction, clear } =
-    useOfflineData();
+  const {
+    manifest,
+    pendingOutboxCount,
+    getItemState,
+    bulk,
+    downloadableTranslationIds,
+    downloadTranslation,
+    downloadSongsAction,
+    downloadPlanAction,
+    downloadAll,
+    clear,
+  } = useOfflineData();
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);
 
   const songsManifest = manifest.find((m) => m.key === 'songs');
   const planManifest = manifest.find((m) => m.key === 'plan');
+
+  const songsState = getItemState('songs');
+  const planState = getItemState('plan');
+
+  // Всё ли скачано? (все переводы + песни + план) — влияет на подпись кнопки «скачать всё».
+  const allKeys: OfflineDownloadKey[] = [...downloadableTranslationIds, 'songs', 'plan'];
+  const allDownloaded = allKeys.every((k) => manifest.some((m) => m.key === k));
 
   const handleClear = async (force: boolean) => {
     setClearError(null);
@@ -56,50 +92,71 @@ export function OfflineDataSection() {
       </summary>
 
       <div className="space-y-5 border-t border-app-border px-4 py-4">
+        {/* Скачать всё одним действием */}
+        <div className="space-y-2">
+          <button
+            type="button"
+            data-offline-download-all
+            disabled={bulk.loading}
+            onClick={() => downloadAll()}
+            className="w-full rounded-lg bg-app-primary px-3 py-2.5 text-sm font-semibold text-app-text-inverse transition-all disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {bulk.loading
+              ? `Загрузка… ${bulk.done}/${bulk.total}`
+              : allDownloaded
+                ? 'Обновить всё'
+                : 'Скачать всё для офлайна'}
+          </button>
+          {bulk.loading && <ProgressBar value={bulk.total ? bulk.done / bulk.total : 0} />}
+          {!bulk.loading && bulk.failed > 0 && (
+            <p className="text-xs text-app-missed-text" role="alert">
+              Не удалось загрузить {bulk.failed} из {bulk.total}. Проверьте соединение и попробуйте снова.
+            </p>
+          )}
+          <p className="text-xs text-app-text-muted">
+            Скачивает Писание, песни и план — приложение будет работать без интернета.
+          </p>
+        </div>
+
         {/* Писание */}
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-app-text-secondary">Писание</h3>
           <div className="flex flex-col gap-2">
             {DOWNLOADABLE_TRANSLATIONS.map((t) => {
               const entry = manifest.find((m) => m.key === t.id);
-              const isLoading = categoryState.bible.loading;
+              // Состояние КОНКРЕТНОГО перевода, а не общее для всех Писаний.
+              const state = getItemState(t.id as BibleTranslationId);
               return (
-                <div
-                  key={t.id}
-                  className="flex items-center justify-between rounded-lg border border-app-border px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <p className="text-sm text-app-text-secondary">{t.label}</p>
-                    {entry ? (
-                      <p className="text-xs text-app-text-muted">
-                        Скачано {formatDate(entry.downloadedAt)}
-                        {typeof entry.sizeBytes === 'number' ? ` · ${formatBytes(entry.sizeBytes)}` : ''}
-                      </p>
-                    ) : (
-                      <p className="text-xs text-app-text-muted">Не скачано</p>
-                    )}
+                <div key={t.id} className="space-y-1.5">
+                  <div className="flex items-center justify-between rounded-lg border border-app-border px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm text-app-text-secondary">{t.label}</p>
+                      {entry ? (
+                        <p className="text-xs text-app-text-muted">
+                          Скачано {formatDate(entry.downloadedAt)}
+                          {typeof entry.sizeBytes === 'number' ? ` · ${formatBytes(entry.sizeBytes)}` : ''}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-app-text-muted">Не скачано</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      disabled={state.loading || bulk.loading}
+                      onClick={() => downloadTranslation(t.id as BibleTranslationId)}
+                      className="shrink-0 rounded-lg border-2 border-app-primary px-3 py-1.5 text-sm font-medium text-app-primary transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {downloadLabel(state.loading, state.progress, !!entry)}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    disabled={isLoading}
-                    onClick={() => downloadTranslation(t.id as BibleTranslationId)}
-                    className="shrink-0 rounded-lg border-2 border-app-primary px-3 py-1.5 text-sm font-medium text-app-primary transition-all disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {isLoading
-                      ? categoryState.bible.progress !== null
-                        ? `${Math.round(categoryState.bible.progress * 100)}%`
-                        : 'Загрузка…'
-                      : entry
-                        ? 'Обновить'
-                        : 'Скачать'}
-                  </button>
+                  {state.loading && state.progress !== null && <ProgressBar value={state.progress} />}
+                  {state.error && (
+                    <p className="text-xs text-app-missed-text" role="alert">{state.error}</p>
+                  )}
                 </div>
               );
             })}
           </div>
-          {categoryState.bible.error && (
-            <p className="text-xs text-app-missed-text" role="alert">{categoryState.bible.error}</p>
-          )}
         </div>
 
         {/* Песни */}
@@ -118,21 +175,16 @@ export function OfflineDataSection() {
             </div>
             <button
               type="button"
-              disabled={categoryState.songs.loading}
+              disabled={songsState.loading || bulk.loading}
               onClick={() => downloadSongsAction()}
               className="shrink-0 rounded-lg border-2 border-app-primary px-3 py-1.5 text-sm font-medium text-app-primary transition-all disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {categoryState.songs.loading
-                ? categoryState.songs.progress !== null
-                  ? `${Math.round(categoryState.songs.progress * 100)}%`
-                  : 'Загрузка…'
-                : songsManifest
-                  ? 'Обновить'
-                  : 'Скачать'}
+              {downloadLabel(songsState.loading, songsState.progress, !!songsManifest)}
             </button>
           </div>
-          {categoryState.songs.error && (
-            <p className="text-xs text-app-missed-text" role="alert">{categoryState.songs.error}</p>
+          {songsState.loading && songsState.progress !== null && <ProgressBar value={songsState.progress} />}
+          {songsState.error && (
+            <p className="text-xs text-app-missed-text" role="alert">{songsState.error}</p>
           )}
         </div>
 
@@ -149,15 +201,15 @@ export function OfflineDataSection() {
             </div>
             <button
               type="button"
-              disabled={categoryState.plan.loading}
+              disabled={planState.loading || bulk.loading}
               onClick={() => downloadPlanAction()}
               className="shrink-0 rounded-lg border-2 border-app-primary px-3 py-1.5 text-sm font-medium text-app-primary transition-all disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {categoryState.plan.loading ? 'Загрузка…' : planManifest ? 'Обновить' : 'Скачать'}
+              {planState.loading ? 'Загрузка…' : planManifest ? 'Обновить' : 'Скачать'}
             </button>
           </div>
-          {categoryState.plan.error && (
-            <p className="text-xs text-app-missed-text" role="alert">{categoryState.plan.error}</p>
+          {planState.error && (
+            <p className="text-xs text-app-missed-text" role="alert">{planState.error}</p>
           )}
         </div>
 

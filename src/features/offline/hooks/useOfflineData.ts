@@ -11,22 +11,34 @@ import {
 } from '@/shared/offline/downloadManager';
 import { getPendingOutbox } from '@/shared/offline/outbox';
 import type { ManifestRecord } from '@/shared/offline/db';
-import type { BibleTranslationId } from '@/lib/bible-translations';
+import { BIBLE_TRANSLATIONS, type BibleTranslationId } from '@/lib/bible-translations';
 
-export type OfflineDownloadCategory = 'bible' | 'songs' | 'plan';
+/** Ключ загрузки: id перевода Писания, либо 'songs' / 'plan'. */
+export type OfflineDownloadKey = BibleTranslationId | 'songs' | 'plan';
 
-interface CategoryState {
+export interface ItemState {
   loading: boolean;
   error: string | null;
-  /** 0..1 — известный прогресс; null — неизвестен/не отслеживается для категории. */
+  /** 0..1 — известный прогресс; null — неизвестен/не отслеживается. */
   progress: number | null;
 }
 
-const initialCategoryState: Record<OfflineDownloadCategory, CategoryState> = {
-  bible: { loading: false, error: null, progress: null },
-  songs: { loading: false, error: null, progress: null },
-  plan: { loading: false, error: null, progress: null },
-};
+const EMPTY_ITEM_STATE: ItemState = { loading: false, error: null, progress: null };
+
+/** Прогресс массовой загрузки «скачать всё». */
+export interface BulkState {
+  loading: boolean;
+  done: number;
+  total: number;
+  failed: number;
+}
+
+const INITIAL_BULK: BulkState = { loading: false, done: 0, total: 0, failed: 0 };
+
+/** Переводы, разрешённые к самостоятельному хостингу → их можно качать офлайн. */
+const DOWNLOADABLE_TRANSLATION_IDS = Object.values(BIBLE_TRANSLATIONS)
+  .filter((t) => t.selfHostedAllowed)
+  .map((t) => t.id as BibleTranslationId);
 
 /**
  * Состояние и действия для секции «Оффлайн-данные» настроек (Task 30,
@@ -35,7 +47,11 @@ const initialCategoryState: Record<OfflineDownloadCategory, CategoryState> = {
 export function useOfflineData() {
   const [manifest, setManifest] = useState<ManifestRecord[]>([]);
   const [pendingOutboxCount, setPendingOutboxCount] = useState(0);
-  const [categoryState, setCategoryState] = useState(initialCategoryState);
+  // Состояние загрузки — на КАЖДЫЙ элемент отдельно (ключ = id перевода | 'songs' | 'plan').
+  // Раньше все переводы Писания делили одно общее `bible`-состояние, поэтому загрузка
+  // одного перевода зажигала индикатор на всех Писаниях.
+  const [itemState, setItemState] = useState<Record<string, ItemState>>({});
+  const [bulk, setBulk] = useState<BulkState>(INITIAL_BULK);
 
   const refresh = useCallback(async () => {
     const [m, pending] = await Promise.all([getManifest(), getPendingOutbox()]);
@@ -47,55 +63,93 @@ export function useOfflineData() {
     void refresh();
   }, [refresh]);
 
-  const patchCategory = useCallback((category: OfflineDownloadCategory, patch: Partial<CategoryState>) => {
-    setCategoryState((prev) => ({ ...prev, [category]: { ...prev[category], ...patch } }));
+  const patchItem = useCallback((key: OfflineDownloadKey, patch: Partial<ItemState>) => {
+    setItemState((prev) => ({ ...prev, [key]: { ...(prev[key] ?? EMPTY_ITEM_STATE), ...patch } }));
   }, []);
 
-  const downloadTranslation = useCallback(
-    async (translationId: BibleTranslationId) => {
-      patchCategory('bible', { loading: true, error: null, progress: 0 });
-      try {
-        await downloadBibleTranslation(translationId, (loaded, total) => {
-          patchCategory('bible', { progress: total ? loaded / total : null });
-        });
-        await refresh();
-      } catch (err) {
-        console.error('[useOfflineData] downloadTranslation failed', err);
-        patchCategory('bible', { error: err instanceof Error ? err.message : 'Не удалось скачать Писание' });
-      } finally {
-        patchCategory('bible', { loading: false, progress: null });
-      }
-    },
-    [patchCategory, refresh]
+  const getItemState = useCallback(
+    (key: OfflineDownloadKey): ItemState => itemState[key] ?? EMPTY_ITEM_STATE,
+    [itemState]
   );
 
-  const downloadSongsAction = useCallback(async () => {
-    patchCategory('songs', { loading: true, error: null, progress: 0 });
+  const downloadTranslation = useCallback(
+    async (translationId: BibleTranslationId): Promise<boolean> => {
+      patchItem(translationId, { loading: true, error: null, progress: 0 });
+      try {
+        await downloadBibleTranslation(translationId, (loaded, total) => {
+          patchItem(translationId, { progress: total ? loaded / total : null });
+        });
+        await refresh();
+        return true;
+      } catch (err) {
+        console.error('[useOfflineData] downloadTranslation failed', err);
+        patchItem(translationId, { error: err instanceof Error ? err.message : 'Не удалось скачать Писание' });
+        return false;
+      } finally {
+        patchItem(translationId, { loading: false, progress: null });
+      }
+    },
+    [patchItem, refresh]
+  );
+
+  const downloadSongsAction = useCallback(async (): Promise<boolean> => {
+    patchItem('songs', { loading: true, error: null, progress: 0 });
     try {
       await downloadSongs((done, total) => {
-        patchCategory('songs', { progress: total ? done / total : null });
+        patchItem('songs', { progress: total ? done / total : null });
       });
       await refresh();
+      return true;
     } catch (err) {
       console.error('[useOfflineData] downloadSongs failed', err);
-      patchCategory('songs', { error: err instanceof Error ? err.message : 'Не удалось скачать песни' });
+      patchItem('songs', { error: err instanceof Error ? err.message : 'Не удалось скачать песни' });
+      return false;
     } finally {
-      patchCategory('songs', { loading: false, progress: null });
+      patchItem('songs', { loading: false, progress: null });
     }
-  }, [patchCategory, refresh]);
+  }, [patchItem, refresh]);
 
-  const downloadPlanAction = useCallback(async () => {
-    patchCategory('plan', { loading: true, error: null });
+  const downloadPlanAction = useCallback(async (): Promise<boolean> => {
+    patchItem('plan', { loading: true, error: null });
     try {
       await downloadPlan();
       await refresh();
+      return true;
     } catch (err) {
       console.error('[useOfflineData] downloadPlan failed', err);
-      patchCategory('plan', { error: err instanceof Error ? err.message : 'Не удалось скачать план' });
+      patchItem('plan', { error: err instanceof Error ? err.message : 'Не удалось скачать план' });
+      return false;
     } finally {
-      patchCategory('plan', { loading: false });
+      patchItem('plan', { loading: false });
     }
-  }, [patchCategory, refresh]);
+  }, [patchItem, refresh]);
+
+  /**
+   * Качает всё за один клик: переводы Писания по очереди (чтобы не долбить сервер),
+   * затем песни и план. Ошибка одного элемента не прерывает остальные — считаем,
+   * сколько упало, и отдаём в UI через `bulk.failed`.
+   */
+  const downloadAll = useCallback(async () => {
+    const total = DOWNLOADABLE_TRANSLATION_IDS.length + 2; // + песни + план
+    setBulk({ loading: true, done: 0, total, failed: 0 });
+    let done = 0;
+    let failed = 0;
+
+    const step = async (action: Promise<boolean>) => {
+      const ok = await action;
+      done += 1;
+      if (!ok) failed += 1;
+      setBulk({ loading: true, done, total, failed });
+    };
+
+    for (const id of DOWNLOADABLE_TRANSLATION_IDS) {
+      await step(downloadTranslation(id));
+    }
+    await step(downloadSongsAction());
+    await step(downloadPlanAction());
+
+    setBulk({ loading: false, done, total, failed });
+  }, [downloadTranslation, downloadSongsAction, downloadPlanAction]);
 
   const clear = useCallback(
     async (options?: { force?: boolean }): Promise<ClearOfflineDataResult> => {
@@ -109,10 +163,13 @@ export function useOfflineData() {
   return {
     manifest,
     pendingOutboxCount,
-    categoryState,
+    getItemState,
+    bulk,
+    downloadableTranslationIds: DOWNLOADABLE_TRANSLATION_IDS,
     downloadTranslation,
     downloadSongsAction,
     downloadPlanAction,
+    downloadAll,
     clear,
     refresh,
   };
