@@ -5,19 +5,42 @@ import { WifiOff, X } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 
 /**
- * Небольшой неблокирующий индикатор офлайн-статуса.
+ * Двухступенчатый неблокирующий индикатор офлайн-статуса.
  *
- * До фикса SW при потере сети возвращал голый текст "Offline" вместо HTML —
- * приложение вообще не грузилось (см. patch в .ai-factory/patches/). Теперь SW
- * кеширует посещённые (реальной навигацией) страницы и отдаёт их реальный HTML
- * офлайн; для непосещённых — статическую офлайн-заглушку без reload-цикла (см.
- * OFFLINE_FALLBACK_HTML в src/sw/sw-source.ts). Этот баннер — просто индикатор
- * статуса, он НЕ блокирует работу с приложением.
+ * UX (по фидбеку: сообщение не должно навязчиво повторяться):
+ * 1. Онлайн — ничего не рендерим.
+ * 2. Первый переход в офлайн за сессию — полный баннер с пояснением и крестиком.
+ * 3. После закрытия баннера (или при повторных переходах в офлайн в той же
+ *    сессии) — компактный серый пилл «Офлайн» без крестика. Пилл висит всё
+ *    время офлайна и исчезает сам при восстановлении сети.
  *
- * UX: плавно въезжает сверху, его можно закрыть крестиком (баннер не должен
- * навязчиво висеть, пока пользователь читает офлайн). Закрытие — только для
- * текущей потери сети: новый переход в офлайн снова показывает баннер.
+ * «Один раз за сессию» хранится в sessionStorage: переживает ремаунты
+ * компонента при клиентской навигации, но сбрасывается при новом запуске
+ * приложения.
  */
+
+type IndicatorMode = 'banner' | 'pill';
+
+const BANNER_SHOWN_KEY = 'offline-banner-shown';
+
+function wasBannerShownThisSession(): boolean {
+  try {
+    return window.sessionStorage.getItem(BANNER_SHOWN_KEY) === '1';
+  } catch {
+    // sessionStorage недоступен (private mode / storage disabled) —
+    // деградируем к показу баннера; повторный показ хуже, чем его отсутствие.
+    return false;
+  }
+}
+
+function markBannerShownThisSession(): void {
+  try {
+    window.sessionStorage.setItem(BANNER_SHOWN_KEY, '1');
+  } catch {
+    // Не смогли запомнить — не критично, см. wasBannerShownThisSession.
+  }
+}
+
 export function OfflineIndicator() {
   // Намеренно НЕ читаем navigator.onLine в initializer useState: на SSR (Next.js/Node)
   // существует глобальный `navigator`-стаб БЕЗ поля `onLine` — `!undefined` даёт `true`,
@@ -25,24 +48,26 @@ export function OfflineIndicator() {
   // баннер есть в сыром SSR HTML). Проверка navigator.onLine — только внутри эффекта,
   // который на сервере не выполняется.
   const [isOffline, setIsOffline] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  const [mode, setMode] = useState<IndicatorMode>('banner');
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (typeof navigator === 'undefined') return;
-    setIsOffline(!navigator.onLine);
 
-    const handleOnline = () => {
-      console.debug('[FIX][OfflineIndicator] online');
-      setIsOffline(false);
-    };
-    const handleOffline = () => {
-      console.debug('[FIX][OfflineIndicator] offline');
+    const goOffline = () => {
+      if (wasBannerShownThisSession()) {
+        setMode('pill');
+      } else {
+        setMode('banner');
+        markBannerShownThisSession();
+      }
       setIsOffline(true);
-      // Новый переход в офлайн — показываем баннер снова, даже если его закрыли
-      // при прошлой потере сети.
-      setDismissed(false);
     };
+
+    if (!navigator.onLine) goOffline();
+
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => goOffline();
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -52,17 +77,38 @@ export function OfflineIndicator() {
     };
   }, []);
 
-  if (!isOffline || dismissed) return null;
+  if (!isOffline) return null;
 
   // x: '-50%' — центрирование через transform самого motion (нельзя мешать Tailwind
   // `-translate-x-1/2` с motion `y`: motion перезапишет весь transform).
+  const motionProps = {
+    initial: reduceMotion ? { opacity: 0, x: '-50%' } : { opacity: 0, x: '-50%', y: -16 },
+    animate: reduceMotion ? { opacity: 1, x: '-50%' } : { opacity: 1, x: '-50%', y: 0 },
+    transition: { duration: 0.2, ease: 'easeOut' as const },
+  };
+
+  if (mode === 'pill') {
+    return (
+      <motion.div
+        data-offline-indicator
+        data-offline-indicator-pill
+        role="status"
+        {...motionProps}
+        className="fixed left-1/2 top-0 z-[90] flex items-center gap-1.5 rounded-b-lg bg-app-text-muted px-3 py-1 text-xs font-medium text-app-text-inverse shadow-app-sm"
+        style={{ paddingTop: 'max(0.25rem, env(safe-area-inset-top))' }}
+      >
+        <WifiOff size={12} aria-hidden />
+        Офлайн
+      </motion.div>
+    );
+  }
+
   return (
     <motion.div
       data-offline-indicator
+      data-offline-indicator-banner
       role="status"
-      initial={reduceMotion ? { opacity: 0, x: '-50%' } : { opacity: 0, x: '-50%', y: -16 }}
-      animate={reduceMotion ? { opacity: 1, x: '-50%' } : { opacity: 1, x: '-50%', y: 0 }}
-      transition={{ duration: 0.2, ease: 'easeOut' }}
+      {...motionProps}
       className="fixed left-1/2 top-0 z-[90] flex items-center gap-2 rounded-b-lg bg-app-text-secondary py-1 pl-3 pr-1.5 text-xs font-medium text-app-text-inverse shadow-app-lg"
       style={{ paddingTop: 'max(0.25rem, env(safe-area-inset-top))' }}
     >
@@ -72,7 +118,7 @@ export function OfflineIndicator() {
       </span>
       <button
         type="button"
-        onClick={() => setDismissed(true)}
+        onClick={() => setMode('pill')}
         aria-label="Скрыть уведомление"
         className="-my-0.5 shrink-0 rounded p-0.5 opacity-80 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-app-text-inverse"
       >
