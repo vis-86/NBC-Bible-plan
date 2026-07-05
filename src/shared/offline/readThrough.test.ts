@@ -34,4 +34,23 @@ describe('readThrough', () => {
 
     await expect(readThrough('key:c', fetcher)).rejects.toBe(err);
   });
+
+  it('ЗАВИСШАЯ сеть (реальный «офлайн» без reject) -> по таймауту отдаёт кеш', async () => {
+    // Регрессионный тест: в мёртвой соте/Wi-Fi без аплинка fetch висит минутами —
+    // без таймаута IDB-фолбэк не наступал и экран застревал на вечной загрузке.
+    await persistApiCache('key:d', { items: ['from-idb'] });
+    const fetcher = vi.fn(() => new Promise<unknown>(() => {})); // висит вечно
+
+    const result = await readThrough('key:d', fetcher, 20);
+    expect(result).toEqual({ items: ['from-idb'] });
+  });
+
+  it('ЗАВИСШАЯ сеть + кеш пуст -> дожидается медленную сеть, а не падает', async () => {
+    const fetcher = vi.fn(
+      () => new Promise<unknown>((resolve) => setTimeout(() => resolve({ items: ['slow'] }), 60))
+    );
+
+    const result = await readThrough('key:e', fetcher, 20);
+    expect(result).toEqual({ items: ['slow'] });
+  });
 });

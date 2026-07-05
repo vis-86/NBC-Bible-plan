@@ -33,6 +33,28 @@ describe('AuthProvider offline last-known-user fallback', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  it('ЗАВИСШИЙ session-fetch (реальный «офлайн» без reject) -> по таймауту подставляет last-known-user', async () => {
+    // Регрессионный тест: в мёртвой соте fetch висит минутами, а не падает — без
+    // таймаута authLoading не снимался и пользователь навсегда видел FullScreenLoader.
+    await setLastKnownUser({ directus_id: 'u1', first_name: 'Игорь' });
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<never>(() => {}))); // висит вечно
+    // Фейкаем только setTimeout — fake-indexeddb внутри живёт на других примитивах.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>
+    );
+
+    await vi.advanceTimersByTimeAsync(6001);
+    vi.useRealTimers();
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+    expect(screen.getByTestId('user').textContent).toBe('Игорь');
   });
 
   it('при сетевой ошибке (fetch throw) подставляет last-known-user из IDB', async () => {

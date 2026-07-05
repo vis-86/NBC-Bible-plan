@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getApiPath } from '@/lib/utils';
 import { isTelegramWebApp, initTelegramWebApp } from '@/lib/telegram';
 import { getLastKnownUser, setLastKnownUser, clearLastKnownUser } from '@/shared/offline/lastKnownUser';
+import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout, raceWithTimeout } from '@/shared/offline/networkTimeout';
 
 interface User {
   directus_id: string;
@@ -43,9 +44,31 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
   const checkSession = async () => {
     try {
-      const response = await fetch(getApiPath('/api/auth/session'), {
+      // Race с таймаутом: реальный «офлайн» (сеть есть, интернета нет) вешает fetch на
+      // минуты, а не роняет его — без таймаута authLoading никогда не снимался и
+      // пользователь навсегда оставался на FullScreenLoader вместо офлайн-входа.
+      const sessionFetch = fetch(getApiPath('/api/auth/session'), {
         credentials: 'include',
       });
+      sessionFetch.catch(() => {}); // поздний reject после ухода в фолбэк — не unhandled
+
+      let response: Response;
+      try {
+        response = await raceWithTimeout(sessionFetch, DEFAULT_NETWORK_TIMEOUT_MS);
+      } catch (err) {
+        if (isNetworkTimeout(err)) {
+          const lastKnownUser = await getLastKnownUser<User>();
+          if (lastKnownUser) {
+            console.debug('[FIX][AuthProvider] session check timed out — falling back to last-known-user');
+            setUser(lastKnownUser);
+            return;
+          }
+          // Фолбэка нет — дожидаемся медленную сеть (лучше, чем выкинуть на логин).
+          response = await sessionFetch;
+        } else {
+          throw err;
+        }
+      }
 
       if (response.ok) {
         const data = await response.json();

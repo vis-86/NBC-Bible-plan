@@ -52,4 +52,21 @@ describe('offlineSongs', () => {
 
     await expect(readSongThrough('999', fetcher)).rejects.toBe(err);
   });
+
+  it('ЗАВИСШАЯ сеть (реальный «офлайн» без reject) -> по таймауту отдаёт песню из IDB', async () => {
+    await persistCachedSong(SONG);
+    const fetcher = vi.fn(() => new Promise<Song>(() => {})); // висит вечно
+
+    const result = await readSongThrough('42', fetcher, 20);
+    expect(result).toEqual(SONG);
+  });
+
+  it('ЗАВИСШАЯ сеть + кеша нет -> дожидается медленную сеть', async () => {
+    const fetcher = vi.fn(
+      () => new Promise<Song>((resolve) => setTimeout(() => resolve(SONG), 60))
+    );
+
+    const result = await readSongThrough('42', fetcher, 20);
+    expect(result).toEqual(SONG);
+  });
 });

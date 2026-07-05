@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { BibleReference } from '@/types';
 import { bibleApi } from '@/shared/services/api/endpoints';
 import { getCachedText, setCachedText, getPersistedText, persistText } from '../bible-text-cache';
+import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout, raceWithTimeout } from '@/shared/offline/networkTimeout';
 
 /**
  * @param translationId — перевод для текущей книги (`ot_translation` или `nt_translation`), как на сервере.
@@ -36,7 +37,28 @@ export function useBibleText(reference: BibleReference | null, translationId: st
       setText('');
 
       try {
-        const response = await bibleApi.getText(reference.book, reference.chapter);
+        // Race с таймаутом: реальный «офлайн» вешает fetch, а не роняет его — без
+        // таймаута IDB-фолбэк скачанной главы никогда не наступал (see networkTimeout.ts).
+        const network = bibleApi.getText(reference.book, reference.chapter);
+        network.catch(() => {}); // поздний reject после ухода в фолбэк — не unhandled
+
+        let response: Awaited<typeof network>;
+        try {
+          response = await raceWithTimeout(network, DEFAULT_NETWORK_TIMEOUT_MS);
+        } catch (raceErr) {
+          if (!isNetworkTimeout(raceErr)) throw raceErr;
+          const persisted = await getPersistedText(reference.book, reference.chapter, translationId);
+          if (persisted !== undefined) {
+            console.debug('[FIX][useBibleText] network timed out, served chapter from IDB', reference.book, reference.chapter);
+            if (cancelled) return;
+            setCachedText(reference.book, reference.chapter, translationId, persisted);
+            setText(persisted);
+            setError(null);
+            return;
+          }
+          // Фолбэка нет — дожидаемся медленную сеть (лучше долгая загрузка, чем ошибка).
+          response = await network;
+        }
         const result = response.text || '';
         setCachedText(reference.book, reference.chapter, translationId, result);
         // Ключуем IDB-запись по переводу из ОТВЕТА сервера, не по translationId клиента —

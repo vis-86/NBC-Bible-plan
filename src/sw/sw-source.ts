@@ -41,6 +41,13 @@ export function routeStrategy(
 /** Kill switch: true → SW чистит caches и делает unregister() вместо обычной работы. */
 export const SW_DISABLED = false;
 
+/**
+ * Таймаут NetworkFirst-навигации: реальный «офлайн» вешает fetch, а не роняет его
+ * (см. handleNavigation). 4s — компромисс: медленный 3G успевает отдать документ,
+ * а зависший запрос не держит пользователя на пустом экране.
+ */
+export const NAV_TIMEOUT_MS = 4000;
+
 const STATIC_CACHE_NAME = 'app-shell-static-v1';
 /**
  * Экспортируется, чтобы downloadManager мог прогреть HTML app-shell тем же кешем,
@@ -100,19 +107,40 @@ export async function handleStaticAsset(
  * (воспроизведено на реальном устройстве в авиарежиме). Подставлять сюда HTML
  * ДРУГОЙ закешированной страницы тоже нельзя (см. комментарий OFFLINE_FALLBACK_HTML)
  * — это уводит App Router в бесконечный цикл hard-reload.
+ *
+ * `timeoutMs`: реальный «офлайн» (сеть есть, интернета нет) не роняет fetch, а
+ * ВЕШАЕТ его на минуты — без таймаута кешированная страница так и не отдавалась
+ * (пользователь видел пустой экран до браузерного таймаута). По истечении таймаута
+ * отдаём кеш; если кеша нет — дожидаемся сеть (медленная сеть лучше 503-заглушки).
+ *
+ * Redirected-ответы НЕ кешируются: навигация на /dashboard с истёкшей сессией
+ * приходит как redirect на логин-страницу с res.ok === true — закешировать её под
+ * ключом /dashboard значит офлайн вечно отдавать логин вместо приложения.
  */
 export async function handleNavigation(
   cache: SwCacheLike,
   request: Request,
   fetcher: (request: Request) => Promise<Response>,
-  offlineFallbackHtml: string
+  offlineFallbackHtml: string,
+  timeoutMs: number
 ): Promise<Response> {
-  try {
-    const res = await fetcher(request);
-    if (res.ok) cache.put(request, res.clone());
+  const network = fetcher(request).then((res) => {
+    if (res.ok && !res.redirected) cache.put(request, res.clone());
     return res;
+  });
+  // Поздний reject после ухода в кеш не должен стать unhandled rejection.
+  network.catch(() => {});
+
+  try {
+    return await new Promise<Response>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('navigation timeout')), timeoutMs);
+      network.then(
+        (res) => { clearTimeout(timer); resolve(res); },
+        (err) => { clearTimeout(timer); reject(err); }
+      );
+    });
   } catch {
-    console.debug('[FIX][SW] navigation fetch failed, trying HTML cache', request.url);
+    console.debug('[FIX][SW] navigation fetch failed/timed out, trying HTML cache', request.url);
     const cached = await cache.match(request);
     if (cached) {
       console.debug('[FIX][SW] served exact cached page', request.url);
@@ -133,12 +161,18 @@ export async function handleNavigation(
       return cachedIgnoreSearch;
     }
 
-    console.debug('[FIX][SW] no cached page, returning static offline fallback for', request.url);
-    return new Response(offlineFallbackHtml, {
-      status: 503,
-      statusText: 'Offline',
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    });
+    // Кеша нет вообще. Если сеть просто медленная (таймаут, а не отказ) — дожидаемся
+    // её: страница ни разу не посещалась, 503-заглушка здесь хуже долгой загрузки.
+    try {
+      return await network;
+    } catch {
+      console.debug('[FIX][SW] no cached page, returning static offline fallback for', request.url);
+      return new Response(offlineFallbackHtml, {
+        status: 503,
+        statusText: 'Offline',
+        headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      });
+    }
   }
 }
 
@@ -151,6 +185,7 @@ const SW_DISABLED = ${SW_DISABLED};
 const STATIC_CACHE_NAME = ${JSON.stringify(STATIC_CACHE_NAME)};
 const HTML_CACHE_NAME = ${JSON.stringify(HTML_CACHE_NAME)};
 const OFFLINE_FALLBACK_HTML = ${JSON.stringify(OFFLINE_FALLBACK_HTML)};
+const NAV_TIMEOUT_MS = ${NAV_TIMEOUT_MS};
 const routeStrategy = ${routeStrategy.toString()};
 const handleStaticAsset = ${handleStaticAsset.toString()};
 const handleNavigation = ${handleNavigation.toString()};
@@ -194,7 +229,7 @@ self.addEventListener('fetch', (event) => {
 
   // network-first-html
   event.respondWith(
-    caches.open(HTML_CACHE_NAME).then((cache) => handleNavigation(cache, req, fetch, OFFLINE_FALLBACK_HTML))
+    caches.open(HTML_CACHE_NAME).then((cache) => handleNavigation(cache, req, fetch, OFFLINE_FALLBACK_HTML, NAV_TIMEOUT_MS))
   );
 });
 `;

@@ -1,4 +1,5 @@
 import { getDB } from '@/shared/offline/db';
+import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout, raceWithTimeout } from '@/shared/offline/networkTimeout';
 import type { Song } from '../types';
 
 /**
@@ -43,22 +44,32 @@ export async function persistCachedSong(song: Song): Promise<void> {
 
 /**
  * Выполняет `fetcher`; при успехе кеширует песню в IDB и возвращает её. При сетевой
- * ошибке отдаёт последнюю сохранённую песню из store `songs`; если её там нет —
- * пробрасывает исходную ошибку.
+ * ошибке ИЛИ таймауте (реальный «офлайн» вешает fetch, а не роняет — см.
+ * networkTimeout.ts) отдаёт последнюю сохранённую песню из store `songs`. Если её
+ * там нет: сетевую ошибку пробрасываем, таймаут — дожидаемся исходный запрос.
  */
 export async function readSongThrough(
   id: string | number,
-  fetcher: () => Promise<Song>
+  fetcher: () => Promise<Song>,
+  timeoutMs: number = DEFAULT_NETWORK_TIMEOUT_MS
 ): Promise<Song> {
-  try {
-    const song = await fetcher();
+  const network = fetcher().then((song) => {
     void persistCachedSong(song);
     return song;
+  });
+  network.catch(() => {}); // поздний reject после ухода в кеш — не unhandled rejection
+
+  try {
+    return await raceWithTimeout(network, timeoutMs);
   } catch (err) {
     const cached = await getCachedSong(id);
     if (cached !== undefined) {
-      debug('network failed, served song from IDB', id, err);
+      console.debug('[FIX][songs/offline] network failed/timed out, served song from IDB', id, err);
       return cached;
+    }
+    if (isNetworkTimeout(err)) {
+      debug('timeout with empty cache, waiting for slow network', id);
+      return network;
     }
     throw err;
   }

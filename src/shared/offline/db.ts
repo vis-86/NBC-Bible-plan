@@ -1,4 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { raceWithTimeout } from './networkTimeout';
 
 /**
  * IndexedDB-слой офлайн-режима. Единая точка входа для всех offline-модулей
@@ -10,6 +11,15 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 
 const DB_NAME = 'bible-plan-offline';
 const DB_VERSION = 1;
+
+/**
+ * WebKit (iOS PWA) иногда вечно виснет на `indexedDB.open()` после холодного старта —
+ * события open-запроса просто не приходят до перезагрузки страницы. Без таймаута этот
+ * висяк каскадом замораживает ВСЕ офлайн-пути (auth-фолбэк, read-through, outbox):
+ * caller'ы обрабатывают reject, но не бесконечный pending. По таймауту reject +
+ * сброс singleton — следующий вызов пробует открыть заново (после reload помогает).
+ */
+const OPEN_TIMEOUT_MS = 5000;
 
 const DEBUG = (process.env.NEXT_PUBLIC_LOG_LEVEL ?? process.env.LOG_LEVEL ?? 'debug') === 'debug';
 function debug(...args: unknown[]) {
@@ -112,7 +122,7 @@ export function getDB(): Promise<OfflineDB> {
   }
 
   if (!dbPromise) {
-    dbPromise = openDB<OfflineDBSchema>(DB_NAME, DB_VERSION, {
+    const opening = openDB<OfflineDBSchema>(DB_NAME, DB_VERSION, {
       upgrade(db, oldVersion, newVersion) {
         debug('upgrade', { oldVersion, newVersion });
 
@@ -149,6 +159,15 @@ export function getDB(): Promise<OfflineDB> {
         dbPromise = undefined;
       },
     });
+
+    const wrapped: Promise<OfflineDB> = raceWithTimeout(opening, OPEN_TIMEOUT_MS).catch((err) => {
+      console.debug('[FIX][offline/db] openDB failed/timed out, resetting singleton for retry', err);
+      if (dbPromise === wrapped) dbPromise = undefined;
+      // Поздно открывшееся после таймаута соединение остаётся висеть безвредно:
+      // повторный open той же версии его не блокирует.
+      throw err;
+    });
+    dbPromise = wrapped;
   }
 
   return dbPromise;

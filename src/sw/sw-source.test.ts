@@ -13,7 +13,7 @@ import { routeStrategy, handleStaticAsset, handleNavigation, OFFLINE_FALLBACK_HT
  * сериализуемые функции не ссылаются на module-level константы по имени.
  */
 describe('сериализуемые SW-функции не должны ссылаться на module-level константы', () => {
-  const moduleLevelNames = ['SW_DISABLED', 'STATIC_CACHE_NAME', 'HTML_CACHE_NAME', 'OFFLINE_FALLBACK_HTML'];
+  const moduleLevelNames = ['SW_DISABLED', 'STATIC_CACHE_NAME', 'HTML_CACHE_NAME', 'OFFLINE_FALLBACK_HTML', 'NAV_TIMEOUT_MS'];
 
   it.each([
     ['routeStrategy', routeStrategy],
@@ -114,13 +114,16 @@ describe('handleStaticAsset', () => {
   });
 });
 
+/** Достаточно большой, чтобы обычные resolve/reject-моки успевали раньше таймаута. */
+const TEST_NAV_TIMEOUT_MS = 1000;
+
 describe('handleNavigation', () => {
   it('успешная загрузка кеширует HTML-документ', async () => {
     const cache = new FakeCache();
     const request = new Request('https://app.test/app/dashboard');
     const fetcher = vi.fn().mockResolvedValue(new Response('<html>dashboard</html>', { status: 200 }));
 
-    const res = await handleNavigation(cache, request, fetcher, OFFLINE_FALLBACK_HTML);
+    const res = await handleNavigation(cache, request, fetcher, OFFLINE_FALLBACK_HTML, TEST_NAV_TIMEOUT_MS);
 
     expect(await res.text()).toBe('<html>dashboard</html>');
     expect(await cache.match(request)).toBeDefined();
@@ -132,7 +135,7 @@ describe('handleNavigation', () => {
     await cache.put(request, new Response('<html>cached dashboard</html>'));
     const fetcher = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const res = await handleNavigation(cache, request, fetcher, OFFLINE_FALLBACK_HTML);
+    const res = await handleNavigation(cache, request, fetcher, OFFLINE_FALLBACK_HTML, TEST_NAV_TIMEOUT_MS);
 
     expect(res.status).not.toBe(503);
     expect(await res.text()).toBe('<html>cached dashboard</html>');
@@ -145,7 +148,7 @@ describe('handleNavigation', () => {
     const neverVisited = new Request('https://app.test/app/dashboard/songs/42');
     const fetcher = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const res = await handleNavigation(cache, neverVisited, fetcher, OFFLINE_FALLBACK_HTML);
+    const res = await handleNavigation(cache, neverVisited, fetcher, OFFLINE_FALLBACK_HTML, TEST_NAV_TIMEOUT_MS);
 
     // Регрессионный тест: раньше здесь подставлялся HTML другой закешированной
     // страницы ("тот же бандл, клиентский роутинг подхватит"). На практике
@@ -167,7 +170,7 @@ describe('handleNavigation', () => {
     const anotherChapter = new Request('https://app.test/app/dashboard/read?book=%D0%98%D1%81%D1%85%D0%BE%D0%B4&chapter=5');
     const fetcher = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const res = await handleNavigation(cache, anotherChapter, fetcher, OFFLINE_FALLBACK_HTML);
+    const res = await handleNavigation(cache, anotherChapter, fetcher, OFFLINE_FALLBACK_HTML, TEST_NAV_TIMEOUT_MS);
 
     expect(res.status).not.toBe(503);
     expect(await res.text()).toBe('<html>reader shell</html>');
@@ -183,7 +186,7 @@ describe('handleNavigation', () => {
     const otherRoute = new Request('https://app.test/app/dashboard/calendar?month=3');
     const fetcher = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const res = await handleNavigation(cache, otherRoute, fetcher, OFFLINE_FALLBACK_HTML);
+    const res = await handleNavigation(cache, otherRoute, fetcher, OFFLINE_FALLBACK_HTML, TEST_NAV_TIMEOUT_MS);
 
     expect(await res.text()).toBe(OFFLINE_FALLBACK_HTML);
   });
@@ -193,9 +196,48 @@ describe('handleNavigation', () => {
     const request = new Request('https://app.test/app/dashboard');
     const fetcher = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const res = await handleNavigation(cache, request, fetcher, OFFLINE_FALLBACK_HTML);
+    const res = await handleNavigation(cache, request, fetcher, OFFLINE_FALLBACK_HTML, TEST_NAV_TIMEOUT_MS);
 
     expect(res.status).toBe(503);
     expect(await res.text()).toBe(OFFLINE_FALLBACK_HTML);
+  });
+
+  it('ЗАВИСШАЯ сеть (реальный «офлайн» без reject) -> по таймауту отдаётся кеш, а не пустой экран', async () => {
+    // Регрессионный тест: fetch в мёртвой соте/Wi-Fi без аплинка висит минутами, а не
+    // падает — без таймаута кешированная страница не отдавалась вообще.
+    const cache = new FakeCache();
+    const request = new Request('https://app.test/app/dashboard');
+    await cache.put(request, new Response('<html>cached dashboard</html>'));
+    const fetcher = vi.fn(() => new Promise<Response>(() => {})); // висит вечно
+
+    const res = await handleNavigation(cache, request, fetcher, OFFLINE_FALLBACK_HTML, 20);
+
+    expect(await res.text()).toBe('<html>cached dashboard</html>');
+  });
+
+  it('ЗАВИСШАЯ сеть + кеш пуст -> дожидаемся сеть (медленная сеть лучше 503-заглушки)', async () => {
+    const cache = new FakeCache();
+    const request = new Request('https://app.test/app/dashboard');
+    const fetcher = vi.fn(
+      () => new Promise<Response>((resolve) => setTimeout(() => resolve(new Response('<html>slow</html>', { status: 200 })), 60))
+    );
+
+    const res = await handleNavigation(cache, request, fetcher, OFFLINE_FALLBACK_HTML, 20);
+
+    expect(await res.text()).toBe('<html>slow</html>');
+  });
+
+  it('redirected-ответ (протухшая сессия -> логин) НЕ кешируется под ключом маршрута', async () => {
+    const cache = new FakeCache();
+    const request = new Request('https://app.test/app/dashboard');
+    const redirected = new Response('<html>login</html>', { status: 200 });
+    Object.defineProperty(redirected, 'redirected', { value: true });
+    const fetcher = vi.fn().mockResolvedValue(redirected);
+
+    const res = await handleNavigation(cache, request, fetcher, OFFLINE_FALLBACK_HTML, TEST_NAV_TIMEOUT_MS);
+
+    expect(await res.text()).toBe('<html>login</html>');
+    // Иначе офлайн /dashboard вечно отдавал бы логин-страницу вместо приложения.
+    expect(await cache.match(request)).toBeUndefined();
   });
 });
