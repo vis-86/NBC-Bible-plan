@@ -18,7 +18,7 @@ import { ReadingSettings } from './ReadingSettings';
 import { ChapterPicker } from './ChapterPicker';
 import { BookPicker } from './BookPicker';
 import { CompletionModal } from './CompletionModal';
-import { ReadingPlanFooter } from './ReadingPlanFooter';
+import { ReadingPlanFooter, readerFooterTheme } from './ReadingPlanFooter';
 import { useStatusBarColor } from '@/shared/hooks/useStatusBarColor';
 import { shouldShowCompletionOnCheck } from '../completionDecision';
 
@@ -197,6 +197,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
         <ReadingPlanFooter
           day={day}
           currentItem={currentItemState || currentItem || null}
+          displayTheme={displayTheme}
           onPrev={handlePrevChapter}
           onNext={() => {
             const isLastItem = !canGoNext();
@@ -220,18 +221,20 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
           canNext={canGoNext()}
         />
       ) : !loading && currentReadingState && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-app-surface/95 backdrop-blur-md border-t border-app-border px-6 pb-safe h-[80px] flex items-center justify-between">
+        // Запасной футер (чтение вне плана): та же тема ридера, что и у
+        // ReadingPlanFooter — app-токены здесь давали белый бар над тёмной читалкой.
+        <div className={`fixed bottom-0 left-0 right-0 z-40 ${readerFooterTheme[displayTheme].surface} backdrop-blur-md border-t px-6 pb-safe h-[80px] flex items-center justify-between`}>
           <button
             onClick={handlePrevChapter}
             disabled={!canGoPrev()}
-            className="p-3 text-app-text-muted hover:text-app-text hover:bg-app-surface-muted active:scale-90 disabled:opacity-20 transition-all rounded-full"
+            className={`p-3 ${readerFooterTheme[displayTheme].nav} active:scale-90 disabled:opacity-20 transition-all rounded-full`}
           >
             <ChevronLeft size={28} strokeWidth={1.5} />
           </button>
           <button
             onClick={handleNextChapter}
             disabled={!canGoNext()}
-            className="w-12 h-12 flex items-center justify-center bg-app-primary text-app-text-inverse shadow-app-sm hover:opacity-90 active:scale-95 disabled:opacity-20 transition-all rounded-full"
+            className={`w-12 h-12 flex items-center justify-center ${readerFooterTheme[displayTheme].cta} shadow-md active:scale-95 disabled:opacity-20 transition-all rounded-full`}
           >
             <ChevronRight size={24} strokeWidth={2.5} />
           </button>
