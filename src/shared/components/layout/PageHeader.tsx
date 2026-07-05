@@ -3,6 +3,7 @@
 import type React from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
+import { useStatusBarColor } from '@/shared/hooks/useStatusBarColor';
 
 /**
  * Вид шапки:
@@ -78,6 +79,10 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
 
   const isPage = variant === 'page';
 
+  // Шапка сама красит бровь (pt-safe-*): meta theme-color должен совпадать
+  // с её фоном — инвариант «бровь = цвет шапки экрана».
+  useStatusBarColor('surface');
+
   return (
     <header
       data-page-header
@@ -86,7 +91,8 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
         'top-0 z-10 bg-app-surface px-4',
         // `view` — компактная строка с разделителем и тенью; `page` — крупная
         // шапка таба без бордера/тени и с увеличенным верхним отступом.
-        isPage ? 'pt-6 pb-3' : 'border-b border-app-border py-3 shadow-app-sm',
+        // pt-safe-* расширяет шапку под статус-бар (бровь красится её фоном).
+        isPage ? 'pt-safe-6 pb-3' : 'border-b border-app-border pt-safe-3 pb-3 shadow-app-sm',
         sticky && 'sticky'
       )}
     >

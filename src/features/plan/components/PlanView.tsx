@@ -255,7 +255,11 @@ export const PlanView: React.FC<PlanViewProps> = ({
 
   return (
     <div data-plan-view className="flex flex-col h-full bg-app-bg text-app-text overflow-y-auto">
-      <header data-plan-view-header className="px-6 pt-10 pb-2 flex justify-between items-end">
+      {/* У главной нет sticky-шапки — бровь красит fixed-полоска фоном страницы,
+          иначе при скролле контент голым подъезжает под статус-бар
+          (инвариант «бровь = цвет шапки экрана», см. globals.css .h-safe-top). */}
+      <div aria-hidden data-plan-view-status-bar-backdrop className="fixed inset-x-0 top-0 z-40 h-safe-top bg-app-bg" />
+      <header data-plan-view-header className="px-6 pt-[calc(2.5rem+env(safe-area-inset-top))] pb-2 flex justify-between items-end">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <p data-plan-view-date className="text-xs font-semibold text-app-text-muted uppercase tracking-wide">

@@ -38,7 +38,9 @@ export const metadata: Metadata = {
   applicationName: "NBC Bible Plan",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    // black-translucent: контент уходит под статус-бар, фон брови красят сами
+    // шапки через pt-safe (см. globals.css) — инвариант «бровь = цвет шапки».
+    statusBarStyle: "black-translucent",
     title: "Bible Plan",
   },
   icons: {
@@ -48,7 +50,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1f2937",
+  // env(safe-area-inset-*) наполняются только при viewport-fit=cover.
+  viewportFit: "cover",
+  // themeColor здесь не задаём: он динамический — цвет брови текущего экрана,
+  // управляется ThemeProvider + useStatusBarColor (src/shared/utils/statusBarColor.ts).
 };
 
 export default function RootLayout({

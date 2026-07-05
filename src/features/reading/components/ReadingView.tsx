@@ -20,6 +20,7 @@ import { BookPicker } from './BookPicker';
 import { CompletionModal } from './CompletionModal';
 import { ReadingPlanFooter } from './ReadingPlanFooter';
 import { useDayCompletion } from '@/features/plan/hooks/useDayCompletion';
+import { useStatusBarColor } from '@/shared/hooks/useStatusBarColor';
 
 interface ReadingViewProps {
   reading: BibleReference | null;
@@ -85,6 +86,16 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     settings.theme === 'system' || settingsLoading
       ? effectiveTheme
       : (settings.theme as 'light' | 'dark' | 'sepia');
+
+  // Бровь = цвет шапки ридера (ReadingHeader красит её через pt-safe);
+  // дублируем в meta theme-color. Hex-значения соответствуют headerTheme
+  // в ReadingHeader: white / stone-800 / amber-50.
+  const READER_STATUS_BAR_COLORS: Record<'light' | 'dark' | 'sepia', string> = {
+    light: '#ffffff',
+    dark: '#292524',
+    sepia: '#fffbeb',
+  };
+  useStatusBarColor(READER_STATUS_BAR_COLORS[displayTheme]);
 
   useEffect(() => {
     if (reading && contentRef.current) {
@@ -160,6 +171,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
         reading={reading}
         currentChapter={currentChapter}
         day={day || null}
+        displayTheme={displayTheme}
         onBack={onBack}
         onSettingsClick={() => setShowSettings(true)}
         onChapterPickerClick={() => setShowChapterPicker(true)}

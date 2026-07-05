@@ -13,6 +13,7 @@ import {
 import { appSettingsApi, type AppThemePreference } from '@/shared/services/api/endpoints';
 import { getSystemTheme, subscribeToSystemTheme, type SystemTheme } from '@/shared/utils/theme';
 import { isTelegramWebApp, setHeaderColorFromAppTheme } from '@/lib/telegram';
+import { setStatusBarBaseTheme } from '@/shared/utils/statusBarColor';
 
 type EffectiveTheme = 'light' | 'dark';
 
@@ -72,6 +73,9 @@ export default function ThemeProvider({ children }: ThemeProviderProps) {
   useLayoutEffect(() => {
     if (typeof document === 'undefined') return;
     document.documentElement.setAttribute('data-theme', effectiveTheme);
+    // Базовый цвет брови (meta theme-color) следует теме; экраны с иным цветом
+    // шапки переопределяют его через useStatusBarColor.
+    setStatusBarBaseTheme(effectiveTheme);
   }, [effectiveTheme]);
 
   // Цвет хедера Mini App — по теме из настроек

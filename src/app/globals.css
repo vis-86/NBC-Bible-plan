@@ -325,6 +325,36 @@ select,
     padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* ── Top safe area («бровь», viewport-fit=cover) ─────────────────────
+   Инвариант: бровь всегда одного цвета с шапкой текущего экрана. Шапка
+   (sticky top-0, непрозрачный фон) расширяется под статус-бар этими
+   утилитами и сама закрашивает бровь. */
+.pt-safe {
+    padding-top: env(safe-area-inset-top);
+}
+
+/* Шапки с собственным верхним отступом: отступ + бровь. */
+.pt-safe-3 {
+    padding-top: calc(0.75rem + env(safe-area-inset-top));
+}
+
+.pt-safe-4 {
+    padding-top: calc(1rem + env(safe-area-inset-top));
+}
+
+.pt-safe-5 {
+    padding-top: calc(1.25rem + env(safe-area-inset-top));
+}
+
+.pt-safe-6 {
+    padding-top: calc(1.5rem + env(safe-area-inset-top));
+}
+
+/* Полоска-подложка брови для экранов без sticky-шапки (главная). */
+.h-safe-top {
+    height: env(safe-area-inset-top);
+}
+
 /* ── Docked bottom nav ───────────────────────────────────────────────
    --dock-nav-h — single source of truth for the docked nav row height.
    Used by BottomNavBar (min-h) and by the content clearance (.pb-nav). */

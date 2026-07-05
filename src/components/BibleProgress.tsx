@@ -39,7 +39,7 @@ const BibleProgress: React.FC<BibleProgressProps> = ({ readChapters, onToggleCha
 
     return (
       <div className="flex flex-col h-full bg-white dark:bg-stone-900 animate-in fade-in duration-300">
-        <header className="flex items-center p-4 border-b border-stone-100 dark:border-stone-700 sticky top-0 bg-white/95 dark:bg-stone-900/95 backdrop-blur-sm z-20">
+        <header className="flex items-center p-4 pt-safe-4 border-b border-stone-100 dark:border-stone-700 sticky top-0 bg-white/95 dark:bg-stone-900/95 backdrop-blur-sm z-20">
           <button 
             onClick={() => setSelectedBook(null)}
             className="p-2 -ml-2 text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-stone-100 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
@@ -82,7 +82,7 @@ const BibleProgress: React.FC<BibleProgressProps> = ({ readChapters, onToggleCha
 
   return (
     <div className="flex flex-col h-full bg-stone-50 dark:bg-stone-900 animate-in fade-in duration-300">
-      <header className="px-6 py-5 bg-white dark:bg-stone-800 shadow-sm border-b border-stone-100 dark:border-stone-700 sticky top-0 z-20 flex justify-between items-center">
+      <header className="px-6 pt-safe-5 pb-5 bg-white dark:bg-stone-800 shadow-sm border-b border-stone-100 dark:border-stone-700 sticky top-0 z-20 flex justify-between items-center">
           <div>
             <h2 className="font-bold text-2xl text-stone-900 dark:text-stone-100 mb-1">Книги</h2>
             <div className="text-xs font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest">

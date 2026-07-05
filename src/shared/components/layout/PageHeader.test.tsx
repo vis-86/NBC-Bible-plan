@@ -59,4 +59,20 @@ describe('PageHeader', () => {
     );
     expect(screen.getByLabelText('Поиск')).toBeTruthy();
   });
+
+  it('view-вариант расширяется под статус-бар (pt-safe-3) — шапка красит бровь', () => {
+    const { container } = render(<PageHeader title="Календарь" onBack={vi.fn()} />);
+    expect(container.querySelector('[data-page-header]')).toHaveClass('pt-safe-3');
+  });
+
+  it('page-вариант расширяется под статус-бар (pt-safe-6)', () => {
+    const { container } = render(<PageHeader variant="page" title="Песни" />);
+    expect(container.querySelector('[data-page-header]')).toHaveClass('pt-safe-6');
+  });
+
+  it('объявляет цвет брови surface через meta theme-color', () => {
+    render(<PageHeader title="Календарь" onBack={vi.fn()} />);
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    expect(meta?.content).toBeTruthy();
+  });
 });
