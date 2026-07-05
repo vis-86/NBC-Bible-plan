@@ -87,10 +87,10 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
 
   // Бровь = цвет шапки ридера (ReadingHeader красит её через pt-safe);
   // дублируем в meta theme-color. Hex-значения соответствуют headerTheme
-  // в ReadingHeader: white / stone-800 / amber-50.
+  // в ReadingHeader: white / stone-900 / amber-50 (шапка = фон читалки).
   const READER_STATUS_BAR_COLORS: Record<'light' | 'dark' | 'sepia', string> = {
     light: '#ffffff',
-    dark: '#292524',
+    dark: '#1c1917',
     sepia: '#fffbeb',
   };
   useStatusBarColor(READER_STATUS_BAR_COLORS[displayTheme]);

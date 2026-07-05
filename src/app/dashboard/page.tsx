@@ -14,6 +14,7 @@ import { usePlan } from '@/features/plan/hooks/usePlan';
 import { useProgress } from '@/features/plan/hooks/useProgress';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { FullScreenLoader } from '@/shared/components/ui/FullScreenLoader';
+import { OfflineIndicator } from '@/shared/components/ui/OfflineIndicator';
 import { preloadChapters } from '@/features/reading/bible-text-cache';
 
 function DashboardPageInner() {
@@ -219,6 +220,9 @@ function DashboardPageInner() {
 
   return (
     <DashboardLayout currentView={currentView} onChangeView={handleChangeView}>
+      {/* Индикатор офлайна показываем только на главной (фидбек: не должен
+          висеть поверх ридера и других разделов). */}
+      <OfflineIndicator />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {renderContent()}
       </div>

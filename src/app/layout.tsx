@@ -5,7 +5,6 @@ import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
 import ThemeProvider from "@/components/ThemeProvider";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
-import { OfflineIndicator } from "@/shared/components/ui/OfflineIndicator";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
@@ -128,7 +127,8 @@ export default function RootLayout({
             {children}
           </AuthProvider>
         </ThemeProvider>
-        <OfflineIndicator />
+        {/* OfflineIndicator живёт только на главной (/dashboard) — по фидбеку
+            он не должен висеть в ридере и других разделах. */}
         <ServiceWorkerRegistrar />
       </body>
     </html>

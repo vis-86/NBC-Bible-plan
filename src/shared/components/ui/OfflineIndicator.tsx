@@ -109,20 +109,20 @@ export function OfflineIndicator() {
       data-offline-indicator-banner
       role="status"
       {...motionProps}
-      className="fixed left-1/2 top-0 z-[90] flex items-center gap-2 rounded-b-lg bg-app-text-secondary py-1 pl-3 pr-1.5 text-xs font-medium text-app-text-inverse shadow-app-lg"
-      style={{ paddingTop: 'max(0.25rem, env(safe-area-inset-top))' }}
+      className="fixed left-1/2 top-0 z-[90] flex w-max max-w-[calc(100vw-1.5rem)] items-center gap-3 rounded-b-xl bg-app-text-secondary py-2 pl-4 pr-2 text-sm font-medium text-app-text-inverse shadow-app-lg"
+      style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}
     >
-      <span className="flex items-center gap-1.5">
-        <WifiOff size={12} aria-hidden />
+      <span className="flex items-center gap-2">
+        <WifiOff size={18} className="shrink-0" aria-hidden />
         Офлайн — изменения синхронизируются при подключении
       </span>
       <button
         type="button"
         onClick={() => setMode('pill')}
         aria-label="Скрыть уведомление"
-        className="-my-0.5 shrink-0 rounded p-0.5 opacity-80 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-app-text-inverse"
+        className="-my-1 shrink-0 rounded-lg p-1.5 opacity-80 transition-opacity hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-app-text-inverse"
       >
-        <X size={12} aria-hidden />
+        <X size={16} aria-hidden />
       </button>
     </motion.div>
   );

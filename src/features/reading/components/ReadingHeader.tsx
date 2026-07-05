@@ -38,8 +38,10 @@ const headerTheme: Record<
     textStrong: 'text-stone-900',
     action: 'text-stone-500 hover:text-stone-900',
   },
+  // dark: фон шапки = фон читалки (stone-900, см. themeClasses в ReadingView) —
+  // stone-800 давал видимый перепад между бровью/шапкой и текстом (фидбек).
   dark: {
-    surface: 'bg-stone-800/95 border-stone-700',
+    surface: 'bg-stone-900/95 border-stone-800',
     textMuted: 'text-stone-500',
     textStrong: 'text-stone-100',
     action: 'text-stone-400 hover:text-stone-100',
