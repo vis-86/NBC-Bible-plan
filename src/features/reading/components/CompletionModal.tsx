@@ -37,7 +37,8 @@ export const CompletionModal: React.FC<CompletionModalProps> = ({
   
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose}>
-      <div className="flex flex-col items-center pt-2 pb-6">
+      {/* pb-2: нижний зазор к home-indicator даёт body шита (safe-area padding). */}
+      <div className="flex flex-col items-center pt-2 pb-2">
         
         {/* Большая галочка (lucide-animated) */}
         <div className="w-20 h-20 flex items-center justify-center mb-6 completion-icon-fade-in">

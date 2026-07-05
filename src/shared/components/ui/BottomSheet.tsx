@@ -20,7 +20,9 @@ const LOG_FIX = process.env.DEBUG_FIX === '1' || process.env.NODE_ENV === 'devel
  */
 const BottomSheetOpenContent: React.FC<
   Omit<BottomSheetProps, 'isOpen'>
-> = ({ onClose, title, children, maxHeight = 'max-h-[80vh]', disableOverlay = false }) => {
+// dvh, не vh: в Safari с видимым URL-баром 1vh больше видимой области —
+// прибитый к bottom-0 шит с max-h в vh вылезал бы верхом за экран.
+> = ({ onClose, title, children, maxHeight = 'max-h-[80dvh]', disableOverlay = false }) => {
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const touchStartY = useRef<number | null>(null);
@@ -147,7 +149,10 @@ const BottomSheetOpenContent: React.FC<
 
           <div
             data-bottom-sheet-body
-            className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain px-6 py-3 [-webkit-overflow-scrolling:touch]"
+            // pb: контент (в т.ч. кнопки действий, как «Продолжить» в
+            // CompletionModal) не должен прятаться под home-indicator/нижним
+            // баром iPhone — панель прибита к bottom-0 без собственного отступа.
+            className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-y-contain px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] [-webkit-overflow-scrolling:touch]"
           >
             {children}
           </div>
