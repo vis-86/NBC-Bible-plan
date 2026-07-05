@@ -34,15 +34,6 @@ function ReadPageContent() {
 
   const reading: BibleReference | null = book && Number.isFinite(chapter) ? { book, chapter } : null;
 
-  // Вычисляем номер сегодняшнего дня для определения пропущенных дней
-  const getDayOfYear = (date: Date): number => {
-    const start = new Date(date.getFullYear(), 0, 0);
-    const diff = date.getTime() - start.getTime();
-    return Math.floor(diff / (1000 * 60 * 60 * 24));
-  };
-
-  const todayDayNumber = getDayOfYear(new Date());
-
   // Текущий день/пункт — чистая деривация из плана и параметров URL (не state+effect):
   // так избегаем каскадных ре-рендеров от setState-в-эффекте и рассинхрона.
   const currentDay: ReadingPlanDay | null = useMemo(() => {
@@ -152,7 +143,6 @@ function ReadPageContent() {
         currentItem={currentItem}
         onChapterRead={handleChapterRead}
         onNavigateChapter={handleNavigateChapter}
-        todayDayNumber={todayDayNumber}
       />
     </DashboardLayout>
   );

@@ -1,51 +1,72 @@
-# Plan: Кнопка перехода к чтению дня в попапе календаря
+# Plan: UI/UX-полировка — offline-индикатор, бровь, попап завершения дня
 
-**Branch:** feature/unify-page-headers (текущая, ветка не создавалась — fast mode)
-**Created:** 2026-07-02
-**Type:** enhancement
+**Branch:** feature/offline-pwa (текущая, ветка не создавалась — fast mode)
+**Created:** 2026-07-05
+**Type:** fix / UI polish
 
 ## Description
 
-В календаре при клике на день открывается BottomSheet «Действия с выбранными днями» со списком выбранных дней (`День N`). Нужно в каждой строке дня добавить кнопку, по которой можно сразу перейти к чтению этого дня.
+Четыре неровности дизайна (репорт Игоря с iPhone PWA):
+
+1. **Offline UX** — сообщение об офлайне показываем один раз; после закрытия — постоянный компактный серый индикатор «Офлайн» сверху; онлайн — ничего.
+2. **Бровь (статус-бар iPhone)** — верхний бар рисуется по-разному на экранах (в ридере зона брови не совпадает с фоном шапки); нужно единое поведение на всех экранах.
+3. **Попап успеха прочтения дня** перекрывается баром — кнопки не видны.
+4. **Нажатие ✓ при завершении дня** не всегда показывает попап успеха; по «Продолжить» — переход на главную.
 
 ## Settings
 
-- **Testing:** Yes — component-тест на новую навигацию + unit на helper
-- **Logging:** Verbose — `console.debug` при клике навигации, `console.warn` при неразрешимой ссылке
+- **Testing:** Yes — component/unit тесты (jsdom) на индикатор, safe-area классы и completion flow
+- **Logging:** Minimal — только WARN на аномалии, новых DEBUG/INFO не добавлять
 - **Docs:** No (warn-only)
 
 ## Roadmap Linkage
 
-Milestone: "none" — Rationale: ROADMAP.md отсутствует в проекте.
+- Milestone: "none"
+- Rationale: ROADMAP.md в проекте отсутствует.
 
-## Context (findings)
+## Research Context
 
-- Целевой попап — **Context Menu BottomSheet** в `CalendarView.tsx` (открывается по одиночному клику, `handleDayClick` → `selectedDays`), рендерит список `День {id}` (строки ~528-543). Это и есть «список дней» из запроса.
-- Второй попап (double-click, `CalendarDayDetail`) показывает список **глав** и уже имеет кнопку «Перейти к чтению» — его не трогаем, но переиспользуем общий helper.
-- Навигация идёт через `onSelectReading(day, reading)` → `handleSelectReading` в `calendar/page.tsx`, который строит путь `/dashboard/read/{book}/{chapter}?day&item` и делает `router.push`.
-- Логика выбора «первой главы дня» уже есть в `CalendarDayDetail.handleStartReading` (первая непрочитанная → первая → `readings[0]`) — выносим в shared helper во избежание дублирования.
+RESEARCH.md активен, но его тема (миграция на static export + Hono BFF после offline-PWA v1) к этой задаче не относится. Единственное пересечение: все правки — чистый UI/клиент, миграцию B не осложняют.
 
-## Decisions
+## Диагнозы (из обследования кода)
 
-- **Размещение:** кнопка в **каждой строке дня** (работает при любом числе выбранных дней). Клик закрывает попап и открывает первую непрочитанную главу дня.
-- **Тесты:** да (component + unit helper).
+1. **OfflineIndicator** (`src/shared/components/ui/OfflineIndicator.tsx`): баннер показывается при КАЖДОМ переходе offline (dismissed сбрасывается в handleOffline), после закрытия исчезает полностью — постоянного индикатора нет.
+2. **Бровь**: `env(safe-area-inset-top)` не используется нигде (только bottom/left/right в globals.css); `viewport-fit=cover` не задан; `viewport.themeColor` захардкожен `#1f2937` независимо от темы; `ReadingHeader` красится `bg-white/95 dark:bg-stone-800/95` напрямую (мимо app-токенов, sepia не учтён) — зона статус-бара живёт своей жизнью на каждом экране. Важно: `--app-bg` ≠ `--app-surface` (light `#FAFAF9` vs `#ffffff`, dark `#1c1917` vs `#292524`) — единого «цвета приложения» для брови не существует, цвет зависит от экрана.
+3. **BottomSheet** (`src/shared/components/ui/BottomSheet.tsx`): панель `fixed bottom-0` без `env(safe-area-inset-bottom)` → кнопка «Продолжить» в CompletionModal уходит под home-indicator/бар.
+4. **Completion flow**: показ попапа = детекция перехода `day.completed: false→true` в `useDayCompletion`. Если последний item уже completed (чтение не по порядку), `onChapterRead` не вызывается (guard `!currentItemState.completed` в `useChapterNavigation`), переход не случается → ✓ молча ничего не делает. `onBack` уже ведёт на `/dashboard?day=N` — переход на главную по «Продолжить» работает, чинить нужно только показ попапа.
 
 ## Tasks
 
-### Phase 1 — Shared logic
-- [x] 1. **getDayFirstReading в `src/shared/utils/bible.ts`** — чистая функция резолва первой читаемой главы дня (первая непрочитанная item → первая item → `readings[0]` → null). `console.warn` на null.
+### Phase 1 — независимые фиксы
 
-### Phase 2 — UI
-- [x] 2. **Кнопка перехода в строке дня** (`CalendarView.tsx`, список выбранных дней) — иконка-кнопка на строку, `stopPropagation`, резолв через `getDayFirstReading`, закрытие попапа + `onSelectReading`. `console.debug` при клике. _(depends: 1)_
-- [x] 3. **Рефактор `CalendarDayDetail`** — заменить локальную логику `handleStartReading` на `getDayFirstReading`, поведение идентично. _(depends: 1)_
+- [x] **1. Двухступенчатый offline-индикатор** (task #1)
+  `OfflineIndicator.tsx` + test: online → ничего; первый offline за сессию → полный баннер с крестиком; после закрытия (или повторный offline в той же сессии) → компактный серый пилл «Офлайн» без крестика, висит до восстановления сети. Флаг «показывали» — module-level/sessionStorage.
 
-### Phase 3 — Tests
-- [x] 4. **Component-тест `CalendarView.test.tsx`** — выбор дня → клик по кнопке строки → `onSelectReading` с ожидаемым reference + закрытие попапа; unit на `getDayFirstReading`. _(depends: 2)_
+- [x] **2. Единая зона статус-бара** (task #2)
+  **Инвариант: бровь ВСЕГДА того же цвета, что и header текущего экрана.** Механизм по построению — сам header (sticky, непрозрачный фон) расширяется под статус-бар через `pt-safe` и закрашивает бровь; никаких отдельных «подложек-приближений» под шапками.
+  Матрица «бровь = шапка»: PlanView (главная, без шапки-бара) → `--app-bg`; calendar/songs/settings (PageHeader) → `--app-surface`; ридер (ReadingHeader) → фон темы ридера light/dark/**sepia**.
+  Шаги: `layout.tsx`: `viewportFit: 'cover'`, `statusBarStyle: 'black-translucent'`, убрать статический themeColor. `globals.css`: утилита `.pt-safe`. `PageHeader` и `ReadingHeader`: pt-safe + фон шапки (ReadingHeader — фон по теме ридера, h-[56px] → min-h). PlanView: fixed-полоска высотой `env(safe-area-inset-top)` цвета `bg-app-bg` (при скролле контент не должен «голым» подъезжать под бровь) + пересчитать pt-10 у header-блока. `ThemeProvider`: механизм `useStatusBarColor(color)` — `<meta name="theme-color">` = цвет брови ТЕКУЩЕГО экрана (дефолт `--app-bg` по теме; PageHeader-экраны → `--app-surface`; ридер → тема ридера, включая sepia).
+  Верификация: чек-лист главная/календарь/песни/настройки/ридер(light/dark/sepia) × обе темы приложения.
 
-## Commit
+### Phase 2 — зависят от viewport-fit
 
-Единый коммит (4 задачи): `feat(calendar): add per-day "go to reading" button in selected-days sheet`
+- [x] **3. BottomSheet: нижний safe-area** (task #3, blocked by #2)
+  Панель шита: `padding-bottom: max(0.75rem, env(safe-area-inset-bottom))` — чинит CompletionModal и все остальные шиты разом. Проверить двойные отступы в CompletionModal и max-h на маленьких экранах (vh → dvh).
 
-## Next Steps
+- [x] **4. Детерминированный показ CompletionModal по ✓** (task #4)
+  `ReadingView.tsx`: явный локальный state показа модалки в ветке isLastItem (`willCompleteDay` ИЛИ день уже завершён → показать), вместо прослушки props через useDayCompletion. Ветка `!willCompleteDay → onBack()` сохраняется. `onClose → onBack()` (переход на главную) сохраняется. Тесты: ✓ на последнем незавершённом item → модалка; ✓ когда всё уже completed → модалка (регресс бага); закрытие → onBack.
 
-Запусти `/aif-implement` для выполнения плана. Просмотр задач — `/tasks` или TaskList.
+## Commit Plan
+
+Задач 4 (<5), но фиксы независимы — коммитить по задаче:
+
+1. `fix(offline): show offline banner once, persistent gray pill afterwards` — task 1
+2. `fix(ui): unify status-bar area (safe-area top + dynamic theme-color)` — task 2
+3. `fix(ui): bottom sheet respects safe-area, completion buttons visible` — task 3
+4. `fix(reading): always show completion modal on day-finish checkmark` — task 4
+
+## Верификация
+
+- Ручная проверка на iPhone PWA (бровь, home-indicator) — эмуляция iPhone в Chrome DevTools покрывает частично, реальные env(safe-area-*) видны только на устройстве/симуляторе.
+- `npm test` (Vitest) + `tsc` — зелёные.
+- Регресс: install-prompt, тёмная тема, sepia в ридере, все BottomSheet-ы (настройки чтения, пикеры глав/книг, календарь).

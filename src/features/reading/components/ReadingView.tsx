@@ -19,8 +19,8 @@ import { ChapterPicker } from './ChapterPicker';
 import { BookPicker } from './BookPicker';
 import { CompletionModal } from './CompletionModal';
 import { ReadingPlanFooter } from './ReadingPlanFooter';
-import { useDayCompletion } from '@/features/plan/hooks/useDayCompletion';
 import { useStatusBarColor } from '@/shared/hooks/useStatusBarColor';
+import { shouldShowCompletionOnCheck } from '../completionDecision';
 
 interface ReadingViewProps {
   reading: BibleReference | null;
@@ -30,7 +30,6 @@ interface ReadingViewProps {
   currentItem?: PlanItem | null;
   onChapterRead?: (dayId: number, itemNumber: number) => void;
   onNavigateChapter?: (book: string, chapter: number, dayId?: number, itemNumber?: number) => void;
-  todayDayNumber?: number;
 }
 
 export const ReadingView: React.FC<ReadingViewProps> = ({ 
@@ -39,13 +38,17 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
   day, 
   totalDays,
   currentItem, 
-  onChapterRead, 
-  onNavigateChapter,
-  todayDayNumber
+  onChapterRead,
+  onNavigateChapter
 }) => {
   const [showSettings, setShowSettings] = useState(false);
   const [showChapterPicker, setShowChapterPicker] = useState(false);
   const [showBookPicker, setShowBookPicker] = useState(false);
+  // Показ поздравления — явный, по нажатию ✓ (см. onNext ниже), а не через
+  // детекцию перехода day.completed в props: та молча не срабатывала, если
+  // последняя глава уже была отмечена (чтение не по порядку) — onChapterRead
+  // не вызывался и переход false→true не происходил.
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [contextInfo, setContextInfo] = useState<string | null>(null);
   const [infoLoading, setInfoLoading] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -70,11 +73,6 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     onNavigateChapter,
     onChapterRead
   });
-
-  // Определяем, был ли день пропущенным
-  // В ReadingView показываем модалку только при автоматическом завершении (переход false -> true)
-  const isMissed = day && todayDayNumber ? day.id < todayDayNumber : false;
-  const completion = useDayCompletion(day || null, { isMissed, alwaysShowIfCompleted: false });
 
   const themeClasses = {
     light: 'bg-white text-stone-800',
@@ -203,16 +201,19 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
           onNext={() => {
             const isLastItem = !canGoNext();
             const currentItemEffective = currentItemState || currentItem;
-            
+
+            // Отмечает текущую главу (если ещё не отмечена) и/или листает дальше.
             handleNextChapter();
-            
-            // Если это был последний элемент, решаем: показать модалку или сразу выйти к плану.
-            if (isLastItem) {
-              const willCompleteDay = day?.items.every(i => i.completed || i.item === currentItemEffective?.item);
-              
-              if (!willCompleteDay) {
-                onBack();
-              }
+
+            if (!isLastItem) return;
+
+            // Последний элемент дня: день завершён этим нажатием ЛИБО уже был
+            // полностью завершён (повторное ✓ / чтение не по порядку) → модалка;
+            // иначе остались непрочитанные главы → выходим к плану.
+            if (shouldShowCompletionOnCheck(day, currentItemEffective)) {
+              setShowCompletionModal(true);
+            } else {
+              onBack();
             }
           }}
           canPrev={canGoPrev()}
@@ -261,10 +262,10 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
       />
 
       <CompletionModal
-        isOpen={completion.showModal}
+        isOpen={showCompletionModal}
         onClose={() => {
-          completion.closeModal();
-          onBack(); // Возвращаемся к плану после закрытия поздравления
+          setShowCompletionModal(false);
+          onBack(); // «Продолжить» → на главную (см. handleBack в read/page.tsx)
         }}
         day={day || null}
         totalDays={totalDays}
