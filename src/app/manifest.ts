@@ -15,7 +15,9 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: `${basePath}/`,
     display: 'standalone',
     background_color: '#ffffff',
-    theme_color: '#1f2937',
+    // = светлый --app-bg: дефолтный цвет брови до гидрации (runtime-цвет
+    // ставит statusBarColor); Android берёт отсюда тинт при запуске.
+    theme_color: '#FAFAF9',
     orientation: 'portrait-primary',
     lang: 'ru',
     icons: [

@@ -40,13 +40,20 @@ function apply(): void {
   if (typeof document === 'undefined') return;
   const value: StatusBarColorValue =
     overrides.length > 0 ? overrides[overrides.length - 1].value : 'bg';
+  const color = resolve(value);
   let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
   if (!meta) {
     meta = document.createElement('meta');
     meta.name = 'theme-color';
     document.head.appendChild(meta);
   }
-  meta.content = resolve(value);
+  meta.content = color;
+  // Красим этим же цветом html: на PWA-установках со старым statusBarStyle
+  // 'default' (фиксируется при добавлении на домашний экран) webview начинается
+  // ПОД статус-баром, env(safe-area-inset-top)=0, и зону брови iOS красит фоном
+  // страницы. body занят --app-bg для контента; html — самый верхний слой,
+  // видимый только под статус-баром, в браузерном хроме и overscroll-зонах.
+  document.documentElement.style.backgroundColor = color;
 }
 
 /** Базовая тема приложения — выставляется ThemeProvider'ом при смене темы. */
@@ -74,4 +81,7 @@ export function popStatusBarColor(id: number): void {
 export function resetStatusBarColorForTests(): void {
   baseTheme = 'light';
   overrides.length = 0;
+  if (typeof document !== 'undefined') {
+    document.documentElement.style.removeProperty('background-color');
+  }
 }
