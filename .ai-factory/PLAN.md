@@ -1,72 +1,71 @@
-# Plan: UI/UX-полировка — offline-индикатор, бровь, попап завершения дня
+# План: новый логотип приложения + компактный нижний нав-бар
 
-**Branch:** feature/offline-pwa (текущая, ветка не создавалась — fast mode)
-**Created:** 2026-07-05
-**Type:** fix / UI polish
-
-## Description
-
-Четыре неровности дизайна (репорт Игоря с iPhone PWA):
-
-1. **Offline UX** — сообщение об офлайне показываем один раз; после закрытия — постоянный компактный серый индикатор «Офлайн» сверху; онлайн — ничего.
-2. **Бровь (статус-бар iPhone)** — верхний бар рисуется по-разному на экранах (в ридере зона брови не совпадает с фоном шапки); нужно единое поведение на всех экранах.
-3. **Попап успеха прочтения дня** перекрывается баром — кнопки не видны.
-4. **Нажатие ✓ при завершении дня** не всегда показывает попап успеха; по «Продолжить» — переход на главную.
+- **Ветка:** feature/offline-pwa (текущая, без создания новой — мелкие штрихи к offline-PWA)
+- **Дата:** 2026-07-06
+- **Режим:** fast
 
 ## Settings
 
-- **Testing:** Yes — component/unit тесты (jsdom) на индикатор, safe-area классы и completion flow
-- **Logging:** Minimal — только WARN на аномалии, новых DEBUG/INFO не добавлять
-- **Docs:** No (warn-only)
+- **Testing:** нет — чисто визуальные правки (ассеты + CSS), логики нет
+- **Logging:** не требуется (статические файлы и классы; существующий `console.debug` в BottomNavBar сохраняется)
+- **Docs:** warn-only
 
 ## Roadmap Linkage
 
 - Milestone: "none"
-- Rationale: ROADMAP.md в проекте отсутствует.
+- Rationale: ROADMAP.md отсутствует в проекте
 
-## Research Context
+## Контекст (разведка)
 
-RESEARCH.md активен, но его тема (миграция на static export + Hono BFF после offline-PWA v1) к этой задаче не относится. Единственное пересечение: все правки — чистый UI/клиент, миграцию B не осложняют.
+**Логотип.** Источник — `public/bible-year.jpg` (640×640, «Библия за год»). Все ссылки на иконки уже централизованы и код менять не нужно:
 
-## Диагнозы (из обследования кода)
+- `src/app/layout.tsx:46-47` → `icons/icon-192.png`, `icons/apple-touch-icon.png`
+- `src/app/manifest.ts:24-26` → `icons/icon-192.png`, `icons/icon-512.png` (any + maskable)
+- `src/features/landing/components/Header.tsx:21` → `icons/icon-192.png`
+- `src/app/favicon.ico` — файловая конвенция App Router
 
-1. **OfflineIndicator** (`src/shared/components/ui/OfflineIndicator.tsx`): баннер показывается при КАЖДОМ переходе offline (dismissed сбрасывается в handleOffline), после закрытия исчезает полностью — постоянного индикатора нет.
-2. **Бровь**: `env(safe-area-inset-top)` не используется нигде (только bottom/left/right в globals.css); `viewport-fit=cover` не задан; `viewport.themeColor` захардкожен `#1f2937` независимо от темы; `ReadingHeader` красится `bg-white/95 dark:bg-stone-800/95` напрямую (мимо app-токенов, sepia не учтён) — зона статус-бара живёт своей жизнью на каждом экране. Важно: `--app-bg` ≠ `--app-surface` (light `#FAFAF9` vs `#ffffff`, dark `#1c1917` vs `#292524`) — единого «цвета приложения» для брови не существует, цвет зависит от экрана.
-3. **BottomSheet** (`src/shared/components/ui/BottomSheet.tsx`): панель `fixed bottom-0` без `env(safe-area-inset-bottom)` → кнопка «Продолжить» в CompletionModal уходит под home-indicator/бар.
-4. **Completion flow**: показ попапа = детекция перехода `day.completed: false→true` в `useDayCompletion`. Если последний item уже completed (чтение не по порядку), `onChapterRead` не вызывается (guard `!currentItemState.completed` в `useChapterNavigation`), переход не случается → ✓ молча ничего не делает. `onBack` уже ведёт на `/dashboard?day=N` — переход на главную по «Продолжить» работает, чинить нужно только показ попапа.
+Достаточно перегенерировать файлы. ImageMagick не установлен; `sips` (macOS, встроен) умеет resize и запись `.ico` (`com.microsoft.ico` — Writable, проверено через `sips --formats`). Maskable использует тот же icon-512: композиция центрирована (текст и крест в центре, виньетка по краям) — circle-crop безопасен.
+
+**Нижний бар.** Пустота под иконками складывается из:
+
+- `.dock-nav-safe-b` = `max(0.5rem, env(safe-area-inset-bottom))` — ~34px на iPhone с home indicator (`globals.css:366`)
+- `min-h-[64px]` + `pt-2` у `<nav>` (`BottomNavBar.tsx:79`) — литерал дублирует `--dock-nav-h: 64px` (`globals.css:362`)
+- `p-2` у кнопок (`BottomNavBar.tsx:91`)
+
+`--dock-nav-h` — single source of truth: `.pb-nav` (клиренс контента в `DashboardLayout.tsx:38`) считается от неё, так что уменьшение переменной автоматически подтянет и клиренс.
 
 ## Tasks
 
-### Phase 1 — независимые фиксы
+### Phase 1 — правки (задачи независимы, порядок любой)
 
-- [x] **1. Двухступенчатый offline-индикатор** (task #1)
-  `OfflineIndicator.tsx` + test: online → ничего; первый offline за сессию → полный баннер с крестиком; после закрытия (или повторный offline в той же сессии) → компактный серый пилл «Офлайн» без крестика, висит до восстановления сети. Флаг «показывали» — module-level/sessionStorage.
+- [x] **Task 5. Заменить иконки приложения на bible-year.jpg**
+  - `sips -z 512 512 -s format png public/bible-year.jpg --out public/icons/icon-512.png`
+  - `sips -z 192 192 -s format png public/bible-year.jpg --out public/icons/icon-192.png`
+  - `sips -z 180 180 -s format png public/bible-year.jpg --out public/icons/apple-touch-icon.png`
+  - `sips -z 32 32 -s format ico public/bible-year.jpg --out src/app/favicon.ico`
+  - Код не трогать; проверить размеры результата `sips -g pixelWidth -g pixelHeight`
 
-- [x] **2. Единая зона статус-бара** (task #2)
-  **Инвариант: бровь ВСЕГДА того же цвета, что и header текущего экрана.** Механизм по построению — сам header (sticky, непрозрачный фон) расширяется под статус-бар через `pt-safe` и закрашивает бровь; никаких отдельных «подложек-приближений» под шапками.
-  Матрица «бровь = шапка»: PlanView (главная, без шапки-бара) → `--app-bg`; calendar/songs/settings (PageHeader) → `--app-surface`; ридер (ReadingHeader) → фон темы ридера light/dark/**sepia**.
-  Шаги: `layout.tsx`: `viewportFit: 'cover'`, `statusBarStyle: 'black-translucent'`, убрать статический themeColor. `globals.css`: утилита `.pt-safe`. `PageHeader` и `ReadingHeader`: pt-safe + фон шапки (ReadingHeader — фон по теме ридера, h-[56px] → min-h). PlanView: fixed-полоска высотой `env(safe-area-inset-top)` цвета `bg-app-bg` (при скролле контент не должен «голым» подъезжать под бровь) + пересчитать pt-10 у header-блока. `ThemeProvider`: механизм `useStatusBarColor(color)` — `<meta name="theme-color">` = цвет брови ТЕКУЩЕГО экрана (дефолт `--app-bg` по теме; PageHeader-экраны → `--app-surface`; ридер → тема ридера, включая sepia).
-  Верификация: чек-лист главная/календарь/песни/настройки/ридер(light/dark/sepia) × обе темы приложения.
+- [x] **Task 6. Сделать нижний нав-бар компактнее**
+  - `globals.css`: `--dock-nav-h: 64px → 56px`; `.dock-nav-safe-b`: `max(0.5rem, env(safe-area-inset-bottom))` → `max(0.375rem, calc(env(safe-area-inset-bottom) - 0.375rem))` — срезаем ~6px на устройствах с home indicator (бар слегка заходит в safe area, иконки остаются выше индикатора), 6px вместо 8px на остальных
+  - `BottomNavBar.tsx`: `min-h-[64px]` → `min-h-[var(--dock-nav-h)]` (убрать дублирование), `pt-2 → pt-1.5`, у кнопок `p-2 → p-1.5`; `gap-1` и `text-[10px]` не трогать (читаемость)
 
-### Phase 2 — зависят от viewport-fit
+### Phase 2 — верификация (блокируется Task 5, 6)
 
-- [x] **3. BottomSheet: нижний safe-area** (task #3, blocked by #2)
-  Панель шита: `padding-bottom: max(0.75rem, env(safe-area-inset-bottom))` — чинит CompletionModal и все остальные шиты разом. Проверить двойные отступы в CompletionModal и max-h на маленьких экранах (vh → dvh).
-
-- [x] **4. Детерминированный показ CompletionModal по ✓** (task #4)
-  `ReadingView.tsx`: явный локальный state показа модалки в ветке isLastItem (`willCompleteDay` ИЛИ день уже завершён → показать), вместо прослушки props через useDayCompletion. Ветка `!willCompleteDay → onBack()` сохраняется. `onClose → onBack()` (переход на главную) сохраняется. Тесты: ✓ на последнем незавершённом item → модалка; ✓ когда всё уже completed → модалка (регресс бага); закрытие → onBack.
+- [x] **Task 7. Проверить сборку и визуально сверить**
+  - `npm run lint`, `npx tsc --noEmit`
+  - Dev-сервер: бар компактнее, активная точка-индикатор не обрезается, контент не прячется за баром, favicon и landing header обновились
+  - PWA-иконки в установленном приложении обновятся после переустановки; в браузере проверить, что manifest и `/icons/*.png` отдают новые файлы
 
 ## Commit Plan
 
-Задач 4 (<5), но фиксы независимы — коммитить по задаче:
+Задач меньше 5 — один коммит в конце:
 
-1. `fix(offline): show offline banner once, persistent gray pill afterwards` — task 1
-2. `fix(ui): unify status-bar area (safe-area top + dynamic theme-color)` — task 2
-3. `fix(ui): bottom sheet respects safe-area, completion buttons visible` — task 3
-4. `fix(reading): always show completion modal on day-finish checkmark` — task 4
+```
+feat(ui): app icon from bible-year artwork, more compact bottom nav
+```
 
-## Верификация
+## Trade-offs / заметки
 
-- Ручная проверка на iPhone PWA (бровь, home-indicator) — эмуляция iPhone в Chrome DevTools покрывает частично, реальные env(safe-area-*) видны только на устройстве/симуляторе.
-- `npm test` (Vitest) + `tsc` — зелёные.
-- Регресс: install-prompt, тёмная тема, sepia в ридере, все BottomSheet-ы (настройки чтения, пикеры глав/книг, календарь).
+- Срез safe-area на 6px — компромисс: полное `env(safe-area-inset-bottom)` каноничен по HIG, но именно он создаёт «большое пространство». 6px визуально ужимают бар, не подводя иконки под home indicator. Если на живом устройстве покажется тесно — откатить только правку `.dock-nav-safe-b`.
+- `bible-year.jpg` (87KB) остаётся в `public/` как источник; иконки — производные. Апскейла нет: 640 ≥ 512.
+- favicon 32×32 через sips: один размер в .ico (без мультирезолюции) — для web-фавикона достаточно, тем более `layout.tsx` уже отдаёт `icon-192.png` как основной icon link.

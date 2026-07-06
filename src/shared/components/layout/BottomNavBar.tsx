@@ -76,7 +76,7 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
   return (
     <nav
       data-dashboard-layout-bottom-nav
-      className="fixed bottom-0 left-0 right-0 max-w-md mx-auto min-h-[64px] pt-2 glass-nav rounded-t-[24px] flex items-center justify-around z-50 border-t border-app-border dock-nav-safe-b dock-nav-safe-x"
+      className="fixed bottom-0 left-0 right-0 max-w-md mx-auto min-h-[var(--dock-nav-h)] pt-1.5 glass-nav rounded-t-[24px] flex items-center justify-around z-50 border-t border-app-border dock-nav-safe-b dock-nav-safe-x"
       aria-label="Основная навигация"
     >
       {navItems.map((item) => {
@@ -88,7 +88,7 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
             data-dashboard-nav-item={item.id}
             data-dashboard-nav-item-active={isActive || undefined}
             onClick={() => handleNav(item)}
-            className="flex flex-col items-center gap-1 p-2 w-16 relative group transition-transform active:scale-90"
+            className="flex flex-col items-center gap-1 p-1.5 w-16 relative group transition-transform active:scale-90"
             aria-current={isActive ? 'page' : undefined}
           >
             <div
