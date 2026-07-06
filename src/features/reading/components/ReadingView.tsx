@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef } from 'react';
-import { ChevronLeft, ChevronRight, Book } from 'lucide-react';
+import { Book } from 'lucide-react';
 import { BibleReference, ReadingPlanDay, PlanItem } from '@/types';
 import { BIBLE_STRUCTURE } from '@/lib/constants';
 import { getReferenceInfo } from '@/lib/ai';
@@ -18,8 +18,10 @@ import { ReadingSettings } from './ReadingSettings';
 import { ChapterPicker } from './ChapterPicker';
 import { BookPicker } from './BookPicker';
 import { CompletionModal } from './CompletionModal';
-import { ReadingPlanFooter, readerFooterTheme } from './ReadingPlanFooter';
+import { FloatingChapterNav } from './FloatingChapterNav';
 import { useStatusBarColor } from '@/shared/hooks/useStatusBarColor';
+import { useScrollDirection } from '@/shared/hooks/useScrollDirection';
+import { useChromeVisibility } from '@/shared/components/layout/ChromeVisibility';
 import { shouldShowCompletionOnCheck } from '../completionDecision';
 
 interface ReadingViewProps {
@@ -95,11 +97,32 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
   };
   useStatusBarColor(READER_STATUS_BAR_COLORS[displayTheme]);
 
+  const { setChromeHidden } = useChromeVisibility();
+  const scrollHidden = useScrollDirection(contentRef);
+
+  useEffect(() => {
+    console.debug('[ReadingView] chrome', { hidden: scrollHidden });
+    setChromeHidden(scrollHidden);
+  }, [scrollHidden, setChromeHidden]);
+
+  // Смена главы = router.push с новыми search-параметрами на тот же маршрут
+  // (/dashboard/read?book=&chapter=) — ReadingView НЕ размонтируется, меняются
+  // только props. Поэтому сброс chromeHidden вешается на этот же эффект (не на
+  // mount/unmount), иначе смена главы со скрытым chrome оставила бы его скрытым.
   useEffect(() => {
     if (reading && contentRef.current) {
       contentRef.current.scrollTop = 0;
     }
-  }, [reading?.book, reading?.chapter]);
+    setChromeHidden(false);
+  }, [reading?.book, reading?.chapter, setChromeHidden]);
+
+  // Дешёвая страховка: если ридер всё же размонтируется со скрытым chrome
+  // (например, переход на другой маршрут), не оставляем chrome скрытым для
+  // следующей страницы. На практике DashboardLayout/ChromeVisibilityProvider
+  // рендерится per-page и это состояние и так умирает вместе с провайдером.
+  useEffect(() => {
+    return () => setChromeHidden(false);
+  }, [setChromeHidden]);
 
   const handleExplain = async () => {
     if (!reading || !isAIEnabled()) return;
@@ -162,22 +185,44 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
 
   const currentChapter = currentReadingState?.chapter || reading?.chapter || 1;
 
+  const currentItemEffective = currentItemState || currentItem || null;
+
+  const handleFloatingNext = () => {
+    const isLastItem = !canGoNext();
+
+    // Отмечает текущую главу (если ещё не отмечена) и/или листает дальше.
+    handleNextChapter();
+
+    if (!isLastItem) return;
+
+    // Последний элемент дня: день завершён этим нажатием ЛИБО уже был
+    // полностью завершён (повторное ✓ / чтение не по порядку) → модалка;
+    // иначе остались непрочитанные главы → выходим к плану.
+    console.debug('[ReadingView] completeDay', { dayId: day?.id, isLastItem });
+    if (day && shouldShowCompletionOnCheck(day, currentItemEffective)) {
+      setShowCompletionModal(true);
+    } else {
+      onBack();
+    }
+  };
+
   return (
-    <div className={`flex flex-col h-full ${themeClasses[displayTheme] || themeClasses.light} relative pb-safe`}>
+    <div className={`flex flex-col h-full ${themeClasses[displayTheme] || themeClasses.light} relative`}>
       <ReadingHeader
         currentReading={currentReadingState || reading}
         reading={reading}
         currentChapter={currentChapter}
         day={day || null}
+        currentItem={currentItemEffective}
+        totalItems={day?.totalItems || day?.items.length}
         displayTheme={displayTheme}
-        onBack={onBack}
         onSettingsClick={() => setShowSettings(true)}
         onChapterPickerClick={() => setShowChapterPicker(true)}
         onBookPickerClick={() => setShowBookPicker(true)}
       />
 
       <div className={`flex-1 overflow-y-auto w-full ${themeClasses[displayTheme] || themeClasses.light}`} ref={contentRef}>
-        <div className="max-w-xl mx-auto px-6 py-8 pb-32">
+        <div className="max-w-xl mx-auto px-6 py-8 pb-[calc(var(--dock-nav-h)+env(safe-area-inset-bottom)+96px)]">
           <ReadingContent
             text={text}
             loading={loading}
@@ -187,58 +232,23 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
             infoLoading={infoLoading}
             onContextClose={() => setContextInfo(null)}
             day={day || null}
-            currentItem={currentItemState || currentItem || null}
+            currentItem={currentItemEffective}
             onChapterRead={onChapterRead}
           />
         </div>
       </div>
 
-      {day ? (
-        <ReadingPlanFooter
-          day={day}
-          currentItem={currentItemState || currentItem || null}
+      {/* Вне плана (day=null) кнопки скрыты, пока текст главы не загружен —
+          паритет со старым запасным футером (рендерился только при !loading). */}
+      {(day || (!loading && currentReadingState)) && (
+        <FloatingChapterNav
           displayTheme={displayTheme}
           onPrev={handlePrevChapter}
-          onNext={() => {
-            const isLastItem = !canGoNext();
-            const currentItemEffective = currentItemState || currentItem;
-
-            // Отмечает текущую главу (если ещё не отмечена) и/или листает дальше.
-            handleNextChapter();
-
-            if (!isLastItem) return;
-
-            // Последний элемент дня: день завершён этим нажатием ЛИБО уже был
-            // полностью завершён (повторное ✓ / чтение не по порядку) → модалка;
-            // иначе остались непрочитанные главы → выходим к плану.
-            if (shouldShowCompletionOnCheck(day, currentItemEffective)) {
-              setShowCompletionModal(true);
-            } else {
-              onBack();
-            }
-          }}
+          onNext={day ? handleFloatingNext : handleNextChapter}
           canPrev={canGoPrev()}
           canNext={canGoNext()}
+          isPlanMode={!!day}
         />
-      ) : !loading && currentReadingState && (
-        // Запасной футер (чтение вне плана): та же тема ридера, что и у
-        // ReadingPlanFooter — app-токены здесь давали белый бар над тёмной читалкой.
-        <div className={`fixed bottom-0 left-0 right-0 z-40 ${readerFooterTheme[displayTheme].surface} backdrop-blur-md border-t px-6 pb-safe h-[80px] flex items-center justify-between`}>
-          <button
-            onClick={handlePrevChapter}
-            disabled={!canGoPrev()}
-            className={`p-3 ${readerFooterTheme[displayTheme].nav} active:scale-90 disabled:opacity-20 transition-all rounded-full`}
-          >
-            <ChevronLeft size={28} strokeWidth={1.5} />
-          </button>
-          <button
-            onClick={handleNextChapter}
-            disabled={!canGoNext()}
-            className={`w-12 h-12 flex items-center justify-center ${readerFooterTheme[displayTheme].cta} shadow-md active:scale-95 disabled:opacity-20 transition-all rounded-full`}
-          >
-            <ChevronRight size={24} strokeWidth={2.5} />
-          </button>
-        </div>
       )}
 
       <ReadingSettings
