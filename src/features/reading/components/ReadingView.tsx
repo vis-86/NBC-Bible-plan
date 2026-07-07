@@ -98,7 +98,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
   useStatusBarColor(READER_STATUS_BAR_COLORS[displayTheme]);
 
   const { setChromeHidden } = useChromeVisibility();
-  const scrollHidden = useScrollDirection(contentRef);
+  const { hidden: scrollHidden, setHidden: setScrollHidden, ignoreNextScroll } = useScrollDirection(contentRef);
 
   useEffect(() => {
     console.debug('[ReadingView] chrome', { hidden: scrollHidden });
@@ -106,15 +106,25 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
   }, [scrollHidden, setChromeHidden]);
 
   // Смена главы = router.push с новыми search-параметрами на тот же маршрут
-  // (/dashboard/read?book=&chapter=) — ReadingView НЕ размонтируется, меняются
-  // только props. Поэтому сброс chromeHidden вешается на этот же эффект (не на
-  // mount/unmount), иначе смена главы со скрытым chrome оставила бы его скрытым.
+  // (/dashboard/read?book=&chapter=) — ReadingView НЕ размонтируется. Chrome
+  // при этом СОХРАНЯЕТ состояние (скрыт → остаётся скрытым, без прыжка экрана);
+  // программный сброс scrollTop не должен трактоваться как «скролл вверх».
   useEffect(() => {
-    if (reading && contentRef.current) {
+    if (reading && contentRef.current && contentRef.current.scrollTop > 0) {
+      ignoreNextScroll();
       contentRef.current.scrollTop = 0;
     }
-    setChromeHidden(false);
-  }, [reading?.book, reading?.chapter, setChromeHidden]);
+  }, [reading?.book, reading?.chapter, ignoreNextScroll]);
+
+  // Короткая глава без скролла: scroll-событий нет, вернуть chrome нечем —
+  // форсим видимость, когда контент главы загружен и не скроллится.
+  useEffect(() => {
+    if (loading) return;
+    const el = contentRef.current;
+    if (el && el.scrollHeight <= el.clientHeight) {
+      setScrollHidden(false);
+    }
+  }, [loading, text, setScrollHidden]);
 
   // Дешёвая страховка: если ридер всё же размонтируется со скрытым chrome
   // (например, переход на другой маршрут), не оставляем chrome скрытым для

@@ -84,38 +84,34 @@ export const ReadingHeader: React.FC<ReadingHeaderProps> = ({
 
   return (
     <header
-      className={`reading-header sticky top-0 z-30 ${theme.surface} backdrop-blur-md border-b flex items-center justify-between px-2 min-h-[56px] pt-safe shadow-sm`}
+      className={`reading-header sticky top-0 z-30 ${theme.surface} backdrop-blur-md border-b flex items-center justify-between pl-4 pr-1 min-h-[52px] pt-safe shadow-sm`}
       data-testid="reading-header"
     >
-      {/* Спейсер слева, равный ширине кнопки настроек — центр не съезжает без стрелки назад. */}
-      <div className="reading-header-spacer w-11 shrink-0" aria-hidden="true" />
-
-      <div className="reading-header-center flex flex-col items-center">
+      {/* Одна строка слева: книга + глава (кнопка-пикер) и бейдж плана рядом. */}
+      <div className="reading-header-title-row flex min-w-0 items-center gap-2.5">
         <button
           onClick={hasDayPlan ? onChapterPickerClick : onBookPickerClick}
-          className="reading-header-title-button flex flex-col items-center cursor-pointer active:opacity-70"
+          className="reading-header-title-button flex min-w-0 items-center gap-1 cursor-pointer active:opacity-70"
           data-testid="reading-header-title-button"
         >
           <span
-            className={`reading-header-book-name text-xs font-bold ${theme.textMuted} uppercase tracking-widest mb-0.5`}
+            className={`reading-header-book-name text-[15px] font-bold ${theme.textStrong} truncate`}
             data-testid="reading-header-book-name"
           >
             {bookName ? getFullBookName(bookName) : ''}
           </span>
-          <div className="reading-header-chapter-container flex items-center space-x-1">
-            <span
-              className={`reading-header-chapter-number font-bold ${theme.textStrong} text-sm leading-none -mt-0.5 relative top-[-1px]`}
-              data-testid="reading-header-chapter-number"
-            >
-              Глава {currentChapter}
-            </span>
-            <ChevronRight size={14} className={`${theme.textMuted} rotate-90`} />
-          </div>
+          <span
+            className={`reading-header-chapter-number text-[15px] font-bold ${theme.textStrong} shrink-0`}
+            data-testid="reading-header-chapter-number"
+          >
+            {currentChapter}
+          </span>
+          <ChevronRight size={15} className={`${theme.textMuted} rotate-90 shrink-0`} />
         </button>
 
         {planBadgeText && (
           <span
-            className={`reading-header-plan-badge mt-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${theme.badge}`}
+            className={`reading-header-plan-badge shrink-0 text-[11px] font-semibold px-2 py-1 rounded-full ${theme.badge}`}
             data-testid="reading-header-plan-badge"
           >
             {planBadgeText}
@@ -123,7 +119,7 @@ export const ReadingHeader: React.FC<ReadingHeaderProps> = ({
         )}
       </div>
 
-      <div className="reading-header-actions flex items-center">
+      <div className="reading-header-actions flex shrink-0 items-center">
         <button
           onClick={onSettingsClick}
           className={`reading-header-settings-button p-3 ${theme.action} active:scale-90 transition-transform`}

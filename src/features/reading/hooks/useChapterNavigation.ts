@@ -23,22 +23,25 @@ export function useChapterNavigation({
 
   // Обновляем currentItemState при изменении currentItem извне
   useEffect(() => {
-    if (currentItem) {
-      setCurrentItemState(currentItem);
-    } else if (currentItemState && !currentItem) {
-      setCurrentItemState(null);
-    }
+    setCurrentItemState(currentItem || null);
   }, [currentItem]);
 
-  // Обновляем currentItemState при изменении day
+  // Освежаем ПОЛЯ текущего item при обновлении day.items (например, completed
+  // после toggleItem → refetch плана). Функциональный updater обязателен:
+  // этот эффект гоняется с эффектом смены currentItem выше — обновление через
+  // замыкание со stale currentItemState перезатирало только что установленный
+  // следующий item обратно на предыдущий, ломая навигацию ‹ › внутри дня.
   useEffect(() => {
-    if (day && day.items && currentItemState) {
-      const updatedItem = day.items.find(i => i.item === currentItemState.item);
-      if (updatedItem && (updatedItem.completed !== currentItemState.completed || updatedItem.id !== currentItemState.id)) {
-        setCurrentItemState(updatedItem);
+    if (!day?.items) return;
+    setCurrentItemState(prev => {
+      if (!prev) return prev;
+      const updatedItem = day.items.find(i => i.item === prev.item);
+      if (updatedItem && (updatedItem.completed !== prev.completed || updatedItem.id !== prev.id)) {
+        return updatedItem;
       }
-    }
-  }, [day?.items, currentItemState?.item]);
+      return prev;
+    });
+  }, [day?.items]);
 
   // Обновляем currentReadingState при изменении currentReading
   useEffect(() => {
