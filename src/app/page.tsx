@@ -9,6 +9,7 @@ import {
   Header,
   Hero,
   About,
+  FeatureShowcase,
   HowToStart,
   InstallGuide,
   FinalCta,
@@ -43,6 +44,7 @@ export default function Home() {
         <main>
           <Hero />
           <About />
+          <FeatureShowcase />
           <HowToStart />
           <InstallGuide />
           <FinalCta />

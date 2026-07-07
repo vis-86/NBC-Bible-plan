@@ -5,6 +5,7 @@ import { motion, useReducedMotion, type Variants } from 'motion/react';
 import { Check } from 'lucide-react';
 import { PhoneMockup } from './PhoneMockup';
 import { PrimaryCta, LoginButton } from './cta';
+import { isRegisterEnabled } from '@/shared/utils/constants';
 
 const container: Variants = {
   hidden: {},
@@ -77,7 +78,7 @@ export const Hero: React.FC = () => {
           className="mt-5 flex items-center justify-center gap-2.5 text-sm text-app-text-muted lg:justify-start"
         >
           <Check size={17} strokeWidth={2.4} className="shrink-0 text-app-success" />
-          Без рекламы и спешки. Доступ — по приглашению от церкви.
+          {isRegisterEnabled() ? 'Бесплатно. Без рекламы и спешки.' : 'Без рекламы и спешки. Доступ — по приглашению от церкви.'}
         </motion.p>
       </motion.div>
 

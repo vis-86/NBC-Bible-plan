@@ -7,6 +7,7 @@ import { getApiPath, getBasePath } from '@/lib/utils';
 import { SUPPORT_CONTACT } from '@/lib/constants';
 import { isRegisterEnabled } from '@/shared/utils/constants';
 import TelegramLinkForm from '@/features/auth/components/TelegramLinkForm';
+import { InstallAppHint } from '@/shared/components/pwa/InstallAppHint';
 
 const inputClass =
   'mt-1 block w-full rounded-md border border-app-border bg-app-surface-muted px-3 py-2 text-app-text placeholder-app-text-subtle focus:border-app-primary/50 focus:outline-none focus:ring-1 focus:ring-app-primary/30';
@@ -159,7 +160,8 @@ function LoginForm() {
   // Не из Telegram или успешная верификация в Telegram (редирект уже выполнен) — показываем форму входа
   return (
     <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
-      <div className="w-full max-w-md space-y-8 rounded-lg bg-app-surface p-8 shadow-app-md">
+      <div className="w-full max-w-md">
+      <div className="space-y-8 rounded-lg bg-app-surface p-8 shadow-app-md">
         <div>
           <h2 className="text-2xl font-semibold text-app-text">
             Вход
@@ -237,6 +239,8 @@ function LoginForm() {
             </a>
           </p>
         </div>
+      </div>
+      <InstallAppHint />
       </div>
     </div>
   );

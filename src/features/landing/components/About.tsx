@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion, useReducedMotion } from 'motion/react';
-import { BookOpen, Sparkles, BookMarked, MessageCircle, type LucideIcon } from 'lucide-react';
+import { BookOpen, Sparkles, BookMarked, Music, WifiOff, MessageCircle, type LucideIcon } from 'lucide-react';
 import { isAIEnabled } from '@/shared/utils/constants';
 import { revealContainer, revealItem, revealViewport } from './anim';
 
@@ -27,6 +27,16 @@ const FEATURES: Feature[] = [
     icon: BookMarked,
     title: 'Читалка со справочником',
     text: 'Читаете прямо в приложении. Нужен контекст — справочник под рукой.',
+  },
+  {
+    icon: Music,
+    title: 'Песни с аккордами',
+    text: 'Сборник песен церкви — с аккордами, поиском и удобным шрифтом.',
+  },
+  {
+    icon: WifiOff,
+    title: 'Работает без интернета',
+    text: 'Скачайте Писание и песни — читайте в метро, в дороге, где угодно.',
   },
 ];
 
@@ -56,7 +66,7 @@ export const About: React.FC = () => {
       </div>
 
       <motion.div
-        className="mt-12 grid gap-5 sm:grid-cols-2 lg:gap-6"
+        className="mt-12 grid gap-5 sm:grid-cols-2 md:grid-cols-3 lg:gap-6"
         variants={revealContainer}
         initial={reduceMotion ? false : 'hidden'}
         whileInView="show"
