@@ -1,4 +1,6 @@
 import { getPendingOutbox, attemptSend, removeOutboxRecord } from './outbox';
+import { raceWithTimeout } from './networkTimeout';
+import { getApiPath } from '@/shared/utils/api';
 
 /**
  * Sync-движок: replay outbox (Task 26, .ai-factory/plans/feature-offline-pwa.md).
@@ -10,6 +12,27 @@ import { getPendingOutbox, attemptSend, removeOutboxRecord } from './outbox';
 const DEBUG = (process.env.NEXT_PUBLIC_LOG_LEVEL ?? process.env.LOG_LEVEL ?? 'debug') === 'debug';
 function debug(...args: unknown[]) {
   if (DEBUG) console.debug('[offline/sync]', ...args);
+}
+
+const HEALTH_PING_TIMEOUT_MS = 4000;
+
+/**
+ * `online`-событие в браузере значит «есть сетевой интерфейс», не «сервер
+ * достижим» (lie-fi: мёртвая сота, Wi-Fi без аплинка). Пингуем именно
+ * `/api/health` (НЕ `/health`) — routeStrategy в SW пропускает `/api/*`
+ * passthrough, а не-`/api` HTML-путь SW мог бы отдать из HTML-кеша, и пинг
+ * молча вернул бы true в офлайне.
+ */
+export async function isServerReachable(): Promise<boolean> {
+  try {
+    const res = await raceWithTimeout(
+      fetch(getApiPath('/api/health'), { method: 'GET', cache: 'no-store' }),
+      HEALTH_PING_TIMEOUT_MS
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 let replayInFlight = false;
@@ -76,7 +99,17 @@ export function registerSyncTriggers(): () => void {
   const onVisibilityChange = () => {
     if (document.visibilityState === 'visible') void replayOutbox();
   };
-  const onOnline = () => void replayOutbox();
+  const onOnline = () => {
+    debug('online event — pinging server');
+    void isServerReachable().then((reachable) => {
+      if (!reachable) {
+        debug('server unreachable, skip replay');
+        return;
+      }
+      debug('server reachable, replaying outbox');
+      void replayOutbox();
+    });
+  };
 
   document.addEventListener('visibilitychange', onVisibilityChange);
   window.addEventListener('online', onOnline);

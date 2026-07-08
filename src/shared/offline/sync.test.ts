@@ -11,13 +11,17 @@ vi.mock('@/shared/services/api/graphql', async () => {
 });
 
 import { enqueueSingleProgress, enqueueBatchProgress, getPendingOutbox } from './outbox';
-import { replayOutbox, registerSyncTriggers } from './sync';
+import { replayOutbox, registerSyncTriggers, isServerReachable } from './sync';
 import { __deleteDB } from './db';
 
 describe('offline/sync replayOutbox', () => {
+  const fetchMock = vi.fn();
+
   beforeEach(async () => {
     await __deleteDB();
     mutateMock.mockReset();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
   });
 
   it('успешно реплеит все ожидающие записи и очищает очередь', async () => {
@@ -101,8 +105,87 @@ describe('offline/sync replayOutbox', () => {
 
     mutateMock.mockReset();
     mutateMock.mockResolvedValue({ success: true });
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
     window.dispatchEvent(new Event('online'));
 
+    await vi.waitFor(async () => {
+      expect(await getPendingOutbox()).toEqual([]);
+    });
+
+    unregister();
+  });
+});
+
+describe('isServerReachable', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  it('true при res.ok', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    expect(await isServerReachable()).toBe(true);
+  });
+
+  it('false при не-ok ответе', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 503 }));
+    expect(await isServerReachable()).toBe(false);
+  });
+
+  it('false при отклонённом fetch (сеть недоступна)', async () => {
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    expect(await isServerReachable()).toBe(false);
+  });
+
+  it('пингует именно /api/health (не /health)', async () => {
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    await isServerReachable();
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url.endsWith('/api/health')).toBe(true);
+    expect(init).toEqual(expect.objectContaining({ method: 'GET' }));
+  });
+});
+
+describe('registerSyncTriggers — online-триггер гейтится health-пингом', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(async () => {
+    await __deleteDB();
+    mutateMock.mockReset();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  it('сервер недостижим -> replay НЕ вызывается', async () => {
+    // Записываем офлайн (mutate падает при write-ahead попытке) — запись остаётся pending.
+    mutateMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    await enqueueSingleProgress(1, 1);
+    mutateMock.mockReset();
+
+    fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    const unregister = registerSyncTriggers();
+
+    window.dispatchEvent(new Event('online'));
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalled());
+
+    expect(mutateMock).not.toHaveBeenCalled();
+    expect(await getPendingOutbox()).toHaveLength(1);
+
+    unregister();
+  });
+
+  it('сервер достижим -> replay вызывается', async () => {
+    mutateMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    await enqueueSingleProgress(1, 1);
+    mutateMock.mockReset();
+    mutateMock.mockResolvedValue({ success: true });
+
+    fetchMock.mockResolvedValue(new Response(null, { status: 204 }));
+    const unregister = registerSyncTriggers();
+
+    window.dispatchEvent(new Event('online'));
     await vi.waitFor(async () => {
       expect(await getPendingOutbox()).toEqual([]);
     });

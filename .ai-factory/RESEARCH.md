@@ -1,6 +1,6 @@
 # Research
 
-Updated: 2026-07-04 21:00
+Updated: 2026-07-08 12:00
 Status: active
 
 ## Active Summary (input for /aif-plan)
@@ -83,8 +83,28 @@ Success signals (для B):
   и без битых lazy-чанков.
 - Offline E2E сьют зелёный в CI.
 
-Next step: дошипить v1 на feature/offline-pwa (merge). Затем `/aif-plan full` — миграция
-на static export + Hono BFF (вариант B) с чек-листом практик 1–5 в скоупе.
+Дополнения свежего ресерча (2026-07-08, вход для плана B):
+- ИНСТРУМЕНТ PRECACHE = Serwist (преемник next-pwa, поддерживается). Для static export два
+  пути: `@serwist/next` (плагин) или голый `@serwist/build` injectManifest поверх `out/` —
+  второй проще и без магии плагина (у нас кастомный SW уже есть, переносим логику в sw.ts).
+- КЛЮЧЕВОЙ АРГУМЕНТ Б (сформулирован явно): precache-манифест = АТОМАРНЫЙ снимок версии.
+  SW v_n отдаёт консистентный набор HTML+chunks+RSC.txt; v_{n+1} активируется только когда
+  всё скачано. Класс «белый экран: старый HTML просит исчезнувший чанк» исчезает by design
+  (при update flow из п.1 чек-листа, без skipWaiting-на-install).
+- CAVEAT next.js#59986 (closed as not planned): static export + app router при
+  buildId-mismatch деградирует client-навигацию в full page load (MPA navigation).
+  С атомарным precache mismatch внутри версии SW невозможен; проявляется только онлайн
+  без SW-контроля, где full reload на свежий HTML = корректное самолечение. Не блокер.
+- ЧЕК-ЛИСТ п.7 (belt-and-suspenders): глобальный обработчик ChunkLoadError с
+  auto-reload-once + cooldown (защита от reload-loop) — страховка на переходный период
+  и для юзеров с залипшим старым SW.
+
+Контекст исполнения: реализацию плана делает Sonnet 5 → план должен быть максимально
+эксплицитным (конкретные файлы, точные команды, критерии проверки на каждый таск, без
+«по аналогии» и подразумеваемых шагов).
+
+Next step: v1 смержен в main ✅. `/aif-plan full` — миграция на static export + Hono BFF
+(вариант B) с чек-листом практик 1–5 + п.7 в скоупе.
 <!-- aif:active-summary:end -->
 
 ## Sessions
@@ -225,4 +245,26 @@ Links (paths):
 - src/app/api/* (9 групп роутов — кандидаты на Hono BFF)
 - next.config.ts (output: 'standalone' → 'export' при B)
 - Коммиты-хроника боли: 07430df, 43cce0a, 8e9cd4a (fix(pwa) на feature/offline-pwa)
+
+### 2026-07-08 12:00 — Валидация варианта B свежим ресерчем + вход в /aif-plan full
+What changed:
+- Повторный заход на тему «стабильный offline PWA в Next» — решение от 2026-07-04
+  (вариант B: static export + Hono BFF) подтверждено свежими источниками, не устарело.
+- Названы конкретные инструменты: Serwist (@serwist/next либо @serwist/build
+  injectManifest поверх out/ — предпочтителен второй, SW-логика уже своя).
+- Явно сформулирован главный аргумент B: атомарность precache-снимка структурно убирает
+  ChunkLoadError/белый экран (старый HTML + исчезнувшие чанки).
+- Найден caveat next.js#59986 (buildId mismatch → MPA navigation в static export) —
+  разобран, не блокер: под SW-контролем mismatch невозможен, онлайн full reload = самолечение.
+- В чек-лист добавлен п.7: глобальный ChunkLoadError-guard c auto-reload-once + cooldown.
+- v1 offline-PWA смержен в main — предпосылка для B выполнена.
+- Зафиксировано: реализацию будет делать Sonnet 5 → план пишется максимально эксплицитно.
+
+Key notes:
+- Источники: serwist.pages.dev/docs/next/getting-started; nextjs.org/docs/app/guides/
+  progressive-web-apps; github.com/vercel/next.js/issues/59986; sentry.io/answers/
+  chunk-load-errors-javascript; blog.logrocket.com/nextjs-16-pwa-offline-support.
+
+Links (paths):
+- .ai-factory/RESEARCH.md Active Summary (дополнения 2026-07-08 влиты туда же)
 <!-- aif:sessions:end -->

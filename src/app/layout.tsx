@@ -5,6 +5,7 @@ import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
 import ThemeProvider from "@/components/ThemeProvider";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+import ChunkGuard from "@/components/ChunkGuard";
 import { UpdateToast } from "@/shared/components/ui/UpdateToast";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -123,6 +124,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${plusJakarta.variable} ${lora.variable} antialiased font-sans`}
       >
+        <ChunkGuard />
         <ThemeProvider>
           <AuthProvider>
             {children}

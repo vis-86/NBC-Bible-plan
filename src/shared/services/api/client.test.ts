@@ -47,4 +47,20 @@ describe('ApiClient 401 handling', () => {
     );
     await expect(apiClient.get<{ ok: boolean }>('/api/anything')).resolves.toEqual({ ok: true });
   });
+
+  /**
+   * T6: офлайн (fetch отклоняется TypeError, а не отвечает 401) не должен разлогинивать —
+   * __onSessionExpired вызывается ТОЛЬКО из response.status === 401 ветки, до неё код
+   * не доходит, если fetch сам упал.
+   */
+  it('fetch-reject (offline) does NOT trigger session-expired, error propagates as-is', async () => {
+    const onExpired = vi.fn();
+    (globalThis as { __onSessionExpired?: () => void }).__onSessionExpired = onExpired;
+    const networkError = new TypeError('Failed to fetch');
+    global.fetch = vi.fn().mockRejectedValue(networkError);
+
+    await expect(apiClient.get('/api/user/progress')).rejects.toBe(networkError);
+
+    expect(onExpired).not.toHaveBeenCalled();
+  });
 });
