@@ -30,7 +30,7 @@ export const PhoneMockup: React.FC = () => {
   return (
     <div
       aria-hidden
-      className="relative z-[1] h-[612px] w-[300px] rounded-[44px] bg-[#0f0e0d] p-[11px] shadow-[0_30px_80px_-20px_rgba(28,25,23,0.35)]"
+      className="relative z-[1] h-[624px] w-[300px] rounded-[44px] bg-[#0f0e0d] p-[11px] shadow-[0_30px_80px_-20px_rgba(28,25,23,0.35)]"
       data-landing-phone
     >
       {/* Notch */}
@@ -98,7 +98,7 @@ export const PhoneMockup: React.FC = () => {
             width={780}
             height={1688}
             fetchPriority="high"
-            className="h-full w-full object-cover object-top"
+            className="h-full w-full object-cover object-center"
             onError={() => setScreenshotFailed(true)}
           />
         )}

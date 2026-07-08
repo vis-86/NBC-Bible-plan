@@ -256,7 +256,7 @@ function Card({ children, below }: { children: React.ReactNode; below?: React.Re
           <span className="text-[15px] font-semibold tracking-tight text-app-text">План чтения Библии</span>
         </button>
 
-        <div className="rounded-[32px] border border-app-border bg-app-surface/90 p-8 shadow-[0_8px_32px_rgba(15,23,42,0.08)] backdrop-blur-sm sm:p-10">
+        <div className="rounded-[32px] border border-app-border bg-app-surface p-8 shadow-[0_24px_60px_-20px_rgba(15,23,42,0.35)] sm:p-10">
           {children}
         </div>
         {below}

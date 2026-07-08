@@ -1,71 +1,78 @@
-# План: новый логотип приложения + компактный нижний нав-бар
+# Landing Hero — редизайн «рука дизайнера»
 
-- **Ветка:** feature/offline-pwa (текущая, без создания новой — мелкие штрихи к offline-PWA)
-- **Дата:** 2026-07-06
-- **Режим:** fast
+**Ветка:** feature/reader-immersive-ui (новую не создаём — fast mode)
+**Дата:** 2026-07-08
+**Тип:** enhancement (UI/дизайн лендинга)
 
 ## Settings
 
-- **Testing:** нет — чисто визуальные правки (ассеты + CSS), логики нет
-- **Logging:** не требуется (статические файлы и классы; существующий `console.debug` в BottomNavBar сохраняется)
-- **Docs:** warn-only
+- **Testing:** нет (визуальный слой, тестами не покрываем)
+- **Logging:** не требуется — все правки в презентационных client-компонентах, runtime-логики нет
+- **Docs:** warn-only (мандаторного docs-чекпоинта нет)
 
 ## Roadmap Linkage
 
 - Milestone: "none"
-- Rationale: ROADMAP.md отсутствует в проекте
+- Rationale: точечный дизайн-полиш лендинга, вне трекинга roadmap
 
-## Контекст (разведка)
+## Контекст / вводные
 
-**Логотип.** Источник — `public/bible-year.jpg` (640×640, «Библия за год»). Все ссылки на иконки уже централизованы и код менять не нужно:
+Референс — лендинг **cookn**: full-width хедер, крупный serif-заголовок, органический
+цветной блоб под наклонённым телефоном, плавающие карточки/аватары. Переносим идею, но
+**в палитру дашборда** (indigo `--app-primary #4f46e5`, warm gold `--warm #c79a4b`,
+emerald `--app-success #10b981`, stone-текст) и **без фото людей** — вместо аватаров
+плавающие мини-карточки (решение пользователя).
 
-- `src/app/layout.tsx:46-47` → `icons/icon-192.png`, `icons/apple-touch-icon.png`
-- `src/app/manifest.ts:24-26` → `icons/icon-192.png`, `icons/icon-512.png` (any + maskable)
-- `src/features/landing/components/Header.tsx:21` → `icons/icon-192.png`
-- `src/app/favicon.ico` — файловая конвенция App Router
+Затрагиваемые файлы:
 
-Достаточно перегенерировать файлы. ImageMagick не установлен; `sips` (macOS, встроен) умеет resize и запись `.ico` (`com.microsoft.ico` — Writable, проверено через `sips --formats`). Maskable использует тот же icon-512: композиция центрирована (текст и крест в центре, виньетка по краям) — circle-crop безопасен.
+- `src/app/page.tsx` — вынести Header из контейнера max-w-[1200px]
+- `src/features/landing/components/Header.tsx` — full-width плашка + внутренний wrapper
+- `src/features/landing/components/PhoneMockup.tsx` — обрезка скриншота (780×1688)
+- `src/features/landing/components/Hero.tsx` — блоб, фигуры, плавающие карточки, полиш
+- (опц.) `src/features/landing/components/cta.tsx` — только если понадобится согласовать кнопки
 
-**Нижний бар.** Пустота под иконками складывается из:
-
-- `.dock-nav-safe-b` = `max(0.5rem, env(safe-area-inset-bottom))` — ~34px на iPhone с home indicator (`globals.css:366`)
-- `min-h-[64px]` + `pt-2` у `<nav>` (`BottomNavBar.tsx:79`) — литерал дублирует `--dock-nav-h: 64px` (`globals.css:362`)
-- `p-2` у кнопок (`BottomNavBar.tsx:91`)
-
-`--dock-nav-h` — single source of truth: `.pb-nav` (клиренс контента в `DashboardLayout.tsx:38`) считается от неё, так что уменьшение переменной автоматически подтянет и клиренс.
+Токены — из `src/app/globals.css` (theme-aware, светлая/тёмная).
 
 ## Tasks
 
-### Phase 1 — правки (задачи независимы, порядок любой)
+### Фаза 1 — структура и фиксы
 
-- [x] **Task 5. Заменить иконки приложения на bible-year.jpg**
-  - `sips -z 512 512 -s format png public/bible-year.jpg --out public/icons/icon-512.png`
-  - `sips -z 192 192 -s format png public/bible-year.jpg --out public/icons/icon-192.png`
-  - `sips -z 180 180 -s format png public/bible-year.jpg --out public/icons/apple-touch-icon.png`
-  - `sips -z 32 32 -s format ico public/bible-year.jpg --out src/app/favicon.ico`
-  - Код не трогать; проверить размеры результата `sips -g pixelWidth -g pixelHeight`
+- [x] **#11 Full-bleed хедер во всю ширину.** Header выносим из `max-w-[1200px]` в
+  `page.tsx`; сама плашка (border-bottom + bg/blur) — full-width sticky, содержимое —
+  внутренний `mx-auto max-w-[1200px] px-5 sm:px-7`. Убрать хак `-mx-5/-mx-7`.
+- [x] **#12 Починить обрезку скриншота в PhoneMockup.** Привести ratio внутреннего экрана к
+  ratio скриншота (780/1688 ≈ 0.462) или сместить `object-position` в центр, чтобы верх
+  (шапка) и низ не резались. Не сломать faux-fallback (`screenshotFailed`).
 
-- [x] **Task 6. Сделать нижний нав-бар компактнее**
-  - `globals.css`: `--dock-nav-h: 64px → 56px`; `.dock-nav-safe-b`: `max(0.5rem, env(safe-area-inset-bottom))` → `max(0.375rem, calc(env(safe-area-inset-bottom) - 0.375rem))` — срезаем ~6px на устройствах с home indicator (бар слегка заходит в safe area, иконки остаются выше индикатора), 6px вместо 8px на остальных
-  - `BottomNavBar.tsx`: `min-h-[64px]` → `min-h-[var(--dock-nav-h)]` (убрать дублирование), `pt-2 → pt-1.5`, у кнопок `p-2 → p-1.5`; `gap-1` и `text-[10px]` не трогать (читаемость)
+### Фаза 2 — акцентная композиция
 
-### Phase 2 — верификация (блокируется Task 5, 6)
+- [x] **#13 Акцентный блоб + мелкие фигуры под телефоном.** Крупная органическая заливка
+  (indigo→gold, blur, низкая насыщенность) под слегка наклонённым телефоном + кольцо и
+  dot-grid. `aria-hidden`, без горизонтального скролла. Наклон — на обёртке, не ломая
+  float/reduced-motion.
+- [x] **#14 Плавающие мини-карточки вокруг телефона.** (blocked by #13) К существующему
+  бейджу «День отмечен» добавить 1-2 карточки (стрик «7 дней подряд» / прогресс «68% плана»)
+  в стиле токенов, у каждой свой float delay, `aria-hidden`, скрытие на узких экранах.
 
-- [x] **Task 7. Проверить сборку и визуально сверить**
-  - `npm run lint`, `npx tsc --noEmit`
-  - Dev-сервер: бар компактнее, активная точка-индикатор не обрезается, контент не прячется за баром, favicon и landing header обновились
-  - PWA-иконки в установленном приложении обновятся после переустановки; в браузере проверить, что manifest и `/icons/*.png` отдают новые файлы
+### Фаза 3 — полиш
+
+- [x] **#15 Финальный полиш: типографика, ритм, палитра.** (blocked by #11–#14) Заголовок,
+  eyebrow, вертикальный ритм (4/8), баланс колонок, единые тени/радиусы через
+  `--app-shadow-*`. Проверка: светлая/тёмная тема, reduced-motion, mobile-first.
 
 ## Commit Plan
 
-Задач меньше 5 — один коммит в конце:
+5 задач → 2 чекпоинта:
 
-```
-feat(ui): app icon from bible-year artwork, more compact bottom nav
-```
+1. `feat(landing): full-bleed header + fix hero screenshot crop` — после #11, #12
+2. `feat(landing): accent blob, floating cards & hero polish` — после #13, #14, #15
 
-## Trade-offs / заметки
+## Проверка результата
 
-- Срез safe-area на 6px — компромисс: полное `env(safe-area-inset-bottom)` каноничен по HIG, но именно он создаёт «большое пространство». 6px визуально ужимают бар, не подводя иконки под home indicator. Если на живом устройстве покажется тесно — откатить только правку `.dock-nav-safe-b`.
-- `bible-year.jpg` (87KB) остаётся в `public/` как источник; иконки — производные. Апскейла нет: 640 ≥ 512.
-- favicon 32×32 через sips: один размер в .ico (без мультирезолюции) — для web-фавикона достаточно, тем более `layout.tsx` уже отдаёт `icon-192.png` как основной icon link.
+Ручная (тестов нет): dev-сервер / `/run`, визуальный прогон Hero на десктопе и мобиле,
+светлая и тёмная тема, `prefers-reduced-motion`, отсутствие горизонтального скролла.
+
+---
+
+Запустить реализацию: `/aif-implement`
+Посмотреть задачи: `/tasks`

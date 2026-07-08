@@ -22,11 +22,11 @@ export const FinalCta: React.FC = () => {
         viewport={revealViewport}
       >
         <h2 className="font-serif text-[clamp(30px,4.5vw,46px)] font-medium leading-[1.1] tracking-[-0.02em] text-app-text">
-          Начните читать спокойно
+          Начните и держитесь плана
           <span className="block italic text-app-primary">уже сегодня</span>
         </h2>
         <p className="mx-auto mt-5 max-w-md text-lg leading-relaxed text-app-text-secondary">
-          Без спешки и чувства вины за пропущенные дни. Просто вы и Слово.
+          Пропустили несколько дней — отметьте разом и продолжайте. Главное — не останавливаться.
         </p>
 
         <div className="mt-9 flex flex-wrap justify-center gap-3.5">

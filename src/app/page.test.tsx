@@ -49,7 +49,7 @@ describe('Лендинг (page.tsx)', () => {
     render(<Home />);
 
     // Hero
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('без чувства вины');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('всегда под рукой');
 
     // Три шага invite-регистрации
     expect(screen.getByText('Напишите нам')).toBeInTheDocument();

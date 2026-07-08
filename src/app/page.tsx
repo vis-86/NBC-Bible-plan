@@ -39,8 +39,8 @@ export default function Home() {
   return (
     <div className="relative min-h-screen overflow-x-clip bg-app-bg text-app-text">
       <Atmosphere />
+      <Header />
       <div className="relative z-[2] mx-auto w-full max-w-[1200px] px-5 sm:px-7">
-        <Header />
         <main>
           <Hero />
           <About />

@@ -110,7 +110,7 @@ export const HowToStart: React.FC = () => {
       >
         {steps.map(({ icon: Icon, title, text, href }, i) => {
           const cardClassName =
-            'relative rounded-3xl border border-app-border bg-app-surface/70 p-6 shadow-[0_8px_32px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:p-7' +
+            'relative h-full rounded-3xl border border-app-border bg-app-surface/70 p-6 shadow-[0_8px_32px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:p-7' +
             (href ? ' block transition-shadow hover:shadow-[0_12px_40px_rgba(15,23,42,0.1)]' : '');
           const content = (
             <>
@@ -126,7 +126,7 @@ export const HowToStart: React.FC = () => {
           );
 
           return (
-            <motion.li key={title} variants={revealItem}>
+            <motion.li key={title} variants={revealItem} className="h-full">
               {href ? (
                 <a href={href} className={cardClassName}>
                   {content}
