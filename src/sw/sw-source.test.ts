@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { routeStrategy, handleStaticAsset, handleNavigation, buildSwBody, OFFLINE_FALLBACK_HTML } from './sw-source';
+import { routeStrategy, handleStaticAsset, handleNavigation, buildSwBody, pruneUnknownCaches, OFFLINE_FALLBACK_HTML } from './sw-source';
 
 /**
  * Регрессия на баг из прода (авиарежим): `handleNavigation` раньше читал
@@ -81,6 +81,36 @@ describe('buildSwBody', () => {
   it('встраивает SW_BUILD из NEXT_PUBLIC_APP_BUILD_TIME', () => {
     const body = buildSwBody();
     expect(body).toContain('const SW_BUILD =');
+  });
+
+  it('activate-обработчик вызывает pruneUnknownCaches ДО clients.claim()', () => {
+    const body = buildSwBody();
+    const activateBlock = body.slice(body.indexOf("addEventListener('activate'"), body.indexOf("addEventListener('fetch'"));
+    const pruneIdx = activateBlock.indexOf('pruneUnknownCaches(');
+    const claimIdx = activateBlock.indexOf('clients.claim()');
+    expect(pruneIdx).toBeGreaterThan(-1);
+    expect(pruneIdx).toBeLessThan(claimIdx);
+  });
+});
+
+describe('pruneUnknownCaches', () => {
+  it('пустой список кешей -> нечего удалять', () => {
+    expect(pruneUnknownCaches([], ['app-shell-static-v1', 'app-shell-html-v1'])).toEqual([]);
+  });
+
+  it('все кеши известны -> нечего удалять', () => {
+    expect(
+      pruneUnknownCaches(['app-shell-static-v1', 'app-shell-html-v1'], ['app-shell-static-v1', 'app-shell-html-v1'])
+    ).toEqual([]);
+  });
+
+  it('смесь известных и чужих кешей -> возвращает только чужие', () => {
+    expect(
+      pruneUnknownCaches(
+        ['app-shell-static-v1', 'workbox-precache-old', 'app-shell-html-v1', 'some-legacy-cache'],
+        ['app-shell-static-v1', 'app-shell-html-v1']
+      )
+    ).toEqual(['workbox-precache-old', 'some-legacy-cache']);
   });
 });
 

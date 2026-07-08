@@ -72,6 +72,42 @@ tail -f /var/log/nginx/access.log
 tail -f /var/log/nginx/error.log
 ```
 
+## PWA cache headers
+
+nginx **не кеширует** ответы приложения (`proxy_cache` нигде не включён, см.
+`deploy/nginx/conf.d/tls.conf`, `location /app`) — заголовки `Cache-Control`
+целиком задаёт Next.js, nginx только проксирует. Три требования критичны для
+PWA update flow (см. `.ai-factory/plans/feature-offline-stability.md`):
+
+1. **`/app/sw.js` — `public, max-age=0, must-revalidate`.** Задаётся явно в
+   `src/app/sw.js/route.ts`. Если бы sw.js кешировался надолго, обновления
+   приложения залипали бы до суток — браузер годами не увидел бы новый SW.
+2. **`/app/_next/static/**` — `public, max-age=31536000, immutable`.** Имена
+   файлов content-hashed (Next.js default), поэтому агрессивный immutable-кеш
+   безопасен: новый билд = новые имена файлов, а не новое содержимое старых.
+3. **HTML-документы (`/app/dashboard`, `/app/login`, …) — не должны кешироваться
+   браузером надолго.** Статически пререндеренные страницы Next.js отдают
+   `Cache-Control: s-maxage=31536000` — это **safe**, `s-maxage` действует
+   только на shared/edge-кеши (CDN, `proxy_cache`), а не на приватный кеш
+   браузера, и здесь нет ни CDN, ни `proxy_cache`. Если бы браузер закешировал
+   HTML надолго, после деплоя пользователь получал бы старый HTML со ссылками
+   на удалённые `_next/static` чанки → `ChunkLoadError` (закрывается также
+   ChunkLoadError-guard'ом, `src/shared/offline/chunkGuard.ts`, но лучше не
+   полагаться только на него).
+
+Проверка на проде (после деплоя):
+
+```bash
+# sw.js: public, max-age=0, must-revalidate
+curl -sI https://bible.baptistnn.ru/app/sw.js | grep -i cache-control
+
+# _next/static чанк: immutable, max-age=31536000 (подставить реальное имя файла)
+curl -sI https://bible.baptistnn.ru/app/_next/static/chunks/<файл>.js | grep -i cache-control
+
+# HTML: НЕ должен быть публично закеширован на годы браузером
+curl -sI https://bible.baptistnn.ru/app/login | grep -i cache-control
+```
+
 ## See Also
 
 - [Деплой](deployment.md) — запуск приложения и PM2

@@ -183,6 +183,15 @@ export async function handleNavigation(
   }
 }
 
+/**
+ * Чистая функция без внешних замыканий — сериализуется через `.toString()`.
+ * Возвращает имена кешей, которых нет в known-списке (мусор от старых версий SW
+ * / прежних имён кешей при будущем bump'е v1→v2).
+ */
+export function pruneUnknownCaches(cacheKeys: readonly string[], knownNames: readonly string[]): string[] {
+  return cacheKeys.filter((key) => !knownNames.includes(key));
+}
+
 /** Собирает текст service worker'а. Вызывается только на сервере (route.ts). */
 export function buildSwBody(): string {
   return `
@@ -197,6 +206,7 @@ const SW_BUILD = ${JSON.stringify(SW_BUILD)};
 const routeStrategy = ${routeStrategy.toString()};
 const handleStaticAsset = ${handleStaticAsset.toString()};
 const handleNavigation = ${handleNavigation.toString()};
+const pruneUnknownCaches = ${pruneUnknownCaches.toString()};
 
 self.addEventListener('install', () => {
   // Намеренно не форсируем немедленную активацию здесь: новый SW должен ждать
@@ -221,6 +231,12 @@ self.addEventListener('activate', (event) => {
         await Promise.all(keys.map((key) => caches.delete(key)));
         await self.registration.unregister();
         console.debug('[SW] kill switch active — caches cleared, unregistered');
+      } else {
+        const staleCaches = pruneUnknownCaches(await caches.keys(), [STATIC_CACHE_NAME, HTML_CACHE_NAME]);
+        if (staleCaches.length > 0) {
+          await Promise.all(staleCaches.map((key) => caches.delete(key)));
+          console.debug('[SW] pruned stale caches: ' + staleCaches.join(', '));
+        }
       }
       await self.clients.claim();
       console.debug('[SW] activated (build ' + SW_BUILD + ')');
