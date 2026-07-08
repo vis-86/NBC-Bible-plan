@@ -14,7 +14,8 @@
     "songs:import": "tsx scripts/songs-import/cli.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "e2e:offline": "playwright test"
   },
   "dependencies": {
     "@directus/sdk": "^20.3.0",
@@ -37,6 +38,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10",
     "@testing-library/jest-dom": "^6.9.1",
@@ -47,6 +49,7 @@
     "@vitest/coverage-v8": "^4.1.9",
     "babel-plugin-react-compiler": "1.0.0",
     "baseline-browser-mapping": "^2.10.19",
+    "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.0.10",
     "fake-indexeddb": "^6.2.5",

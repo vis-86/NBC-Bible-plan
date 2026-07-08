@@ -49,16 +49,16 @@ Base: `main` (a6a2641)
 - [x] **T3** (после T2) UpdateToast: «Доступна новая версия» + «Обновить»/«Позже», тема var(--app-*), safe-area, монтаж в root layout
 
 ### Phase 2 — Guards
-- [ ] **T4** ChunkLoadError-guard: `chunkGuard.ts` (isChunkLoadFailure / shouldReload с cooldown 60s в sessionStorage) + подписки на `error`/`unhandledrejection` (извлекать `event.error ?? event.message` / `event.reason`); НЕ reload в офлайне
-- [ ] **T5** `/api/health` (204, no-store, без auth) + гейт `online`-триггера синка через `isServerReachable()` (raceWithTimeout 4s; пинговать `getApiPath('/api/health')`, НЕ `'/health'` — иначе путь не /api/* и SW может ответить из кеша); visibilitychange/app-start не гейтить
-- [ ] **T6** Аудит 401 vs network error: регрессионные тесты на client.ts (fetch-reject ≠ session-expired), проверка graphql.ts и AuthProvider; правки только при найденных дырах
+- [x] **T4** ChunkLoadError-guard: `chunkGuard.ts` (isChunkLoadFailure / shouldReload с cooldown 60s в sessionStorage) + подписки на `error`/`unhandledrejection` (извлекать `event.error ?? event.message` / `event.reason`); НЕ reload в офлайне
+- [x] **T5** `/api/health` (204, no-store, без auth) + гейт `online`-триггера синка через `isServerReachable()` (raceWithTimeout 4s; пинговать `getApiPath('/api/health')`, НЕ `'/health'` — иначе путь не /api/* и SW может ответить из кеша); visibilitychange/app-start не гейтить
+- [x] **T6** Аудит 401 vs network error: регрессионные тесты на client.ts (fetch-reject ≠ session-expired), проверка graphql.ts и AuthProvider; правки только при найденных дырах
 
 ### Phase 3 — Гигиена и инфраструктура
-- [ ] **T7** (после T1) Cache housekeeping: `pruneUnknownCaches` на activate; known = STATIC_CACHE_NAME + HTML_CACHE_NAME (данные — в IDB, не в Cache API; перед реализацией grep `caches.open`)
-- [ ] **T8** Верификация headers на прод-билде (sw.js must-revalidate; `_next/static` immutable; HTML не кешируется) + раздел «PWA cache headers» в docs/nginx.md; правка tls.conf только при нарушении
+- [x] **T7** (после T1) Cache housekeeping: `pruneUnknownCaches` на activate; known = STATIC_CACHE_NAME + HTML_CACHE_NAME (данные — в IDB, не в Cache API; перед реализацией grep `caches.open`)
+- [x] **T8** Верификация headers на прод-билде (sw.js must-revalidate; `_next/static` immutable; HTML не кешируется) + раздел «PWA cache headers» в docs/nginx.md; правка tls.conf только при нарушении
 
 ### Phase 4 — Регрессия
-- [ ] **T9** (после T3, T4, T5) Offline E2E smoke (Playwright, локальный прод-билд): cold offline start; офлайн-навигация dashboard/read/songs; outbox sync после реконнекта; сценарий «деплой при открытой вкладке» — ручной чек-лист в e2e/offline/README.md
+- [x] **T9** (после T3, T4, T5) Offline E2E smoke (Playwright, локальный прод-билд): cold offline start; офлайн-навигация dashboard/read/songs; outbox sync после реконнекта; сценарий «деплой при открытой вкладке» — ручной чек-лист в e2e/offline/README.md
 
 ## Commit Plan
 
