@@ -1,12 +1,14 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { useSong } from '@/features/songs/hooks/useSong';
 import { SongView } from '@/features/songs/components/SongView';
+import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
+import { cn } from '@/shared/utils/cn';
 
 /**
  * Единый клиентский маршрут детали песни (approach C): id живёт в search-параметре,
@@ -20,6 +22,8 @@ function SongPageContent() {
   const id = searchParams.get('id') ?? '';
 
   const { song, loading, error } = useSong(id);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const { hidden } = useAutoHideOnScroll(contentRef, song?.id);
 
   const handleBack = () => router.push('/dashboard/songs');
 
@@ -27,9 +31,22 @@ function SongPageContent() {
     // hideBottomNav — фокус-режим чтения: нижняя навигация скрыта.
     <DashboardLayout onChangeView={() => {}} hideBottomNav>
       <div data-song-page className="flex min-h-0 flex-1 flex-col">
-        <PageHeader title={song?.title ?? ''} onBack={handleBack} backAriaLabel="Назад к списку" />
+        {/* grid-rows 0fr↔1fr анимирует высоту без измерения. pt-safe в скрытом
+            состоянии сохраняет закрашенную полоску брови (PageHeader несёт
+            свой pt-safe-3 только когда виден) — инвариант «бровь = цвет шапки». */}
+        <div
+          data-song-page-header-collapse
+          className={cn(
+            'grid bg-app-surface transition-[grid-template-rows,padding] duration-300 ease-out',
+            hidden ? 'grid-rows-[0fr] pt-safe' : 'grid-rows-[1fr] pt-0'
+          )}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <PageHeader title={song?.title ?? ''} onBack={handleBack} backAriaLabel="Назад к списку" />
+          </div>
+        </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+        <div ref={contentRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           {!id ? (
             <ErrorMessage title="Песня не найдена" message="Не указан идентификатор песни." onRetry={handleBack} retryLabel="К списку" />
           ) : error ? (

@@ -55,6 +55,11 @@ bible-plan/
 │   │   │   ├── hooks/                # useBibleText, useChapterNavigation, useReadingSettings
 │   │   │   ├── types.ts              # Reading-specific types
 │   │   │   └── bible-text-cache.ts   # Client-side cache for bible text
+│   │   ├── songs/                    # Songs (ChordPro) feature slice
+│   │   │   ├── components/           # SongList, SongCard, SongView, SearchBar, render/*
+│   │   │   ├── hooks/                # useSongs, useSong, useSongSearch, useScrollRestore
+│   │   │   ├── lib/                  # ChordPro parser, offlineSongs (read-through)
+│   │   │   └── types.ts              # Song-specific types
 │   │   └── landing/                  # Public landing slice (orchestrated by app/page.tsx)
 │   │       ├── components/           # Header, Hero, About, HowToStart, InstallGuide, FinalCta, Footer, Atmosphere, PhoneMockup, cta
 │   │       ├── components/anim.ts    # Shared motion reveal variants
@@ -76,7 +81,7 @@ bible-plan/
 │   │   │   └── ui/                   # Generic UI primitives (shadcn/ui) + UpdateToast.tsx
 │   │   ├── config/
 │   │   │   └── design-tokens.ts      # TS design token constants (maps to CSS vars)
-│   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast)
+│   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast), useAutoHideOnScroll (hide-on-scroll обёртка над useScrollDirection)
 │   │   ├── offline/                  # IndexedDB layer (idb), read-through, write-ahead outbox, sync, downloadManager, chunkGuard, networkTimeout
 │   │   ├── services/
 │   │   │   └── api/
@@ -134,6 +139,8 @@ bible-plan/
 | `src/shared/offline/downloadManager.ts` | Опциональная офлайн-загрузка Писания/песен/плана + очистка |
 | `src/sw/sw-source.ts` + `src/app/sw.js/route.ts` | Статический app-shell service worker |
 | `src/shared/hooks/useSwUpdate.ts` + `src/shared/components/ui/UpdateToast.tsx` | Update flow: `registration.waiting` → тост «Обновить» → `SKIP_WAITING` → reload |
+| `src/shared/hooks/useAutoHideOnScroll.ts` | Hide-on-scroll обёртка над `useScrollDirection` для не-ридер страниц (список/деталь песен) |
+| `src/features/songs/hooks/useScrollRestore.ts` | Восстановление позиции скролла + поискового запроса списка песен (`sessionStorage`) |
 | `src/shared/offline/chunkGuard.ts` + `src/components/ChunkGuard.tsx` | ChunkLoadError guard — auto-reload-once с cooldown |
 | `src/app/api/health/route.ts` | 204 no-store ping — гейт online-триггера outbox-синка (`isServerReachable`) |
 | `e2e/offline/` + `playwright.config.ts` | Офлайн E2E-регрессия (`npm run e2e:offline`) — cold start, навигация, outbox sync |

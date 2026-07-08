@@ -94,14 +94,26 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                   const reading = parseReadingItem(item.readText);
                   const label = reading ? `${reading.book} ${reading.chapter}` : item.readText;
 
+                  const handleSelectReading = () => {
+                    if (reading) {
+                      onSelectReading(day, reading);
+                    } else {
+                      console.warn('[TodayReadingCard] could not parse reading item for navigation', item.readText);
+                    }
+                  };
+
                   return (
-                    <label
+                    <div
                       key={item.item}
                       data-today-reading-card-item={item.item}
                       data-today-reading-card-item-completed={item.completed || undefined}
+                      onClick={handleSelectReading}
                       className="flex items-center p-3 rounded-xl bg-white/5 border border-white/8 cursor-pointer hover:bg-white/10 transition-all group"
                     >
-                      <div className="relative flex items-center justify-center w-6 h-6 mr-4 flex-shrink-0">
+                      <div
+                        onClick={(e) => e.stopPropagation()}
+                        className="relative flex items-center justify-center w-11 h-11 -my-2.5 -ml-2 mr-2 flex-shrink-0"
+                      >
                         <input
                           data-today-reading-card-item-checkbox={item.item}
                           type="checkbox"
@@ -109,7 +121,12 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                           onChange={() => {
                             void onToggleItem(day.id, item.item);
                           }}
-                          className="peer appearance-none w-6 h-6 rounded-full border-2 border-white/30 checked:bg-app-success checked:border-app-success transition-colors cursor-pointer"
+                          aria-label={item.completed ? 'Снять отметку о прочтении' : 'Отметить как прочитано'}
+                          className="peer absolute inset-0 w-full h-full appearance-none rounded-full cursor-pointer"
+                        />
+                        <span
+                          aria-hidden
+                          className="w-6 h-6 rounded-full border-2 border-white/30 peer-checked:bg-app-success peer-checked:border-app-success transition-colors pointer-events-none"
                         />
                         <Check
                           className="w-3.5 h-3.5 text-white absolute opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none stroke-[3]"
@@ -119,12 +136,9 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                       <button
                         type="button"
                         data-today-reading-card-item-link={item.item}
-                        onClick={() => {
-                          if (reading) {
-                            onSelectReading(day, reading);
-                          } else {
-                            console.warn('[TodayReadingCard] could not parse reading item for navigation', item.readText);
-                          }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectReading();
                         }}
                         className="flex-1 text-left"
                       >
@@ -133,26 +147,35 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                         </span>
                       </button>
                       <ChevronRight className="w-5 h-5 text-app-overlay-text/30 group-hover:text-app-overlay-text/60 flex-shrink-0" aria-hidden />
-                    </label>
+                    </div>
                   );
                 })
               : day.readings?.map((reading, idx) => (
-                  <label
+                  <div
                     key={idx}
                     data-today-reading-card-item={idx}
+                    onClick={() => onSelectReading(day, reading)}
                     className="flex items-center p-3 rounded-xl bg-white/5 border border-white/8 cursor-pointer hover:bg-white/10 transition-all group"
                   >
-                    <div className="relative flex items-center justify-center w-6 h-6 mr-4 flex-shrink-0">
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="relative flex items-center justify-center w-11 h-11 -my-2.5 -ml-2 mr-2 flex-shrink-0"
+                    >
                       <input
                         type="checkbox"
                         readOnly
-                        className="peer appearance-none w-6 h-6 rounded-full border-2 border-white/30"
+                        aria-label="Отметить как прочитано"
+                        className="peer absolute inset-0 w-full h-full appearance-none rounded-full cursor-pointer"
                       />
+                      <span aria-hidden className="w-6 h-6 rounded-full border-2 border-white/30 pointer-events-none" />
                     </div>
                     <button
                       type="button"
                       data-today-reading-card-item-link={idx}
-                      onClick={() => onSelectReading(day, reading)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectReading(day, reading);
+                      }}
                       className="flex-1 text-left"
                     >
                       <span className="text-lg font-medium text-app-overlay-text/80 group-hover:text-app-overlay-text transition-colors">
@@ -160,7 +183,7 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                       </span>
                     </button>
                     <ChevronRight className="w-5 h-5 text-app-overlay-text/30 group-hover:text-app-overlay-text/60 flex-shrink-0" aria-hidden />
-                  </label>
+                  </div>
                 ))}
           </div>
 

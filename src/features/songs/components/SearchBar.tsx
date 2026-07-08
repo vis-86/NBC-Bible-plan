@@ -7,11 +7,13 @@ interface SearchBarProps {
   /** Вызывается с задержкой (debounce) при вводе. */
   onSearch: (query: string) => void;
   placeholder?: string;
+  /** Начальное значение (восстановление поискового запроса при возврате к списку). */
+  initialValue?: string;
 }
 
 /** Строка поиска с debounce (200мс) и кнопкой очистки. */
-export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, placeholder = 'Поиск песни…' }) => {
-  const [text, setText] = useState('');
+export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, placeholder = 'Поиск песни…', initialValue = '' }) => {
+  const [text, setText] = useState(initialValue);
 
   useEffect(() => {
     const t = setTimeout(() => onSearch(text), 200);
