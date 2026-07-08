@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { routeStrategy, handleStaticAsset, handleNavigation, OFFLINE_FALLBACK_HTML } from './sw-source';
+import { routeStrategy, handleStaticAsset, handleNavigation, buildSwBody, OFFLINE_FALLBACK_HTML } from './sw-source';
 
 /**
  * Регрессия на баг из прода (авиарежим): `handleNavigation` раньше читал
@@ -51,6 +51,38 @@ class FakeCache {
     return Array.from(this.store.keys()).map((url) => new Request(url));
   }
 }
+
+/**
+ * Регрессия на mid-session capture: старая вкладка + новый SW, захвативший контроль
+ * сразу на install, отдаёт lazy-чанки с новыми content-hash именами, которых старый
+ * HTML не ждёт (ChunkLoadError). Новый SW обязан ждать в waiting до явной команды
+ * SKIP_WAITING от клиента (см. ServiceWorkerRegistrar/UpdateToast).
+ */
+describe('buildSwBody', () => {
+  it('install-обработчик не вызывает skipWaiting()', () => {
+    const body = buildSwBody();
+    const installBlock = body.slice(
+      body.indexOf("addEventListener('install'"),
+      body.indexOf("addEventListener('message'")
+    );
+    expect(installBlock).not.toContain('skipWaiting()');
+  });
+
+  it('содержит message-обработчик, вызывающий skipWaiting() на SKIP_WAITING', () => {
+    const body = buildSwBody();
+    const messageBlock = body.slice(
+      body.indexOf("addEventListener('message'"),
+      body.indexOf("addEventListener('activate'")
+    );
+    expect(messageBlock).toContain("event.data.type === 'SKIP_WAITING'");
+    expect(messageBlock).toContain('skipWaiting()');
+  });
+
+  it('встраивает SW_BUILD из NEXT_PUBLIC_APP_BUILD_TIME', () => {
+    const body = buildSwBody();
+    expect(body).toContain('const SW_BUILD =');
+  });
+});
 
 describe('routeStrategy', () => {
   it('cache-first для same-origin GET _next/static чанков', () => {

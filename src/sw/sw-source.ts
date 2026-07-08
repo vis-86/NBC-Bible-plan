@@ -56,6 +56,13 @@ const STATIC_CACHE_NAME = 'app-shell-static-v1';
 export const HTML_CACHE_NAME = 'app-shell-html-v1';
 
 /**
+ * Build-time версия (см. `NEXT_PUBLIC_APP_BUILD_TIME` в next.config.ts /
+ * `shared/config/appVersion.ts`) — встраивается в текст SW, чтобы байты
+ * `sw.js` менялись на каждый билд и браузер видел `updatefound` на каждый деплой.
+ */
+const SW_BUILD = process.env.NEXT_PUBLIC_APP_BUILD_TIME ?? 'unknown';
+
+/**
  * Отдаётся офлайн для навигации на маршрут, у которого нет точного совпадения в
  * HTML_CACHE_NAME (страница ни разу не открывалась как настоящая документная
  * навигация в этой сессии). НЕЛЬЗЯ подставлять сюда HTML другой закешированной
@@ -186,13 +193,24 @@ const STATIC_CACHE_NAME = ${JSON.stringify(STATIC_CACHE_NAME)};
 const HTML_CACHE_NAME = ${JSON.stringify(HTML_CACHE_NAME)};
 const OFFLINE_FALLBACK_HTML = ${JSON.stringify(OFFLINE_FALLBACK_HTML)};
 const NAV_TIMEOUT_MS = ${NAV_TIMEOUT_MS};
+const SW_BUILD = ${JSON.stringify(SW_BUILD)};
 const routeStrategy = ${routeStrategy.toString()};
 const handleStaticAsset = ${handleStaticAsset.toString()};
 const handleNavigation = ${handleNavigation.toString()};
 
 self.addEventListener('install', () => {
-  self.skipWaiting();
-  console.debug('[SW] installing');
+  // Намеренно не форсируем немедленную активацию здесь: новый SW должен ждать
+  // в waiting-состоянии, пока пользователь явно не подтвердит обновление (см.
+  // ServiceWorkerRegistrar/UpdateToast) — иначе mid-session захват старой
+  // вкладки новым SW ломает lazy-чанки.
+  console.debug('[SW] installed, waiting for activation (build ' + SW_BUILD + ')');
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.debug('[SW] SKIP_WAITING received');
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (event) => {
@@ -205,7 +223,7 @@ self.addEventListener('activate', (event) => {
         console.debug('[SW] kill switch active — caches cleared, unregistered');
       }
       await self.clients.claim();
-      console.debug('[SW] activated');
+      console.debug('[SW] activated (build ' + SW_BUILD + ')');
     })()
   );
 });

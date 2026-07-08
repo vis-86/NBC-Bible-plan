@@ -5,6 +5,7 @@ import "./globals.css";
 import AuthProvider from "@/components/AuthProvider";
 import ThemeProvider from "@/components/ThemeProvider";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
+import { UpdateToast } from "@/shared/components/ui/UpdateToast";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
@@ -130,6 +131,7 @@ export default function RootLayout({
         {/* OfflineIndicator живёт только на главной (/dashboard) — по фидбеку
             он не должен висеть в ридере и других разделах. */}
         <ServiceWorkerRegistrar />
+        <UpdateToast />
       </body>
     </html>
   );
