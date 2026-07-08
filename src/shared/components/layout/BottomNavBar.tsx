@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect } from 'react';
+import React, { Suspense, useEffect, useRef } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { BookOpen, Home, User, MessageCircle, Music } from 'lucide-react';
 import { AppView } from '@/types';
@@ -26,10 +26,57 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
   const searchParams = useSearchParams();
   const aiEnabled = isAIEnabled();
   const { chromeHidden } = useChromeVisibility();
+  const navRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     console.debug('[BottomNavBar] chromeHidden', chromeHidden);
   }, [chromeHidden]);
+
+  // [FIX] Корень бага «карточка песни обрезана навигацией»: `.pb-nav`
+  // (клиренс контента) резервировал статичную оценку `--dock-nav-h` (56px),
+  // а реальная высота бара (иконка + подпись + внутренние паддинги +
+  // safe-area) на практике больше и варьируется по устройствам/масштабу
+  // шрифта — отсюда и «иногда бар больше, чем нужно» (на самом деле оценка
+  // всегда была занижена, просто с разным разрывом). Меряем РЕАЛЬНУЮ высоту
+  // `<nav>` через ResizeObserver и пишем её в CSS-переменную
+  // `--dock-nav-actual-h` на :root — `.pb-nav` (globals.css) берёт клиренс
+  // из неё, так что резерв места всегда синхронен с фактическим баром, а не
+  // с оценкой на глаз. Дополнительно логируем аномально большую высоту —
+  // если после этого фикса бар всё ещё раздувается сильнее разумного, лог
+  // даст конкретные цифры для дальнейшей диагностики.
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+
+    const root = document.documentElement;
+    const fallbackHeight = parseFloat(getComputedStyle(root).getPropertyValue('--dock-nav-h')) || 56;
+
+    const observer = new ResizeObserver(() => {
+      // getBoundingClientRect (border-box: паддинги + border), а не
+      // entries[0].contentRect — тот по умолчанию считает content-box и
+      // занизил бы высоту ещё сильнее, чем изначальная статичная оценка.
+      const height = el.getBoundingClientRect().height;
+
+      root.style.setProperty('--dock-nav-actual-h', `${height}px`);
+
+      // Запас над --dock-nav-h под нормальные pt-1.5 + safe-area-bottom паддинги.
+      if (height > fallbackHeight + 48) {
+        const style = getComputedStyle(el);
+        console.warn('[FIX] BottomNavBar unexpectedly tall', {
+          height,
+          fallbackHeight,
+          innerWidth: window.innerWidth,
+          resolvedPaddingBottom: style.paddingBottom,
+          resolvedPaddingTop: style.paddingTop,
+        });
+      }
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty('--dock-nav-actual-h');
+    };
+  }, []);
 
   const viewParam = searchParams.get('view');
 
@@ -89,6 +136,7 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
 
   return (
     <nav
+      ref={navRef}
       data-dashboard-layout-bottom-nav
       data-dashboard-layout-bottom-nav-hidden={chromeHidden || undefined}
       className={`fixed bottom-0 left-0 right-0 max-w-md mx-auto min-h-[var(--dock-nav-h)] pt-1.5 glass-nav rounded-t-[24px] flex items-center justify-around z-50 border-t border-app-border dock-nav-safe-b dock-nav-safe-x transition-transform duration-300 ${
@@ -116,7 +164,7 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
             </div>
             <span
               data-dashboard-nav-item-label={item.id}
-              className={`text-[10px] relative ${isActive ? 'font-bold text-app-primary' : 'font-medium text-app-text-muted group-hover:text-app-text-secondary'}`}
+              className={`text-[10px] relative whitespace-nowrap ${isActive ? 'font-bold text-app-primary' : 'font-medium text-app-text-muted group-hover:text-app-text-secondary'}`}
             >
               {item.label}
               {isActive && (

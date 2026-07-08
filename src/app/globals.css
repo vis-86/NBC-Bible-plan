@@ -356,8 +356,10 @@ select,
 }
 
 /* ── Docked bottom nav ───────────────────────────────────────────────
-   --dock-nav-h — single source of truth for the docked nav row height.
-   Used by BottomNavBar (min-h) and by the content clearance (.pb-nav). */
+   --dock-nav-h — fallback estimate of the docked nav row height, used only
+   for the very first paint (before JS measures the real thing) and as a
+   safety net if ResizeObserver is unavailable. NOT the source of truth for
+   content clearance — see --dock-nav-actual-h below. */
 :root {
     --dock-nav-h: 56px;
 }
@@ -374,9 +376,18 @@ select,
     padding-right: max(1rem, env(safe-area-inset-right));
 }
 
-/* Content clearance so scrollable pages don't hide behind the docked bar. */
+/* Content clearance so scrollable pages don't hide behind the docked bar.
+   --dock-nav-actual-h is written by BottomNavBar (ResizeObserver on the real
+   <nav>, includes its own safe-area padding) — content clearance always
+   matches the REAL rendered bar height, not a hardcoded guess. Root cause of
+   the "last song card cut off by the nav" bug: the static estimate
+   (--dock-nav-h + safe-area) undercounted the bar's actual height (icon +
+   label + internal paddings), which varies slightly by device/font metrics —
+   any mismatch there directly overlaps content. Fallback (before JS measures,
+   or without ResizeObserver support) keeps the old static calc so there's no
+   clearance gap on first paint. */
 .pb-nav {
-    padding-bottom: calc(var(--dock-nav-h) + env(safe-area-inset-bottom));
+    padding-bottom: var(--dock-nav-actual-h, calc(var(--dock-nav-h) + env(safe-area-inset-bottom)));
 }
 
 /* Bottom sheet animation */

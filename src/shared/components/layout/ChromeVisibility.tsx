@@ -46,3 +46,13 @@ export function useChromeVisibility(): ChromeVisibilityValue {
   }
   return ctx;
 }
+
+/**
+ * Безопасная версия для переиспользуемых shared-компонентов (например,
+ * `BottomSheet`), которые в теории могут отрендериться вне
+ * `ChromeVisibilityProvider` (не только внутри `/dashboard/*`) — `null` вместо
+ * throw, потребитель сам решает, что делать при отсутствии контекста.
+ */
+export function useOptionalChromeVisibility(): ChromeVisibilityValue | null {
+  return useContext(ChromeVisibilityContext);
+}

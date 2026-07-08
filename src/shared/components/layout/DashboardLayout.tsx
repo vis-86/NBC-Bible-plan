@@ -4,8 +4,9 @@ import React, { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { AppView } from '@/types';
 import BottomNavBar from './BottomNavBar';
-import { ChromeVisibilityProvider } from './ChromeVisibility';
+import { ChromeVisibilityProvider, useChromeVisibility } from './ChromeVisibility';
 import { warmAppShellOnceOnline } from '@/shared/offline/appShell';
+import { cn } from '@/shared/utils/cn';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -39,14 +40,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, onChangeVie
   return (
     <ChromeVisibilityProvider>
       <div data-dashboard-layout className="flex flex-col h-dvh min-h-0 bg-app-bg text-app-text font-sans overflow-hidden">
-        <main
-          data-dashboard-layout-main
-          className={`relative flex min-h-0 w-full flex-1 flex-col overflow-hidden${reserveNavSpace ? ' pb-nav' : ''}`}
-        >
-          <div className="mx-auto flex h-full min-h-0 w-full max-w-md flex-1 flex-col bg-app-bg md:shadow-xl">
-            {children}
-          </div>
-        </main>
+        <DashboardMain reserveNavSpace={reserveNavSpace}>{children}</DashboardMain>
 
         {showBottomNav && (
           <BottomNavBar onChangeView={onChangeView} />
@@ -55,5 +49,38 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, onChangeVie
     </ChromeVisibilityProvider>
   );
 };
+
+interface DashboardMainProps {
+  reserveNavSpace: boolean;
+  children: React.ReactNode;
+}
+
+/**
+ * Резерв места под докнутый nav (`.pb-nav`) должен исчезать синхронно со
+ * скрытием бара по скроллу (`chromeHidden`) — иначе на страницах вроде
+ * списка песен, где nav и резервируется, и прячется по скроллу, внизу
+ * остаётся статичный пустой блок высотой бара, когда сам бар уже уехал вниз.
+ * Вынесено в отдельный компонент: `useChromeVisibility` требует контекст,
+ * который создаёт `ChromeVisibilityProvider` выше по дереву — вызов хука
+ * прямо в `DashboardLayout` упал бы (провайдера ещё нет в момент рендера).
+ */
+function DashboardMain({ reserveNavSpace, children }: DashboardMainProps) {
+  const { chromeHidden } = useChromeVisibility();
+  const showReserve = reserveNavSpace && !chromeHidden;
+
+  return (
+    <main
+      data-dashboard-layout-main
+      className={cn(
+        'relative flex min-h-0 w-full flex-1 flex-col overflow-hidden transition-[padding-bottom] duration-300',
+        showReserve && 'pb-nav'
+      )}
+    >
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-md flex-1 flex-col bg-app-bg md:shadow-xl">
+        {children}
+      </div>
+    </main>
+  );
+}
 
 export default DashboardLayout;

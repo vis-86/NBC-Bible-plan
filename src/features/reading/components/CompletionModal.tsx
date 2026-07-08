@@ -36,7 +36,7 @@ export const CompletionModal: React.FC<CompletionModalProps> = ({
   }, [isOpen]);
   
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose}>
+    <BottomSheet isOpen={isOpen} onClose={onClose} hideChromeWhileOpen>
       {/* pb-2: нижний зазор к home-indicator даёт body шита (safe-area padding). */}
       <div className="flex flex-col items-center pt-2 pb-2">
         

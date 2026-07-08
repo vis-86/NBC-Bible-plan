@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { X } from 'lucide-react';
+import { useOptionalChromeVisibility } from '@/shared/components/layout/ChromeVisibility';
 
 interface BottomSheetProps {
   isOpen: boolean;
@@ -10,6 +11,22 @@ interface BottomSheetProps {
   children: React.ReactNode;
   maxHeight?: string;
   disableOverlay?: boolean; // Отключает overlay для возможности взаимодействия с контентом под ним
+  /**
+   * [FIX] Прячет докнутый BottomNavBar (через ChromeVisibility) на время, пока
+   * шит открыт. Подстраховка сверх z-index (шит и так z-[70] > nav z-50): на
+   * реальном iOS Safari воспроизведено, что нав всё равно визуально
+   * перекрывает нижнюю часть шита (в т.ч. кнопку действия) — вероятно,
+   * `-webkit-overflow-scrolling: touch` тела шита создаёт отдельный
+   * compositing layer, из-за которого порядок отрисовки на части устройств
+   * расходится с z-index. В desktop-эмуляции Chrome не воспроизводится.
+   * По умолчанию ВЫКЛЮЧЕНО: небезопасно для шитов ридера (ChapterPicker/
+   * BookPicker/ReadingSettings) — там chromeHidden уже управляется скроллом
+   * главы (`useScrollDirection` в ReadingView), и безусловный сброс в false
+   * при закрытии шита сломал бы синхронизацию с текущей позицией скролла.
+   * Включать только на страницах, где больше никто chromeHidden не трогает
+   * (сейчас — `CompletionModal` на дашборде).
+   */
+  hideChromeWhileOpen?: boolean;
 }
 
 const LOG_FIX = process.env.DEBUG_FIX === '1' || process.env.NODE_ENV === 'development';
@@ -22,16 +39,28 @@ const BottomSheetOpenContent: React.FC<
   Omit<BottomSheetProps, 'isOpen'>
 // dvh, не vh: в Safari с видимым URL-баром 1vh больше видимой области —
 // прибитый к bottom-0 шит с max-h в vh вылезал бы верхом за экран.
-> = ({ onClose, title, children, maxHeight = 'max-h-[80dvh]', disableOverlay = false }) => {
+> = ({ onClose, title, children, maxHeight = 'max-h-[80dvh]', disableOverlay = false, hideChromeWhileOpen = false }) => {
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const touchStartY = useRef<number | null>(null);
+  const chromeVisibility = useOptionalChromeVisibility();
+  const setChromeHidden = chromeVisibility?.setChromeHidden;
 
   useEffect(() => {
     if (LOG_FIX) {
-      console.debug('[FIX] BottomSheet inner mounted', { maxHeight, disableOverlay });
+      console.debug('[FIX] BottomSheet inner mounted', { maxHeight, disableOverlay, hideChromeWhileOpen });
     }
-  }, [maxHeight, disableOverlay]);
+  }, [maxHeight, disableOverlay, hideChromeWhileOpen]);
+
+  // [FIX] См. комментарий у hideChromeWhileOpen в BottomSheetProps. Эффект
+  // живёт ровно столько же, сколько и сам шит (компонент размонтируется при
+  // закрытии — см. BottomSheet ниже), поэтому setChromeHidden(true)/(false)
+  // естественно совпадают с открытием/закрытием без доп. состояния.
+  useEffect(() => {
+    if (!hideChromeWhileOpen || !setChromeHidden) return;
+    setChromeHidden(true);
+    return () => setChromeHidden(false);
+  }, [hideChromeWhileOpen, setChromeHidden]);
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartY.current = e.touches[0].clientY;

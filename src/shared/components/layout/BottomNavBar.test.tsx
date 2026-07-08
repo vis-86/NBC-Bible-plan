@@ -71,4 +71,34 @@ describe('BottomNavBar', () => {
     expect(nav).not.toHaveAttribute('data-dashboard-layout-bottom-nav-hidden');
     expect(nav.className).not.toContain('pointer-events-none');
   });
+
+  it('пишет реально измеренную высоту бара в --dock-nav-actual-h (клиренс контента не занижается статичной оценкой)', () => {
+    const callbacks: ResizeObserverCallback[] = [];
+    class MockResizeObserver {
+      constructor(cb: ResizeObserverCallback) {
+        callbacks.push(cb);
+      }
+      observe = vi.fn();
+      disconnect = vi.fn();
+      unobserve = vi.fn();
+    }
+    const originalRO = globalThis.ResizeObserver;
+    // @ts-expect-error — минимальный мок ResizeObserver, jsdom его не реализует
+    globalThis.ResizeObserver = MockResizeObserver;
+
+    try {
+      const { container } = renderNav();
+      const nav = container.querySelector('[data-dashboard-layout-bottom-nav]') as HTMLElement;
+      // Реальный бар выше статичной оценки --dock-nav-h (56px) — именно этот
+      // разрыв резал карточку песни навигацией до фикса.
+      vi.spyOn(nav, 'getBoundingClientRect').mockReturnValue({ height: 74 } as DOMRect);
+
+      callbacks.forEach((cb) => cb([], new MockResizeObserver(() => {}) as unknown as ResizeObserver));
+
+      expect(document.documentElement.style.getPropertyValue('--dock-nav-actual-h')).toBe('74px');
+    } finally {
+      globalThis.ResizeObserver = originalRO;
+      document.documentElement.style.removeProperty('--dock-nav-actual-h');
+    }
+  });
 });
