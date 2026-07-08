@@ -49,7 +49,7 @@ describe('Лендинг (page.tsx)', () => {
     render(<Home />);
 
     // Hero
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('без чувства вины');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('всегда под рукой');
 
     // Три шага invite-регистрации
     expect(screen.getByText('Напишите нам')).toBeInTheDocument();
@@ -57,10 +57,22 @@ describe('Лендинг (page.tsx)', () => {
     expect(screen.getByText('Придумайте логин и пароль')).toBeInTheDocument();
 
     // Секция установки PWA (canInstall=false → iOS-инструкция)
-    expect(screen.getByText('Установите на телефон')).toBeInTheDocument();
+    expect(screen.getByText('Установите как приложение')).toBeInTheDocument();
 
     // Кнопки «Войти» (header + hero + finalCta)
     expect(screen.getAllByText('Войти').length).toBeGreaterThan(0);
+  });
+
+  it('показывает карточки «Песни» и «Оффлайн» в About и секцию FeatureShowcase', () => {
+    render(<Home />);
+
+    expect(screen.getByText('Песни с аккордами')).toBeInTheDocument();
+    expect(screen.getByText('Работает без интернета')).toBeInTheDocument();
+
+    expect(document.querySelector('[data-feature-showcase]')).toBeInTheDocument();
+    expect(document.querySelector('[data-feature-showcase-item="plan"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-feature-showcase-item="songs"]')).toBeInTheDocument();
+    expect(document.querySelector('[data-feature-showcase-item="offline"]')).toBeInTheDocument();
   });
 
   it('CTA «Получить доступ» ведёт во внешнюю поддержку', () => {
@@ -102,5 +114,31 @@ describe('Лендинг при включённой регистрации (NEX
 
     fireEvent.click(screen.getAllByText('Зарегистрироваться')[0]);
     expect(pushMock).toHaveBeenCalledWith('/register');
+  });
+});
+
+describe('HowToStart — матрица register×code', () => {
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_REGISTER_ENABLED;
+    delete process.env.NEXT_PUBLIC_REGISTER_REQUIRE_CODE;
+  });
+
+  it('REGISTER_ENABLED=true + REQUIRE_CODE=false → шаги без кода', () => {
+    process.env.NEXT_PUBLIC_REGISTER_ENABLED = 'true';
+    process.env.NEXT_PUBLIC_REGISTER_REQUIRE_CODE = 'false';
+    render(<Home />);
+
+    expect(screen.getByText('Придумайте логин и пароль')).toBeInTheDocument();
+    expect(screen.getByText('Читайте в своём ритме')).toBeInTheDocument();
+    expect(screen.queryByText('Возьмите код церкви')).not.toBeInTheDocument();
+  });
+
+  it('REGISTER_ENABLED=true + REQUIRE_CODE=true (по умолчанию) → шаги с кодом церкви', () => {
+    process.env.NEXT_PUBLIC_REGISTER_ENABLED = 'true';
+    render(<Home />);
+
+    expect(screen.getByText('Возьмите код церкви')).toBeInTheDocument();
+    expect(screen.getByText('Введите код церкви')).toBeInTheDocument();
+    expect(screen.queryByText('Придумайте логин и пароль')).not.toBeInTheDocument();
   });
 });

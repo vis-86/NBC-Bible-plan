@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { AppView } from '@/types';
 import BottomNavBar from './BottomNavBar';
+import { ChromeVisibilityProvider } from './ChromeVisibility';
 import { warmAppShellOnceOnline } from '@/shared/offline/appShell';
 
 interface DashboardLayoutProps {
@@ -26,26 +27,32 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, onChangeVie
   }, []);
 
   // Approach C: ридер переехал на /dashboard/read (без сегмента /read/<...>/).
+  // Immersive-ридер: nav теперь виден и в ридере (overlay, скрывается по скроллу —
+  // см. ChromeVisibility), поэтому showBottomNav больше не исключает isReaderPage.
   const isReaderPage = pathname.startsWith('/dashboard/read');
-  // When the docked bottom nav is shown, reserve space so scrollable content
-  // isn't hidden behind it (single source of clearance — see .pb-nav / --dock-nav-h).
-  const showBottomNav = !isReaderPage && !hideBottomNav;
+  const showBottomNav = !hideBottomNav;
+  // На ридере nav — overlay поверх контента (плавающая навигация ридера и
+  // собственный bottom-padding контента дают клиренс), не резервируем под него
+  // место в layout — иначе скрытие/показ nav дёргает высоту контента.
+  const reserveNavSpace = showBottomNav && !isReaderPage;
 
   return (
-    <div data-dashboard-layout className="flex flex-col h-dvh min-h-0 bg-app-bg text-app-text font-sans overflow-hidden">
-      <main
-        data-dashboard-layout-main
-        className={`relative flex min-h-0 w-full flex-1 flex-col overflow-hidden${showBottomNav ? ' pb-nav' : ''}`}
-      >
-        <div className="mx-auto flex h-full min-h-0 w-full max-w-md flex-1 flex-col bg-app-bg md:shadow-xl">
-          {children}
-        </div>
-      </main>
+    <ChromeVisibilityProvider>
+      <div data-dashboard-layout className="flex flex-col h-dvh min-h-0 bg-app-bg text-app-text font-sans overflow-hidden">
+        <main
+          data-dashboard-layout-main
+          className={`relative flex min-h-0 w-full flex-1 flex-col overflow-hidden${reserveNavSpace ? ' pb-nav' : ''}`}
+        >
+          <div className="mx-auto flex h-full min-h-0 w-full max-w-md flex-1 flex-col bg-app-bg md:shadow-xl">
+            {children}
+          </div>
+        </main>
 
-      {showBottomNav && (
-        <BottomNavBar onChangeView={onChangeView} />
-      )}
-    </div>
+        {showBottomNav && (
+          <BottomNavBar onChangeView={onChangeView} />
+        )}
+      </div>
+    </ChromeVisibilityProvider>
   );
 };
 

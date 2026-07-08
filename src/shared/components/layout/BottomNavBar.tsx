@@ -1,10 +1,11 @@
 'use client';
 
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { BookOpen, Home, User, MessageCircle, Music } from 'lucide-react';
 import { AppView } from '@/types';
 import { isAIEnabled } from '@/shared/utils/constants';
+import { useChromeVisibility } from './ChromeVisibility';
 
 interface NavItem {
   id: string;
@@ -24,6 +25,11 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const aiEnabled = isAIEnabled();
+  const { chromeHidden } = useChromeVisibility();
+
+  useEffect(() => {
+    console.debug('[BottomNavBar] chromeHidden', chromeHidden);
+  }, [chromeHidden]);
 
   const viewParam = searchParams.get('view');
 
@@ -47,6 +53,14 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
   };
 
   const handleNav = (item: NavItem) => {
+    // Тап по уже активному пункту — no-op. Критично для «Библии»: её href
+    // жёстко указывает на Бытие 1 (`?book=Бытие&chapter=1`) — без этой проверки
+    // тап по активной «Библии» из любого места ридера сбрасывал бы читаемую главу.
+    if (getIsActive(item)) {
+      console.debug('[BottomNavBar] noop: already active', item.id);
+      return;
+    }
+
     console.debug('[BottomNavBar] navigate', { to: item.href || item.view, from: pathname });
 
     if (item.id === 'chat') {
@@ -76,7 +90,10 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
   return (
     <nav
       data-dashboard-layout-bottom-nav
-      className="fixed bottom-0 left-0 right-0 max-w-md mx-auto min-h-[var(--dock-nav-h)] pt-1.5 glass-nav rounded-t-[24px] flex items-center justify-around z-50 border-t border-app-border dock-nav-safe-b dock-nav-safe-x"
+      data-dashboard-layout-bottom-nav-hidden={chromeHidden || undefined}
+      className={`fixed bottom-0 left-0 right-0 max-w-md mx-auto min-h-[var(--dock-nav-h)] pt-1.5 glass-nav rounded-t-[24px] flex items-center justify-around z-50 border-t border-app-border dock-nav-safe-b dock-nav-safe-x transition-transform duration-300 ${
+        chromeHidden ? 'translate-y-[110%] pointer-events-none' : 'translate-y-0'
+      }`}
       aria-label="Основная навигация"
     >
       {navItems.map((item) => {
