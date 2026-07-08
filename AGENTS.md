@@ -31,6 +31,7 @@ bible-plan/
 │   │   │   ├── directus/[...path]/   # Directus proxy (server-side)
 │   │   │   ├── ai/[...path]/         # AI chat proxy
 │   │   │   ├── chat/history/         # Chat history
+│   │   │   ├── health/               # 204 no-store ping — гейт online-триггера outbox-синка
 │   │   │   └── graphql/              # GraphQL endpoint
 │   │   ├── dashboard/
 │   │   │   ├── page.tsx              # Main dashboard (PlanView)
@@ -63,17 +64,20 @@ bible-plan/
 │   │       └── hooks/                # useOfflineData
 │   ├── sw/
 │   │   └── sw-source.ts              # Static app-shell SW body + routeStrategy (served by app/sw.js/route.ts)
+│   ├── components/
+│   │   ├── ServiceWorkerRegistrar.tsx # SW registration + waiting/update detection
+│   │   └── ChunkGuard.tsx            # Global ChunkLoadError guard (auto-reload-once + cooldown)
 │   ├── shared/
 │   │   ├── components/
 │   │   │   ├── layout/               # DashboardLayout, navigation
 │   │   │   ├── animations/           # Shared animation components
 │   │   │   ├── bible/                # Bible-specific UI components
 │   │   │   ├── skeletons/            # Loading skeleton components
-│   │   │   └── ui/                   # Generic UI primitives (shadcn/ui)
+│   │   │   └── ui/                   # Generic UI primitives (shadcn/ui) + UpdateToast.tsx
 │   │   ├── config/
 │   │   │   └── design-tokens.ts      # TS design token constants (maps to CSS vars)
-│   │   ├── hooks/                    # Shared React hooks
-│   │   ├── offline/                  # IndexedDB layer (idb), read-through, write-ahead outbox, sync, downloadManager
+│   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast)
+│   │   ├── offline/                  # IndexedDB layer (idb), read-through, write-ahead outbox, sync, downloadManager, chunkGuard, networkTimeout
 │   │   ├── services/
 │   │   │   └── api/
 │   │   │       ├── client.ts         # Fetch wrapper + ApiClientError
@@ -94,7 +98,10 @@ bible-plan/
 │   ├── AI_INTEGRATION_GUIDE.md
 │   ├── DIRECTUS_SETUP_GUIDE.md
 │   ├── GRAPHQL_API.md
-│   └── database-schema.md
+│   ├── database-schema.md
+│   └── nginx.md                      # Reverse proxy + PWA cache headers (sw.js/static/HTML)
+├── e2e/offline/                      # Playwright offline regression suite (npm run e2e:offline)
+├── playwright.config.ts              # Playwright config — отдельный контур от vitest (src/**)
 ├── scripts/                          # Utility scripts
 ├── .ai-factory/                      # AI Factory context
 │   ├── DESCRIPTION.md                # Project specification
@@ -126,6 +133,10 @@ bible-plan/
 | `src/shared/offline/outbox.ts` + `sync.ts` | Write-ahead outbox для прогресса + replay-движок (LWW) |
 | `src/shared/offline/downloadManager.ts` | Опциональная офлайн-загрузка Писания/песен/плана + очистка |
 | `src/sw/sw-source.ts` + `src/app/sw.js/route.ts` | Статический app-shell service worker |
+| `src/shared/hooks/useSwUpdate.ts` + `src/shared/components/ui/UpdateToast.tsx` | Update flow: `registration.waiting` → тост «Обновить» → `SKIP_WAITING` → reload |
+| `src/shared/offline/chunkGuard.ts` + `src/components/ChunkGuard.tsx` | ChunkLoadError guard — auto-reload-once с cooldown |
+| `src/app/api/health/route.ts` | 204 no-store ping — гейт online-триггера outbox-синка (`isServerReachable`) |
+| `e2e/offline/` + `playwright.config.ts` | Офлайн E2E-регрессия (`npm run e2e:offline`) — cold start, навигация, outbox sync |
 | `next.config.ts` | Next.js config — basePath, standalone output |
 
 ## Environment Variables
