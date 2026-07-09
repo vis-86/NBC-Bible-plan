@@ -49,6 +49,23 @@ Executor: **Sonnet 5** — каждый таск самодостаточен: �
 
 ---
 
+## Progress
+
+- [x] T1. Скелет BFF: `server/`, Hono, логирование, health
+- [x] T2. Session-слой: framework-agnostic ядро + Hono-адаптер
+- [x] T3. Порт группы auth (8 роутов) + rate limiter
+- [ ] T4. Порт групп bible/plan/songs
+- [ ] T5. Порт групп user/chat/graphql/directus-proxy/ai
+- [ ] T6. `output: 'export'` + dev-режим + удаление серверной части Next
+- [ ] T7. Клиентский auth-guard + легаси-редиректы
+- [ ] T8. Build-time SW с precache-манифестом поверх `out/`
+- [ ] T9. ChunkLoadError guard
+- [ ] T10. Sync health-гейт + верификация 401-контракта в graphql-клиенте
+- [ ] T11. Гибридная автозагрузка после логина
+- [ ] T12. Dockerfile + compose: static-артефакт + сервис bff
+- [ ] T13. Offline E2E под новую топологию
+- [ ] T14. Docs-чекпоинт + приёмка на реальном iPhone
+
 ## Tasks
 
 ### Phase 1 — Hono BFF (параллельно живёт со старым API до cutover в T6)

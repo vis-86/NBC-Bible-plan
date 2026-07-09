@@ -1,7 +1,9 @@
 import { createDirectus, rest, authentication, staticToken, graphql } from '@directus/sdk';
 import type { DirectusSchema } from './directus-schema';
 
-const isServer = typeof window === 'undefined';
+// Через globalThis, а не голый window — модуль типочекается и в BFF (server/tsconfig без DOM lib).
+const globalWindow = (globalThis as { window?: { location: { origin: string } } }).window;
+const isServer = globalWindow === undefined;
 
 // Получаем basePath
 function getBasePath(): string {
@@ -14,7 +16,7 @@ export const directusUrl = isServer
   ? (process.env.NEXT_PUBLIC_DIRECTUS_URL || 'http://localhost:8055')
   : (() => {
       const basePath = getBasePath();
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const origin = globalWindow ? globalWindow.location.origin : '';
       return basePath ? `${origin}${basePath}/api/directus` : `${origin}/api/directus`;
     })();
 

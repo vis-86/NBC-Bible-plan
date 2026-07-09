@@ -1,15 +1,18 @@
+/**
+ * Next-обёртки над framework-agnostic ядром сессий (session-core.ts).
+ * Живут до cutover static export (T6) — их используют src/app/api/* и middleware.
+ */
 import { NextRequest, NextResponse } from 'next/server';
-import { sealData, unsealData } from 'iron-session';
+import {
+  SESSION_COOKIE_NAME,
+  sealSession,
+  sessionCookieOptions,
+  unsealSession,
+  type SessionData,
+} from './session-core';
 
-export interface SessionData {
-  directus_id: string;
-  first_name: string;
-  last_name?: string;
-  username?: string;
-}
-
-const SESSION_COOKIE_NAME = 'bible-plan-session';
-const SESSION_MAX_AGE = 60 * 60 * 24 * 30; // 30 дней (секунды)
+export { SESSION_COOKIE_NAME, SESSION_TTL, sealSession, sessionCookieOptions, unsealSession } from './session-core';
+export type { SessionData } from './session-core';
 
 const DEBUG = (process.env.LOG_LEVEL ?? 'debug') === 'debug';
 function debug(...args: unknown[]) {
@@ -17,59 +20,16 @@ function debug(...args: unknown[]) {
 }
 
 /**
- * Лениво читает SESSION_SECRET. НЕ валидируем на уровне импорта модуля —
- * иначе `next build` (standalone/CI) падает, когда секрет недоступен на этапе сборки.
- * Бросаем только во время реального запроса (seal/unseal).
- */
-function getSessionPassword(): string {
-  const secret = process.env.SESSION_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error(
-      'SESSION_SECRET is not set or shorter than 32 chars. Cannot seal/unseal session. ' +
-        'Generate with: openssl rand -hex 32'
-    );
-  }
-  return secret;
-}
-
-function sealOptions() {
-  return { password: getSessionPassword(), ttl: SESSION_MAX_AGE };
-}
-
-async function seal(data: SessionData): Promise<string> {
-  return sealData(data, sealOptions());
-}
-
-async function unseal(sealed: string): Promise<SessionData | null> {
-  try {
-    const data = await unsealData<SessionData>(sealed, sealOptions());
-    // iron-session возвращает {} для просроченного/невалидного payload
-    if (!data || !('directus_id' in data) || !data.directus_id) return null;
-    return data;
-  } catch (error) {
-    debug('unseal failed:', error);
-    return null;
-  }
-}
-
-/**
  * Создаёт сессию пользователя (запечатанный cookie).
- * path: '/' — cookie отправляется на все пути (в т.ч. /app/api/...) при basePath.
  */
 export async function createSession(
   userData: SessionData,
   response?: NextResponse
 ): Promise<NextResponse> {
-  const sealed = await seal(userData);
+  const sealed = await sealSession(userData);
   const res = response || NextResponse.next();
 
-  res.cookies.set(SESSION_COOKIE_NAME, sealed, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: SESSION_MAX_AGE,
-    path: '/',
-  });
+  res.cookies.set(SESSION_COOKIE_NAME, sealed, sessionCookieOptions());
 
   debug('session sealed for user', userData.directus_id);
   return res;
@@ -82,7 +42,7 @@ export async function createSession(
 export async function getSessionFromRequest(request: NextRequest): Promise<SessionData | null> {
   const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
   if (!sessionCookie?.value) return null;
-  return unseal(sessionCookie.value);
+  return unsealSession(sessionCookie.value);
 }
 
 /**
@@ -95,7 +55,7 @@ export async function getSession(): Promise<SessionData | null> {
     const cookieStore = await cookies();
     const sessionCookie = cookieStore.get(SESSION_COOKIE_NAME);
     if (!sessionCookie?.value) return null;
-    return unseal(sessionCookie.value);
+    return unsealSession(sessionCookie.value);
   } catch (error) {
     debug('getSession failed:', error);
     return null;
