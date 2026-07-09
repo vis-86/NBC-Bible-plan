@@ -1,6 +1,6 @@
 # Research
 
-Updated: 2026-07-08 12:00
+Updated: 2026-07-09 11:20
 Status: active
 
 ## Active Summary (input for /aif-plan)
@@ -99,16 +99,78 @@ Success signals (для B):
   auto-reload-once + cooldown (защита от reload-loop) — страховка на переходный период
   и для юзеров с залипшим старым SW.
 
+Дополнения 2026-07-09 (iOS-разбор; вход для плана B):
+- СИМПТОМ: offline работает на Android, НЕ работает на iOS. Контрольный образец:
+  ~/Projects/nbc/nbc-music-chordpro/chordpro-app (Vite + vite-plugin-pwa/Workbox
+  generateSW) — на iOS offline работает идеально.
+- ГИПОТЕЗА №1 (высокая вероятность): iOS партиционирует storage — у Safari-вкладки и
+  установленного PWA РАЗНЫЕ Cache Storage/IndexedDB и даже SW-регистрация не переносится
+  при «Добавить на экран Домой». Ручной opt-in «Скачать» кладёт данные в партицию Safari;
+  установленное PWA стартует пустым и без SW (первый запуск требует сети). На Android
+  storage общий → работает. Chordpro нейтрализует это by design: полный precache-манифест
+  (включая все 97 .chordpro через globPatterns) приезжает автоматически при установке SW
+  в ЛЮБОМ контексте. Проверить у тестировщиков: скачивали ли данные в том же контексте,
+  где тестировали офлайн.
+- ГИПОТЕЗА №2: handleNavigation может закешировать redirected response (/dashboard за
+  middleware → редирект на /login); отдача redirected response на navigation request =
+  fetch error / белый экран. Фикс: не кешировать `response.redirected`, unit-тест в
+  sw-source.test.ts. Актуально и для v1 (hotfix), и для B.
+- ВЫВОД: chordpro-app = живое доказательство варианта B (static SPA + атомарный precache
+  + данные приезжают с SW). Vite ни при чём — Next `output: 'export'` + Serwist даёт
+  идентичную offline-модель. Решение «B, не rewrite» подтверждено практикой.
+- РЕШЕНИЕ (гибридная автозагрузка данных, закрывает партиционирование как класс): план +
+  песни + дефолтный перевод Писания (~6 MB) качаются автоматически фоном после первого
+  успешного логина существующим download manager'ом (без кнопки, с ретраем на следующий
+  старт при обрыве). Остальные переводы — opt-in кнопкой как сейчас. UX = «просто
+  работает», как chordpro.
+- Чек-лист, дополнительные пункты (к 1–7 выше):
+  8. Автозагрузка данных per-context (см. выше) + детект standalone
+     (`display-mode: standalone` / `navigator.standalone`) для телеметрии/баннера.
+  9. Не кешировать redirected navigation responses в SW + тест.
+  10. Приёмка на реальном iPhone (Playwright WebKit ≠ iOS Safari по SW/storage!):
+      установка на домашний экран → автозагрузка внутри PWA → offline cold start →
+      отметка прогресса офлайн → синк при появлении сети.
+- start_url после B: должен вести на страницу из precache, которая сама решает
+  dashboard vs login по last-known-user (auth-guard клиентский, middleware умирает).
+- iOS-ограничения для сведения: storage.persist() на iOS — пожелание, не гарантия;
+  7-day ITP eviction действует на Safari-вкладку (installed PWA живёт, пока живёт
+  иконка); Background Sync API отсутствует → синк только на старте/visibilitychange
+  (уже так и сделано).
+
 Контекст исполнения: реализацию плана делает Sonnet 5 → план должен быть максимально
 эксплицитным (конкретные файлы, точные команды, критерии проверки на каждый таск, без
 «по аналогии» и подразумеваемых шагов).
 
-Next step: v1 смержен в main ✅. `/aif-plan full` — миграция на static export + Hono BFF
-(вариант B) с чек-листом практик 1–5 + п.7 в скоупе.
+Next step: `/aif-plan full` — миграция на static export + Hono BFF (вариант B) с
+чек-листом практик 1–5, 7–10 и гибридной автозагрузкой данных в скоупе.
 <!-- aif:active-summary:end -->
 
 ## Sessions
 <!-- aif:sessions:start -->
+### 2026-07-09 11:20 — iOS offline: партиционирование storage, эталон chordpro-app
+What changed:
+- Новая вводная: offline работает на Android, ломается на iOS. Разобраны iOS-специфичные
+  отказы; главная гипотеза — партиционирование storage Safari ≠ installed PWA (данные,
+  скачанные opt-in кнопкой в Safari, не видны установленному PWA; SW-регистрация тоже
+  не переносится).
+- Сравнение с работающим на iOS эталоном chordpro-app: его секрет — не Vite, а полный
+  Workbox precache (app shell + ВСЕ данные) при установке SW в любом контексте.
+  Подтверждает вариант B и отклонение rewrite на Vite.
+- Решение: гибридная автозагрузка (план+песни+дефолтный перевод — автоматически после
+  логина, остальные переводы opt-in); чек-лист пополнен пунктами 8–10 (автозагрузка
+  per-context, не кешировать redirected responses, приёмка на реальном iPhone).
+
+Key notes:
+- Гипотеза №2 (redirected navigation response в app-shell-html-v1 → белый экран) —
+  кандидат на hotfix в v1 ещё до B.
+- Playwright WebKit не воспроизводит iOS Safari по SW/storage — только реальное устройство.
+- Спросить тестировщиков: контекст скачивания vs контекст офлайн-теста (Safari/PWA).
+
+Links (paths):
+- src/sw/sw-source.ts (handleNavigation — проверка redirected), src/app/sw.js/route.ts
+- src/shared/offline/downloadManager.ts (точка врезки автозагрузки)
+- /Users/igorvasilev/Projects/nbc/nbc-music-chordpro/chordpro-app/vite.config.ts (эталон)
+
 ### 2026-06-29 23:32 — PWA-аутентификация вне Telegram: invite+password (Вариант 1)
 What changed:
 - Прошли от «логин+пароль+секретное слово» к простой модели: invite+password как
