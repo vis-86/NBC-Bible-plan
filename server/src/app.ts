@@ -6,7 +6,15 @@
 import { Hono } from 'hono';
 import { basePath } from './env';
 import { logger } from './logger';
+import { aiRoutes } from './routes/ai';
 import { authRoutes } from './routes/auth';
+import { bibleRoutes } from './routes/bible';
+import { chatRoutes } from './routes/chat';
+import { directusProxyRoutes } from './routes/directus-proxy';
+import { graphqlRoutes } from './routes/graphql';
+import { planRoutes } from './routes/plan';
+import { songsRoutes } from './routes/songs';
+import { userRoutes } from './routes/user';
 
 export function createApp() {
   const app = new Hono().basePath(`${basePath()}/api`);
@@ -31,6 +39,14 @@ export function createApp() {
   });
 
   app.route('/auth', authRoutes);
+  app.route('/bible', bibleRoutes);
+  app.route('/plan', planRoutes);
+  app.route('/songs', songsRoutes);
+  app.route('/user', userRoutes);
+  app.route('/chat', chatRoutes);
+  app.route('/graphql', graphqlRoutes);
+  app.route('/ai', aiRoutes);
+  app.route('/directus', directusProxyRoutes);
 
   return app;
 }

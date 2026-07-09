@@ -1,20 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
-
 const DIRECTUS_URL = process.env.DIRECTUS_URL || process.env.NEXT_PUBLIC_DIRECTUS_URL || 'http://localhost:8055';
 const DIRECTUS_ADMIN_TOKEN = process.env.DIRECTUS_ADMIN_TOKEN;
 
 /**
- * Проксирует запрос к Directus с поддержкой admin token
+ * Проксирует запрос к Directus с поддержкой admin token.
+ * Framework-agnostic (обычный Request/Response) — используется и Next route
+ * handler'ами (NextRequest ⊂ Request), и Hono-роутами (c.req.raw).
  * @param path - путь в Directus (например, 'flows/trigger/flow-id')
  * @param request - оригинальный запрос
  * @param useAdminToken - использовать ли admin token вместо cookie
  */
 export async function proxyToDirectus(
   path: string,
-  request: NextRequest,
+  request: Request,
   useAdminToken: boolean = false
-): Promise<NextResponse> {
-  const searchParams = request.nextUrl.searchParams.toString();
+): Promise<Response> {
+  const searchParams = new URL(request.url).searchParams.toString();
   const url = `${DIRECTUS_URL}/${path}${searchParams ? `?${searchParams}` : ''}`;
 
   const headers = new Headers(request.headers);
@@ -39,7 +39,7 @@ export async function proxyToDirectus(
       headers: headers,
       // В Next.js request.body является ReadableStream, что удобно для fetch
       body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-      // @ts-ignore - дуплекс необходим при передаче ReadableStream в качестве body
+      // @ts-expect-error - дуплекс необходим при передаче ReadableStream в качестве body
       duplex: 'half',
     };
 
@@ -52,14 +52,14 @@ export async function proxyToDirectus(
       responseHeaders.set(key, value);
     });
 
-    return new NextResponse(response.body, {
+    return new Response(response.body, {
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,
     });
   } catch (error) {
     console.error('Proxy error:', error);
-    return NextResponse.json({ error: 'Proxy error' }, { status: 500 });
+    return Response.json({ error: 'Proxy error' }, { status: 500 });
   }
 }
 

@@ -54,8 +54,8 @@ Executor: **Sonnet 5** — каждый таск самодостаточен: �
 - [x] T1. Скелет BFF: `server/`, Hono, логирование, health
 - [x] T2. Session-слой: framework-agnostic ядро + Hono-адаптер
 - [x] T3. Порт группы auth (8 роутов) + rate limiter
-- [ ] T4. Порт групп bible/plan/songs
-- [ ] T5. Порт групп user/chat/graphql/directus-proxy/ai
+- [x] T4. Порт групп bible/plan/songs
+- [x] T5. Порт групп user/chat/graphql/directus-proxy/ai
 - [ ] T6. `output: 'export'` + dev-режим + удаление серверной части Next
 - [ ] T7. Клиентский auth-guard + легаси-редиректы
 - [ ] T8. Build-time SW с precache-манифестом поверх `out/`
