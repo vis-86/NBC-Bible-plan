@@ -37,6 +37,7 @@ export const metadata: Metadata = {
   title: "NBC Bible Plan",
   description: "План чтения Библии Нижегородской Библейской Церкви",
   applicationName: "NBC Bible Plan",
+  manifest: `${basePath}/manifest.webmanifest`,
   appleWebApp: {
     capable: true,
     // black-translucent: контент уходит под статус-бар, фон брови красят сами

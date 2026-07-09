@@ -1,8 +1,10 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { PlanProvider } from '@/features/plan/contexts/PlanContext';
 import { replayOutbox, registerSyncTriggers } from '@/shared/offline/sync';
+import DashboardAuthGate from '@/components/DashboardAuthGate';
+import { FullScreenLoader } from '@/shared/components/ui/FullScreenLoader';
 
 /**
  * Sync-провайдер (Task 26/30, .ai-factory/plans/feature-offline-pwa.md): replay outbox
@@ -24,7 +26,9 @@ export default function DashboardRootLayout({
 
   return (
     <PlanProvider>
-      {children}
+      <Suspense fallback={<FullScreenLoader label="Проверяем сессию…" />}>
+        <DashboardAuthGate>{children}</DashboardAuthGate>
+      </Suspense>
     </PlanProvider>
   );
 }

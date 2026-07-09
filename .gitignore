@@ -18,6 +18,9 @@
 /.next/
 /out/
 
+# generated at build time by scripts/build-manifest.ts (basePath из env)
+/public/manifest.webmanifest
+
 # production
 /build
 

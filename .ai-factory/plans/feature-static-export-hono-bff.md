@@ -56,8 +56,8 @@ Executor: **Sonnet 5** — каждый таск самодостаточен: �
 - [x] T3. Порт группы auth (8 роутов) + rate limiter
 - [x] T4. Порт групп bible/plan/songs
 - [x] T5. Порт групп user/chat/graphql/directus-proxy/ai
-- [ ] T6. `output: 'export'` + dev-режим + удаление серверной части Next
-- [ ] T7. Клиентский auth-guard + легаси-редиректы
+- [x] T6. `output: 'export'` + dev-режим + удаление серверной части Next
+- [x] T7. Клиентский auth-guard + легаси-редиректы
 - [ ] T8. Build-time SW с precache-манифестом поверх `out/`
 - [ ] T9. ChunkLoadError guard
 - [ ] T10. Sync health-гейт + верификация 401-контракта в graphql-клиенте
