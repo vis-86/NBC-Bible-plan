@@ -64,7 +64,7 @@ Executor: **Sonnet 5** — каждый таск самодостаточен: �
 - [x] T11. Гибридная автозагрузка после логина
 - [x] T12. Dockerfile + compose: static-артефакт + сервис bff
 - [x] T13. Offline E2E под новую топологию
-- [ ] T14. Docs-чекпоинт + приёмка на реальном iPhone
+- [~] T14. Docs-чекпоинт (готов) + приёмка на реальном iPhone (за Игорем)
 
 ## Tasks
 
@@ -232,6 +232,10 @@ Executor: **Sonnet 5** — каждый таск самодостаточен: �
   5. Деплой новой версии → открытое PWA в течение часа предлагает «Обновить» → обновление без белого экрана.
 - Этот пункт закрывает Игорь руками; таск считается выполненным после фиксации результатов чек-листа (что прошло/что нет) в PR/коммите.
 - **Финальный коммит #7**: `docs: static export + bff architecture, ios acceptance checklist` (T14).
+- **Статус (2026-07-10)**: docs-часть закрыта. `architecture.md`, `offline-pwa.md`, `deployment.md`, `nginx.md`, `authentication.md`, `AGENTS.md`, `DESCRIPTION.md` были приведены к новой топологии ещё в T12/T13; в этом заходе исправлено то, что опровёрг первый реальный прод-деплой (см. ниже). **Прод выкачен 2026-07-10** на static+bff: smoke зелёный (`/app/login` 200, `/app/api/health` 204, sw.js `must-revalidate`, `_next/static` `immutable`, оба легаси-редиректа 301, `/app/api/user/progress` без сессии 401, precache-манифест 184 записи со всеми 10 страницами). Orphan-сервис `app`, volume `app_db` и образ `nbc-bible-app` удалены; Postgres забекаплен до миграции.
+  - **Два бага, найденные первым прод-деплоем** (коммит `383efaa`): (1) `deploy.sh` падал с `nginx: invalid option: "bash"` — ssh склеивает аргументы в одну строку, поэтому `APP_SERVICE="bff nginx"` разбирался удалённым shell'ом как команда `nginx bash -s`; двусловным `APP_SERVICE` стал в T12. (2) `backup.sh` тарил volume `app_db` от мёртвого SQLite — docker при монтировании несуществующего named volume молча создаёт его заново, так что ночной cron воскрешал бы удалённый volume.
+  - **Docs-правки этого захода**: `nginx.md` утверждал, что конфиг «деплоится вместе с кодом (`deploy/deploy.sh`)» — на самом деле rsync исключает весь `deploy/` (защита серверных `.env` и certbot), поэтому `compose.yml`/`Dockerfile`/`nginx/conf.d/*` нужно копировать на прод вручную; это же следствие добавлено в `deployment.md` вместе с заметкой про orphan-контейнеры. В схеме топологии `nginx.md` поправлен `Cache-Control` для `sw.js`/`manifest.webmanifest` (`no-cache` → фактический `max-age=0, must-revalidate`).
+- **Вне скоупа, обнаружено попутно**: `docs/database-schema.md` описывает БД Directus как SQLite (на проде Postgres 16), `README.md` пишет «прогресс в SQLite», `AGENTS.md`/`DIRECTUS_SETUP_GUIDE.md` повторяют. Ошибка не введена миграцией, но теперь особенно сбивает с толку — нужен отдельный проход с реальным дампом схемы.
 
 ## Commit Plan
 

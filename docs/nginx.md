@@ -14,9 +14,9 @@ Compose. Конфигурация НЕ пишется вручную на хос
 Internet → nginx :443
   /directus/*        → proxy directus:8055
   /app/api/*          → proxy bff:3001
-  /app/sw.js          → статика (Cache-Control: no-cache)
+  /app/sw.js          → статика (Cache-Control: max-age=0, must-revalidate)
   /app/_next/static/*  → статика (Cache-Control: immutable)
-  /app/manifest.webmanifest → статика (Cache-Control: no-cache)
+  /app/manifest.webmanifest → статика (Cache-Control: max-age=0, must-revalidate)
   /app/*              → статика, try_files $uri $uri.html $uri/ =404
   /                    → 302 /app
 ```
@@ -85,13 +85,24 @@ server {
 
 ## Применение изменений
 
-Конфиг живёт в `deploy/nginx/conf.d/`, деплоится вместе с кодом (`deploy/deploy.sh`),
-проверяется и перезагружается в контейнере:
+⚠️ Конфиг версионируется в `deploy/nginx/conf.d/`, но **`deploy/deploy.sh` его НЕ
+доставляет** — rsync исключает весь каталог `deploy/`, чтобы не затирать серверные
+`.env` и сертификаты certbot. Изменения в `tls.conf`/`default.conf` (как и в
+`compose.yml`/`Dockerfile`) нужно скопировать на сервер вручную:
+
+```bash
+scp deploy/nginx/conf.d/tls.conf root@168.222.202.131:/opt/nbc/bible-plan/deploy/nginx/conf.d/
+```
+
+Затем проверить синтаксис и применить:
 
 ```bash
 docker compose -f deploy/compose.yml exec nginx nginx -t
 docker compose -f deploy/compose.yml restart nginx
 ```
+
+`conf.d/` — bind-mount, поэтому `restart` достаточно; пересборка образа нужна только
+когда меняется статика (`out/`), запечённая в `target: static`.
 
 ## Проверка статуса
 

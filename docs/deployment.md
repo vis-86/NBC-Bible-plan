@@ -55,6 +55,20 @@ deploy/deploy.sh --no-build   # только синк, без пересборк
 и секреты на сервере (`compose.yml` + `.env`) остаются источником истины и не
 затираются деплоем.
 
+⚠️ **Следствие:** изменения в `deploy/compose.yml`, `deploy/Dockerfile`,
+`deploy/nginx/conf.d/*` на прод сами не приедут. Их нужно скопировать вручную ДО
+запуска `deploy.sh` — иначе скрипт попытается собрать сервисы, которых серверный
+`compose.yml` не знает, и упадёт:
+
+```bash
+scp deploy/compose.yml deploy/Dockerfile root@168.222.202.131:/opt/nbc/bible-plan/deploy/
+scp deploy/nginx/conf.d/tls.conf root@168.222.202.131:/opt/nbc/bible-plan/deploy/nginx/conf.d/
+```
+
+При переименовании сервиса старый контейнер остаётся orphan (`docker compose up -d`
+его не трогает) — убирать явно: `docker rm -f nbc-bible-<old>-1`, при необходимости
+`docker volume rm` и `docker rmi`.
+
 **Требования на сервере** (управляются вручную, не этим скриптом):
 `/opt/nbc/bible-plan/deploy/.env` со всеми runtime-секретами: `SESSION_SECRET`,
 `INVITE_ADMIN_SECRET`, `DIRECTUS_ADMIN_TOKEN`, `NEXT_PUBLIC_APP_URL`,
