@@ -62,7 +62,7 @@ Executor: **Sonnet 5** — каждый таск самодостаточен: �
 - [x] T9. ChunkLoadError guard
 - [x] T10. Sync health-гейт + верификация 401-контракта в graphql-клиенте
 - [x] T11. Гибридная автозагрузка после логина
-- [ ] T12. Dockerfile + compose: static-артефакт + сервис bff
+- [x] T12. Dockerfile + compose: static-артефакт + сервис bff
 - [ ] T13. Offline E2E под новую топологию
 - [ ] T14. Docs-чекпоинт + приёмка на реальном iPhone
 
@@ -203,9 +203,10 @@ Executor: **Sonnet 5** — каждый таск самодостаточен: �
   - Cache headers (чек-лист п.2, значения из `docs/nginx.md`): `location = /app/sw.js` → `Cache-Control: public, max-age=0, must-revalidate`; `location /app/_next/static/` → `public, max-age=31536000, immutable`; `*.html` (и `location /app` exact-html-ответы) → `no-cache`; `manifest.webmanifest` → `max-age=0, must-revalidate`.
 - `deploy/deploy.sh` — проверить, что rsync+build+up работает с новой структурой (память prod-deploy: rsync source → 168.222.202.131:/opt/nbc/bible-plan/deploy, `docker compose build && up -d`).
 - Проверка ЛОКАЛЬНО (не прод!): `docker compose -f deploy/compose.yml build` собирается; `docker compose up` локально (без TLS — можно временный server-блок на :8080 в default.conf или `docker run` nginx-образа) → `curl localhost:8080/app/dashboard` отдаёт HTML, `curl -i localhost:8080/app/api/health` → 204, `curl -sI localhost:8080/app/sw.js | grep -i cache-control` → must-revalidate.
-  - **Статус на момент паузы (2026-07-10)**: Dockerfile (3 стадии `build`/`bff`/`static`), `compose.yml` (`app`→`bff`, `nginx` теперь `build: target: static`, volume `app_db` удалён) и `tls.conf` (proxy `/app/api/`→`bff:3001`, cache-заголовки, легаси-редиректы) переписаны и синтаксически провалидированы (`docker compose config --quiet` зелёный). `deploy.sh` обновлён: `APP_SERVICE` теперь `"bff nginx"` (обе стадии пересобираются, т.к. static-артефакт теперь запечён в nginx-образе), build/up-цикл адаптирован под несколько сервисов.
-  - **НЕ проверено** — в этой сессии не было доступа к Docker-демону: `docker compose build`, `docker compose up`, curl-смоук (dashboard/health/sw.js cache-control). **Обязательно прогнать перед мержем/деплоем на прод.**
+  - **Статус (2026-07-10, T12 завершён)**: Dockerfile (3 стадии `build`/`bff`/`static`), `compose.yml` (`app`→`bff`, `nginx` теперь `build: target: static`, volume `app_db` удалён) и `tls.conf` (proxy `/app/api/`→`bff:3001`, cache-заголовки, легаси-редиректы) переписаны. `deploy.sh` обновлён: `APP_SERVICE` теперь `"bff nginx"`.
+  - **Проверено локально** (Docker Desktop, `docker compose build bff nginx` с фиктивным `.env`): оба образа собираются; smoke-тест в отдельной docker-сети (bff + nginx c временным HTTP-конфигом на :8080, аналог tls.conf без TLS) — `/app/dashboard` → 200, `/app/api/health` → 204, `/app/sw.js` → `Cache-Control: public, max-age=0, must-revalidate`, легаси-редирект `/app/dashboard/songs/42` → 301, `/` → 302 `/app`. Все контейнеры/образы/сеть удалены после проверки.
   - Список файлов, скопированных в `bff`-стадию, установлен по факту импортов (`server/src` → `src/lib/**`, `src/features/songs/services/**`, `src/types/**`, транзитивно `src/shared/utils/**`) — не по прежнему `src/shared` целиком.
+  - **Побочный фикс, обнаруженный при первом реальном прогоне `yarn build`** (blocker для T12, до этого сборка ни разу не запускалась целиком): `src/sw/sw.ts` использует `/// <reference no-default-lib="true" />` (нужно для webworker-контекста без DOM) — при совместной компиляции с остальным приложением это подавляло `dom`-lib для всей tsc-программы (291 ложная ошибка `Cannot find name 'window'` и т.п.). Исключил `src/sw` из `tsconfig.json` (`sw.ts` уже собирается отдельно esbuild'ом в `scripts/build-sw.ts`, типизация покрывается через `sw.test.ts`/vitest). Заодно всплыли и исправлены 2 реальных TS-ошибки: `autoDownload.ts` (`'requestIdleCallback' in window` теперь статически всегда true в свежем `lib.dom.d.ts` → TS сужал else-ветку до `never`; заменил на `typeof window.requestIdleCallback === 'function'`) и устаревший `@ts-expect-error` в `BottomNavBar.test.tsx`. `yarn test` (320/320) и `yarn tsc --noEmit` зелёные после фикса.
 
 #### T13. Offline E2E под новую топологию + новые сценарии
 

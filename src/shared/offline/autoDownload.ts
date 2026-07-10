@@ -120,11 +120,13 @@ export function scheduleEnsureOfflineData(): void {
     });
   };
 
-  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-    window.requestIdleCallback(run, { timeout: IDLE_DELAY_MS });
-  } else if (typeof window !== 'undefined') {
-    window.setTimeout(run, IDLE_DELAY_MS);
-  } else {
+  if (typeof window === 'undefined') {
     inFlight = false;
+    return;
+  }
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(run, { timeout: IDLE_DELAY_MS });
+  } else {
+    window.setTimeout(run, IDLE_DELAY_MS);
   }
 }

@@ -83,7 +83,6 @@ describe('BottomNavBar', () => {
       unobserve = vi.fn();
     }
     const originalRO = globalThis.ResizeObserver;
-    // @ts-expect-error — минимальный мок ResizeObserver, jsdom его не реализует
     globalThis.ResizeObserver = MockResizeObserver;
 
     try {
