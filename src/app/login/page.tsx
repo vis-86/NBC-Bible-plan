@@ -161,6 +161,22 @@ function LoginForm() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
       <div className="w-full max-w-md">
+      <button
+        type="button"
+        onClick={() => router.push('/')}
+        className="mx-auto mb-6 flex items-center justify-center gap-3"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`${getBasePath()}/icons/icon-192.png`}
+          alt=""
+          aria-hidden
+          width={40}
+          height={40}
+          className="h-10 w-10 rounded-xl shadow-[0_6px_18px_rgba(79,70,229,0.25)]"
+        />
+        <span className="text-[15px] font-semibold tracking-tight text-app-text">План чтения Библии</span>
+      </button>
       <div className="space-y-8 rounded-lg bg-app-surface p-8 shadow-app-md">
         <div>
           <h2 className="text-2xl font-semibold text-app-text">

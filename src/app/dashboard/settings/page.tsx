@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
@@ -18,8 +19,14 @@ const themeOptions: Array<{ value: AppThemePreference; label: string }> = [
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const { themePreference, setThemePreference } = useTheme();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    await logout();
+  };
 
   if (authLoading) {
     return (
@@ -65,6 +72,17 @@ export default function SettingsPage() {
 
           <DashboardReadingSettingsSection />
           <OfflineDataSection />
+
+          <section className="mt-8">
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              className="w-full rounded-lg border-2 border-app-missed-text px-3 py-2.5 text-sm font-medium text-app-missed-text transition-all disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loggingOut ? 'Выход…' : 'Выйти из приложения'}
+            </button>
+          </section>
         </div>
       </div>
     </DashboardLayout>

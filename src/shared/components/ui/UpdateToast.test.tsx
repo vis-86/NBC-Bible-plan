@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+
+let mockPathname = '/dashboard';
+
+vi.mock('next/navigation', () => ({
+  usePathname: () => mockPathname,
+}));
+
 import { UpdateToast } from './UpdateToast';
 import { setWaitingWorker } from '@/shared/hooks/useSwUpdate';
 
@@ -11,6 +18,7 @@ function makeFakeWorker(): ServiceWorker {
 describe('UpdateToast', () => {
   afterEach(() => {
     setWaitingWorker(null);
+    mockPathname = '/dashboard';
   });
 
   it('ничего не рендерит, когда обновление не готово', () => {
@@ -39,6 +47,14 @@ describe('UpdateToast', () => {
     render(<UpdateToast />);
 
     fireEvent.click(screen.getByText('Позже'));
+
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('на лендинге («/») не рендерится, даже если обновление готово', () => {
+    mockPathname = '/';
+    setWaitingWorker(makeFakeWorker());
+    render(<UpdateToast />);
 
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });

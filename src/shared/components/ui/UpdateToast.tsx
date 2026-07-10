@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { useSwUpdate } from '@/shared/hooks/useSwUpdate';
@@ -18,8 +19,9 @@ export function UpdateToast() {
   const [dismissed, setDismissed] = useState(false);
   const [applying, setApplying] = useState(false);
   const reduceMotion = useReducedMotion();
+  const pathname = usePathname();
 
-  if (!updateReady || dismissed) return null;
+  if (!updateReady || dismissed || pathname === '/') return null;
 
   const handleApply = () => {
     console.debug('[UpdateToast] apply clicked');
