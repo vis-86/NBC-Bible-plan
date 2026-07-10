@@ -6,6 +6,7 @@ import { getApiPath } from '@/lib/utils';
 import { isTelegramWebApp, initTelegramWebApp } from '@/lib/telegram';
 import { getLastKnownUser, setLastKnownUser, clearLastKnownUser } from '@/shared/offline/lastKnownUser';
 import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout, raceWithTimeout } from '@/shared/offline/networkTimeout';
+import { scheduleEnsureOfflineData } from '@/shared/offline/autoDownload';
 
 interface User {
   directus_id: string;
@@ -75,6 +76,9 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         if (data.user) {
           setUser(data.user);
           void setLastKnownUser(data.user);
+          // Только server-confirmed вход (не last-known-user фолбэк ниже) — иначе
+          // офлайн-вход пытается качать данные без сети.
+          scheduleEnsureOfflineData();
         } else {
           // Сервер явно ответил «сессии нет» — это НЕ повод для офлайн-фолбэка.
           setUser(null);

@@ -116,6 +116,9 @@ export function OfflineDataSection() {
           <p className="text-xs text-app-text-muted">
             Скачивает Писание, песни и план — приложение будет работать без интернета.
           </p>
+          <p className="text-xs text-app-text-muted">
+            Базовые данные (план, песни, один перевод Писания) скачиваются автоматически после входа.
+          </p>
         </div>
 
         {/* Писание */}

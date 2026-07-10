@@ -59,9 +59,9 @@ Executor: **Sonnet 5** — каждый таск самодостаточен: �
 - [x] T6. `output: 'export'` + dev-режим + удаление серверной части Next
 - [x] T7. Клиентский auth-guard + легаси-редиректы
 - [x] T8. Build-time SW с precache-манифестом поверх `out/`
-- [ ] T9. ChunkLoadError guard
-- [ ] T10. Sync health-гейт + верификация 401-контракта в graphql-клиенте
-- [ ] T11. Гибридная автозагрузка после логина
+- [x] T9. ChunkLoadError guard
+- [x] T10. Sync health-гейт + верификация 401-контракта в graphql-клиенте
+- [x] T11. Гибридная автозагрузка после логина
 - [ ] T12. Dockerfile + compose: static-артефакт + сервис bff
 - [ ] T13. Offline E2E под новую топологию
 - [ ] T14. Docs-чекпоинт + приёмка на реальном iPhone
@@ -173,7 +173,8 @@ Executor: **Sonnet 5** — каждый таск самодостаточен: �
 
 - `src/shared/offline/sync.ts`: перед replay по триггеру `online` — `HEAD {basePath}/api/health` с таймаутом 3s (использовать существующий `networkTimeout.ts`); неуспех → лог (debug) и выход без попытки replay (событие `online` означает «есть интерфейс», не «сервер достижим»). Триггеры start/visibilitychange не менять (replay сам по себе безопасен — «офлайн» = факт неуспеха отправки).
 - `src/shared/services/api/graphql.ts`: убедиться, что 401 от сервера и сетевая ошибка — разные ветки (как в `client.ts`): 401 → `__onSessionExpired`, network throw → НЕ logout (outbox переживёт). Если конфляция есть — исправить по образцу `client.ts`.
-- Тесты: sync-гейт (health недостижим → replay не вызван; достижим → вызван); graphql 401 vs network-fail ветки.
+  - **Решение при выполнении (уточнено у Игоря)**: НЕ менять — `graphql.ts` намеренно НЕ вызывает `__onSessionExpired` вообще (зафиксировано регрессионным тестом в commit `4f4401a`, "T6: аудит 401-vs-network" из более раннего фичи-плана `feature-offline-pwa.md`). Причина: фоновый outbox-синк (триггеры `online`/`visibilitychange`) не должен дёргать redirect на `/login` посреди пользовательской сессии из-за протухшего токена — запись просто остаётся в очереди до следующего явного действия пользователя. И 401, и сетевая ошибка одинаково пробрасываются как `Error` и одинаково оставляют запись в outbox. Формулировка задачи выше — как она была в плане; фактическое поведение сознательно отличается.
+- Тесты: sync-гейт (health недостижим → replay не вызван; достижим → вызван) — уже покрыто `sync.test.ts`; graphql 401 vs network-fail ветки — уже покрыто `graphql.test.ts` (обе ветки не трогают `__onSessionExpired`, см. решение выше).
 - Проверка: `yarn test`. **Чекпоинт-коммит #4**: `feat(offline): chunk-error guard, health-gated sync` (T9–T10).
 
 ### Phase 4 — iOS: автозагрузка данных
