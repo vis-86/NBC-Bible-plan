@@ -1,5 +1,6 @@
 import { getDB } from '@/shared/offline/db';
-import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout, raceWithTimeout } from '@/shared/offline/networkTimeout';
+import { OfflineNoDataError, isDefinitelyOffline, raceNetwork } from '@/shared/offline/networkHealth';
+import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout } from '@/shared/offline/networkTimeout';
 import type { Song } from '../types';
 
 /**
@@ -60,7 +61,7 @@ export async function readSongThrough(
   network.catch(() => {}); // поздний reject после ухода в кеш — не unhandled rejection
 
   try {
-    return await raceWithTimeout(network, timeoutMs);
+    return await raceNetwork(network, timeoutMs);
   } catch (err) {
     const cached = await getCachedSong(id);
     if (cached !== undefined) {
@@ -68,6 +69,10 @@ export async function readSongThrough(
       return cached;
     }
     if (isNetworkTimeout(err)) {
+      if (isDefinitelyOffline()) {
+        debug('offline with empty cache — не ждём сеть', id);
+        throw new OfflineNoDataError();
+      }
       debug('timeout with empty cache, waiting for slow network', id);
       return network;
     }

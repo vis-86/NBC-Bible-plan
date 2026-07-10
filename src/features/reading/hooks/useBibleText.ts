@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { BibleReference } from '@/types';
 import { bibleApi } from '@/shared/services/api/endpoints';
 import { getCachedText, setCachedText, getPersistedText, persistText } from '../bible-text-cache';
-import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout, raceWithTimeout } from '@/shared/offline/networkTimeout';
+import { OfflineNoDataError, isDefinitelyOffline, raceNetwork } from '@/shared/offline/networkHealth';
+import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout } from '@/shared/offline/networkTimeout';
 
 /**
  * @param translationId — перевод для текущей книги (`ot_translation` или `nt_translation`), как на сервере.
@@ -44,7 +45,7 @@ export function useBibleText(reference: BibleReference | null, translationId: st
 
         let response: Awaited<typeof network>;
         try {
-          response = await raceWithTimeout(network, DEFAULT_NETWORK_TIMEOUT_MS);
+          response = await raceNetwork(network, DEFAULT_NETWORK_TIMEOUT_MS);
         } catch (raceErr) {
           if (!isNetworkTimeout(raceErr)) throw raceErr;
           const persisted = await getPersistedText(reference.book, reference.chapter, translationId);
@@ -57,6 +58,8 @@ export function useBibleText(reference: BibleReference | null, translationId: st
             return;
           }
           // Фолбэка нет — дожидаемся медленную сеть (лучше долгая загрузка, чем ошибка).
+          // Но если сети заведомо нет, ждать нечего: внешний catch покажет текст ошибки.
+          if (isDefinitelyOffline()) throw new OfflineNoDataError();
           response = await network;
         }
         const result = response.text || '';

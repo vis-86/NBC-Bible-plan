@@ -1,12 +1,20 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readThrough, getApiCache, persistApiCache } from './readThrough';
 import { __resetDBConnection } from './db';
+import { OfflineNoDataError, resetNetworkSuspicionForTests } from './networkHealth';
 
 describe('readThrough', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   beforeEach(() => {
     __resetDBConnection();
+    // Таймаут в одном тесте размыкает circuit breaker на 20s — без сброса
+    // следующие тесты файла получали бы мгновенный фолбэк вместо похода в сеть.
+    resetNetworkSuspicionForTests();
   });
 
   it('при успешном fetcher кеширует и возвращает сетевой результат', async () => {
@@ -52,5 +60,22 @@ describe('readThrough', () => {
 
     const result = await readThrough('key:e', fetcher, 20);
     expect(result).toEqual({ items: ['slow'] });
+  });
+
+  it('ЗАВЕДОМЫЙ офлайн + кеш пуст -> падает OfflineNoDataError, а не висит вечно', async () => {
+    // Регрессия: ждать медленную сеть осмысленно, ждать отсутствующую — вечный
+    // спиннер без единой ошибки в консоли (список песен офлайн).
+    vi.stubGlobal('navigator', { onLine: false });
+    const fetcher = vi.fn(() => new Promise<unknown>(() => {})); // не резолвится никогда
+
+    await expect(readThrough('key:f', fetcher, 20)).rejects.toBeInstanceOf(OfflineNoDataError);
+  });
+
+  it('ЗАВЕДОМЫЙ офлайн, но кеш есть -> отдаёт кеш, ошибку не бросает', async () => {
+    await persistApiCache('key:g', { items: ['from-idb'] });
+    vi.stubGlobal('navigator', { onLine: false });
+    const fetcher = vi.fn(() => new Promise<unknown>(() => {}));
+
+    await expect(readThrough('key:g', fetcher, 20)).resolves.toEqual({ items: ['from-idb'] });
   });
 });

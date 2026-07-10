@@ -1,5 +1,5 @@
 import { getPendingOutbox, attemptSend, removeOutboxRecord } from './outbox';
-import { raceWithTimeout } from './networkTimeout';
+import { raceNetwork } from './networkHealth';
 import { getApiPath } from '@/shared/utils/api';
 
 /**
@@ -25,7 +25,7 @@ const HEALTH_PING_TIMEOUT_MS = 4000;
  */
 export async function isServerReachable(): Promise<boolean> {
   try {
-    const res = await raceWithTimeout(
+    const res = await raceNetwork(
       fetch(getApiPath('/api/health'), { method: 'GET', cache: 'no-store' }),
       HEALTH_PING_TIMEOUT_MS
     );

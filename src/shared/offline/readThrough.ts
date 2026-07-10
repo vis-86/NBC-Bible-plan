@@ -1,5 +1,6 @@
 import { getDB } from './db';
-import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout, raceWithTimeout } from './networkTimeout';
+import { OfflineNoDataError, isDefinitelyOffline, raceNetwork } from './networkHealth';
+import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout } from './networkTimeout';
 
 /**
  * Network-first + IDB-фолбэк для GET-данных (songs/plan/weekly/books/settings —
@@ -13,6 +14,13 @@ const DEBUG = (process.env.NEXT_PUBLIC_LOG_LEVEL ?? process.env.LOG_LEVEL ?? 'de
 function debug(...args: unknown[]) {
   if (DEBUG) console.debug('[offline/readThrough]', ...args);
 }
+
+/**
+ * Ключ apiCache для списка песен. Живёт рядом с самим apiCache, потому что писатель
+ * (`downloadManager.downloadSongs`) и читатель (`useSongs`) обязаны использовать один
+ * и тот же ключ — разъехавшиеся строки уже роняли офлайн (см. patches/2026-07-10-16.46).
+ */
+export const SONGS_LIST_CACHE_KEY = 'songs:list';
 
 export async function getApiCache<T>(key: string): Promise<T | undefined> {
   try {
@@ -54,7 +62,7 @@ export async function readThrough<T>(
   network.catch(() => {});
 
   try {
-    return await raceWithTimeout(network, timeoutMs);
+    return await raceNetwork(network, timeoutMs);
   } catch (err) {
     const cached = await getApiCache<T>(key);
     if (cached !== undefined) {
@@ -62,6 +70,12 @@ export async function readThrough<T>(
       return cached;
     }
     if (isNetworkTimeout(err)) {
+      // Ждать медленную сеть осмысленно; ждать ОТСУТСТВУЮЩУЮ — это вечный спиннер
+      // без единой ошибки в консоли. Пустой кеш + заведомый офлайн = ждать нечего.
+      if (isDefinitelyOffline()) {
+        debug('offline with empty cache — не ждём сеть', key);
+        throw new OfflineNoDataError();
+      }
       debug('timeout with empty cache, waiting for slow network', key);
       return network;
     }

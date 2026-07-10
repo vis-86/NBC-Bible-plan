@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readSongThrough, getCachedSong, persistCachedSong } from './offlineSongs';
 import { __resetDBConnection } from '@/shared/offline/db';
+import { OfflineNoDataError, resetNetworkSuspicionForTests } from '@/shared/offline/networkHealth';
 import type { Song } from '../types';
 
 const SONG: Song = {
@@ -16,6 +17,12 @@ const SONG: Song = {
 describe('offlineSongs', () => {
   beforeEach(() => {
     __resetDBConnection();
+    // Таймаут в одном тесте размыкает circuit breaker на 20s — сбрасываем изоляции ради.
+    resetNetworkSuspicionForTests();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('при успешном fetcher кеширует и возвращает песню из сети', async () => {
@@ -68,5 +75,12 @@ describe('offlineSongs', () => {
 
     const result = await readSongThrough('42', fetcher, 20);
     expect(result).toEqual(SONG);
+  });
+
+  it('ЗАВЕДОМЫЙ офлайн + песни нет в IDB -> падает OfflineNoDataError, а не висит', async () => {
+    vi.stubGlobal('navigator', { onLine: false });
+    const fetcher = vi.fn(() => new Promise<Song>(() => {}));
+
+    await expect(readSongThrough('999', fetcher, 20)).rejects.toBeInstanceOf(OfflineNoDataError);
   });
 });

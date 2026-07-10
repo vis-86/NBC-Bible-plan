@@ -1,5 +1,5 @@
 import { getDB, type ManifestRecord } from './db';
-import { persistApiCache } from './readThrough';
+import { SONGS_LIST_CACHE_KEY, persistApiCache } from './readThrough';
 import { getPendingOutbox } from './outbox';
 import { replayOutbox } from './sync';
 import { getApiPath } from '@/shared/utils/api';
@@ -135,11 +135,19 @@ export async function downloadBibleTranslation(
 /**
  * Список песен отдаёт только карточки — контент качается по одной песне за раз
  * (`/api/songs/[id]`) и пишется в IDB `songs`.
+ *
+ * Сам список тоже кладётся в apiCache под ключом, который читает `useSongs`. Без этого
+ * «скачал песни, ни разу не открыв вкладку онлайн» → офлайн read-through по `songs:list`
+ * не находит кеша, уходит в ветку «нет фолбэка — ждём сеть» и список висит вечно, хотя
+ * контент всех песен уже лежит в IDB (та же ошибка, что чинил downloadPlan ниже).
  */
 export async function downloadSongs(onProgress?: (done: number, total: number) => void): Promise<void> {
   await requestPersistentStorage();
 
   const list = await songsApi.getSongs();
+  // Пишем до цикла: даже прерванная на середине загрузка оставит рабочий список офлайн.
+  await persistApiCache(SONGS_LIST_CACHE_KEY, list);
+
   const db = await getDB();
   const now = Date.now();
   let done = 0;

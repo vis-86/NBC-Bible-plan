@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { songsApi } from '@/shared/services/api/endpoints';
-import { readThrough } from '@/shared/offline/readThrough';
+import { SONGS_LIST_CACHE_KEY, readThrough } from '@/shared/offline/readThrough';
 import type { SongSummary } from '../types';
-
-const SONGS_LIST_CACHE_KEY = 'songs:list';
 
 /**
  * Module-level кэш: список песен грузится один раз за сессию (97 песен статичны).

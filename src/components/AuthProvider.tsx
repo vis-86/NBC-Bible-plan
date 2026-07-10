@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { getApiPath } from '@/lib/utils';
 import { isTelegramWebApp, initTelegramWebApp } from '@/lib/telegram';
 import { getLastKnownUser, setLastKnownUser, clearLastKnownUser } from '@/shared/offline/lastKnownUser';
-import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout, raceWithTimeout } from '@/shared/offline/networkTimeout';
+import { raceNetwork } from '@/shared/offline/networkHealth';
+import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout } from '@/shared/offline/networkTimeout';
 import { scheduleEnsureOfflineData } from '@/shared/offline/autoDownload';
 
 interface User {
@@ -60,7 +61,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
 
       let response: Response;
       try {
-        response = await raceWithTimeout(sessionFetch, DEFAULT_NETWORK_TIMEOUT_MS);
+        response = await raceNetwork(sessionFetch, DEFAULT_NETWORK_TIMEOUT_MS);
       } catch (err) {
         if (isNetworkTimeout(err)) {
           const lastKnownUser = await getLastKnownUser<User>();

@@ -12,6 +12,7 @@ vi.mock('next/navigation', () => ({
 import AuthProvider, { AuthContext } from './AuthProvider';
 import { setLastKnownUser, getLastKnownUser } from '@/shared/offline/lastKnownUser';
 import { __resetDBConnection } from '@/shared/offline/db';
+import { resetNetworkSuspicionForTests } from '@/shared/offline/networkHealth';
 
 function Consumer() {
   const ctx = useContext(AuthContext);
@@ -29,6 +30,9 @@ describe('AuthProvider offline last-known-user fallback', () => {
   beforeEach(() => {
     __resetDBConnection();
     pushMock.mockClear();
+    // Тест с зависшим fetch размыкает circuit breaker на 20s; без сброса следующий
+    // тест получил бы мгновенный фолбэк и не дошёл бы до реального ответа сервера.
+    resetNetworkSuspicionForTests();
   });
 
   afterEach(() => {

@@ -145,6 +145,28 @@ describe('offline/downloadManager', () => {
       const manifest = await getManifest();
       expect(manifest.find((m) => m.key === 'songs')).toMatchObject({ itemCount: 2 });
     });
+
+    it('прогревает apiCache списком под тем же ключом и в том же shape, что читает useSongs', async () => {
+      // Регрессия: список писался только в store `songs`, а useSongs читает
+      // readThrough('songs:list') → офлайн после «скачать песни» висел вечно.
+      const list = { songs: [{ id: '1', title: 'Песня 1' }] };
+      getSongsMock.mockResolvedValue(list);
+      getSongMock.mockResolvedValue({ song: { id: '1', title: 'Песня 1', content: 'c' } });
+
+      await downloadSongs();
+
+      expect(await getApiCache('songs:list')).toEqual(list);
+    });
+
+    it('прерванная загрузка контента всё равно оставляет список песен в apiCache', async () => {
+      const list = { songs: [{ id: '1', title: 'Песня 1' }] };
+      getSongsMock.mockResolvedValue(list);
+      getSongMock.mockRejectedValue(new Error('network died'));
+
+      await expect(downloadSongs()).rejects.toThrow('network died');
+
+      expect(await getApiCache('songs:list')).toEqual(list);
+    });
   });
 
   describe('downloadPlan', () => {
