@@ -1,12 +1,11 @@
 # syntax=docker/dockerfile:1
-# Multi-stage build for Next.js 16 standalone (NBC Bible Plan)
+# Multi-stage build for NBC Bible Plan: static export (Next.js `output: 'export'`)
+# + Hono BFF, replacing the old single Next.js standalone server (see
+# .ai-factory/plans/feature-static-export-hono-bff.md, T6/T12). No native build
+# deps needed anymore — better-sqlite3/lucia (SQLite auth) are gone (T6).
 
 FROM node:22-slim AS base
 WORKDIR /app
-# better-sqlite3 native build deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      python3 make g++ ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
 RUN corepack enable
 
 FROM base AS deps
@@ -29,25 +28,41 @@ ENV NEXT_PUBLIC_DIRECTUS_URL=$NEXT_PUBLIC_DIRECTUS_URL
 ENV NEXT_PUBLIC_AI_ENABLE=$NEXT_PUBLIC_AI_ENABLE
 ENV NEXT_PUBLIC_REGISTER_ENABLED=$NEXT_PUBLIC_REGISTER_ENABLED
 ENV NEXT_PUBLIC_REGISTER_REQUIRE_CODE=$NEXT_PUBLIC_REGISTER_REQUIRE_CODE
+# next build && build-manifest && build-sw (see package.json "build") -> out/ + out/sw.js
 RUN yarn build
 
-FROM node:22-slim AS runner
+# ---------------------------------------------------------------------------
+# bff: Hono API server. Runs TS directly via tsx (no separate build step for
+# the BFF, see T1 — keeps this small/volunteer-maintainable), so the runtime
+# image needs the full node_modules (tsx is a devDependency), not a pruned one.
+# ---------------------------------------------------------------------------
+FROM node:22-slim AS bff
 WORKDIR /app
 ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
-RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -m nextjs
+RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -m bff
 
-# Self-hosted Bible text is read at runtime from process.cwd()/data
-COPY --from=build /app/public ./public
+COPY --from=deps /app/node_modules ./node_modules
+COPY package.json yarn.lock tsconfig.json ./
+COPY server ./server
+# Runtime dependency closure of server/src (see .ai-factory/plans/feature-static-export-hono-bff.md T12):
+# src/lib, src/features/songs/services, src/types, src/shared/utils. No src/app, no src/components —
+# those are client-only and belong to the static export.
+COPY src/lib ./src/lib
+COPY src/features/songs/services ./src/features/songs/services
+COPY src/types ./src/types
+COPY src/shared/utils ./src/shared/utils
+# Self-hosted Bible text (src/lib/bible-data.ts reads from process.cwd()/data at runtime)
 COPY --from=build /app/data ./data
-# Next.js standalone output (includes traced node_modules incl. better-sqlite3)
-COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Writable dir for Lucia SQLite (auth/sessions) — mounted as a volume in compose
-RUN mkdir -p /app/database && chown -R nextjs:nodejs /app/database /app/data
+RUN chown -R bff:nodejs /app
+USER bff
+EXPOSE 3001
+CMD ["node_modules/.bin/tsx", "server/src/index.ts"]
 
-USER nextjs
-EXPOSE 3000
-CMD ["node", "server.js"]
+# ---------------------------------------------------------------------------
+# static: nginx serving the exported app shell (out/) under /app. Replaces the
+# stock nginx:alpine image used directly in compose.yml — this bakes the build
+# artifact in so nginx has no bind-mounted app content.
+# ---------------------------------------------------------------------------
+FROM nginx:alpine AS static
+COPY --from=build /app/out /usr/share/nginx/html/app

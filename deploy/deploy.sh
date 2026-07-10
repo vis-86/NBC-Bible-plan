@@ -28,7 +28,9 @@ set -euo pipefail
 # ---- config (override via environment) --------------------------------------
 SSH_TARGET="${SSH_TARGET:-root@168.222.202.131}"
 REMOTE_DIR="${REMOTE_DIR:-/opt/nbc/bible-plan}"
-APP_SERVICE="${APP_SERVICE:-app}"
+# Space-separated: app code changes now affect both the BFF (server/) AND the static
+# export baked into the nginx image (deploy/Dockerfile `static` target) — rebuild both.
+APP_SERVICE="${APP_SERVICE:-bff nginx}"
 PUBLIC_URL="${PUBLIC_URL:-https://bible.baptistnn.ru/app}"
 SSH_OPTS=(-o BatchMode=yes -o ServerAliveInterval=20 -o ServerAliveCountMax=15)
 
@@ -109,11 +111,10 @@ ssh "${SSH_OPTS[@]}" "$SSH_TARGET" REMOTE_DIR="$REMOTE_DIR" APP_SERVICE="$APP_SE
 set -euo pipefail
 cd "$REMOTE_DIR/deploy"
 
-OLD_IMG="$(docker compose images "$APP_SERVICE" -q 2>/dev/null || true)"
-
+# APP_SERVICE may be a space-separated list (e.g. "bff nginx") — word-split on purpose.
 LOG="/tmp/bible-deploy-build.log"
 : > "$LOG"
-setsid bash -c "docker compose build '$APP_SERVICE' > '$LOG' 2>&1" &
+setsid bash -c "docker compose build $APP_SERVICE > '$LOG' 2>&1" &
 BPID=$!
 echo "  build started (pid $BPID), tailing $LOG ..."
 # Poll until the build process exits (up to ~15 min).
@@ -128,21 +129,21 @@ fi
 wait "$BPID" || { echo "  BUILD FAILED:"; tail -n 30 "$LOG"; exit 1; }
 tail -n 6 "$LOG"
 
-echo "  recreating container ..."
-docker compose up -d "$APP_SERVICE"
+echo "  recreating containers ..."
+docker compose up -d $APP_SERVICE
 
-# wait for running, then read the new container's actual image id
-CID=""
-for _ in $(seq 1 20); do
-  CID="$(docker compose ps -q "$APP_SERVICE" 2>/dev/null || true)"
-  s="$(docker inspect -f '{{.State.Status}}' "$CID" 2>/dev/null || true)"
-  [ "$s" = "running" ] && break
-  sleep 2
+for svc in $APP_SERVICE; do
+  CID=""
+  for _ in $(seq 1 20); do
+    CID="$(docker compose ps -q "$svc" 2>/dev/null || true)"
+    s="$(docker inspect -f '{{.State.Status}}' "$CID" 2>/dev/null || true)"
+    [ "$s" = "running" ] && break
+    sleep 2
+  done
+  echo "  $svc status: ${s:-unknown}"
+  echo "  $svc recent logs:"
+  docker logs "$CID" 2>&1 | tail -8
 done
-NEW_IMG="$(docker inspect -f '{{.Image}}' "$CID" 2>/dev/null | sed 's/^sha256://' || true)"
-echo "  app status: ${s:-unknown}  (image: ${OLD_IMG:0:12} -> ${NEW_IMG:0:12})"
-echo "  recent logs:"
-docker logs "$CID" 2>&1 | tail -8
 REMOTE
 
 # ---- 3. smoke check ---------------------------------------------------------

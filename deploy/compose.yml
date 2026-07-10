@@ -49,17 +49,18 @@ services:
       retries: 15
     networks: [internal]
 
-  app:
+  bff:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
+      target: bff
       args:
+        # out/ is built in the shared `build` stage regardless (static export needs it),
+        # but the BFF runtime itself only needs the runtime env below.
         NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH}
         NEXT_PUBLIC_DIRECTUS_URL: ${NEXT_PUBLIC_DIRECTUS_URL}
         NEXT_PUBLIC_AI_ENABLE: ${NEXT_PUBLIC_AI_ENABLE}
-        # build-time: тоггл регистрации требует пересборки образа
         NEXT_PUBLIC_REGISTER_ENABLED: ${NEXT_PUBLIC_REGISTER_ENABLED}
-        # build-time: default true; false прячет поле «Код церкви» в форме
         NEXT_PUBLIC_REGISTER_REQUIRE_CODE: ${NEXT_PUBLIC_REGISTER_REQUIRE_CODE:-true}
     restart: unless-stopped
     depends_on:
@@ -67,8 +68,7 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      PORT: "3000"
-      NEXT_TELEMETRY_DISABLED: "1"
+      BFF_PORT: "3001"
       NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH}
       # All Directus access is server-side (no browser usage of this URL),
       # so route it over the internal Docker network — independent of DNS/TLS.
@@ -83,16 +83,22 @@ services:
       # Задан ⇒ код обязателен. Пусто + REGISTER_OPEN_NO_CODE=true ⇒ открыто без кода; иначе 503.
       REGISTER_CHURCH_CODE: ${REGISTER_CHURCH_CODE:-}
       REGISTER_OPEN_NO_CODE: ${REGISTER_OPEN_NO_CODE:-}
-      JWT_SECRET: ${JWT_SECRET}
       NEXT_PUBLIC_DIRECTUS_AI_FLOW_ID: ${NEXT_PUBLIC_DIRECTUS_AI_FLOW_ID:-ai-service}
-    volumes:
-      - app_db:/app/database
     networks: [internal]
 
   nginx:
-    image: nginx:alpine
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+      target: static
+      args:
+        NEXT_PUBLIC_BASE_PATH: ${NEXT_PUBLIC_BASE_PATH}
+        NEXT_PUBLIC_DIRECTUS_URL: ${NEXT_PUBLIC_DIRECTUS_URL}
+        NEXT_PUBLIC_AI_ENABLE: ${NEXT_PUBLIC_AI_ENABLE}
+        NEXT_PUBLIC_REGISTER_ENABLED: ${NEXT_PUBLIC_REGISTER_ENABLED}
+        NEXT_PUBLIC_REGISTER_REQUIRE_CODE: ${NEXT_PUBLIC_REGISTER_REQUIRE_CODE:-true}
     restart: unless-stopped
-    depends_on: [app, directus]
+    depends_on: [bff, directus]
     ports:
       - "80:80"
       - "443:443"
@@ -106,7 +112,6 @@ volumes:
   pgdata:
   directus_uploads:
   directus_extensions:
-  app_db:
 
 networks:
   internal:
