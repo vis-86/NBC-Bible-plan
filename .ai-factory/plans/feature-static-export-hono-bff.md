@@ -58,7 +58,7 @@ Executor: **Sonnet 5** — каждый таск самодостаточен: �
 - [x] T5. Порт групп user/chat/graphql/directus-proxy/ai
 - [x] T6. `output: 'export'` + dev-режим + удаление серверной части Next
 - [x] T7. Клиентский auth-guard + легаси-редиректы
-- [ ] T8. Build-time SW с precache-манифестом поверх `out/`
+- [x] T8. Build-time SW с precache-манифестом поверх `out/`
 - [ ] T9. ChunkLoadError guard
 - [ ] T10. Sync health-гейт + верификация 401-контракта в graphql-клиенте
 - [ ] T11. Гибридная автозагрузка после логина

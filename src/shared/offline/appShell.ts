@@ -1,21 +1,16 @@
-import { HTML_CACHE_NAME } from '@/sw/sw-source';
 import { getBasePath } from '@/shared/utils/api';
 
 /**
- * Прогрев app-shell документов клиентских маршрутов в HTML-кеш SW.
+ * Прогрев app-shell документов клиентских маршрутов в отдельный runtime-кеш.
  *
- * Корень проблемы: клиентская навигация App Router (`router.push`) офлайн делает
- * RSC-flight fetch (passthrough) → падает → Next откатывается на hard-навигацию
- * документа → `handleNavigation` не находит документ маршрута в HTML-кеше (его кладут
- * только реальные навигации, а не client push) → 503-заглушка. «Скачать всё» наполняет
- * IDB данными, но документы маршрутов в HTML-кеш не кладёт. Прогрев закрывает этот слой.
- *
- * Динамические маршруты (`read`, `song`) схлопнуты в query (approach C): один документ
- * + `ignoreSearch` в SW обслуживает любые значения, поэтому набор конечный.
- *
- * Вынесено в отдельный модуль (не в downloadManager), чтобы прогрев на каждой странице
- * дашборда не тянул в бандл idb/sync/endpoints.
+ * С T8 (build-time Serwist precache, `src/sw/sw.ts`) весь конечный набор HTML-документов
+ * export'а уже атомарно кешируется при установке SW — этот прогрев для ТЕХ ЖЕ маршрутов
+ * избыточен. Не удалено намеренно (план T8, раздел T13): оставлено до зелёных offline
+ * E2E под новую топологию, дальше — упростить/удалить вместе с warmAppShellOnceOnline.
+ * `HTML_CACHE_NAME` больше НЕ читается новым SW (тот использует свой версионированный
+ * `app-shell-precache-*`) — эти записи сейчас мёртвый вес, а не часть офлайн-контракта.
  */
+const HTML_CACHE_NAME = 'app-shell-html-v1';
 
 const DEBUG = (process.env.NEXT_PUBLIC_LOG_LEVEL ?? process.env.LOG_LEVEL ?? 'debug') === 'debug';
 function debug(...args: unknown[]) {

@@ -13,7 +13,7 @@ const UPDATE_CHECK_INTERVAL_MS = 60 * 60 * 1000;
  *
  * Помимо register() дергает reg.update() при возврате вкладки в фокус и раз в час —
  * иначе браузер годами не подтянет новую версию SW (включая kill switch из
- * src/sw/sw-source.ts), пока пользователь не закроет все вкладки вручную.
+ * src/sw/sw.ts), пока пользователь не закроет все вкладки вручную.
  *
  * Update flow (T1 убрал skipWaiting() из install): новый SW встаёт в waiting →
  * пользователь подтверждает тостом → applyUpdate() шлёт SKIP_WAITING →
