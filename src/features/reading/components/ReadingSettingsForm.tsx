@@ -252,6 +252,28 @@ export function ReadingSettingsForm({
           />
         </button>
       </div>
+
+      <div className="flex items-center justify-between" data-section="verse-per-line">
+        <label className="text-sm font-medium text-app-text-secondary">
+          Каждый стих с новой строки
+        </label>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => {
+            onSettingsChange({ ...settings, verse_per_line: !settings.verse_per_line });
+          }}
+          className={`relative h-6 w-12 rounded-full transition-colors disabled:opacity-50 ${
+            settings.verse_per_line ? 'bg-app-primary' : 'bg-app-surface-muted'
+          }`}
+        >
+          <span
+            className={`absolute top-1 left-1 h-4 w-4 rounded-full bg-white shadow-sm ring-1 ring-black/5 transition-transform dark:ring-white/10 ${
+              settings.verse_per_line ? 'translate-x-6' : 'translate-x-0'
+            }`}
+          />
+        </button>
+      </div>
     </div>
   );
 }

@@ -42,6 +42,7 @@ export interface ReadingSettingsResponse {
     verse_numbers_visible: boolean;
     ot_translation?: string;
     nt_translation?: string;
+    verse_per_line?: boolean;
   };
 }
 

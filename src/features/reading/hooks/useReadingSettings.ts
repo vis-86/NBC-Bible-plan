@@ -21,7 +21,8 @@ const defaultSettings: ReadingSettings = {
   theme: 'system',
   verse_numbers_visible: true,
   ot_translation: 'rst',
-  nt_translation: 'rst'
+  nt_translation: 'rst',
+  verse_per_line: false
 };
 
 export function useReadingSettings() {
@@ -49,7 +50,10 @@ export function useReadingSettings() {
               : defaultSettings.ot_translation,
             nt_translation: isBibleTranslationId(response.settings.nt_translation)
               ? response.settings.nt_translation
-              : defaultSettings.nt_translation
+              : defaultSettings.nt_translation,
+            verse_per_line: typeof response.settings.verse_per_line === 'boolean'
+              ? response.settings.verse_per_line
+              : defaultSettings.verse_per_line
           });
         }
       } catch (error) {

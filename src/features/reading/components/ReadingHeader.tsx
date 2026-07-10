@@ -68,7 +68,7 @@ export const ReadingHeader: React.FC<ReadingHeaderProps> = ({
   displayTheme = 'light',
   onSettingsClick,
   onChapterPickerClick,
-  onBookPickerClick
+  onBookPickerClick,
 }) => {
   const hasDayPlan = day && day.items && day.items.length > 0;
   const bookName = currentReading?.book || reading?.book;
@@ -119,7 +119,7 @@ export const ReadingHeader: React.FC<ReadingHeaderProps> = ({
         )}
       </div>
 
-      <div className="reading-header-actions flex shrink-0 items-center">
+      <div className="reading-header-actions flex shrink-0 items-center gap-1">
         <button
           onClick={onSettingsClick}
           className={`reading-header-settings-button p-3 ${theme.action} active:scale-90 transition-transform`}

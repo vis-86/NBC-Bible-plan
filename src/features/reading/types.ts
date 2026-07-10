@@ -8,5 +8,6 @@ export interface ReadingSettings {
   verse_numbers_visible: boolean;
   ot_translation: BibleTranslationId;
   nt_translation: BibleTranslationId;
+  verse_per_line: boolean;
 }
 

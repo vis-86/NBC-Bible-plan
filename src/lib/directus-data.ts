@@ -257,7 +257,8 @@ export async function getReadingSettings(directusUserId: string, userAccessToken
       theme: 'system',
       verse_numbers_visible: true,
       ot_translation: 'rst',
-      nt_translation: 'rst'
+      nt_translation: 'rst',
+      verse_per_line: false
     };
   }
 
@@ -278,6 +279,7 @@ export async function saveReadingSettings(
     verse_numbers_visible?: boolean;
     ot_translation?: string;
     nt_translation?: string;
+    verse_per_line?: boolean;
   },
   userAccessToken?: string
 ) {

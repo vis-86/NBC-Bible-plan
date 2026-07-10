@@ -108,6 +108,7 @@ userRoutes.post('/reading-settings', async (c) => {
     if (!session) return c.json({ error: 'Unauthorized' }, 401);
 
     const settings = await c.req.json();
+    logger.debug('[user.reading-settings] save', { keys: Object.keys(settings) });
     await saveReadingSettings(session.directus_id, settings);
     return c.json({ success: true });
   } catch (error) {
