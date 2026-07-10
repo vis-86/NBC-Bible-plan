@@ -24,7 +24,7 @@ npm run dev
 ## Ключевые функции
 
 - **План чтения** — ежедневные и недельные задания из Directus CMS
-- **Прогресс** — отслеживание по главам и дням в SQLite
+- **Прогресс** — отслеживание по главам и дням в Directus (PostgreSQL)
 - **Читалка** — встроенный просмотр глав с навигацией и настройками шрифта
 - **Календарь** — обзор прошедших и предстоящих дней чтения
 - **Стих дня** — ежедневный текст из Directus
@@ -46,9 +46,9 @@ npm run dev
 | [Конфигурация](docs/configuration.md) | Переменные окружения, настройки |
 | [Аутентификация](docs/authentication.md) | Invite+пароль, код церкви, Telegram-привязка, сессии, PWA |
 | [Offline PWA](docs/offline-pwa.md) | Service worker, IndexedDB, write-ahead outbox, sync, offline-загрузка |
-| [Деплой](docs/deployment.md) | Сборка, nginx, PM2, copy-prod.sh |
+| [Деплой](docs/deployment.md) | Static export + Hono BFF, Docker Compose, deploy.sh |
 | [Настройка Directus](docs/DIRECTUS_SETUP_GUIDE.md) | Коллекции, роли, разрешения |
-| [Схема БД](docs/database-schema.md) | Таблицы SQLite и их структура |
+| [Схема БД](docs/database-schema.md) | Таблицы PostgreSQL и их структура |
 | [ИИ-интеграция](docs/AI_INTEGRATION_GUIDE.md) | Настройка n8n + Directus Flow |
 | [История чата](docs/CHAT_HISTORY_SETUP.md) | Хранение истории переписки |
 | [GraphQL API](docs/GRAPHQL_API.md) | Схема и запросы GraphQL |

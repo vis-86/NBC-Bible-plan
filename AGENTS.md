@@ -182,7 +182,7 @@ See `ENV_SETUP.md` for full reference. Critical vars:
 | Authentication | docs/authentication.md | Invite+password, church-code registration, Telegram link, sessions, PWA |
 | Deployment | docs/deployment.md | Static export + Hono BFF, Docker Compose, deploy.sh |
 | Directus Setup | docs/DIRECTUS_SETUP_GUIDE.md | Directus CMS configuration |
-| DB Schema | docs/database-schema.md | SQLite and Directus schema |
+| DB Schema | docs/database-schema.md | PostgreSQL schema behind Directus |
 | AI Integration | docs/AI_INTEGRATION_GUIDE.md | n8n + Directus AI setup |
 | Chat History | docs/CHAT_HISTORY_SETUP.md | AI chat history storage |
 | GraphQL API | docs/GRAPHQL_API.md | GraphQL schema and queries |
