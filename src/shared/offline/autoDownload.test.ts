@@ -28,7 +28,7 @@ import { ensureOfflineData, scheduleEnsureOfflineData, __resetAutoDownloadGuard 
 
 describe('offline/autoDownload', () => {
   beforeEach(() => {
-    getSettingsMock.mockReset().mockResolvedValue({ settings: { nt_translation: 'nrt2019' } });
+    getSettingsMock.mockReset().mockResolvedValue({ settings: { nt_translation: 'rst' } });
     downloadPlanMock.mockReset().mockResolvedValue(undefined);
     downloadSongsMock.mockReset().mockResolvedValue(undefined);
     downloadBibleTranslationMock.mockReset().mockResolvedValue(undefined);
@@ -46,7 +46,7 @@ describe('offline/autoDownload', () => {
       getManifestMock.mockResolvedValue([
         { key: 'plan', downloadedAt: 1 },
         { key: 'songs', downloadedAt: 1 },
-        { key: 'nrt2019', downloadedAt: 1 },
+        { key: 'rst', downloadedAt: 1 },
       ]);
 
       await ensureOfflineData();
@@ -64,7 +64,7 @@ describe('offline/autoDownload', () => {
       expect(downloadPlanMock).not.toHaveBeenCalled();
       expect(downloadSongsMock).toHaveBeenCalledTimes(1);
       expect(downloadBibleTranslationMock).toHaveBeenCalledTimes(1);
-      expect(downloadBibleTranslationMock).toHaveBeenCalledWith('nrt2019');
+      expect(downloadBibleTranslationMock).toHaveBeenCalledWith('rst');
     });
 
     it('nt_translation из настроек уважается, если разрешён для self-host', async () => {
@@ -79,7 +79,7 @@ describe('offline/autoDownload', () => {
       expect(downloadBibleTranslationMock).toHaveBeenCalledWith('kassian2019');
     });
 
-    it('nt_translation не self-host (напр. cassian) -> фолбэк на nrt2019', async () => {
+    it('nt_translation не self-host (напр. cassian) -> фолбэк на rst', async () => {
       getSettingsMock.mockResolvedValue({ settings: { nt_translation: 'cassian' } });
       getManifestMock.mockResolvedValue([
         { key: 'plan', downloadedAt: 1 },
@@ -88,7 +88,7 @@ describe('offline/autoDownload', () => {
 
       await ensureOfflineData();
 
-      expect(downloadBibleTranslationMock).toHaveBeenCalledWith('nrt2019');
+      expect(downloadBibleTranslationMock).toHaveBeenCalledWith('rst');
     });
 
     it('ошибка сети при чтении reading-settings -> не бросает, использует дефолтный перевод', async () => {
@@ -97,7 +97,7 @@ describe('offline/autoDownload', () => {
 
       await expect(ensureOfflineData()).resolves.toBeUndefined();
 
-      expect(downloadBibleTranslationMock).toHaveBeenCalledWith('nrt2019');
+      expect(downloadBibleTranslationMock).toHaveBeenCalledWith('rst');
     });
 
     it('обрыв одного job (напр. downloadSongs) не блокирует остальные и не бросает', async () => {

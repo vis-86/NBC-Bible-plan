@@ -24,6 +24,14 @@ vi.mock('@/shared/offline/outbox', () => ({
   getPendingOutbox: vi.fn().mockResolvedValue([]),
 }));
 
+const { useReadingSettingsMock } = vi.hoisted(() => ({
+  useReadingSettingsMock: vi.fn(),
+}));
+
+vi.mock('@/features/reading/hooks/useReadingSettings', () => ({
+  useReadingSettings: useReadingSettingsMock,
+}));
+
 import { OfflineDataSection } from './OfflineDataSection';
 
 describe('OfflineDataSection', () => {
@@ -33,6 +41,10 @@ describe('OfflineDataSection', () => {
     downloadPlanMock.mockReset().mockResolvedValue(undefined);
     clearAllOfflineDataMock.mockReset().mockResolvedValue({ cleared: true, pendingOutboxCount: 0 });
     getManifestMock.mockReset().mockResolvedValue([]);
+    useReadingSettingsMock.mockReset().mockReturnValue({
+      settings: { nt_translation: 'rst' },
+      isLoading: false,
+    });
   });
 
   it('показывает «Не скачано» для всех категорий изначально', async () => {

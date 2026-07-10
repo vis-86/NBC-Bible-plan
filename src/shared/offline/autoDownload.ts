@@ -20,7 +20,7 @@ function info(...args: unknown[]) {
 }
 
 /** Перевод, докачиваемый автоматически, если у пользователя нет валидного nt_translation в настройках. */
-const DEFAULT_TRANSLATION: BibleTranslationId = 'nrt2019';
+export const DEFAULT_TRANSLATION: BibleTranslationId = 'rst';
 
 /** Не форсировать автозагрузку сразу после логина — даём стартовой загрузке дашборда отработать первой. */
 const IDLE_DELAY_MS = 5000;

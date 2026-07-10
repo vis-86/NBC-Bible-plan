@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { useOfflineData, type OfflineDownloadKey } from '../hooks/useOfflineData';
-import { BIBLE_TRANSLATIONS, type BibleTranslationId } from '@/lib/bible-translations';
+import { BIBLE_TRANSLATIONS, resolveSelfHostedTranslationId, type BibleTranslationId } from '@/lib/bible-translations';
 import { getAppBuildTime } from '@/shared/config/appVersion';
+import { useReadingSettings } from '@/features/reading/hooks/useReadingSettings';
+import { DEFAULT_TRANSLATION } from '@/shared/offline/autoDownload';
 
 const DOWNLOADABLE_TRANSLATIONS = Object.values(BIBLE_TRANSLATIONS).filter((t) => t.selfHostedAllowed);
 
@@ -31,6 +33,15 @@ function ProgressBar({ value }: { value: number }) {
   );
 }
 
+/** Пометка элемента, докачиваемого автоматически после логина (см. `autoDownload.ts`). */
+function AutoDownloadBadge() {
+  return (
+    <span className="rounded-full bg-app-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-app-primary">
+      авто
+    </span>
+  );
+}
+
 /** Текст кнопки скачивания одного элемента: %/«Загрузка…» → «Обновить»/«Скачать». */
 function downloadLabel(loading: boolean, progress: number | null, hasEntry: boolean): string {
   if (loading) return progress !== null ? `${Math.round(progress * 100)}%` : 'Загрузка…';
@@ -52,6 +63,11 @@ export function OfflineDataSection() {
   } = useOfflineData();
   const [confirmingClear, setConfirmingClear] = useState(false);
   const [clearError, setClearError] = useState<string | null>(null);
+
+  const { settings: readingSettings, isLoading: readingSettingsLoading } = useReadingSettings();
+  const autoDownloadTranslationId = readingSettingsLoading
+    ? null
+    : resolveSelfHostedTranslationId(readingSettings.nt_translation, 'nt', DEFAULT_TRANSLATION);
 
   const songsManifest = manifest.find((m) => m.key === 'songs');
   const planManifest = manifest.find((m) => m.key === 'plan');
@@ -133,7 +149,10 @@ export function OfflineDataSection() {
                 <div key={t.id} className="space-y-1.5">
                   <div className="flex items-center justify-between rounded-lg border border-app-border px-3 py-2">
                     <div className="min-w-0">
-                      <p className="text-sm text-app-text-secondary">{t.label}</p>
+                      <p className="flex items-center gap-1.5 text-sm text-app-text-secondary">
+                        {t.label}
+                        {t.id === autoDownloadTranslationId && <AutoDownloadBadge />}
+                      </p>
                       {entry ? (
                         <p className="text-xs text-app-text-muted">
                           Скачано {formatDate(entry.downloadedAt)}
@@ -164,7 +183,10 @@ export function OfflineDataSection() {
 
         {/* Песни */}
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-app-text-secondary">Песни</h3>
+          <h3 className="flex items-center gap-1.5 text-sm font-medium text-app-text-secondary">
+            Песни
+            <AutoDownloadBadge />
+          </h3>
           <div className="flex items-center justify-between rounded-lg border border-app-border px-3 py-2">
             <div className="min-w-0">
               {songsManifest ? (
@@ -193,7 +215,10 @@ export function OfflineDataSection() {
 
         {/* План */}
         <div className="space-y-2">
-          <h3 className="text-sm font-medium text-app-text-secondary">План чтения</h3>
+          <h3 className="flex items-center gap-1.5 text-sm font-medium text-app-text-secondary">
+            План чтения
+            <AutoDownloadBadge />
+          </h3>
           <div className="flex items-center justify-between rounded-lg border border-app-border px-3 py-2">
             <div className="min-w-0">
               {planManifest ? (
