@@ -32,16 +32,16 @@
 
 ### Phase 2 — беджик-дропдаун перевода в шапке (задачи #8, #9)
 
-- [ ] **#8** `data-verse`-анкеры в BibleText (всегда, даже при скрытых номерах) + утилита `getTopVisibleVerse`/`scrollToVerse` (учёт sticky-header). + jsdom-тесты.
-  - Уточнение по коду (`BibleText.tsx:83-91`, `strong`-рендерер): при `!verse_numbers_visible` сейчас `return null` — элемента нет вообще, вешать `data-verse` не на что; заменить на невидимый маркер (`<span data-verse={verseNum} className={settings.verse_numbers_visible ? '' : 'hidden'} />` вместо номера), НЕ убирать саму ветку скрытия номера.
-  - Первый стих в каждом абзаце (`processNode`, ветки :34-42 и :56-64) сейчас НЕ оборачивается в `<span>` (голый `<strong>` или ничего) — в отличие от «не первых» стихов (`inline-block ml-4`, :35, :57). Обернуть первый стих в такой же span с `data-verse`, иначе анкер и `getTopVisibleVerse`/`scrollToVerse` будут работать только для не-первых стихов при видимых номерах.
-- [ ] **#9** (после #7, #8) `TranslationBadge` в правом блоке `ReadingHeader`: текущий перевод для testament книги, дропдаун из `getSelfHostedTranslationOptions`, on select: снять якорный стих → `updateSettings` → после загрузки текста `scrollToVerse`. Disabled на время сохранения, ошибка сохранения не меняет UI. + component-тесты.
+- [x] **#8** `data-verse`-анкеры в BibleText (всегда, даже при скрытых номерах) + утилита `getTopVisibleVerse`/`scrollToVerse`.
+  - По факту (проверено рендер-пробой в jsdom): `processNode`/`isFirst`-логика в `p`-компоненте (обёртка `inline-block ml-4`) — мёртвый код, никогда не срабатывает (react-markdown уже конвертирует `**N**` в `<strong>`-элемент до попадания в `children`, и `node.type` там — ссылка на компонент-функцию, не строка `'strong'`). И первый, и последующие стихи реально рендерятся ОДИНАКОВО голым `<strong>` из `strong`-оверрайда — обёртки нет ни у одного. Правка сведена к одному месту: `strong`-рендерер (:83-91) — `data-verse` ставится всегда; при `!verse_numbers_visible` вместо `return null` теперь `<strong data-verse={verseNum} className="hidden">` (без визуального следа, но с якорем).
+- [x] ~~**#9** `TranslationBadge` в правом блоке `ReadingHeader`~~ — **откачено** (2026-07-10): беджик-дропдаун перевода прямо в шапке чтения — плохой UX, убран из `ReadingHeader`/`ReadingView`; компонент `TranslationBadge` удалён. Перевод меняется только через настройки (`ReadingSettingsForm`). Verse-anchor инфраструктура (#8, `data-verse`/`getTopVisibleVerse`/`scrollToVerse`) сохранена как есть.
 
 <!-- Commit checkpoint: "feat(reading): translation badge-dropdown in reader header with verse-anchored scroll" -->
 
 ### Phase 3 — настройка «каждый стих с новой строки» (задачи #10, #11)
 
-- [ ] **#10** Поле `verse_per_line: boolean` (default false) сквозь: `ReadingSettings` тип, defaults+коэрция в `useReadingSettings`, `ReadingSettingsResponse`, `saveReadingSettings`/`getReadingSettings` в directus-data.ts, **новое boolean-поле в Directus-коллекции `reading_settings`** (dev сейчас, прод — тем же POST /fields при деплое; admin-токен прода ротируется — брать актуальный). + unit-тест хука.
+- [x] **#10** Поле `verse_per_line: boolean` (default false) сквозь: `ReadingSettings` тип, defaults+коэрция в `useReadingSettings`, `ReadingSettingsResponse`, `saveReadingSettings`/`getReadingSettings` в directus-data.ts, новое boolean-поле в Directus-коллекции `reading_settings`. + unit-тест хука.
+  - Поле создано idempotent-скриптом `scripts/add-verse-per-line-field.ts` (`npx tsx scripts/add-verse-per-line-field.ts`) — применён в dev; на проде запустить тот же скрипт с прод-`DIRECTUS_ADMIN_TOKEN` при деплое.
 - [ ] **#11** (после #10) Рендер: при `verse_per_line` каждый стих — блок с маленьким отступом (`block mt-1` вместо `inline-block ml-4`), комбинации с `verse_numbers_visible`/`text_align`; тумблер `data-section="verse-per-line"` в `ReadingSettingsForm` по паттерну verse-numbers (строки 234–254) — появится и в настройках, и в шите чтения. + тесты рендера и тумблера.
 
 <!-- Commit checkpoint: "feat(reading): verse-per-line display setting" -->
@@ -59,5 +59,5 @@
 
 ## Внешние шаги (не забыть)
 
-- Directus: поле `verse_per_line` (boolean, default false) в `reading_settings` — создать в dev при реализации #10; на проде — тот же запрос при деплое.
-- **Проверить прод-Directus:** в коллекции `reading_settings` существуют поля `ot_translation`/`nt_translation` и updateItem их реально сохраняет — пересборка прода уже теряла части схемы; отсутствующее поле Directus молча отбрасывает, что даёт ровно симптом «смена перевода ничего не меняет». Warn-лог mismatch из #7 — индикатор.
+- Directus: поле `verse_per_line` (boolean, default false) в `reading_settings` — создано в dev скриптом `add-verse-per-line-field.ts`; на проде — тот же скрипт при деплое.
+- **Подтверждено (2026-07-10):** полей `ot_translation`/`nt_translation` НЕ было в схеме `reading_settings` вообще (проверено `readFieldsByCollection` — только `verse_numbers_visible`, без переводов). Это и была причина «смена перевода ничего не меняет»: Directus молча отбрасывает неизвестные поля при `updateItem`, сервер всегда резолвил дефолт `'rst'`. Поля созданы idempotent-скриптом `scripts/add-translation-fields.ts` (string, default `'rst'`) — применено в текущем окружении (.env.local указывает на тот же Directus, что и прод, см. [[directus-instance]]). Если разворачивается отдельный прод-Directus/пересборка — прогнать тот же скрипт там.
