@@ -5,6 +5,11 @@ import { getCachedText, setCachedText, getPersistedText, persistText } from '../
 import { OfflineNoDataError, isDefinitelyOffline, raceNetwork } from '@/shared/offline/networkHealth';
 import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout } from '@/shared/offline/networkTimeout';
 
+const DEBUG = (process.env.NEXT_PUBLIC_LOG_LEVEL ?? process.env.LOG_LEVEL ?? 'debug') === 'debug';
+function debug(...args: unknown[]) {
+  if (DEBUG) console.debug('[useBibleText]', ...args);
+}
+
 /**
  * @param translationId — перевод для текущей книги (`ot_translation` или `nt_translation`), как на сервере.
  */
@@ -24,6 +29,7 @@ export function useBibleText(reference: BibleReference | null, translationId: st
 
     const cached = getCachedText(reference.book, reference.chapter, translationId);
     if (cached !== undefined) {
+      debug('memory cache hit', { book: reference.book, chapter: reference.chapter, translationId });
       setText(cached);
       setError(null);
       setLoading(false);
@@ -63,10 +69,20 @@ export function useBibleText(reference: BibleReference | null, translationId: st
           response = await network;
         }
         const result = response.text || '';
-        setCachedText(reference.book, reference.chapter, translationId, result);
-        // Ключуем IDB-запись по переводу из ОТВЕТА сервера, не по translationId клиента —
-        // сессия может резолвить перевод иначе (Task 22).
-        void persistText(response.translation ?? translationId, reference.book, reference.chapter, result);
+        const resolvedTranslationId = response.translation ?? translationId;
+        if (resolvedTranslationId !== translationId) {
+          // Отравление кеша: сервер резолвит перевод иначе, чем ждёт клиент (например,
+          // поле перевода не сохранилось в Directus) — не кешируем под запрошенным
+          // ключом, иначе следующий рендер этой же главы отдаст чужой текст навсегда.
+          console.warn('[useBibleText] translation mismatch: requested=%s got=%s', translationId, resolvedTranslationId, {
+            book: reference.book,
+            chapter: reference.chapter,
+          });
+        }
+        // Ключуем И memory-кеш, И IDB-запись по переводу из ОТВЕТА сервера, не по
+        // translationId клиента — сессия может резолвить перевод иначе (Task 22).
+        setCachedText(reference.book, reference.chapter, resolvedTranslationId, result);
+        void persistText(resolvedTranslationId, reference.book, reference.chapter, result);
         if (!cancelled) setText(result);
       } catch (err) {
         // Сеть недоступна (или ответ не пришёл) — пробуем офлайн-фолбэк из IDB, прежде

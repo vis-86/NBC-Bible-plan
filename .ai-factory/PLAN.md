@@ -1,71 +1,63 @@
-# Пять UX-правок: выход из приложения, дефолтный перевод офлайна, пометки автозагрузки, тост на лендинге, ссылка на лендинг
+# Смена перевода: мгновенное применение, беджик в шапке чтения, «стих с новой строки»
 
 **Ветка:** feature/static-export-hono-bff (новую не создаём — fast mode)
 **Дата:** 2026-07-10
-**Тип:** enhancement (мелкие несвязанные UI/UX-правки)
-**Исполнитель:** Sonnet 5 → задачи написаны максимально эксплицитно (файлы, строки, критерии проверки)
+**Тип:** fix + feature
 
 ## Settings
 
-- **Testing:** только где есть логика — unit-тесты задачи 2 (`autoDownload.test.ts`) и новый кейс в задаче 4 (`UpdateToast.test.tsx`, там же обязательный мок `next/navigation`); задачи 1 и 5 без новых тестов; в задаче 3 существующий `OfflineDataSection.test.tsx` должен остаться зелёным (мок `useReadingSettings`)
-- **Logging:** без новых логов — все правки презентационные; существующие log-вызовы `autoDownload.ts` не трогать; logout уже логируется на сервере (`server/src/routes/auth.ts:162`)
-- **Docs:** warn-only, без обязательного docs-чекпоинта
+- **Testing:** yes — unit/component-тесты для серверного роута, кеш-ключевания, дропдауна, тумблера и рендера
+- **Logging:** verbose (DEBUG-логи в hot-точках смены перевода и restore скролла)
+- **Docs:** no (warn-only)
 
-## Roadmap Linkage
+## Архитектурное решение (зафиксировано с Игорем)
 
-- Milestone: "none"
-- Rationale: ROADMAP.md в проекте отсутствует
+**Единственный источник истины перевода — серверные reading-settings** (сессия → Directus `reading_settings`). Клиент НЕ передаёт translation в запросе главы: `bibleApi.getText` и `server/src/routes/bible.ts` не меняются. Клиентский `translationId` в `useBibleText` — только ключ кеша и «ожидание», а не команда серверу. Существующий query-параметр `?translation=` остаётся как есть — fallback для запросов без сессии.
 
-## Research Context
+## Диагноз бага (по разведке кода)
 
-Активная тема RESEARCH.md (миграция static export + Hono BFF) уже реализована на текущей ветке и к этим правкам не относится. Из ресерча наследуется одно требование: **реализацию делает Sonnet 5 → план эксплицитный, без «по аналогии»**.
+**Отравление in-memory кеша.** `useBibleText.ts:66` кладёт ответ в module-level Map под КЛИЕНТСКИМ `translationId`, даже если сервер вернул другой перевод (`response.translation`). Ранний return из `getCachedText` (строки 25–31) затем навсегда отдаёт чужой текст под новым ключом до перезагрузки страницы. IDB-слой (`persistText`) уже ключуется правильно — по `response.translation`.
 
-## Контекст из разведки (ключевые факты)
+Последовательность «POST настроек → setSettings → рефетч» в `useReadingSettings`/`useBibleText` корректна (await до setState, `translationId` в deps эффекта). Постоянный mismatch `response.translation` vs запрошенного — сигнал, что поле перевода не сохраняется в Directus (warn-лог из задачи #7 это выявит; чек-лист прод-полей — во «Внешних шагах»).
 
-- Страницы «профиль» нет — это `src/app/dashboard/settings/page.tsx`; кнопки выхода в UI нет нигде.
-- `logout()` уже реализован в `src/components/AuthProvider.tsx:135-147` (POST `/api/auth/logout` → `clearLastKnownUser()` → `router.push('/login')`), доступен через `useAuth()`.
-- Дефолтный перевод автозагрузки захардкожен: `src/shared/offline/autoDownload.ts:23` → `DEFAULT_TRANSLATION = 'nrt2019'`, а дефолт настроек чтения нового юзера везде `'rst'` (синодальный) — расхождение.
-- `OfflineDataSection` уже читает тот же IDB store `manifest`, куда пишет автозагрузка → автозагруженное отображается; не хватает явной пометки «загружается автоматически».
-- `UpdateToast` («Доступна новая версия») смонтирован глобально в `src/app/layout.tsx:137` → рендерится и на лендинге `/`.
-- На `/register` уже есть лого-ссылка на лендинг (`src/app/register/page.tsx:242-257`, `router.push('/')`); на `/login` её нет.
+Инфраструктура для остального готова: `useBibleText` уже рефетчит по `translationId` в deps эффекта; переводы и опции — `src/lib/bible-translations.ts` (`getSelfHostedTranslationOptions`); настройки — единый `ReadingSettings` (types.ts) через `useReadingSettings` → POST `/api/user/reading-settings` → Directus `reading_settings`.
 
 ## Tasks
 
-### Phase 1 — офлайн-данные (задачи 2 → 3, зависимость)
+### Phase 1 — фикс смены перевода (задача #7)
 
-- [x] **Task 2. Синодальный перевод (`rst`) — автозагружаемый по умолчанию**
-  - Файл: `src/shared/offline/autoDownload.ts:23` — `DEFAULT_TRANSLATION: 'nrt2019'` → `'rst'`. Константа используется напрямую и как fallback в `resolveDefaultTranslation()` (:57) — правка одной константы покрывает оба пути. Дополнительно: сделать `export const DEFAULT_TRANSLATION` — нужна задаче 3.
-  - Тесты — точечные правки `src/shared/offline/autoDownload.test.ts`: beforeEach :31 мок настроек → `'rst'`; ключ манифеста :49 → `'rst'`; ассерт :67 → `'rst'`; кейс «cassian → фолбэк» :82–92 (ассерт + название) → `'rst'`; кейс «ошибка сети настроек» :94–101 → `'rst'`. Кейс `kassian2019` (:70–80) не трогать — проверяет уважение выбора юзера.
-  - Проверка: `npx vitest run src/shared/offline/autoDownload.test.ts` зелёный.
+- [x] **#7** Доверять `response.translation`: `setCachedText` ключевать по переводу из ответа сервера; при mismatch показать текст, но не кешировать под запрошенным ключом + warn-лог (диагностика рассинхрона клиент/Directus). Сервер и API-клиент не трогаем. + тесты на рефетч при смене translationId и на отсутствие отравления.
 
-- [x] **Task 3. Пометить автозагружаемый набор в секции «Оффлайн-данные»** *(blocked by Task 2)*
-  - Сначала эмпирически убедиться: dev-запуск → логин → автозагрузка (idle ~5s) → `/dashboard/settings` показывает «Скачано …» у плана, песен и перевода.
-  - Файл: `src/features/offline/components/OfflineDataSection.tsx` — бейдж/подпись «загружается автоматически» у строк: план, песни и ОДИН перевод. Помечаемый перевод НЕ статично `rst`: автозагрузка качает `nt_translation` юзера, если он self-hosted (`autoDownload.ts:54-62`). Вычислять тем же правилом: `useReadingSettings` (хук уже используется на этой странице, кэшируется через readThrough) + `resolveSelfHostedTranslationId(settings.nt_translation, 'nt', DEFAULT_TRANSLATION)`; `DEFAULT_TRANSLATION` импортировать из `autoDownload.ts` (строку `'rst'` не дублировать). Пока настройки грузятся — бейдж на переводах не показывать; план/песни помечать всегда. Существующую сноску (:120) оставить.
-  - Тесты: `OfflineDataSection.test.tsx` существует — добавление `useReadingSettings` потребует замокать его там (по образцу других моков файла); прогнать, должен остаться зелёным. Новых тестов на бейдж не нужно.
+<!-- Commit checkpoint: "fix(reading): key bible text cache by server-resolved translation" -->
 
-### Phase 2 — независимые UI-правки (задачи 1, 4, 5 — в любом порядке)
+### Phase 2 — беджик-дропдаун перевода в шапке (задачи #8, #9)
 
-- [x] **Task 1. Кнопка «Выйти из приложения» в настройках**
-  - Файл: `src/app/dashboard/settings/page.tsx` — добавить `logout` в деструктуризацию `useAuth()` (~строка 21); после `<OfflineDataSection />` — секция с destructive-кнопкой «Выйти из приложения» → `logout()`; disabled на время выполнения (useState). Логику `logout()` не менять.
-  - Проверка: клик → редирект `/login`; `/dashboard/settings` после выхода требует входа.
+- [ ] **#8** `data-verse`-анкеры в BibleText (всегда, даже при скрытых номерах) + утилита `getTopVisibleVerse`/`scrollToVerse` (учёт sticky-header). + jsdom-тесты.
+  - Уточнение по коду (`BibleText.tsx:83-91`, `strong`-рендерер): при `!verse_numbers_visible` сейчас `return null` — элемента нет вообще, вешать `data-verse` не на что; заменить на невидимый маркер (`<span data-verse={verseNum} className={settings.verse_numbers_visible ? '' : 'hidden'} />` вместо номера), НЕ убирать саму ветку скрытия номера.
+  - Первый стих в каждом абзаце (`processNode`, ветки :34-42 и :56-64) сейчас НЕ оборачивается в `<span>` (голый `<strong>` или ничего) — в отличие от «не первых» стихов (`inline-block ml-4`, :35, :57). Обернуть первый стих в такой же span с `data-verse`, иначе анкер и `getTopVisibleVerse`/`scrollToVerse` будут работать только для не-первых стихов при видимых номерах.
+- [ ] **#9** (после #7, #8) `TranslationBadge` в правом блоке `ReadingHeader`: текущий перевод для testament книги, дропдаун из `getSelfHostedTranslationOptions`, on select: снять якорный стих → `updateSettings` → после загрузки текста `scrollToVerse`. Disabled на время сохранения, ошибка сохранения не меняет UI. + component-тесты.
 
-- [x] **Task 4. Скрыть UpdateToast на лендинге**
-  - Файл: `src/shared/components/ui/UpdateToast.tsx` — `const pathname = usePathname()` рядом с хуками (:17-20), расширить существующий ранний return (:22): `if (!updateReady || dismissed || pathname === '/') return null`. Скрывать ТОЛЬКО `/`; на `/login`, `/register`, `/dashboard/*` тост остаётся. `usePathname` при basePath `/app` возвращает путь БЕЗ basePath (задокументировано в `src/components/DashboardAuthGate.tsx:12`) → лендинг = `'/'`. `layout.tsx` не трогать.
-  - Тесты (обязательно — иначе упадут существующие): `UpdateToast.test.tsx` НЕ мокает `next/navigation` → все 4 кейса сломаются. Добавить мок по образцу `BottomNavBar.test.tsx:11` (`let mockPathname = '/dashboard'; vi.mock('next/navigation', () => ({ usePathname: () => mockPathname }))`) + новый кейс «на `/` тост не рендерится при updateReady». `npx vitest run src/shared/components/ui/UpdateToast.test.tsx` зелёный.
+<!-- Commit checkpoint: "feat(reading): translation badge-dropdown in reader header with verse-anchored scroll" -->
 
-- [x] **Task 5. Ссылка на лендинг со страницы логина**
-  - Файл: `src/app/login/page.tsx` (LoginForm) — скопировать лого-блок с `/register` (`src/app/register/page.tsx:242-257`): `<button type="button" onClick={() => router.push('/')}>` + `<img src={`${basePath}/icons/icon-192.png`}>` (с eslint-disable no-img-element, как в оригинале) + «План чтения Библии».
-  - Важно: `getBasePath` — из `@/lib/utils`, УЖЕ импортирован в `login/page.tsx:6` (НЕ из `src/shared/utils/api.ts`); у LoginForm 4 render-ветки — блок вставлять ТОЛЬКО в основную форму (return ~:161, внутри `<div className="w-full max-w-md">` над карточкой), не в ветки telegramLoading/tgLink/tg-fail; навигация через `router.push`, не `<a href>`; Atmosphere-фон не копировать; общий компонент НЕ выносить. `/register` не трогать.
-  - Тесты: `login/page.test.tsx` уже мокает `useRouter` — прогнать, должен остаться зелёным; новых не нужно.
-  - Проверка: клик по лого с `/login` и `/register` → лендинг `/`.
+### Phase 3 — настройка «каждый стих с новой строки» (задачи #10, #11)
+
+- [ ] **#10** Поле `verse_per_line: boolean` (default false) сквозь: `ReadingSettings` тип, defaults+коэрция в `useReadingSettings`, `ReadingSettingsResponse`, `saveReadingSettings`/`getReadingSettings` в directus-data.ts, **новое boolean-поле в Directus-коллекции `reading_settings`** (dev сейчас, прод — тем же POST /fields при деплое; admin-токен прода ротируется — брать актуальный). + unit-тест хука.
+- [ ] **#11** (после #10) Рендер: при `verse_per_line` каждый стих — блок с маленьким отступом (`block mt-1` вместо `inline-block ml-4`), комбинации с `verse_numbers_visible`/`text_align`; тумблер `data-section="verse-per-line"` в `ReadingSettingsForm` по паттерну verse-numbers (строки 234–254) — появится и в настройках, и в шите чтения. + тесты рендера и тумблера.
+
+<!-- Commit checkpoint: "feat(reading): verse-per-line display setting" -->
 
 ## Commit Plan
 
-1. `feat(offline): make Synodal (rst) the default auto-downloaded translation` — Task 2 + Task 3
-2. `feat(ui): logout button in settings, landing link on login, no update toast on landing` — Tasks 1, 4, 5
+- **Commit 1** (после #7): `fix(reading): key bible text cache by server-resolved translation`
+- **Commit 2** (после #8–#9): `feat(reading): translation badge in reader header, keep scroll on verse`
+- **Commit 3** (после #10–#11): `feat(reading): verse-per-line setting`
 
-## Финальная проверка (перед завершением)
+## Верификация (обязательна перед завершением)
 
-- `npx vitest run` — все тесты зелёные
-- `npm run lint` (или lint-команда проекта) — чисто
-- `npm run build` — static export собирается
+- `npm run lint` и `npx vitest run` зелёные.
+- Ручная проверка в браузере: смена перевода из шита настроек и из беджика меняет текст сразу; скролл остаётся на том же стихе; тумблер «стих с новой строки» меняет вёрстку и переживает перезагрузку (persist в Directus).
+
+## Внешние шаги (не забыть)
+
+- Directus: поле `verse_per_line` (boolean, default false) в `reading_settings` — создать в dev при реализации #10; на проде — тот же запрос при деплое.
+- **Проверить прод-Directus:** в коллекции `reading_settings` существуют поля `ot_translation`/`nt_translation` и updateItem их реально сохраняет — пересборка прода уже теряла части схемы; отсутствующее поле Directus молча отбрасывает, что даёт ровно симптом «смена перевода ничего не меняет». Warn-лог mismatch из #7 — индикатор.
