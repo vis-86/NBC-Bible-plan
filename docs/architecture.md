@@ -6,23 +6,38 @@
 
 ## Методология: Feature-Sliced Design (FSD)
 
-Проект использует FSD с иерархией слоёв `app → features → shared`.
+Проект использует FSD с иерархией слоёв `app → features → shared`. С миграции на
+static export + Hono BFF (`.ai-factory/plans/feature-static-export-hono-bff.md`) весь
+API живёт ОТДЕЛЬНО от `src/app` — в `server/`, вне Next.js рантайма.
 
 ```
-src/
-├── app/            # Next.js App Router: страницы, layouts, API routes
-│   ├── api/        # REST API endpoints
-│   └── dashboard/  # Authenticated pages
-├── features/       # Изолированные функциональные домены
-│   ├── plan/       # Фича: план чтения
-│   └── reading/    # Фича: читалка
-└── shared/         # Общий код без зависимостей от фич
-    ├── components/
-    ├── hooks/
-    ├── services/
-    ├── types/
-    └── utils/
+├── src/
+│   ├── app/            # Next.js App Router: страницы/layouts, static export (output: 'export')
+│   │   └── dashboard/  # Authenticated pages (client-side auth-guard, см. DashboardAuthGate)
+│   ├── features/       # Изолированные функциональные домены
+│   │   ├── plan/       # Фича: план чтения
+│   │   └── reading/    # Фича: читалка
+│   ├── shared/         # Общий код без зависимостей от фич
+│   │   ├── components/
+│   │   ├── hooks/
+│   │   ├── services/
+│   │   ├── types/
+│   │   └── offline/    # SW-регистрация, IndexedDB, outbox/sync, автозагрузка
+│   ├── sw/              # Service Worker (src/sw/sw.ts, бандлится esbuild'ом отдельно)
+│   └── lib/             # Бизнес-логика, НЕ зависящая от Next.js (переиспользуется server/)
+├── server/               # Hono BFF — весь бывший src/app/api/**, отдельный процесс/контейнер
+│   └── src/
+│       ├── routes/       # auth, bible, plan, songs, user, chat, graphql, directus-proxy, ai
+│       └── session.ts    # Hono-адаптер над session-core (src/lib/session-core.ts)
+└── scripts/
+    ├── build-manifest.ts # генерирует public/manifest.webmanifest
+    ├── build-sw.ts        # esbuild + @serwist/build injectManifest → out/sw.js
+    └── static-serve.ts    # локальный сервер для e2e (аналог nginx static+proxy)
 ```
+
+`src/lib/` — общая граница: логика, которую импортируют И клиентские компоненты
+(там, где это уместно), И `server/` (Hono-роуты). `server/` НИЧЕГО не импортирует из
+`src/app`/`src/components` (клиентский код) — граница в одну сторону.
 
 **Правила импортов:**
 
@@ -36,20 +51,38 @@ src/
 
 ## Слои подробнее
 
-### app/ — Next.js App Router
+### app/ — Next.js App Router (только UI, static export)
+
+`output: 'export'` — никакого сервера Next.js в рантайме, только пререндеренный
+статический HTML/JS. Нет dynamic segments в путях (страницы — `?query=`-driven, не
+`[param]`), нет `app/api/**`, нет `middleware.ts`.
 
 | Путь | Назначение |
 |------|-----------|
 | `app/dashboard/page.tsx` | Главная страница — рендерит `PlanView` |
-| `app/dashboard/read/[book]/[chapter]/` | Читалка |
+| `app/dashboard/read/page.tsx` | Читалка (`?book=&chapter=`, было `[book]/[chapter]/`) |
 | `app/dashboard/calendar/` | Календарь |
 | `app/dashboard/settings/` | Настройки пользователя |
-| `app/api/auth/` | Telegram OAuth, сессии |
-| `app/api/bible/` | Текст Библии по книге/главе |
-| `app/api/plan/` | Данные плана чтения |
-| `app/api/user/` | Прогресс, настройки |
-| `app/api/directus/[...path]/` | Proxy к Directus (server-side) |
-| `app/api/ai/[...path]/` | Proxy к AI сервису |
+| `app/dashboard/layout.tsx` | `DashboardAuthGate` — клиентский auth-guard (замена `middleware.ts`) |
+| `app/global-error.tsx`, `app/not-found.tsx` | Собственные root-error/404 boundary — обязательны при `output: 'export'` (авто-генерируемые Next.js версии падают на пререндере в некоторых сборках, см. T13) |
+
+### server/ — Hono BFF
+
+Весь бывший `src/app/api/**` — теперь отдельный Node-процесс (`tsx server/src/index.ts`
+локально, отдельный Docker-контейнер в проде). Роуты монтируются под тем же basePath,
+что и раньше (`/app/api/...`) — клиентский URL-контракт (`getApiPath()`) не менялся,
+поменялся только исполнитель.
+
+| Путь | Назначение |
+|------|-----------|
+| `server/src/routes/auth.ts` | Login/logout/session, регистрация, Telegram-линк, rate limiter |
+| `server/src/routes/bible.ts` | Текст Библии по книге/главе, bulk-скачивание перевода |
+| `server/src/routes/plan.ts`, `songs.ts` | План чтения, песни |
+| `server/src/routes/user.ts` | Прогресс, настройки, app-settings |
+| `server/src/routes/chat.ts` | История AI-чата |
+| `server/src/routes/graphql.ts` | Regex-диспетчер (НЕ настоящий GraphQL) поверх Directus SDK — `updateProgress`/`updateProgressBatch`/`getDayProgress` |
+| `server/src/routes/directus-proxy.ts` | Catch-all proxy к Directus (server-side, admin token) |
+| `server/src/routes/ai.ts` | Proxy к AI Directus Flow |
 
 ### features/plan/ — Фича: план чтения
 
@@ -106,21 +139,25 @@ shared/
 
 ### Server / Client Component Split
 
-- По умолчанию все компоненты — Server Components
-- `'use client'` только там, где нужны: state, effects, browser API, анимации
-- Данные fetching — в API routes или server actions, не в клиентских компонентах
+`output: 'export'` полностью статичен — все страницы уже были `'use client'` ещё до
+миграции (данные тянутся клиентски через `/api/*`, SSR/RSC не использовались), поэтому
+пререндер не потерял функциональности. Fetching данных — во фронтенд-хуках через
+typed API client, а не в API routes/server actions (их больше нет в `src/app`).
 
 ### Proxy к Directus
 
-Все Directus-запросы с клиента идут через `/api/directus/[...path]`:
+Все Directus-запросы с клиента идут через BFF, не напрямую:
 
 ```
-Client → /api/directus/... → Next.js proxy → Directus (с admin token)
+Client → {basePath}/api/directus/... → Hono BFF (server/src/routes/directus-proxy.ts) → Directus (admin token)
 ```
 
-- **Причина:** `DIRECTUS_ADMIN_TOKEN` не должен попадать в браузер
-- **Server-to-server:** прямые вызовы `@directus/sdk` с токеном
-- **Client-to-Directus:** `fetch('/api/directus/...')` через proxy
+- **Причина:** `DIRECTUS_ADMIN_TOKEN` не должен попадать в браузер.
+- **Server-to-server:** прямые вызовы `@directus/sdk` с токеном — из `src/lib/`,
+  импортируется `server/`-роутами (bible/plan/songs/user используют его напрямую, не
+  через proxy).
+- **Client-to-Directus:** `fetch('{basePath}/api/directus/...')` через catch-all proxy
+  (используется точечно, где нет отдельного typed-роута).
 
 ### Typed API Client
 
@@ -133,15 +170,20 @@ apiClient.post('/api/user/progress', body)
 export async function getPlan(day: number): Promise<PlanDay[]> { ... }
 ```
 
-### Auth: Lucia + SQLite + Telegram
+### Auth: iron-session (framework-agnostic) + клиентский guard
+
+Lucia/SQLite полностью удалены миграцией (`better-sqlite3`, `@lucia-auth/adapter-sqlite`
+были мёртвыми зависимостями — 0 импортов в `src/` уже на момент аудита) — сессия
+всегда была на `iron-session`, не на Lucia. Подробнее — [Аутентификация](authentication.md).
 
 ```
-1. Telegram WebApp → inject initData
-2. Client → POST /api/auth/telegram с initData
-3. Server → верификация HMAC-SHA256 с TELEGRAM_BOT_TOKEN
-4. Server → findOrCreateUser() в Directus
-5. Lucia → создаёт сессию → httpOnly cookie
-6. middleware.ts → guard /dashboard/* routes
+1. Client → POST {basePath}/api/auth/login (или /auth/telegram с initData)
+2. server/src/routes/auth.ts → верификация (Directus /auth/login, либо
+   HMAC-SHA256 initData с TELEGRAM_BOT_TOKEN) → findOrCreateUser() в Directus
+3. src/lib/session-core.ts (sealSession) → httpOnly cookie `bible-plan-session`,
+   через server/src/session.ts (hono/cookie адаптер)
+4. DashboardAuthGate (клиентский компонент в dashboard/layout.tsx) → guard
+   /dashboard/* — замена удалённого middleware.ts (несовместим с output: 'export')
 ```
 
 ### URL Construction
@@ -160,20 +202,21 @@ const url = getApiPath('/api/plan') // → /app/api/plan (с basePath)
 ❌ Импорты между фичами (`features/plan` ↔ `features/reading`)  
 ❌ Бизнес-логика в page компонентах (выносите в хуки)  
 ❌ Хардкод URL без `getApiPath()`  
-❌ Хранение session data в localStorage (только Lucia cookies)  
+❌ Хранение session data в localStorage (только httpOnly `bible-plan-session` cookie)  
 ❌ Fetch в клиентских компонентах без loading/error состояний  
 
 ## Tech Stack
 
 | Технология | Версия | Назначение |
 |-----------|--------|-----------|
-| Next.js | 16 | App Router, SSR, API routes |
+| Next.js | 16 | App Router, static export (`output: 'export'`) |
+| Hono | latest | BFF (`server/`) — весь API, отдельный процесс |
+| @serwist/build | latest | Build-time precache-манифест SW (`scripts/build-sw.ts`) |
 | React | 19 | UI, React Compiler |
 | TypeScript | strict | Типизация |
 | Tailwind CSS | v4 | Стилизация |
 | Framer Motion | latest | Анимации |
-| Lucia | v3 | Session management |
-| better-sqlite3 | latest | SQLite driver |
+| iron-session | latest | Session sealing (`src/lib/session-core.ts`) |
 | @directus/sdk | v20 | Directus API client |
 | shadcn/ui | latest | UI компоненты |
 
@@ -181,4 +224,6 @@ const url = getApiPath('/api/plan') // → /app/api/plan (с basePath)
 
 - [Быстрый старт](getting-started.md) — установка и запуск
 - [Конфигурация](configuration.md) — переменные окружения
-- [Схема БД](database-schema.md) — структура таблиц SQLite
+- [Аутентификация](authentication.md) — session-слой, guard
+- [Деплой](deployment.md) — static+bff топология, Docker Compose
+- [Offline PWA](offline-pwa.md) — precache SW, IndexedDB, автозагрузка

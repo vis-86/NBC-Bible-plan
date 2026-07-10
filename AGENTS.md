@@ -4,14 +4,21 @@
 
 ## Project Overview
 
-NBC Bible Plan — web application for a church community providing a structured Bible reading plan with progress tracking, daily navigation, Bible reader, and AI assistant ("Chat with Pastor"). Authentication via Telegram Bot and Lucia/SQLite sessions. Content managed in Directus CMS.
+NBC Bible Plan — web application for a church community providing a structured Bible reading plan with progress tracking, daily navigation, Bible reader, and AI assistant ("Chat with Pastor"). Authentication via Telegram Bot and iron-session sessions. Content managed in Directus CMS.
+
+Frontend is a Next.js **static export** (`output: 'export'`, no server-side Next.js at
+runtime); all API is served by a separate **Hono BFF** (`server/`) as its own process/
+container. See `.ai-factory/plans/feature-static-export-hono-bff.md` for the migration
+rationale.
 
 ## Tech Stack
 
 - **Language:** TypeScript (strict)
-- **Framework:** Next.js 16 (App Router) + React 19
+- **Frontend:** Next.js 16 (App Router, static export) + React 19
+- **API:** Hono (`server/`) — separate Node process, `tsx` (no build step)
+- **Service Worker:** `@serwist/build` — build-time precache manifest injection
 - **Styling:** Tailwind CSS v4
-- **Auth:** Lucia v3 + SQLite (`better-sqlite3`) + Telegram Bot
+- **Auth:** iron-session (`src/lib/session-core.ts`) + Telegram Bot
 - **CMS:** Directus CMS (`@directus/sdk` v20)
 - **AI:** n8n workflows via Directus Flows
 - **Animation:** Framer Motion (`motion`)
@@ -22,21 +29,11 @@ NBC Bible Plan — web application for a church community providing a structured
 ```
 bible-plan/
 ├── src/
-│   ├── app/                          # Next.js App Router
-│   │   ├── api/
-│   │   │   ├── auth/                 # login, logout, session, telegram, activate, register
-│   │   │   ├── bible/                # [book]/[chapter], books, download/[translation] (offline bulk export)
-│   │   │   ├── plan/                 # reading plan, weekly plan
-│   │   │   ├── user/                 # progress, app-settings, reading-settings
-│   │   │   ├── directus/[...path]/   # Directus proxy (server-side)
-│   │   │   ├── ai/[...path]/         # AI chat proxy
-│   │   │   ├── chat/history/         # Chat history
-│   │   │   ├── health/               # 204 no-store ping — гейт online-триггера outbox-синка
-│   │   │   └── graphql/              # GraphQL endpoint
+│   ├── app/                          # Next.js App Router — static export (output: 'export'), no server runtime
 │   │   ├── dashboard/
 │   │   │   ├── page.tsx              # Main dashboard (PlanView)
-│   │   │   ├── layout.tsx            # Dashboard layout with nav
-│   │   │   ├── read/[book]/[chapter]/# Bible reader page
+│   │   │   ├── layout.tsx            # Dashboard layout + DashboardAuthGate (client auth guard)
+│   │   │   ├── read/page.tsx         # Bible reader page (?book=&chapter=, no dynamic segments)
 │   │   │   ├── calendar/             # Calendar view
 │   │   │   └── settings/             # User settings
 │   │   ├── login/                    # Login page
@@ -44,6 +41,8 @@ bible-plan/
 │   │   ├── register/                 # Self-registration по коду церкви (gated by NEXT_PUBLIC_REGISTER_ENABLED)
 │   │   ├── page.tsx                  # Landing page
 │   │   ├── layout.tsx                # Root layout
+│   │   ├── global-error.tsx          # Root error boundary — required for output: 'export'
+│   │   ├── not-found.tsx             # Root 404 boundary — required for output: 'export'
 │   │   └── globals.css               # Global styles + Tailwind v4 config
 │   ├── features/
 │   │   ├── plan/                     # Reading plan feature slice
@@ -68,8 +67,10 @@ bible-plan/
 │   │       ├── components/           # OfflineDataSection
 │   │       └── hooks/                # useOfflineData
 │   ├── sw/
-│   │   └── sw-source.ts              # Static app-shell SW body + routeStrategy (served by app/sw.js/route.ts)
+│   │   └── sw.ts                     # Build-time SW (esbuild + @serwist/build injectManifest → out/sw.js)
 │   ├── components/
+│   │   ├── AuthProvider.tsx          # Session state (checkSession/refreshAuth), last-known-user fallback
+│   │   ├── DashboardAuthGate.tsx     # (in app/dashboard/layout.tsx) client route guard — replaces middleware.ts
 │   │   ├── ServiceWorkerRegistrar.tsx # SW registration + waiting/update detection
 │   │   └── ChunkGuard.tsx            # Global ChunkLoadError guard (auto-reload-once + cooldown)
 │   ├── shared/
@@ -82,7 +83,7 @@ bible-plan/
 │   │   ├── config/
 │   │   │   └── design-tokens.ts      # TS design token constants (maps to CSS vars)
 │   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast), useAutoHideOnScroll (hide-on-scroll обёртка над useScrollDirection)
-│   │   ├── offline/                  # IndexedDB layer (idb), read-through, write-ahead outbox, sync, downloadManager, chunkGuard, networkTimeout
+│   │   ├── offline/                  # IndexedDB layer (idb), read-through, write-ahead outbox, sync, downloadManager, autoDownload (T11), chunkGuard, networkTimeout
 │   │   ├── services/
 │   │   │   └── api/
 │   │   │       ├── client.ts         # Fetch wrapper + ApiClientError
@@ -96,18 +97,29 @@ bible-plan/
 │   │       ├── constants.ts          # App-wide constants
 │   │       ├── date.ts               # Date formatting helpers
 │   │       └── theme.ts              # Theme utilities
-│   ├── middleware.ts                 # Route protection (/dashboard → auth required)
+│   ├── lib/                          # Business logic shared by client AND server/ (session-core, bible-data, directus-*, invite, register-access, telegram-server, rate-limiter)
 │   └── types/
 │       └── index.ts                  # Root-level type exports
+├── server/                           # Hono BFF — separate process/container, replaces the old src/app/api/**
+│   └── src/
+│       ├── index.ts                  # @hono/node-server entrypoint (BFF_PORT, default 3001)
+│       ├── app.ts                    # createApp() factory (Hono instance, testable via app.request())
+│       ├── session.ts                # Hono adapter over src/lib/session-core.ts
+│       ├── env.ts                    # zod-validated env (lazy-throw on missing secrets)
+│       └── routes/                   # auth, bible, plan, songs, user, chat, graphql, directus-proxy, ai
 ├── docs/                             # Project documentation
 │   ├── AI_INTEGRATION_GUIDE.md
 │   ├── DIRECTUS_SETUP_GUIDE.md
 │   ├── GRAPHQL_API.md
 │   ├── database-schema.md
-│   └── nginx.md                      # Reverse proxy + PWA cache headers (sw.js/static/HTML)
+│   └── nginx.md                      # Reverse proxy + PWA cache headers (static + bff proxy)
 ├── e2e/offline/                      # Playwright offline regression suite (npm run e2e:offline)
 ├── playwright.config.ts              # Playwright config — отдельный контур от vitest (src/**)
-├── scripts/                          # Utility scripts
+├── scripts/
+│   ├── build-manifest.ts             # Generates public/manifest.webmanifest (build-time)
+│   ├── build-sw.ts                   # esbuild + @serwist/build injectManifest → out/sw.js
+│   └── static-serve.ts               # Local static+bff-proxy server for e2e (mimics nginx)
+├── deploy/                           # Dockerfile (build/bff/static stages), compose.yml, nginx/, deploy.sh
 ├── .ai-factory/                      # AI Factory context
 │   ├── DESCRIPTION.md                # Project specification
 │   ├── ARCHITECTURE.md               # Architecture decisions
@@ -116,10 +128,9 @@ bible-plan/
 ├── .agents/skills/                   # Project-level agent skills
 │   ├── directus-backend-architecture/
 │   └── directus-development-workflow/
-├── next.config.ts                    # Next.js config (standalone, basePath=/app)
+├── next.config.ts                    # Next.js config (output: 'export', basePath=/app)
 ├── components.json                   # shadcn/ui config
-├── ENV_SETUP.md                      # Environment variables guide
-└── copy-prod.sh                      # Production deployment script
+└── ENV_SETUP.md                      # Environment variables guide
 ```
 
 ## Key Entry Points
@@ -128,23 +139,25 @@ bible-plan/
 |------|---------|
 | `src/app/layout.tsx` | Root layout — fonts, theme, global providers |
 | `src/app/dashboard/page.tsx` | Main app page — renders PlanView |
-| `src/middleware.ts` | Auth guard — redirects unauthenticated users |
-| `src/app/api/auth/telegram/route.ts` | Telegram OAuth handler |
-| `src/app/api/auth/register/route.ts` | Self-registration по коду церкви (rate-limit + timing-safe verify) |
+| `src/app/dashboard/layout.tsx` (`DashboardAuthGate`) | Client auth guard — redirects unauthenticated users (replaces `src/middleware.ts`, removed T6, incompatible with `output: 'export'`) |
+| `src/components/AuthProvider.tsx` | Session state — `checkSession()`/`refreshAuth()` MUST `setLoading(true)` on every call, not just initial mount, or `DashboardAuthGate` can redirect on stale state during client-side post-login navigation (race fixed in T13) |
+| `server/src/routes/auth.ts` | Login/logout/session/register/telegram/telegram-link routes (Hono, was `src/app/api/auth/*/route.ts`) |
 | `src/lib/register-access.ts` | `isRegistrationOpen()` / `verifyChurchCode()` — контроль доступа к регистрации |
 | `src/features/plan/components/PlanView.tsx` | Core plan UI — week view, day selection |
 | `src/shared/services/api/endpoints.ts` | All API calls with TypeScript types |
 | `src/shared/offline/db.ts` | IndexedDB schema (idb) — bibleChapters/songs/apiCache/outbox/meta/manifest |
 | `src/shared/offline/outbox.ts` + `sync.ts` | Write-ahead outbox для прогресса + replay-движок (LWW) |
 | `src/shared/offline/downloadManager.ts` | Опциональная офлайн-загрузка Писания/песен/плана + очистка |
-| `src/sw/sw-source.ts` + `src/app/sw.js/route.ts` | Статический app-shell service worker |
+| `src/shared/offline/autoDownload.ts` | Автозагрузка базового набора после логина (iOS partition fix, T11) |
+| `src/sw/sw.ts` + `scripts/build-sw.ts` | Build-time precache service worker (Serwist `injectManifest` → `out/sw.js`) |
 | `src/shared/hooks/useSwUpdate.ts` + `src/shared/components/ui/UpdateToast.tsx` | Update flow: `registration.waiting` → тост «Обновить» → `SKIP_WAITING` → reload |
 | `src/shared/hooks/useAutoHideOnScroll.ts` | Hide-on-scroll обёртка над `useScrollDirection` для не-ридер страниц (список/деталь песен) |
 | `src/features/songs/hooks/useScrollRestore.ts` | Восстановление позиции скролла + поискового запроса списка песен (`sessionStorage`) |
 | `src/shared/offline/chunkGuard.ts` + `src/components/ChunkGuard.tsx` | ChunkLoadError guard — auto-reload-once с cooldown |
-| `src/app/api/health/route.ts` | 204 no-store ping — гейт online-триггера outbox-синка (`isServerReachable`) |
-| `e2e/offline/` + `playwright.config.ts` | Офлайн E2E-регрессия (`npm run e2e:offline`) — cold start, навигация, outbox sync |
-| `next.config.ts` | Next.js config — basePath, standalone output |
+| `server/src/routes/*` (health route) | 204 no-store ping — гейт online-триггера outbox-синка (`isServerReachable`) |
+| `e2e/offline/` + `playwright.config.ts` | Офлайн E2E-регрессия (`npm run e2e:offline`) — cold start, cold-start-any-route (precache), навигация, outbox sync, update-flow |
+| `scripts/static-serve.ts` | Локальный static+bff-proxy сервер для e2e (аналог nginx) |
+| `next.config.ts` | Next.js config — basePath, `output: 'export'` |
 
 ## Environment Variables
 
@@ -167,7 +180,7 @@ See `ENV_SETUP.md` for full reference. Critical vars:
 | Architecture | docs/architecture.md | FSD structure, patterns, layers |
 | Configuration | docs/configuration.md | Environment variables reference |
 | Authentication | docs/authentication.md | Invite+password, church-code registration, Telegram link, sessions, PWA |
-| Deployment | docs/deployment.md | Build, nginx, PM2, copy-prod.sh |
+| Deployment | docs/deployment.md | Static export + Hono BFF, Docker Compose, deploy.sh |
 | Directus Setup | docs/DIRECTUS_SETUP_GUIDE.md | Directus CMS configuration |
 | DB Schema | docs/database-schema.md | SQLite and Directus schema |
 | AI Integration | docs/AI_INTEGRATION_GUIDE.md | n8n + Directus AI setup |
@@ -255,7 +268,8 @@ import { tokens } from '@/shared/config/design-tokens';
   - ❌ Wrong: `git checkout main && git pull`
   - ✅ Right: two separate calls — first `git checkout main`, then `git pull origin main`
 - Directus admin token (`DIRECTUS_ADMIN_TOKEN`) is server-side only — never include in client code
-- All client-side Directus calls must go through `/api/directus/[...path]` proxy
+- All API/auth logic lives in `server/` (Hono BFF) now, not `src/app/api/**` — that directory no longer exists (`output: 'export'` has no server runtime)
+- All client-side Directus calls must go through the `{basePath}/api/directus/*` proxy (`server/src/routes/directus-proxy.ts`)
 - Use `getApiPath()` from `@/shared/utils/api` for all client-side API URL construction
 - Feature-Sliced Design: cross-layer imports go top-down only (`app` → `features` → `shared`)
 - Use `@/` path alias for cross-feature imports, relative paths for within-feature

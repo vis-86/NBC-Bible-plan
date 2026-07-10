@@ -63,7 +63,7 @@ Executor: **Sonnet 5** — каждый таск самодостаточен: �
 - [x] T10. Sync health-гейт + верификация 401-контракта в graphql-клиенте
 - [x] T11. Гибридная автозагрузка после логина
 - [x] T12. Dockerfile + compose: static-артефакт + сервис bff
-- [ ] T13. Offline E2E под новую топологию
+- [x] T13. Offline E2E под новую топологию
 - [ ] T14. Docs-чекпоинт + приёмка на реальном iPhone
 
 ## Tasks
@@ -215,6 +215,11 @@ Executor: **Sonnet 5** — каждый таск самодостаточен: �
 - Новые спеки: `e2e/offline/cold-start-any-route.spec.ts` — логин → дождаться SW ready + autoDownload → офлайн → прямой `goto` на РАНЕЕ НЕ ПОСЕЩЁННЫЙ маршрут (например `/dashboard/calendar`) → контент рендерится (killer-фича precache, при runtime-кеше это не работало). `e2e/offline/update-flow.spec.ts` — прогон с версией A → пересборка/подмена sw.js (изменить SW-байты) → reg.update() → появление update-toast → клик → reload → новая версия активна, кеши старой удалены.
 - Креды: `E2E_TEST_LOGIN`/`E2E_TEST_PASSWORD` из `.env.test` (фиктивные для локального Directus-мока или локальный стенд; прод-аккаунт claude-offline-test — только для ручных прогонов на проде).
 - Проверка: `yarn e2e:offline` зелёный локально. **Чекпоинт-коммит #6**: `feat(deploy): static+bff topology, nginx cache headers, e2e suite` (T12–T13).
+  - **Статус (2026-07-10, T13 завершён)**: harness — `scripts/static-serve.ts` (Hono + `serveStatic` из `out/` под basePath + proxy `{basePath}/api/*` → BFF), `"static:serve"` в package.json, `playwright.config.ts` (baseURL по умолчанию `:8080`, порт конфигурируется `STATIC_SERVE_PORT`/`E2E_BASE_URL`). Все 5 спеков зелёные (3 существующих + 2 новых из T13), `yarn e2e:offline` проходит целиком.
+  - **Побочные блокеры, обнаруженные при первом реальном прогоне `yarn build` + e2e под новой топологией (до этого не запускались вместе ни разу):**
+    1. Next.js 16.2.4 падал на пререндере `/_global-error` и `/_not-found` (`Cannot read properties of null`, известный баг фреймворка при `output: 'export'`) из-за `NODE_ENV=development` в `.env.local` конфликтующего со сборкой (`next build` требует `production`) — non-deterministic race в зависимости от того, какая из auto-generated error-страниц ловит рассинхрон первой. Добавлены собственные `src/app/global-error.tsx` и `src/app/not-found.tsx` (минимальные, без зависимости от провайдеров — снимает нестабильность независимо от NODE_ENV) + сборка запускается с `NODE_ENV` явно unset.
+    2. Реальная гонка в клиентском auth-guard (T7): `checkSession()` в `AuthProvider` не выставлял `loading=true` на повторных вызовах (`refreshAuth()` после логина) — `router.push('/dashboard')` на странице логина не ждёт `refreshAuth()`, и `DashboardAuthGate` успевал увидеть стухшее `user === null` от предыдущей проверки и редиректить обратно на `/login` раньше, чем повторный `checkSession()` резолвился. Проявлялось только при клиентской навигации без полной перезагрузки (ровно сценарий `cold-start-any-route.spec.ts`, который намеренно не делает `page.goto()` после логина). Фикс: `setLoading(true)` в начале `checkSession()` — гейт показывает лоадер вместо преждевременного редиректа. Регрессии в `AuthProvider.test.tsx`/`login/page.test.tsx` нет (7/7 зелёные).
+  - `yarn lint` даёт 60 pre-existing ошибок в непричастных файлах (`BibleText.tsx`, `Toast.tsx`, `endpoints.ts`, `graphql.ts`) — не в скоупе T13, не трогать.
 
 #### T14. Docs-чекпоинт (обязательный) + приёмка на реальном iPhone
 

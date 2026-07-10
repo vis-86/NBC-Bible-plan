@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "tsx scripts/build-manifest.ts && next build && tsx scripts/build-sw.ts",
-    "start": "next start",
     "bff:dev": "tsx watch server/src/index.ts",
     "bff:start": "tsx server/src/index.ts",
+    "static:serve": "tsx scripts/static-serve.ts",
     "lint": "eslint",
     "deploy": "./copy-prod.sh",
     "bible:import": "tsx scripts/bible-import/cli.ts",

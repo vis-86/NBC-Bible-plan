@@ -88,10 +88,21 @@ Stateful токены в коллекции Directus `auth_invites` (`src/lib/in
 ## Сессии
 
 `iron-session` — зашифрованный + подписанный httpOnly cookie `bible-plan-session` (30 дней).
+Ядро (`sealSession`/`unsealSession`, framework-agnostic) — `src/lib/session-core.ts`;
+Hono-адаптер поверх него — `server/src/session.ts` (`getSession`/`createSession`/
+`deleteSession` через `hono/cookie`). Все auth-роуты обслуживаются `server/` (Hono
+BFF, отдельный процесс) — не Next.js API routes, которых после static export нет.
 
-- `SESSION_SECRET` валидируется **лениво** (при запросе), не на этапе `next build`.
+- `SESSION_SECRET` валидируется **лениво** (при первом использовании), не на этапе
+  `yarn build`.
 - Сессия хранит только `directus_id` + имя — **без** Directus access_token.
-- Middleware (`src/middleware.ts`, async) гардит `/dashboard/*`.
+- Гард `/dashboard/*` — клиентский, `DashboardAuthGate` (`src/app/dashboard/layout.tsx`,
+  `'use client'` поверх `AuthProvider`). Замена `src/middleware.ts` — Next Middleware
+  несовместим с `output: 'export'`, снесён в T6
+  (`.ai-factory/plans/feature-static-export-hono-bff.md`). Логика: `loading` →
+  skeleton (никогда flash защищённого контента); `!user && !loading` → `router.replace`
+  на `/login?redirect=...`; офлайн-ветку не переопределяет — `user` уже учитывает
+  last-known-user фолбэк из `AuthProvider` (см. [Offline PWA](offline-pwa.md)).
 
 ## Доступ к данным (tokenless)
 
@@ -102,10 +113,13 @@ Trade-off: per-user Directus permissions на API-слое не применяю
 
 ## PWA
 
-Установка вне Telegram: `src/app/manifest.ts` (отдаётся на `{basePath}/manifest.webmanifest`) +
-service worker `src/app/sw.js/route.ts`. SW намеренно раздаётся **из-под basePath** (`/app/sw.js`),
-чтобы его scope совпадал с `/app` за nginx (public/-ассеты лежат в корне и недоступны под `/app`).
-Регистрация — `ServiceWorkerRegistrar`; install-prompt — хук `usePWAInstall`.
+Установка вне Telegram: манифест — статический `public/manifest.webmanifest`,
+генерируется build-time скриптом `scripts/build-manifest.ts` (раньше был route handler
+`src/app/manifest.ts` — снят вместе с остальной серверной частью Next.js в T6);
+service worker — статический `out/sw.js`, build-time precache (`scripts/build-sw.ts`,
+подробнее в [Offline PWA](offline-pwa.md)). SW намеренно раздаётся **из-под basePath**
+(`/app/sw.js`), чтобы его scope совпадал с `/app` за nginx. Регистрация —
+`ServiceWorkerRegistrar`; install-prompt — хук `usePWAInstall`.
 
 ## Переменные окружения
 

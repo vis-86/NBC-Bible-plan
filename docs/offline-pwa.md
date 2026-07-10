@@ -11,32 +11,52 @@
 
 Два независимых слоя хранения:
 
-- **Service Worker Cache API** — ТОЛЬКО app shell: `_next/static/**` (cache-first,
-  content-hashed/immutable) + HTML-навигации (NetworkFirst, с кешированием посещённых
-  страниц). Никаких данных.
+- **Service Worker Cache API** — ТОЛЬКО app shell: атомарный build-time precache ВСЕХ
+  статических файлов `out/` (HTML-навигации, `_next/static/**`, RSC/flight-пейлоады).
+  Никаких данных.
 - **IndexedDB** (`src/shared/offline/db.ts`, обёртка `idb`) — ВСЕ данные: Писание,
   песни, ответы API (`apiCache`), очередь неподтверждённых мутаций (`outbox`),
   last-known-user и манифест скачанного (`meta`/`manifest`).
 
-## Service Worker (app shell)
+## Service Worker (app shell) — build-time Serwist precache
 
-- **Source:** `src/sw/sw-source.ts` — статический body (без build-шага, без
-  `@serwist/build`). Роутинг-решение (`routeStrategy`) и обе fetch-стратегии
-  (`handleStaticAsset`, `handleNavigation`) — чистые функции, покрыты unit-тестами; в
-  сам SW встраиваются через `.toString()` (единый источник правды, без дублирования
-  логики в plain-JS).
-- **Route:** `src/app/sw.js/route.ts` отдаёт `buildSwBody()` по `{basePath}/sw.js`.
-- **Стратегии:** same-origin GET `_next/static/**` → cache-first (`app-shell-static-v1`).
-  Same-origin GET HTML-навигации → NetworkFirst: успешный ответ кешируется в
-  `app-shell-html-v1`; офлайн — точное совпадение из кеша (реальный HTML посещённой
-  страницы), при промахе — любая другая закешированная страница (тот же SPA-бандл,
-  клиентский роутинг подхватывает), и только если кеш вообще пуст — bare-текст
-  `"Offline"` (503). Всё остальное (не-GET, cross-origin, `/api/*`) — passthrough без
-  `event.respondWith`.
-- **Kill switch:** константа `SW_DISABLED` в `sw-source.ts`. При `true` SW на
-  `activate` чистит все caches и делает `unregister()`. Чтобы это реально попало к
-  пользователю — `ServiceWorkerRegistrar` вызывает `reg.update()` при возврате вкладки
-  в фокус и раз в час (без этого браузер годами не подтянет новую версию SW).
+С миграции на static export + Hono BFF (`.ai-factory/plans/feature-static-export-hono-bff.md`,
+T8) SW больше не runtime-кеширует посещённые страницы — весь app shell кешируется
+атомарно ещё на этапе сборки:
+
+- **Source:** `src/sw/sw.ts` — обычный TS-модуль (бандлится esbuild'ом в
+  `scripts/build-sw.ts`, НЕ `.toString()`-сериализация, как было раньше в
+  `sw-source.ts` — тот подход остался в истории, файл удалён). Роутинг-решение
+  (`routeStrategy`) и логика мэппинга/prune — чистые функции, покрыты
+  `src/sw/sw.test.ts`.
+- **Build pipeline:** `yarn build` = `next build` (`output: 'export'` → `out/`) →
+  `tsx scripts/build-manifest.ts` (генерирует `public/manifest.webmanifest`) →
+  `tsx scripts/build-sw.ts` (`@serwist/build` `injectManifest`: globDirectory `out/`,
+  globPatterns HTML/JS/CSS/JSON/SVG/PNG/WEBP/WOFF2/TXT/WEBMANIFEST → `out/sw.js` с
+  precache-манифестом всех этих файлов; лог пишет число записей и суммарный размер,
+  warn при > 15 MB).
+- **Навигации:** cache-first по точному `pathname` (ignoreSearch — query load-bearing
+  только на клиенте: `?book=&chapter=`, `?id=`). Export кладёт страницы как
+  `dashboard.html` → навигация на `{basePath}/dashboard` резолвится в precache-ключ
+  `{basePath}/dashboard.html` (`{basePath}/` → `index.html`). Сеть на навигациях не
+  нужна — версия атомарна, обновления приезжают через отдельный update flow (ниже).
+  Незнакомый pathname (опечатка/устаревшая ссылка, НЕ входит в export) →
+  `OFFLINE_FALLBACK_HTML` — НИКОГДА не чужой закешированный HTML другого маршрута:
+  документ App Router несёт вшитый RSC-payload конкретного маршрута, расхождение с
+  текущим URL уводит гидратацию в цикл hard-reload (проверено на устройстве в
+  прежней runtime-кеш модели).
+- **`_next/static/**`, RSC/flight `.txt`:** cache-first из того же precache
+  автоматически (не-навигационные same-origin GET); `/api/*`, не-GET, cross-origin —
+  passthrough без `event.respondWith`.
+- **Kill switch:** константа `SW_DISABLED` в `sw.ts`. При `true` SW на `activate`
+  чистит все caches и делает `unregister()`. Чтобы это реально попало к пользователю —
+  `ServiceWorkerRegistrar` вызывает `reg.update()` при возврате вкладки в фокус и раз в
+  час (без этого браузер годами не подтянет новую версию SW).
+- **Update flow** не менялся миграцией: install БЕЗ `skipWaiting()` → SW ждёт →
+  `useSwUpdate` показывает тост «Доступна новая версия» → `SKIP_WAITING` по клику →
+  `controllerchange` → reload. Ревизии precache-манифеста меняются сами по себе при
+  каждой сборке — отдельная константа для инвалидации (`SW_BUILD`) больше не нужна для
+  этого, но версия пишется в лог SW.
 
 ## IndexedDB-слой
 
@@ -116,6 +136,29 @@ last-known-user, иначе устройство остаётся «офлайн
   `replayOutbox()`; если после попытки остались неподтверждённые записи — по умолчанию
   отказывается чистить (`cleared: false`), UI предлагает `force: true`.
 
+### Автозагрузка после логина (iOS partition fix)
+
+`src/shared/offline/autoDownload.ts` (T11). Проблема: iOS партиционирует storage
+(Safari-вкладка ≠ установленное PWA) — ручной opt-in «Скачать» в браузере кладёт
+данные не в ту партицию, которую видит установленное приложение, и пользователь
+остаётся без офлайн-данных, хотя формально «скачал».
+
+Решение — базовый набор (план, песни, дефолтный перевод НЗ пользователя, fallback
+`nrt2019`) докачивается сам, в ЛЮБОМ контексте (browser tab / installed PWA):
+
+- `scheduleEnsureOfflineData()` запускается из `AuthProvider` СРАЗУ после
+  server-confirmed входа (НЕ на ветке last-known-user — офлайн-вход не должен
+  пытаться качать без сети). Отложка `requestIdleCallback`/`setTimeout(5s)`, чтобы не
+  конкурировать со стартовой загрузкой дашборда; in-flight гард — параллельный вызов
+  не даёт повторный прогон.
+- `ensureOfflineData()` идемпотентна: сверяется с манифест-store IDB, докачивает
+  только недостающее. Обрыв одного джоба — молча, не блокирует остальные и не
+  бросает наружу; ретрай — на следующем запуске (следующий логин/старт).
+- Ручной opt-in в настройках (`OfflineDataSection`) на ОСТАЛЬНЫЕ переводы Писания не
+  тронут — это по-прежнему только руками. После `clearAllOfflineData` автозагрузка на
+  следующем старте вернёт дефолтный базовый набор — осознанное поведение, отражено
+  строкой в UI.
+
 ## UI
 
 `src/features/offline/components/OfflineDataSection.tsx` (+ `useOfflineData` hook) —
@@ -136,3 +179,33 @@ IndexedDB-зависимые unit-тесты используют `fake-indexedd
 БД сбрасывается через `__deleteDB()` (`src/shared/offline/db.ts`) — важно ЯВНО закрыть
 предыдущее открытое соединение перед `indexedDB.deleteDatabase()`, иначе в
 fake-indexeddb удаление зависает без `onblocked`.
+
+Автоматизированный офлайн-регресс (реальный SW/кеш/outbox в браузере, Playwright) —
+см. `e2e/offline/README.md`: холодный старт из кеша, навигация офлайн между разделами,
+outbox-синк, а также killer-фича прекеша — офлайн-переход на РАНЕЕ НЕ ПОСЕЩЁННЫЙ
+маршрут (`cold-start-any-route.spec.ts`) и update-flow (тост → SKIP_WAITING → reload,
+`update-flow.spec.ts`).
+
+## Приёмка iOS (ручной чек-лист)
+
+Playwright гоняет WebKit, а не реальную iOS Safari — Service Worker lifecycle,
+storage-партиционирование (Safari-вкладка vs installed PWA) и системные тосты
+отличаются достаточно, чтобы автоматизированный прогон не заменял ручную приёмку на
+устройстве перед релизом, затрагивающим SW/офлайн-слой.
+
+1. Safari → войти → установить на экран «Домой» (Поделиться → «На экран „Домой“»).
+2. Открыть установленное PWA (онлайн) → дождаться автозагрузки (Настройки →
+   «Оффлайн-данные» показывают скачанные план/песни/перевод НЗ без ручного нажатия
+   «Скачать»).
+3. Включить авиарежим → холодный запуск PWA с экрана «Домой» (не из недавних вкладок
+   Safari, а именно новый запуск) → дашборд, читалка, песни, календарь — работают, в
+   том числе разделы, которые ДО этого запуска ни разу не открывались.
+4. Отметить прогресс дня офлайн → выключить авиарежим → отметка синкнулась (проверить
+   с другого устройства/веб-версии — Directus должен показать тот же прогресс).
+5. Задеплоить новую версию (пересборка образа/рестарт контейнера) → открытое (не
+   закрытое) PWA в течение часа предлагает тост «Доступна новая версия» → «Обновить» →
+   обновление применяется без белого экрана и без reload-цикла (несколько
+   перезагрузок подряд).
+
+Результат чек-листа (что прошло / что нет) фиксируется в PR или коммите,
+закрывающем `.ai-factory/plans/feature-static-export-hono-bff.md` (T14).

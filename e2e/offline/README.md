@@ -6,24 +6,28 @@
 
 ## Предусловия
 
-1. **Локальный прод-билд** (dev-режим `next dev` не даёт стабильный SW):
+1. **Локальный прод-билд + static+bff топология** (dev-режим `next dev` не даёт
+   стабильный SW; после T12 нет единого `next start` — static export и BFF это
+   два отдельных процесса, как в проде nginx+bff, см. `deploy/Dockerfile`):
    ```bash
-   npm run build && npm start
+   npm run build                 # out/ + out/sw.js
+   npm run bff:start &           # BFF на :3001 (нужны DIRECTUS_URL/DIRECTUS_ADMIN_TOKEN/SESSION_SECRET и т.д. — см. server/src/env.ts; для локального прогона источник — .env.local, экспортировать в shell перед запуском)
+   npm run static:serve &        # отдаёт out/ + проксирует /app/api → :3001, см. scripts/static-serve.ts
    ```
-   По умолчанию сервер поднимается на `http://localhost:3000`, приложение — под
-   basePath `/app` (`NEXT_PUBLIC_BASE_PATH`, см. `next.config.ts`).
+   По умолчанию `static:serve` поднимается на `http://localhost:8080`, приложение —
+   под basePath `/app` (`NEXT_PUBLIC_BASE_PATH`, см. `next.config.ts`).
 
-2. **Тестовый аккаунт** — НЕ прод-креды. Заведите локальный тестовый логин/пароль
-   (тот же способ, что для остальных e2e/офлайн-прогонов проекта — см. memory
-   `prod-test-account` про `claude-offline-test`, если гоняете против прод-Directus;
-   для локального контура нужен любой рабочий аккаунт вашего dev-Directus).
+2. **Тестовый аккаунт** — НЕ прод-креды приложения. Для прогона против прод-Directus
+   используйте выделенный тестовый аккаунт (см. memory `prod-test-account` про
+   `claude-offline-test` — создан специально для e2e/офлайн-проверок); для
+   локального контура подойдёт любой рабочий аккаунт вашего dev-Directus.
 
 3. **`.env.test`** в корне проекта (гитигнорится, `.env*` в `.gitignore`):
    ```
    E2E_TEST_LOGIN=<логин тестового аккаунта>
    E2E_TEST_PASSWORD=<пароль тестового аккаунта>
    # опционально, если сервер поднят не на дефолтном порту/хосте
-   E2E_BASE_URL=http://localhost:3000
+   E2E_BASE_URL=http://localhost:8080
    ```
 
 4. **Браузер Playwright** (один раз):
@@ -50,6 +54,16 @@ npm run e2e:offline
   checkbox) → optimistic UI → онлайн → health-gated replay outbox → после reload
   отметка подтверждена сервером. Гоняется на реальном аккаунте — восстанавливает
   исходное состояние пункта в конце теста.
+- `cold-start-any-route.spec.ts` (T13) — killer-фича build-time precache: логин →
+  дождаться SW ready + автозагрузки данных (T11) → офлайн → прямой `goto` на
+  РАНЕЕ НЕ ПОСЕЩЁННЫЙ маршрут (`/dashboard/calendar`) → контент рендерится. При
+  runtime-кеше (до T8) это не работало — маршрут появлялся в кеше только после
+  первого онлайн-визита.
+- `update-flow.spec.ts` (T13) — симулирует передеплой (дописывает байт в конец
+  собранного `out/sw.js`, восстанавливает в конце теста) → `reg.update()` →
+  тост «Доступна новая версия» (`[data-update-toast]`) → клик «Обновить» → reload →
+  новая версия активна, старый precache-кеш удалён (ровно один `app-shell-precache-*`
+  в `caches.keys()` после апдейта).
 
 ## Ручной чек-лист: деплой при открытой вкладке
 

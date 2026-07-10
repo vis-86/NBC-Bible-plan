@@ -44,6 +44,11 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const checkSession = async () => {
+    // Обязательно true и на повторных вызовах (refreshAuth() после логина) — иначе
+    // DashboardAuthGate видит стухшее `user === null` от предыдущей проверки и
+    // редиректит на /login раньше, чем этот checkSession успевает отработать
+    // (router.push после логина не ждёт refreshAuth() — гонка).
+    setLoading(true);
     try {
       // Race с таймаутом: реальный «офлайн» (сеть есть, интернета нет) вешает fetch на
       // минуты, а не роняет его — без таймаута authLoading никогда не снимался и
