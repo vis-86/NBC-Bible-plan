@@ -107,7 +107,10 @@ fi
 # next build is memory-hungry and can outlive a dropped SSH session; the remote
 # script runs it detached and polls, so a flaky connection won't abort the build.
 log "Building image and recreating '$APP_SERVICE' on the server ..."
-ssh "${SSH_OPTS[@]}" "$SSH_TARGET" REMOTE_DIR="$REMOTE_DIR" APP_SERVICE="$APP_SERVICE" 'bash -s' <<'REMOTE'
+# ssh joins its command args with spaces before handing them to the remote shell,
+# so a multi-word APP_SERVICE must be quoted inside the command string itself.
+ssh "${SSH_OPTS[@]}" "$SSH_TARGET" \
+  "REMOTE_DIR='$REMOTE_DIR' APP_SERVICE='$APP_SERVICE' bash -s" <<'REMOTE'
 set -euo pipefail
 cd "$REMOTE_DIR/deploy"
 

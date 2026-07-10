@@ -1,5 +1,5 @@
 #!/bin/bash
-# Daily backup of the NBC Bible Plan stack: Directus Postgres DB + uploads + app SQLite.
+# Daily backup of the NBC Bible Plan stack: Directus Postgres DB + uploads.
 # Installed via cron. Keeps 14 days. So "no backup" never happens again.
 set -euo pipefail
 
@@ -20,13 +20,7 @@ docker run --rm \
   -v "$BACKUP_DIR":/backup alpine \
   tar czf "/backup/directus-uploads-$TS.tar.gz" -C /data . || true
 
-# 3) App SQLite (Lucia auth/sessions)
-docker run --rm \
-  -v nbc-bible_app_db:/data:ro \
-  -v "$BACKUP_DIR":/backup alpine \
-  tar czf "/backup/app-db-$TS.tar.gz" -C /data . || true
-
-# Rotate
+# Rotate (app-db-* are leftovers from the pre-BFF SQLite era; rotate them out too)
 find "$BACKUP_DIR" -name 'directus-db-*.sql.gz' -mtime +$KEEP_DAYS -delete
 find "$BACKUP_DIR" -name 'directus-uploads-*.tar.gz' -mtime +$KEEP_DAYS -delete
 find "$BACKUP_DIR" -name 'app-db-*.tar.gz' -mtime +$KEEP_DAYS -delete
