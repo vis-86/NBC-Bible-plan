@@ -104,14 +104,41 @@ export async function respondToNavigation(
   });
 }
 
-/** Cache-first по точному URL запроса; промах (файл вне precache-манифеста) → сеть. */
+/**
+ * Ключи для поиска в precache, по порядку: точный URL запроса, затем URL без query.
+ *
+ * Записи прекеша кладутся из `out/` без query (`toPrecacheRequestUrl`), а клиентская
+ * навигация App Router в export-режиме запрашивает не документ, а RSC/flight-пейлоад:
+ * `.txt` + cache-busting `_rsc=<hash>`, уникальный на каждый переход
+ * (`/app/dashboard/read.txt?book=john&_rsc=1a2b`). Точный ключ не совпадёт никогда,
+ * поэтому нужен второй проход без query. Для статики export'а query не участвует в
+ * выборе файла — тот же принцип, что уже узаконен для навигаций в `pathnameToHtmlKey`.
+ *
+ * Ограничение: появится ассет, который различается по query, — поиск отдаст не тот файл.
+ * В `out/` таких нет, `/api/*` сюда не попадает (`routeStrategy` → `passthrough`).
+ *
+ * Отдельная чистая функция, а не `cache.match(url, { ignoreSearch: true })`: тестируется
+ * без Cache API и не зависит от того, реализует ли мок опции `match`.
+ */
+export function precacheLookupKeys(requestUrl: string): string[] {
+  const withoutQuery = requestUrl.split('?')[0];
+  return withoutQuery === requestUrl ? [requestUrl] : [requestUrl, withoutQuery];
+}
+
+/** Cache-first по ключам `precacheLookupKeys`; промах по всем (файл вне манифеста) → сеть. */
 export async function respondToStaticAsset(
   cache: PrecacheReader,
   requestUrl: string,
   fetcher: () => Promise<Response>
 ): Promise<Response> {
-  const cached = await cache.match(requestUrl);
-  if (cached) return cached;
+  for (const key of precacheLookupKeys(requestUrl)) {
+    const cached = await cache.match(key);
+    if (cached) {
+      console.debug('[SW][FIX] precache hit', key);
+      return cached;
+    }
+  }
+  console.debug('[SW][FIX] precache miss -> network', requestUrl);
   return fetcher();
 }
 

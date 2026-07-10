@@ -47,7 +47,10 @@ T8) SW больше не runtime-кеширует посещённые стра�
   прежней runtime-кеш модели).
 - **`_next/static/**`, RSC/flight `.txt`:** cache-first из того же precache
   автоматически (не-навигационные same-origin GET); `/api/*`, не-GET, cross-origin —
-  passthrough без `event.respondWith`.
+  passthrough без `event.respondWith`. Поиск идёт по `precacheLookupKeys` — сначала
+  точный URL, затем URL без query: RSC-пейлоад клиентской навигации (`router.push`)
+  всегда несёт уникальный cache-busting `_rsc=<hash>`, и по точному ключу не нашёлся бы
+  никогда. Query у статики export'а не выбирает файл (как и у навигаций).
 - **Kill switch:** константа `SW_DISABLED` в `sw.ts`. При `true` SW на `activate`
   чистит все caches и делает `unregister()`. Чтобы это реально попало к пользователю —
   `ServiceWorkerRegistrar` вызывает `reg.update()` при возврате вкладки в фокус и раз в

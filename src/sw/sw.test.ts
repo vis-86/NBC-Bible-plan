@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   routeStrategy,
   pathnameToHtmlKey,
+  precacheLookupKeys,
   pruneUnknownCaches,
   respondToNavigation,
   respondToStaticAsset,
@@ -94,6 +95,21 @@ describe('pathnameToHtmlKey', () => {
   });
 });
 
+describe('precacheLookupKeys', () => {
+  it('RSC-пейлоад с _rsc и search -> точный URL, затем URL без query', () => {
+    expect(precacheLookupKeys('/app/dashboard/read.txt?book=john&_rsc=abc')).toEqual([
+      '/app/dashboard/read.txt?book=john&_rsc=abc',
+      '/app/dashboard/read.txt',
+    ]);
+  });
+
+  it('URL без query -> единственный ключ (лишний cache.match не нужен)', () => {
+    expect(precacheLookupKeys('/app/_next/static/chunks/main.js')).toEqual([
+      '/app/_next/static/chunks/main.js',
+    ]);
+  });
+});
+
 describe('toPrecacheRequestUrl', () => {
   it('манифест без ведущего слэша -> собирает URL совпадающий с pathnameToHtmlKey', () => {
     expect(toPrecacheRequestUrl('/app', 'dashboard.html')).toBe('/app/dashboard.html');
@@ -160,11 +176,51 @@ describe('respondToStaticAsset', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
-  it('промах precache (файл вне манифеста) -> сетевой фолбэк', async () => {
+  it('RSC-пейлоад клиентской навигации (_rsc + search) -> попадание по ключу без query, сеть не нужна', async () => {
+    const cache = new FakePrecache();
+    cache.set('https://app.test/app/dashboard/read.txt', new Response('flight-payload'));
+    const fetcher = vi.fn();
+
+    const res = await respondToStaticAsset(
+      cache,
+      'https://app.test/app/dashboard/read.txt?book=john&chapter=3&_rsc=1a2b3c',
+      fetcher
+    );
+
+    expect(await res.text()).toBe('flight-payload');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('segment-prefetch пейлоад (__next.*.txt + _rsc) -> попадание в precache, сеть не нужна', async () => {
+    const cache = new FakePrecache();
+    cache.set('https://app.test/app/dashboard/__next.dashboard.__PAGE__.txt', new Response('segment'));
+    const fetcher = vi.fn();
+
+    const res = await respondToStaticAsset(
+      cache,
+      'https://app.test/app/dashboard/__next.dashboard.__PAGE__.txt?_rsc=abc',
+      fetcher
+    );
+
+    expect(await res.text()).toBe('segment');
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('промах precache (файл вне манифеста) -> сетевой фолбэк ровно один раз', async () => {
     const cache = new FakePrecache();
     const fetcher = vi.fn().mockResolvedValue(new Response('from-network'));
 
     const res = await respondToStaticAsset(cache, 'https://app.test/app/favicon.ico', fetcher);
+
+    expect(await res.text()).toBe('from-network');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('промах precache для URL с query -> сетевой фолбэк ровно один раз (оба ключа проверены)', async () => {
+    const cache = new FakePrecache();
+    const fetcher = vi.fn().mockResolvedValue(new Response('from-network'));
+
+    const res = await respondToStaticAsset(cache, 'https://app.test/app/unknown.txt?_rsc=abc', fetcher);
 
     expect(await res.text()).toBe('from-network');
     expect(fetcher).toHaveBeenCalledTimes(1);
