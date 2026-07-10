@@ -9,6 +9,7 @@ import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { AppView } from '@/types';
 import { usePlan } from '@/features/plan/hooks/usePlan';
 import { useProgress } from '@/features/plan/hooks/useProgress';
+import { saveLastReadLocation } from '@/features/reading/last-read-location';
 
 /**
  * Единый клиентский маршрут ридера (approach C, FIX_PLAN): book/chapter/day/item живут
@@ -33,6 +34,14 @@ function ReadPageContent() {
   const itemNumber = searchParams.get('item') ? parseInt(searchParams.get('item')!) : null;
 
   const reading: BibleReference | null = book && Number.isFinite(chapter) ? { book, chapter } : null;
+
+  // Запоминаем последнее открытое место чтения — таб «Библия» вернёт сюда,
+  // а не на жёстко зашитое Бытие 1 (см. last-read-location.ts).
+  useEffect(() => {
+    if (book && Number.isFinite(chapter)) {
+      saveLastReadLocation({ book, chapter });
+    }
+  }, [book, chapter]);
 
   // Текущий день/пункт — чистая деривация из плана и параметров URL (не state+effect):
   // так избегаем каскадных ре-рендеров от setState-в-эффекте и рассинхрона.

@@ -5,6 +5,7 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { BookOpen, Home, User, MessageCircle, Music } from 'lucide-react';
 import { AppView } from '@/types';
 import { isAIEnabled } from '@/shared/utils/constants';
+import { bibleTabHref } from '@/features/reading/last-read-location';
 import { useChromeVisibility } from './ChromeVisibility';
 
 interface NavItem {
@@ -116,6 +117,14 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
       } else {
         router.push('/dashboard?view=chat');
       }
+      return;
+    }
+
+    // «Библия» открывает последнее прочитанное место из localStorage
+    // (фолбэк — Бытие 1). Читаем на клике, а не в navItems: значение
+    // клиентское и меняется между рендерами навигации.
+    if (item.id === 'bible') {
+      router.push(bibleTabHref());
       return;
     }
 
