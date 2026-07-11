@@ -1,12 +1,15 @@
 'use client';
 
-import { Suspense, useRef } from 'react';
+import { Suspense, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { Settings } from 'lucide-react';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { useSong } from '@/features/songs/hooks/useSong';
+import { useSongFontSize } from '@/features/songs/hooks/useSongFontSize';
 import { SongView } from '@/features/songs/components/SongView';
+import { SongFontSettings } from '@/features/songs/components/SongFontSettings';
 import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
 import { cn } from '@/shared/utils/cn';
 
@@ -24,6 +27,8 @@ function SongPageContent() {
   const { song, loading, error } = useSong(id);
   const contentRef = useRef<HTMLDivElement>(null);
   const { hidden } = useAutoHideOnScroll(contentRef, song?.id);
+  const [fontSize, setFontSize] = useSongFontSize();
+  const [isFontSettingsOpen, setIsFontSettingsOpen] = useState(false);
 
   const handleBack = () => router.push('/dashboard/songs');
 
@@ -42,7 +47,22 @@ function SongPageContent() {
           )}
         >
           <div className="min-h-0 overflow-hidden">
-            <PageHeader title={song?.title ?? ''} onBack={handleBack} backAriaLabel="Назад к списку" />
+            <PageHeader
+              title={song?.title ?? ''}
+              onBack={handleBack}
+              backAriaLabel="Назад к списку"
+              right={
+                <button
+                  type="button"
+                  data-song-page-font-settings-button
+                  aria-label="Настройки шрифта"
+                  onClick={() => setIsFontSettingsOpen(true)}
+                  className="rounded-app-sm p-2 text-app-text-secondary transition-transform duration-150 hover:bg-app-surface-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
+                >
+                  <Settings size={20} />
+                </button>
+              }
+            />
           </div>
         </div>
 
@@ -66,10 +86,18 @@ function SongPageContent() {
               subtitle={song.subtitle}
               songKey={song.key}
               tempo={song.tempo}
+              fontSize={fontSize}
             />
           )}
         </div>
       </div>
+
+      <SongFontSettings
+        isOpen={isFontSettingsOpen}
+        onClose={() => setIsFontSettingsOpen(false)}
+        fontSize={fontSize}
+        onFontSizeChange={setFontSize}
+      />
     </DashboardLayout>
   );
 }
