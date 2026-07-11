@@ -10,6 +10,7 @@ import type { AppThemePreference } from '@/shared/services/api/endpoints';
 import { DashboardReadingSettingsSection } from '@/features/reading/components/DashboardReadingSettingsSection';
 import { OfflineDataSection } from '@/features/offline/components/OfflineDataSection';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
+import { Button } from '@/shared/components/ui/Button';
 
 const themeOptions: Array<{ value: AppThemePreference; label: string }> = [
   { value: 'light', label: 'Светлая' },
@@ -55,7 +56,7 @@ export default function SettingsPage() {
                 <button
                   key={opt.value}
                   onClick={() => setThemePreference(opt.value)}
-                  className={`flex items-center justify-between rounded-xl border-2 px-4 py-3 text-left transition-all ${
+                  className={`flex min-h-11 items-center justify-between rounded-app-md border-2 px-4 py-3 text-left transition-all ${
                     themePreference === opt.value
                       ? 'border-app-primary bg-app-primary-light text-app-primary font-medium'
                       : 'border-app-border text-app-text-secondary hover:border-app-border-strong'
@@ -74,14 +75,16 @@ export default function SettingsPage() {
           <OfflineDataSection />
 
           <section className="mt-8">
-            <button
+            <Button
               type="button"
+              variant="danger"
+              size="sm"
               onClick={handleLogout}
               disabled={loggingOut}
-              className="w-full rounded-lg border-2 border-app-missed-text px-3 py-2.5 text-sm font-medium text-app-missed-text transition-all disabled:cursor-not-allowed disabled:opacity-60"
+              className="w-full"
             >
               {loggingOut ? 'Выход…' : 'Выйти из приложения'}
-            </button>
+            </Button>
           </section>
         </div>
       </div>

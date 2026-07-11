@@ -65,9 +65,9 @@ Source: .ai-factory/RESEARCH.md (Active Summary)
 <!-- Commit checkpoint: tasks 3-4 -->
 
 ### Phase 3: Единый стиль компонентов
-- [ ] Task 5: Обновить `Button` (44px, press-отклик, focus-ring), создать `Card`, внедрить по экранам (settings, PlanView, CalendarView, ReadingSettingsForm, pickers) (depends on 2)
-- [ ] Task 6: Унифицировать заголовки через `PageHeader` (PlanView, SongView; ReadingHeader — только токены) (depends on 5)
-- [ ] Task 7: Ретокенизация `PastorChat.tsx` — сырые цвета → `app-*` токены (depends on 2)
+- [x] Task 5: Обновить `Button` (44px, press-отклик, focus-ring), создать `Card`, внедрить по экранам (settings, PlanView, CalendarView, ReadingSettingsForm, pickers) (depends on 2)
+- [x] Task 6: Унифицировать заголовки через `PageHeader` (PlanView, SongView; ReadingHeader — только токены) (depends on 5) — SongView уже был на PageHeader (song/page.tsx); ReadingHeader аудирован, уже на токенах (тема ридера намеренно независима от app dark mode); PlanView greeting — задокументированное исключение в PageHeader.tsx (прозрачный editorial-хедер, бровь красится отдельной fixed-полоской — форсировать PageHeader сломало бы этот инвариант)
+- [x] Task 7: Ретокенизация `PastorChat.tsx` — сырые цвета → `app-*` токены (depends on 2)
 <!-- Commit checkpoint: tasks 5-7 -->
 
 ### Phase 4: Эргономика и движение

@@ -257,16 +257,16 @@ const PastorChat: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-stone-100">
+    <div className="flex flex-col h-full bg-app-bg">
       {/* Header */}
-      <div className="bg-white px-4 py-3 border-b border-stone-200 shadow-sm z-10 flex flex-col">
+      <div className="bg-app-surface px-4 py-3 border-b border-app-border shadow-app-sm z-10 flex flex-col">
         <div className="flex justify-between items-center mb-4">
-             <h2 className="text-xl font-bold text-stone-900">Наставники</h2>
-             <button onClick={clearChat} className="p-2 bg-stone-100 rounded-full text-stone-500 hover:bg-stone-200">
+             <h2 className="text-xl font-bold text-app-text">Наставники</h2>
+             <button onClick={clearChat} className="p-2 bg-app-surface-muted rounded-full text-app-text-secondary hover:bg-app-surface-elevated">
                  <RefreshCw size={16} />
              </button>
         </div>
-        
+
         {/* Avatars Scroll */}
         <div className="flex space-x-5 overflow-x-auto pb-2 no-scrollbar px-1">
           {pastors.map(pastor => {
@@ -283,13 +283,13 @@ const PastorChat: React.FC = () => {
               className="flex-shrink-0 flex flex-col items-center space-y-2 group"
             >
               <div className={`w-16 h-16 rounded-full overflow-hidden p-0.5 transition-all ${
-                  isSelected ? 'bg-gradient-to-tr from-red-500 to-orange-400 shadow-md scale-105' : 'bg-transparent grayscale group-hover:grayscale-0'
+                  isSelected ? 'bg-gradient-to-tr from-app-accent to-orange-400 shadow-app-md scale-105' : 'bg-transparent grayscale group-hover:grayscale-0'
               }`}>
-                <div className="w-full h-full rounded-full overflow-hidden border-2 border-white">
+                <div className="w-full h-full rounded-full overflow-hidden border-2 border-app-surface">
                      <img src={pastor.avatar} alt={pastor.name} className="w-full h-full object-cover" />
                 </div>
               </div>
-              <span className={`text-[11px] font-bold text-center leading-tight ${isSelected ? 'text-stone-900' : 'text-stone-400'}`}>
+              <span className={`text-[11px] font-bold text-center leading-tight ${isSelected ? 'text-app-text' : 'text-app-text-muted'}`}>
                   {pastor.name.split(' ').pop() || pastor.name}
               </span>
             </button>
@@ -298,30 +298,30 @@ const PastorChat: React.FC = () => {
       </div>
 
       {/* Chat Area */}
-      <div 
+      <div
         ref={chatContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4 bg-stone-100"
+        className="flex-1 overflow-y-auto p-4 space-y-4 bg-app-bg"
         onScroll={handleScroll}
       >
         {isLoadingMore && (
           <div className="flex justify-center py-2">
-            <div className="text-stone-500 text-sm">Загрузка старых сообщений...</div>
+            <div className="text-app-text-secondary text-sm">Загрузка старых сообщений...</div>
           </div>
         )}
-        
+
         {visibleMessages.length === 0 && !isLoadingHistory && (
            <div className="flex flex-col items-center justify-center mt-10 opacity-70">
-              <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4">
-                  <MoreHorizontal size={32} className="text-stone-300" />
+              <div className="w-16 h-16 bg-app-surface rounded-app-xl shadow-app-sm flex items-center justify-center mb-4">
+                  <MoreHorizontal size={32} className="text-app-text-subtle" />
               </div>
-              <h3 className="text-stone-900 font-bold mb-1">{selectedPastor.name}</h3>
-              <p className="text-stone-500 text-sm text-center max-w-xs">{selectedPastor.description}</p>
+              <h3 className="text-app-text font-bold mb-1">{selectedPastor.name}</h3>
+              <p className="text-app-text-secondary text-sm text-center max-w-xs">{selectedPastor.description}</p>
            </div>
         )}
-        
+
         {isLoadingHistory && (
           <div className="flex justify-center py-8">
-            <div className="text-stone-500 text-sm">Загрузка истории...</div>
+            <div className="text-app-text-secondary text-sm">Загрузка истории...</div>
           </div>
         )}
         
@@ -332,14 +332,14 @@ const PastorChat: React.FC = () => {
           >
             {msg.isError ? (
               // Специальное сообщение об ошибке
-              <div className="max-w-[80%] rounded-2xl px-5 py-4 shadow-sm bg-amber-50 border border-amber-200 rounded-bl-sm">
+              <div className="max-w-[80%] rounded-app-xl px-5 py-4 shadow-app-sm bg-app-surface-elevated border border-app-border-strong rounded-bl-sm">
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 text-app-accent flex-shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <h4 className="font-semibold text-amber-900 mb-1.5 text-[15px]">
+                    <h4 className="font-semibold text-app-text mb-1.5 text-[15px]">
                       Сервис временно недоступен
                     </h4>
-                    <p className="text-amber-800 text-sm leading-relaxed">
+                    <p className="text-app-text-secondary text-sm leading-relaxed">
                       К сожалению, наставник временно не может ответить. Пожалуйста, попробуйте позже или обратитесь к администратору.
                     </p>
                   </div>
@@ -347,10 +347,10 @@ const PastorChat: React.FC = () => {
               </div>
             ) : (
               <div
-                className={`max-w-[80%] rounded-2xl px-5 py-3 shadow-sm text-[15px] leading-relaxed ${
+                className={`max-w-[80%] rounded-app-xl px-5 py-3 shadow-app-sm text-[15px] leading-relaxed ${
                   msg.role === 'user'
-                    ? 'bg-red-600 text-white rounded-br-sm'
-                    : 'bg-white text-stone-800 rounded-bl-sm'
+                    ? 'bg-app-accent text-app-text-inverse rounded-br-sm'
+                    : 'bg-app-surface text-app-text rounded-bl-sm'
                 }`}
               >
                 <div className={`prose prose-sm max-w-none ${msg.role === 'user' ? 'prose-invert' : 'prose-stone'}`}>
@@ -369,8 +369,8 @@ const PastorChat: React.FC = () => {
                       li: (props) => <li className="ml-2" {...props} />,
                       // Ссылки
                       a: (props) => (
-                        <a 
-                          className={`underline hover:no-underline ${msg.role === 'user' ? 'text-red-100' : 'text-red-600'}`}
+                        <a
+                          className={`underline hover:no-underline ${msg.role === 'user' ? 'text-app-text-inverse/80' : 'text-app-accent'}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           {...props} 
@@ -386,9 +386,9 @@ const PastorChat: React.FC = () => {
                           return (
                             <code 
                               className={`px-1.5 py-0.5 rounded text-sm font-mono ${
-                                msg.role === 'user' 
-                                  ? 'bg-red-700/30 text-red-100' 
-                                  : 'bg-stone-100 text-stone-900'
+                                msg.role === 'user'
+                                  ? 'bg-black/15 text-app-text-inverse'
+                                  : 'bg-app-surface-muted text-app-text'
                               }`}
                               {...rest} 
                             />
@@ -396,10 +396,10 @@ const PastorChat: React.FC = () => {
                         }
                         return (
                           <code 
-                            className={`block p-3 rounded-lg text-sm font-mono overflow-x-auto mb-2 ${
-                              msg.role === 'user' 
-                                ? 'bg-red-700/30 text-red-100' 
-                                : 'bg-stone-100 text-stone-900'
+                            className={`block p-3 rounded-app-sm text-sm font-mono overflow-x-auto mb-2 ${
+                              msg.role === 'user'
+                                ? 'bg-black/15 text-app-text-inverse'
+                                : 'bg-app-surface-muted text-app-text'
                             }`}
                             {...rest} 
                           />
@@ -412,9 +412,9 @@ const PastorChat: React.FC = () => {
                       blockquote: (props) => (
                         <blockquote 
                           className={`border-l-4 pl-4 my-2 italic ${
-                            msg.role === 'user' 
-                              ? 'border-red-400 text-red-100' 
-                              : 'border-stone-300 text-stone-600'
+                            msg.role === 'user'
+                              ? 'border-app-text-inverse/40 text-app-text-inverse/80'
+                              : 'border-app-border-strong text-app-text-secondary'
                           }`}
                           {...props} 
                         />
@@ -423,9 +423,9 @@ const PastorChat: React.FC = () => {
                       hr: (props) => (
                         <hr 
                           className={`my-3 border-0 border-t ${
-                            msg.role === 'user' 
-                              ? 'border-red-400/50' 
-                              : 'border-stone-300'
+                            msg.role === 'user'
+                              ? 'border-app-text-inverse/30'
+                              : 'border-app-border-strong'
                           }`}
                           {...props} 
                         />
@@ -441,10 +441,10 @@ const PastorChat: React.FC = () => {
         ))}
         {isTyping && (
            <div className="flex justify-start">
-             <div className="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm flex items-center space-x-1.5">
-                <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce" />
-                <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}/>
-                <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}/>
+             <div className="bg-app-surface rounded-app-xl rounded-bl-sm px-4 py-3 shadow-app-sm flex items-center space-x-1.5">
+                <div className="w-1.5 h-1.5 bg-app-text-muted rounded-full animate-bounce" />
+                <div className="w-1.5 h-1.5 bg-app-text-muted rounded-full animate-bounce" style={{animationDelay: '150ms'}}/>
+                <div className="w-1.5 h-1.5 bg-app-text-muted rounded-full animate-bounce" style={{animationDelay: '300ms'}}/>
              </div>
            </div>
         )}
@@ -452,7 +452,7 @@ const PastorChat: React.FC = () => {
       </div>
 
       {/* Input Area */}
-      <div className="bg-white p-3 border-t border-stone-200">
+      <div className="bg-app-surface p-3 border-t border-app-border">
         <div className="flex items-end gap-3 max-w-4xl mx-auto w-full">
           <textarea
             ref={textareaRef}
@@ -461,15 +461,15 @@ const PastorChat: React.FC = () => {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyPress}
             placeholder="Напишите сообщение..."
-            className="flex-1 bg-stone-100 text-stone-900 placeholder-stone-400 border-none rounded-2xl px-5 py-3 focus:ring-2 focus:ring-red-100 transition-all text-base resize-none min-h-[48px] max-h-[200px] overflow-y-auto"
+            className="flex-1 bg-app-surface-muted text-app-text placeholder-app-text-muted border-none rounded-app-xl px-5 py-3 focus:ring-2 focus:ring-app-accent-muted transition-all text-base resize-none min-h-[48px] max-h-[200px] overflow-y-auto"
           />
           <button
             onClick={handleSendMessage}
             disabled={!input.trim() || isTyping}
-            className={`p-3 rounded-full flex items-center justify-center transition-all flex-shrink-0 mb-[2px] ${
+            className={`p-3 min-h-11 min-w-11 rounded-full flex items-center justify-center transition-transform duration-150 flex-shrink-0 mb-[2px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent ${
               input.trim() && !isTyping
-                ? 'bg-red-600 text-white shadow-md active:scale-95'
-                : 'bg-stone-100 text-stone-300'
+                ? 'bg-app-accent text-app-text-inverse shadow-app-md active:scale-95'
+                : 'bg-app-surface-muted text-app-text-subtle'
             }`}
           >
             <Send size={20} className={input.trim() ? 'ml-0.5' : ''} />

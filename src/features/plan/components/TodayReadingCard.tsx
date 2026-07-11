@@ -46,7 +46,7 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
         <div className="absolute top-0 right-0 w-64 h-64 bg-app-primary-muted rounded-full blur-3xl -mr-16 -mt-16" aria-hidden />
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-app-success-muted rounded-full blur-2xl -ml-10 -mb-10" aria-hidden />
 
-        <div className="relative bg-app-overlay-inner backdrop-blur-sm rounded-[28px] p-4 border border-white/5">
+        <div className="relative bg-app-overlay-inner backdrop-blur-sm rounded-app-card p-4 border border-white/5">
           <div data-today-reading-card-header className="flex justify-between items-center mb-6">
             <div>
               <div className="flex items-center gap-3 mb-2">
@@ -55,7 +55,7 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                   data-today-reading-card-plan-badge
                   onClick={() => router.push('/dashboard/calendar')}
                   aria-label={`Открыть план на ${currentYear}`}
-                  className="px-2.5 py-0.5 rounded-md bg-app-success-muted border border-app-success/20 text-app-success text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-app-success/25 hover:border-app-success/40 active:scale-95 transition-all inline-flex items-center gap-1"
+                  className="px-2.5 py-0.5 rounded-app-sm bg-app-success-muted border border-app-success/20 text-app-success text-[10px] font-bold uppercase tracking-wider cursor-pointer hover:bg-app-success/25 hover:border-app-success/40 active:scale-95 transition-all inline-flex items-center gap-1"
                 >
                   <Calendar size={12} />
                   План {currentYear}
@@ -108,7 +108,7 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                       data-today-reading-card-item={item.item}
                       data-today-reading-card-item-completed={item.completed || undefined}
                       onClick={handleSelectReading}
-                      className="flex items-center p-3 rounded-xl bg-white/5 border border-white/8 cursor-pointer hover:bg-white/10 transition-all group"
+                      className="flex items-center p-3 rounded-app-md bg-white/5 border border-white/8 cursor-pointer hover:bg-white/10 transition-all group"
                     >
                       <div
                         onClick={(e) => e.stopPropagation()}
@@ -155,7 +155,7 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
                     key={idx}
                     data-today-reading-card-item={idx}
                     onClick={() => onSelectReading(day, reading)}
-                    className="flex items-center p-3 rounded-xl bg-white/5 border border-white/8 cursor-pointer hover:bg-white/10 transition-all group"
+                    className="flex items-center p-3 rounded-app-md bg-white/5 border border-white/8 cursor-pointer hover:bg-white/10 transition-all group"
                   >
                     <div
                       onClick={(e) => e.stopPropagation()}
@@ -191,7 +191,7 @@ export const TodayReadingCard: React.FC<TodayReadingCardProps> = ({
             type="button"
             data-today-reading-card-start-btn
             onClick={onStartReading}
-            className="w-full py-3.5 bg-app-overlay-text text-app-overlay rounded-xl font-bold shadow-lg hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
+            className="w-full py-3.5 min-h-11 bg-app-overlay-text text-app-overlay rounded-app-md font-bold shadow-lg hover:opacity-90 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
           >
             <Play className="w-5 h-5 fill-current" aria-hidden />
             Начать чтение

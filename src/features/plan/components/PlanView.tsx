@@ -306,8 +306,8 @@ export const PlanView: React.FC<PlanViewProps> = ({
           }
           className={
             missedDaysCount > 0
-              ? 'w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-app-accent/20 bg-app-accent-muted text-app-accent font-semibold hover:bg-app-accent/20 active:scale-[0.99] transition-all'
-              : 'w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-app-border bg-app-surface text-app-text-secondary font-semibold hover:bg-app-surface-muted hover:text-app-text active:scale-[0.99] transition-all'
+              ? 'w-full min-h-11 flex items-center justify-center gap-2 py-3 rounded-app-lg border border-app-accent/20 bg-app-accent-muted text-app-accent font-semibold hover:bg-app-accent/20 active:scale-[0.99] transition-transform duration-150'
+              : 'w-full min-h-11 flex items-center justify-center gap-2 py-3 rounded-app-lg border border-app-border bg-app-surface text-app-text-secondary font-semibold shadow-app-sm hover:bg-app-surface-muted hover:text-app-text active:scale-[0.99] transition-all'
           }
         >
           <Calendar size={18} aria-hidden />
@@ -318,9 +318,9 @@ export const PlanView: React.FC<PlanViewProps> = ({
       </div>
 
       <section data-plan-view-sections className="px-4 mb-6 grid grid-cols-1 gap-4">
-        <div data-weekly-reading className="bg-app-surface p-5 rounded-3xl border border-app-border shadow-app-sm">
+        <div data-weekly-reading className="bg-app-surface p-5 rounded-app-xl border border-app-border shadow-app-sm">
           <div data-weekly-reading-header className="flex items-center gap-4 mb-4">
-            <div className="w-12 h-12 rounded-2xl bg-app-primary-light flex items-center justify-center text-app-primary flex-shrink-0" aria-hidden>
+            <div className="w-12 h-12 rounded-app-lg bg-app-primary-light flex items-center justify-center text-app-primary flex-shrink-0" aria-hidden>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
               </svg>
@@ -338,7 +338,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                 type="button"
                 data-weekly-reading-prev-btn
                 onClick={() => setSelectedWeek((prev) => (prev <= 1 ? 52 : prev - 1))}
-                className="p-1.5 rounded-lg text-app-text-muted hover:text-app-text-secondary hover:bg-app-surface-muted transition-colors"
+                className="p-1.5 rounded-app-sm text-app-text-muted hover:text-app-text-secondary hover:bg-app-surface-muted transition-colors"
                 aria-label="Предыдущая неделя"
               >
                 <ChevronLeft size={20} />
@@ -347,7 +347,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                 type="button"
                 data-weekly-reading-next-btn
                 onClick={() => setSelectedWeek((prev) => (prev >= 52 ? 1 : prev + 1))}
-                className="p-1.5 rounded-lg text-app-text-muted hover:text-app-text-secondary hover:bg-app-surface-muted transition-colors"
+                className="p-1.5 rounded-app-sm text-app-text-muted hover:text-app-text-secondary hover:bg-app-surface-muted transition-colors"
                 aria-label="Следующая неделя"
               >
                 <ChevronRight size={20} />
@@ -372,7 +372,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
                     const ref = parseReadingItem(it.read);
                     if (ref) router.push(`/dashboard/read?book=${encodeURIComponent(normalizeBookNameForUrl(ref.book))}&chapter=${ref.chapter}`);
                   }}
-                  className="flex items-center justify-between p-3 rounded-xl bg-app-surface-muted hover:bg-app-surface-elevated transition-colors group"
+                  className="flex items-center justify-between p-3 rounded-app-md bg-app-surface-muted hover:bg-app-surface-elevated transition-colors group"
                 >
                   <span className="text-sm font-medium text-app-text-secondary group-hover:text-app-text">
                     {it.read}

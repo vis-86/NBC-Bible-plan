@@ -42,7 +42,7 @@ export const ChapterPicker: React.FC<ChapterPickerProps> = ({
                 onClose();
               }}
               className={`
-                w-full flex items-center gap-3 p-4 rounded-xl border-2 transition-all
+                w-full min-h-11 flex items-center gap-3 p-4 rounded-app-md border-2 transition-all
                 ${isCurrent
                   ? 'border-app-primary bg-app-primary-light'
                   : 'border-app-border hover:border-app-border-subtle bg-app-surface'

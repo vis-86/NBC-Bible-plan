@@ -16,6 +16,43 @@ const selectedChoice =
 const idleChoice =
   'border-app-border text-app-text-secondary hover:border-app-border-strong';
 
+/** Repeated pattern: a row of mutually-exclusive option buttons (align/theme). */
+function ChoiceGroup<T extends string>({
+  options,
+  value,
+  onChange,
+  labelFor,
+  disabled,
+  columns,
+}: {
+  options: readonly T[];
+  value: T;
+  onChange: (option: T) => void;
+  labelFor: (option: T) => string;
+  disabled?: boolean;
+  columns: 2 | 3;
+}) {
+  // Tailwind needs statically-visible class names — no dynamic `grid-cols-${n}`.
+  const columnsClass = columns === 3 ? 'grid-cols-3' : 'grid-cols-2';
+  return (
+    <div className={`grid gap-2 ${columnsClass}`}>
+      {options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(option)}
+          className={`min-h-11 rounded-app-md border-2 px-4 py-2 transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+            value === option ? selectedChoice : idleChoice
+          }`}
+        >
+          {labelFor(option)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function ReadingSettingsForm({
   settings,
   onSettingsChange,
@@ -93,46 +130,28 @@ export function ReadingSettingsForm({
         <label className="mb-2 block text-sm font-medium text-app-text-secondary">
           Выравнивание текста
         </label>
-        <div className="grid grid-cols-3 gap-2">
-          {alignOptions.map((align) => (
-            <button
-              key={align}
-              type="button"
-              disabled={disabled}
-              onClick={() => {
-                onSettingsChange({ ...settings, text_align: align });
-              }}
-              className={`rounded-lg border-2 px-4 py-2 transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-                settings.text_align === align ? selectedChoice : idleChoice
-              }`}
-            >
-              {align === 'left' ? 'По левому' : align === 'center' ? 'По центру' : 'По ширине'}
-            </button>
-          ))}
-        </div>
+        <ChoiceGroup
+          options={alignOptions}
+          value={settings.text_align}
+          onChange={(align) => onSettingsChange({ ...settings, text_align: align })}
+          labelFor={(align) => (align === 'left' ? 'По левому' : align === 'center' ? 'По центру' : 'По ширине')}
+          disabled={disabled}
+          columns={3}
+        />
       </div>
 
       <div data-section="reader-theme">
         <label className="mb-2 block text-sm font-medium text-app-text-secondary">
           Тема текста при чтении
         </label>
-        <div className="grid grid-cols-2 gap-2">
-          {themeOptions.map((theme) => (
-            <button
-              key={theme.value}
-              type="button"
-              disabled={disabled}
-              onClick={() => {
-                onSettingsChange({ ...settings, theme: theme.value });
-              }}
-              className={`rounded-lg border-2 px-4 py-2 transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-                settings.theme === theme.value ? selectedChoice : idleChoice
-              }`}
-            >
-              {theme.label}
-            </button>
-          ))}
-        </div>
+        <ChoiceGroup
+          options={themeOptions.map((t) => t.value)}
+          value={settings.theme}
+          onChange={(value) => onSettingsChange({ ...settings, theme: value })}
+          labelFor={(value) => themeOptions.find((t) => t.value === value)?.label ?? value}
+          disabled={disabled}
+          columns={2}
+        />
       </div>
 
       <fieldset disabled={disabled} className="space-y-2" data-section="ot-translation">
@@ -147,7 +166,7 @@ export function ReadingSettingsForm({
               <label
                 key={opt.id}
                 htmlFor={inputId}
-                className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 px-3 py-2.5 transition-all has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 ${
+                className={`flex cursor-pointer items-center gap-3 rounded-app-md border-2 px-3 py-2.5 transition-all has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 ${
                   checked
                     ? 'border-app-primary bg-app-primary-light'
                     : 'border-app-border hover:border-app-border-strong'
@@ -195,7 +214,7 @@ export function ReadingSettingsForm({
               <label
                 key={opt.id}
                 htmlFor={inputId}
-                className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 px-3 py-2.5 transition-all has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 ${
+                className={`flex cursor-pointer items-center gap-3 rounded-app-md border-2 px-3 py-2.5 transition-all has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50 ${
                   checked
                     ? 'border-app-primary bg-app-primary-light'
                     : 'border-app-border hover:border-app-border-strong'

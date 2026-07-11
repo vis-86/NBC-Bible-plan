@@ -52,6 +52,11 @@ interface PageHeaderProps {
  *   шрифта и пикером глав/книг; остаётся отдельной.
  * - `SongView` внутренний content-header (title/subtitle/meta внутри `<article>`)
  *   — это заголовок контента песни, а не шапка страницы.
+ * - `PlanView` приветствие (главная) — прозрачный editorial-хедер без bg-app-surface;
+ *   бровь красится отдельной fixed-полоской фоном страницы (см. комментарий в
+ *   PlanView.tsx), а не этим компонентом. Форсировать сюда сломало бы этот
+ *   инвариант и добавило бы белую плашку там, где сейчас приветствие "плавает"
+ *   на фоне страницы.
  *
  * Компонента ЧИСТО презентационная: не обращается к `next/navigation`.
  * Навигацию выполняет вызывающий через колбэк `onBack` — это делает шапку
@@ -103,7 +108,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({
             data-page-header-back
             onClick={onBack}
             aria-label={backAriaLabel}
-            className="rounded-lg p-2 text-app-text-secondary transition-colors hover:bg-app-surface-muted active:scale-95"
+            className="rounded-app-sm p-2 text-app-text-secondary transition-transform duration-150 hover:bg-app-surface-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
           >
             <ArrowLeft size={20} />
           </button>

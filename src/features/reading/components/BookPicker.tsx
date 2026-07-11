@@ -121,7 +121,7 @@ export const BookPicker: React.FC<BookPickerProps> = ({
                   key={chapter}
                   onClick={() => handleChapterClick(chapter)}
                   className={`
-                    aspect-square rounded-lg border-2 flex items-center justify-center text-sm font-bold transition-all
+                    aspect-square rounded-app-sm border-2 flex items-center justify-center text-sm font-bold transition-all
                     ${isCurrent
                       ? 'border-app-primary bg-app-primary-light text-app-primary'
                       : 'border-app-border hover:border-app-border-subtle bg-app-surface text-app-text hover:bg-app-surface-muted'
@@ -173,7 +173,7 @@ export const BookPicker: React.FC<BookPickerProps> = ({
                     key={book.name}
                     onClick={() => handleBookClick(book)}
                     className={`
-                      p-3 rounded-lg border-2 text-left transition-all
+                      p-3 rounded-app-md border-2 text-left transition-all
                       ${isCurrent
                         ? 'border-app-primary bg-app-primary-light text-app-primary font-semibold'
                         : 'border-app-border hover:border-app-border-subtle bg-app-surface text-app-text'
@@ -206,7 +206,7 @@ export const BookPicker: React.FC<BookPickerProps> = ({
                     key={book.name}
                     onClick={() => handleBookClick(book)}
                     className={`
-                      p-3 rounded-lg border-2 text-left transition-all
+                      p-3 rounded-app-md border-2 text-left transition-all
                       ${isCurrent
                         ? 'border-app-primary bg-app-primary-light text-app-primary font-semibold'
                         : 'border-app-border hover:border-app-border-subtle bg-app-surface text-app-text'
