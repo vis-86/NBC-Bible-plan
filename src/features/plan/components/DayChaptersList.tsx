@@ -125,7 +125,7 @@ export const DayChaptersList: React.FC<DayChaptersListProps> = ({
                       onClick={(e) => handleToggle(e, item.item)}
                       aria-pressed={isRead}
                       aria-label={isRead ? 'Снять отметку' : 'Отметить как прочитано'}
-                      className="day-chapters-list-item-checkbox flex-shrink-0 w-10 h-10 -m-2 rounded-full flex items-center justify-center cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2"
+                      className="day-chapters-list-item-checkbox flex-shrink-0 w-11 h-11 -m-2.5 rounded-full flex items-center justify-center cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-400 focus-visible:ring-offset-2"
                     >
                       <span
                         className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${

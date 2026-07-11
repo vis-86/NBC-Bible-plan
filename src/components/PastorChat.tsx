@@ -262,7 +262,11 @@ const PastorChat: React.FC = () => {
       <div className="bg-app-surface px-4 py-3 border-b border-app-border shadow-app-sm z-10 flex flex-col">
         <div className="flex justify-between items-center mb-4">
              <h2 className="text-xl font-bold text-app-text">Наставники</h2>
-             <button onClick={clearChat} className="p-2 bg-app-surface-muted rounded-full text-app-text-secondary hover:bg-app-surface-elevated">
+             <button
+               onClick={clearChat}
+               aria-label="Очистить историю чата"
+               className="p-2 min-h-11 min-w-11 flex items-center justify-center bg-app-surface-muted rounded-full text-app-text-secondary hover:bg-app-surface-elevated focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent"
+             >
                  <RefreshCw size={16} />
              </button>
         </div>
@@ -466,6 +470,7 @@ const PastorChat: React.FC = () => {
           <button
             onClick={handleSendMessage}
             disabled={!input.trim() || isTyping}
+            aria-label="Отправить сообщение"
             className={`p-3 min-h-11 min-w-11 rounded-full flex items-center justify-center transition-transform duration-150 flex-shrink-0 mb-[2px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent ${
               input.trim() && !isTyping
                 ? 'bg-app-accent text-app-text-inverse shadow-app-md active:scale-95'

@@ -162,7 +162,7 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
             data-dashboard-nav-item={item.id}
             data-dashboard-nav-item-active={isActive || undefined}
             onClick={() => handleNav(item)}
-            className="flex flex-col items-center gap-1 p-1.5 w-16 relative group transition-transform active:scale-90"
+            className="flex min-h-11 flex-col items-center justify-center gap-1 p-1.5 w-16 relative group transition-transform duration-150 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary rounded-app-sm"
             aria-current={isActive ? 'page' : undefined}
           >
             <div

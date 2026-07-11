@@ -96,7 +96,7 @@ export function ReadingSettingsForm({
           onChange={(e) => {
             onSettingsChange({ ...settings, font_size: parseInt(e.target.value, 10) });
           }}
-          className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-app-surface-muted accent-app-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-2 w-full cursor-pointer appearance-none rounded-app-sm bg-app-surface-muted accent-app-primary disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2"
         />
         <div className="mt-1 flex justify-between text-xs text-app-text-muted">
           <span>14px</span>
@@ -118,7 +118,7 @@ export function ReadingSettingsForm({
           onChange={(e) => {
             onSettingsChange({ ...settings, line_height: parseFloat(e.target.value) });
           }}
-          className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-app-surface-muted accent-app-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-2 w-full cursor-pointer appearance-none rounded-app-sm bg-app-surface-muted accent-app-primary disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2"
         />
         <div className="mt-1 flex justify-between text-xs text-app-text-muted">
           <span>1.2</span>
@@ -256,19 +256,27 @@ export function ReadingSettingsForm({
         </label>
         <button
           type="button"
+          role="switch"
+          aria-checked={settings.verse_numbers_visible}
+          aria-label="Показывать номера стихов"
           disabled={disabled}
           onClick={() => {
             onSettingsChange({ ...settings, verse_numbers_visible: !settings.verse_numbers_visible });
           }}
-          className={`relative h-6 w-12 rounded-full transition-colors disabled:opacity-50 ${
-            settings.verse_numbers_visible ? 'bg-app-primary' : 'bg-app-surface-muted'
-          }`}
+          className="relative flex h-11 w-14 -mr-1 items-center justify-center rounded-full disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
         >
           <span
-            className={`absolute top-1 left-1 h-4 w-4 rounded-full bg-white shadow-sm ring-1 ring-black/5 transition-transform dark:ring-white/10 ${
-              settings.verse_numbers_visible ? 'translate-x-6' : 'translate-x-0'
+            aria-hidden
+            className={`relative h-6 w-12 rounded-full transition-colors ${
+              settings.verse_numbers_visible ? 'bg-app-primary' : 'bg-app-surface-muted'
             }`}
-          />
+          >
+            <span
+              className={`absolute top-1 left-1 h-4 w-4 rounded-full bg-white shadow-sm ring-1 ring-black/5 transition-transform dark:ring-white/10 ${
+                settings.verse_numbers_visible ? 'translate-x-6' : 'translate-x-0'
+              }`}
+            />
+          </span>
         </button>
       </div>
 
@@ -278,19 +286,27 @@ export function ReadingSettingsForm({
         </label>
         <button
           type="button"
+          role="switch"
+          aria-checked={settings.verse_per_line}
+          aria-label="Каждый стих с новой строки"
           disabled={disabled}
           onClick={() => {
             onSettingsChange({ ...settings, verse_per_line: !settings.verse_per_line });
           }}
-          className={`relative h-6 w-12 rounded-full transition-colors disabled:opacity-50 ${
-            settings.verse_per_line ? 'bg-app-primary' : 'bg-app-surface-muted'
-          }`}
+          className="relative flex h-11 w-14 -mr-1 items-center justify-center rounded-full disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
         >
           <span
-            className={`absolute top-1 left-1 h-4 w-4 rounded-full bg-white shadow-sm ring-1 ring-black/5 transition-transform dark:ring-white/10 ${
-              settings.verse_per_line ? 'translate-x-6' : 'translate-x-0'
+            aria-hidden
+            className={`relative h-6 w-12 rounded-full transition-colors ${
+              settings.verse_per_line ? 'bg-app-primary' : 'bg-app-surface-muted'
             }`}
-          />
+          >
+            <span
+              className={`absolute top-1 left-1 h-4 w-4 rounded-full bg-white shadow-sm ring-1 ring-black/5 transition-transform dark:ring-white/10 ${
+                settings.verse_per_line ? 'translate-x-6' : 'translate-x-0'
+              }`}
+            />
+          </span>
         </button>
       </div>
     </div>

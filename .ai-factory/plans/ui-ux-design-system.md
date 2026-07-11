@@ -71,8 +71,8 @@ Source: .ai-factory/RESEARCH.md (Active Summary)
 <!-- Commit checkpoint: tasks 5-7 -->
 
 ### Phase 4: Эргономика и движение
-- [ ] Task 8: Тач-таргеты ≥44px (BottomNavBar min-h, контролы настроек), focus-visible, aria-label на иконках
-- [ ] Task 9: Микро-взаимодействия — whileTap/active:scale press-отклик, fade+rise entrance ≤250ms out-expo, только transform/opacity, reduced-motion (depends on 5)
+- [x] Task 8: Тач-таргеты ≥44px (BottomNavBar min-h, контролы настроек), focus-visible, aria-label на иконках
+- [x] Task 9: Микро-взаимодействия — whileTap/active:scale press-отклик, fade+rise entrance ≤250ms out-expo, только transform/opacity, reduced-motion (depends on 5)
 <!-- Commit checkpoint: tasks 8-9 -->
 
 ### Phase 5: Верификация и документация

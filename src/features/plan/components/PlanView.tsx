@@ -2,6 +2,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { motion, useReducedMotion } from 'motion/react';
 import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePlanContext } from '../contexts/PlanContext';
 import { ReadingPlanDay, BibleReference } from '@/types';
@@ -47,6 +48,13 @@ export const PlanView: React.FC<PlanViewProps> = ({
   const [selectedWeek, setSelectedWeek] = useState<number>(1);
   const prevCompletedDaysRef = useRef<Set<number>>(new Set());
   const isInitializedRef = useRef<boolean>(false);
+  const reduceMotion = useReducedMotion();
+  // Fade+rise entrance for the three dashboard cards below, staggered ≤3 steps.
+  const entrance = (i: number) => ({
+    initial: reduceMotion ? false : { opacity: 0, y: 8 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.25, delay: reduceMotion ? 0 : i * 0.06, ease: [0.16, 1, 0.3, 1] as const },
+  });
 
   const filteredPlan = useMemo(() => plan.filter(d => d.id > 0), [plan]);
 
@@ -280,17 +288,19 @@ export const PlanView: React.FC<PlanViewProps> = ({
       />
 
       {selectedDay && (
-        <TodayReadingCard
-          day={selectedDay}
-          totalDays={filteredPlan.length}
-          isToday={selectedDayId === todayDayNumber}
-          yearProgress={yearProgressPercent}
-          onToggleItem={onToggleItem}
-          onSelectReading={onSelectReading}
-          onStartReading={handleStartReading}
-          onMarkAllRead={handleMarkAllRead}
-          markAllReadDisabled={isPending}
-        />
+        <motion.div {...entrance(0)}>
+          <TodayReadingCard
+            day={selectedDay}
+            totalDays={filteredPlan.length}
+            isToday={selectedDayId === todayDayNumber}
+            yearProgress={yearProgressPercent}
+            onToggleItem={onToggleItem}
+            onSelectReading={onSelectReading}
+            onStartReading={handleStartReading}
+            onMarkAllRead={handleMarkAllRead}
+            markAllReadDisabled={isPending}
+          />
+        </motion.div>
       )}
 
       <div className="px-4 mb-6">
@@ -318,7 +328,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
       </div>
 
       <section data-plan-view-sections className="px-4 mb-6 grid grid-cols-1 gap-4">
-        <div data-weekly-reading className="bg-app-surface p-5 rounded-app-xl border border-app-border shadow-app-sm">
+        <motion.div {...entrance(1)} data-weekly-reading className="bg-app-surface p-5 rounded-app-xl border border-app-border shadow-app-sm">
           <div data-weekly-reading-header className="flex items-center gap-4 mb-4">
             <div className="w-12 h-12 rounded-app-lg bg-app-primary-light flex items-center justify-center text-app-primary flex-shrink-0" aria-hidden>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
@@ -387,9 +397,11 @@ export const PlanView: React.FC<PlanViewProps> = ({
                 <div data-weekly-reading-empty className="text-xs text-app-text-muted py-2">Нет чтений для этой недели.</div>
               )}
           </div>
-        </div>
+        </motion.div>
 
-        <VerseOfTheDay />
+        <motion.div {...entrance(2)}>
+          <VerseOfTheDay />
+        </motion.div>
       </section>
 
       <CompletionModal

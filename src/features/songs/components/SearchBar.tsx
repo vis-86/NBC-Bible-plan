@@ -35,7 +35,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, placeholder = '�
         onChange={(e) => setText(e.target.value)}
         placeholder={placeholder}
         aria-label="Поиск песни"
-        className="w-full rounded-xl border border-app-border bg-app-surface py-2.5 pl-10 pr-10 text-app-text placeholder:text-app-text-muted outline-none transition-colors focus:border-app-primary"
+        className="w-full rounded-app-md border border-app-border bg-app-surface py-2.5 pl-10 pr-11 text-app-text placeholder:text-app-text-muted outline-none transition-colors focus:border-app-primary"
       />
       {text && (
         <button
@@ -43,7 +43,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, placeholder = '�
           data-song-search-clear
           onClick={() => setText('')}
           aria-label="Очистить поиск"
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-app-text-muted transition-colors hover:text-app-text-secondary"
+          className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-app-text-muted transition-colors hover:text-app-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary rounded-r-app-md"
         >
           <X size={18} />
         </button>

@@ -423,13 +423,13 @@ select,
 }
 
 .animate-slide-up {
-    animation: slide-up 0.3s ease-out;
+    animation: slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Modal scale-in animation */
 @keyframes scale-in {
     from {
-        transform: scale(0.9);
+        transform: scale(0.95);
         opacity: 0;
     }
     to {
@@ -439,7 +439,14 @@ select,
 }
 
 .animate-scale-in {
-    animation: scale-in 0.3s ease-out;
+    animation: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-slide-up,
+  .animate-scale-in {
+    animation: none;
+  }
 }
 
 /* Completion modal progress fill */

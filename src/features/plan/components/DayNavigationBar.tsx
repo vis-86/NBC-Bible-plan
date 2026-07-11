@@ -424,7 +424,7 @@ export const DayNavigationBar: React.FC<DayNavigationBarProps> = ({
             'bg-app-primary text-app-text-inverse',
             'text-xs font-bold tracking-wide',
             'shadow-app-sm transition-all duration-200',
-            'hover:scale-105 hover:shadow-app-md active:scale-95',
+            'hover:scale-105 hover:shadow-app-md active:scale-[0.97]',
             todayIsRight ? 'ml-1 pl-1 pr-1.5' : 'mr-1 pl-1.5 pr-1',
           )}
         >

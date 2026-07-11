@@ -75,7 +75,7 @@ export const FloatingChapterNav: React.FC<FloatingChapterNavProps> = ({
         disabled={!canPrev}
         aria-label="Предыдущая глава"
         data-testid="floating-nav-prev"
-        className={`pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full backdrop-blur-md active:scale-90 disabled:opacity-20 transition-all ${theme.surface}`}
+        className={`pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full backdrop-blur-md active:scale-90 disabled:opacity-20 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary ${theme.surface}`}
       >
         <ChevronLeft size={26} strokeWidth={1.5} />
       </button>
@@ -85,7 +85,7 @@ export const FloatingChapterNav: React.FC<FloatingChapterNavProps> = ({
         disabled={!isPlanMode && !canNext}
         aria-label={isComplete ? 'Завершить день' : 'Следующая глава'}
         data-testid="floating-nav-next"
-        className={`pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full shadow-md active:scale-95 disabled:opacity-20 transition-all ${theme.cta}`}
+        className={`pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full shadow-md active:scale-95 disabled:opacity-20 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-app-primary ${theme.cta}`}
       >
         {isComplete ? <Check size={24} strokeWidth={2.5} /> : <ChevronRight size={24} strokeWidth={2.5} />}
       </button>
