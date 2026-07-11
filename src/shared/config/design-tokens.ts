@@ -32,9 +32,9 @@ export const text = {
   primary: 'text-app-text',
   /** Secondary text: stone-600 */
   secondary: 'text-app-text-secondary',
-  /** Muted text: stone-400 */
+  /** Muted (secondary/helper) text: stone-500, AA-compliant on bg/surface */
   muted: 'text-app-text-muted',
-  /** Subtle text: stone-300 */
+  /** Subtle text — decorative only (disabled/aria-hidden), not body text */
   subtle: 'text-app-text-subtle',
   /** Inverse text (on dark backgrounds): white */
   inverse: 'text-app-text-inverse',
@@ -101,6 +101,20 @@ export const shadow = {
   card: 'shadow-app-card',
 } as const;
 
+// ─── Radii ────────────────────────────────────────────────────────────────────
+
+/**
+ * Nesting rule: outer > inner. Pick the parent's radius, then a strictly
+ * smaller one for elements nested inside it (e.g. card = lg, button inside = sm/md).
+ */
+export const radius = {
+  sm: 'rounded-app-sm',
+  md: 'rounded-app-md',
+  lg: 'rounded-app-lg',
+  xl: 'rounded-app-xl',
+  card: 'rounded-app-card',
+} as const;
+
 // ─── Composite token object ───────────────────────────────────────────────────
 
 /**
@@ -118,4 +132,5 @@ export const tokens = {
   missed,
   border,
   shadow,
+  radius,
 } as const;

@@ -27,8 +27,8 @@
   /* ── Text ────────────────────────────────────────────────────────── */
   --app-text: #1c1917;             /* stone-900 */
   --app-text-secondary: #57534e;   /* stone-600 */
-  --app-text-muted: #a8a29e;       /* stone-400 */
-  --app-text-subtle: #d6d3d1;      /* stone-300 */
+  --app-text-muted: #78716c;       /* stone-500 (AA: 4.6:1+ on bg/surface, was stone-400 at 2.5:1) */
+  --app-text-subtle: #d6d3d1;      /* stone-300 (decorative only — disabled/aria-hidden, not body text) */
   --app-text-inverse: #ffffff;
 
   /* ── Primary — Indigo (plan / navigation) ────────────────────────── */
@@ -63,11 +63,23 @@
   --app-border-strong: rgba(0,0,0,0.12);
 
   /* ── Shadows ─────────────────────────────────────────────────────── */
-  --app-shadow-sm: 0 1px 3px rgba(0,0,0,0.06);
-  --app-shadow-md: 0 4px 16px rgba(0,0,0,0.08);
+  /* Soft, layered — two low-opacity layers instead of one harsh shadow-md,
+     so surfaces read as "lifted" rather than boxed. */
+  --app-shadow-sm: 0 1px 2px rgba(15,23,42,0.04), 0 1px 1px rgba(15,23,42,0.03);
+  --app-shadow-md: 0 8px 24px rgba(15,23,42,0.06), 0 2px 6px rgba(15,23,42,0.04);
   /* Bottom-weighted with negative spread so horizontal reach (~14px) fits the
      card's 16px gutter and isn't clipped by the plan-view overflow container. */
-  --app-shadow-card: 0 14px 28px -14px rgba(15,23,42,0.28);
+  --app-shadow-card: 0 20px 40px -18px rgba(15,23,42,0.22), 0 8px 16px -8px rgba(15,23,42,0.10);
+
+  /* ── Radii ───────────────────────────────────────────────────────────────
+     Nesting rule: an inner element's radius must be strictly smaller than its
+     parent's (outer > inner) — e.g. a rounded-app-md card with rounded-app-sm
+     buttons inside, never the same value on both. Base/default is md (12px). */
+  --app-radius-sm: 8px;
+  --app-radius-md: 12px;
+  --app-radius-lg: 16px;
+  --app-radius-xl: 24px;
+  --app-radius-card: 28px;
 }
 
 [data-theme="dark"] {
@@ -119,10 +131,13 @@
   --app-border-strong: rgba(255,255,255,0.15);
 
   /* ── Shadows ─────────────────────────────────────────────────────── */
-  --app-shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
-  --app-shadow-md: 0 4px 16px rgba(0,0,0,0.4);
+  /* Black shadows barely read on a dark bg — elevation here leans on the
+     surface/surface-elevated tone step (see --app-surface-elevated above);
+     shadows stay subtle and mostly reinforce depth at the card's edge. */
+  --app-shadow-sm: 0 1px 2px rgba(0,0,0,0.35), 0 1px 1px rgba(0,0,0,0.2);
+  --app-shadow-md: 0 8px 24px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.25);
   /* Bottom-weighted with negative spread — see light theme note above. */
-  --app-shadow-card: 0 14px 28px -14px rgba(0,0,0,0.7);
+  --app-shadow-card: 0 20px 40px -18px rgba(0,0,0,0.6), 0 8px 16px -8px rgba(0,0,0,0.35);
 }
 
 @layer utilities {
@@ -193,10 +208,17 @@
   --shadow-app-lg: var(--app-shadow-md);
   --shadow-app-card: var(--app-shadow-card);
 
+  /* ── Radius utilities (rounded-app-*) ───────────────────────────── */
+  --radius-app-sm: var(--app-radius-sm);
+  --radius-app-md: var(--app-radius-md);
+  --radius-app-lg: var(--app-radius-lg);
+  --radius-app-xl: var(--app-radius-xl);
+  --radius-app-card: var(--app-radius-card);
+
   /* ── Fonts ───────────────────────────────────────────────────────── */
-  --font-sans: var(--font-plus-jakarta), var(--font-geist-sans), ui-sans-serif, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, sans-serif;
   --font-mono: var(--font-geist-mono);
-  --font-serif: var(--font-lora), ui-serif, serif;
+  --font-serif: var(--font-literata), ui-serif, serif;
 }
 
 /* Fallback when data-theme is not set yet (e.g. before hydration or no JS) */
@@ -210,7 +232,7 @@
 body {
   background: var(--app-bg);
   color: var(--app-text);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
 }
 
 /* Protection against accidental swipe-to-close in Telegram Mini App */
