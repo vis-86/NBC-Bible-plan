@@ -2,7 +2,7 @@
 name: best-practices-sidecar
 description: Read-only background best-practices sidecar for the current implementation scope. Use from implement-coordinator after code changes when a concise maintainability review is needed.
 tools: Read, Glob, Grep
-model: inherit
+model: sonnet
 permissionMode: acceptEdits
 background: true
 maxTurns: 6

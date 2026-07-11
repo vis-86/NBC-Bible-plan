@@ -2,7 +2,7 @@
 name: plan-polisher
 description: Create or refresh an /aif-plan plan, critique it, and run one refinement round at most. The caller launches another plan-polisher for further iterations if needed.
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: inherit
+model: opus
 permissionMode: acceptEdits
 maxTurns: 20
 skills:

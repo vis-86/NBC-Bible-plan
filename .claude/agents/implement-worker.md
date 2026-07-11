@@ -2,7 +2,7 @@
 name: implement-worker
 description: Execute a single plan task in an isolated worktree — implement, verify, and return. Spawned by implement-coordinator for parallel task execution. Cannot spawn child agents — runs quality checks locally.
 tools: Read, Write, Edit, Glob, Grep, Bash
-model: inherit
+model: sonnet
 isolation: worktree
 maxTurns: 16
 permissionMode: acceptEdits

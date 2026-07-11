@@ -2,7 +2,7 @@
 name: review-sidecar
 description: Read-only background code review sidecar for the current implementation scope. Use from implement-coordinator after code changes when a concise bug-risk review is needed.
 tools: Read, Glob, Grep
-model: inherit
+model: sonnet
 permissionMode: acceptEdits
 background: true
 maxTurns: 6

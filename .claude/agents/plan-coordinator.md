@@ -2,7 +2,7 @@
 name: plan-coordinator
 description: Iteratively polish a plan by launching plan-polisher in a loop until critique passes or max iterations reached. Use via `claude --agent plan-coordinator`.
 tools: Agent(plan-polisher), Read, Glob, Grep, Bash, mcp__handoff__handoff_sync_status, mcp__handoff__handoff_push_plan, mcp__handoff__handoff_get_task, mcp__handoff__handoff_list_tasks, mcp__handoff__handoff_update_task
-model: inherit
+model: opus
 maxTurns: 30
 permissionMode: acceptEdits
 ---

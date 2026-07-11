@@ -2,7 +2,7 @@
 name: implement-coordinator
 description: Coordinate parallel execution of independent plan tasks. For single tasks — implements directly with quality sidecars. For parallel tasks — dispatches implement-worker workers. Use via `claude --agent implement-coordinator`.
 tools: Agent(implement-worker, best-practices-sidecar, commit-preparer, docs-auditor, review-sidecar, security-sidecar, rules-sidecar), Read, Write, Edit, Glob, Grep, Bash, mcp__handoff__handoff_sync_status, mcp__handoff__handoff_push_plan, mcp__handoff__handoff_get_task, mcp__handoff__handoff_list_tasks, mcp__handoff__handoff_update_task
-model: inherit
+model: sonnet
 maxTurns: 30
 permissionMode: acceptEdits
 skills:

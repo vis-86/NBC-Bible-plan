@@ -2,7 +2,7 @@
 name: rules-sidecar
 description: Read-only background rules compliance sidecar for the current implementation scope. Use from implement-coordinator after code changes when a concise rules check is needed.
 tools: Read, Glob, Grep
-model: inherit
+model: sonnet
 permissionMode: acceptEdits
 background: true
 maxTurns: 6
