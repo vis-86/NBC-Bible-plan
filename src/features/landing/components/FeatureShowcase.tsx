@@ -23,7 +23,7 @@ const SECTIONS: ShowcaseSection[] = [
       'Отметьте пропущенные дни разом',
       'Видно, где вы в плане — идите дальше',
     ],
-    screenshots: ['screen-plan.jpg'],
+    screenshots: ['screen-plan.webp'],
   },
   {
     id: 'reader',
@@ -33,19 +33,19 @@ const SECTIONS: ShowcaseSection[] = [
       'Светлая, тёмная тема и сепия',
       'Быстрый переход к любой книге и главе',
     ],
-    screenshots: ['screen-reader.jpg'],
+    screenshots: ['screen-reader.webp'],
   },
   {
     id: 'songs',
     title: 'Песни собрания',
     bullets: ['Аккорды над текстом', 'Быстрый поиск по названию', 'Крупный удобный шрифт'],
-    screenshots: ['screen-song-view.jpg', 'screen-song-list-view.jpg'],
+    screenshots: ['screen-song-view.webp', 'screen-song-list-view.webp'],
   },
   {
     id: 'offline',
     title: 'Всегда с собой — даже без сети',
     bullets: ['Скачайте один раз', 'Читайте офлайн — в метро, в дороге', 'Прогресс синхронизируется сам'],
-    screenshots: ['screen-offline.png'],
+    screenshots: ['screen-offline.webp'],
   },
 ];
 
