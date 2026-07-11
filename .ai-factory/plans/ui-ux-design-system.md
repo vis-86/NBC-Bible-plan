@@ -76,6 +76,6 @@ Source: .ai-factory/RESEARCH.md (Active Summary)
 <!-- Commit checkpoint: tasks 8-9 -->
 
 ### Phase 5: Верификация и документация
-- [ ] Task 10: lint + тесты + build + precache-бюджет + визуальная проверка Chrome 375px (light/dark/sepia, verse-per-line, плотные аккорды) + чек-лист ui-ux-pro-max (depends on 3-9)
-- [ ] Task 11: Docs-чекпойнт — `docs/design-system.md` через /aif-docs, обновить DESCRIPTION.md (depends on 10)
+- [x] Task 10: lint + тесты + build + precache-бюджет + визуальная проверка Chrome 375px (light/dark/sepia, verse-per-line, плотные аккорды) + чек-лист ui-ux-pro-max (depends on 3-9) — build/lint/376 тестов зелёные, precache 6.53MB (лимит 15MB, шрифтов 3 вместо 4); живая проверка в Chrome невозможна: локальный BFF падает без SESSION_SECRET, DIRECTUS_URL ведёт в никуда (ECONNREFUSED, локальный Directus не поднят) — по решению Игоря пропущено, визуально экраны смотрит он сам
+- [x] Task 11: Docs-чекпойнт — `docs/design-system.md` через /aif-docs, обновить DESCRIPTION.md (depends on 10)
 <!-- Commit checkpoint: tasks 10-11 -->

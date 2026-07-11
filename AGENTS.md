@@ -178,6 +178,7 @@ See `ENV_SETUP.md` for full reference. Critical vars:
 | README | README.md | Project landing page |
 | Getting Started | docs/getting-started.md | Installation, setup, first run |
 | Architecture | docs/architecture.md | FSD structure, patterns, layers |
+| Design System | docs/design-system.md | Fonts, tokens (radius/shadow/color), Button/Card primitives, animation |
 | Configuration | docs/configuration.md | Environment variables reference |
 | Authentication | docs/authentication.md | Invite+password, church-code registration, Telegram link, sessions, PWA |
 | Deployment | docs/deployment.md | Static export + Hono BFF, Docker Compose, deploy.sh |

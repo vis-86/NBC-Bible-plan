@@ -1,4 +1,4 @@
-[← Быстрый старт](getting-started.md) · [Back to README](../README.md) · [Конфигурация →](configuration.md)
+[← Быстрый старт](getting-started.md) · [Back to README](../README.md) · [Дизайн-система →](design-system.md)
 
 # Архитектура
 

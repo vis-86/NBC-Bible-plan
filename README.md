@@ -43,6 +43,7 @@ npm run dev
 |-------------|----------|
 | [Быстрый старт](docs/getting-started.md) | Установка, настройка, первый запуск |
 | [Архитектура](docs/architecture.md) | FSD-структура, паттерны, слои |
+| [Дизайн-система](docs/design-system.md) | Шрифты, токены (радиусы/тени/цвета), примитивы Button/Card, анимация |
 | [Конфигурация](docs/configuration.md) | Переменные окружения, настройки |
 | [Аутентификация](docs/authentication.md) | Invite+пароль, код церкви, Telegram-привязка, сессии, PWA |
 | [Offline PWA](docs/offline-pwa.md) | Service worker, IndexedDB, write-ahead outbox, sync, offline-загрузка |

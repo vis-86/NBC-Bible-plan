@@ -1,0 +1,101 @@
+[← Архитектура](architecture.md) · [Back to README](../README.md) · [Конфигурация →](configuration.md)
+
+# Дизайн-система
+
+Справочник для волонтёра, который добавляет новый экран или компонент. Токены живут в
+`src/app/globals.css` (`@theme inline`), примитивы — в `src/shared/components/ui/`.
+
+## Шрифты
+
+Три семейства через `next/font/google` (`src/app/layout.tsx`), self-hosted (обязательно
+для static export + Serwist precache):
+
+| Шрифт | CSS-переменная | Utility-класс | Где используется |
+|-------|-----------------|---------------|-------------------|
+| Inter | `--font-inter` | `font-sans` (default) | UI: кнопки, заголовки, формы |
+| Literata | `--font-literata` | `font-serif` | Длинное чтение: текст Библии, тексты песен |
+| Geist Mono | `--font-geist-mono` | `font-mono` | Аккорды и цифры (моноширинное выравнивание) |
+
+Добавляя новый экран — не задавайте `font-family` вручную, используйте `font-sans`
+(по умолчанию на `<body>`) или `font-serif` для контентных блоков длинного чтения.
+
+## Токены
+
+Все цвета, радиусы и тени — CSS-переменные с префиксом `--app-*` в `globals.css`,
+промаппленные в Tailwind-утилиты через `@theme inline`. Не хардкодьте цвета
+(`bg-gray-100`, `#fff` и т.п.) — только токены. Утилиты также собраны как строки
+в `src/shared/config/design-tokens.ts` (`tokens.bg`, `tokens.text`, `tokens.radius`, …)
+для типобезопасного импорта.
+
+### Радиусы (`rounded-app-*`)
+
+Правило вложенности: внутренний элемент **строго меньше** радиуса родителя.
+
+| Утилита | Значение | Типичное применение |
+|---------|----------|----------------------|
+| `rounded-app-sm` | 8px | Мелкие контролы: nav-кнопки, иконки-кнопки |
+| `rounded-app-md` | 12px (базовый) | Карточки списков, выбираемые строки, инпуты |
+| `rounded-app-lg` | 16px | CTA-баннеры, крупные иконки-плашки |
+| `rounded-app-xl` | 24px | Крупные карточки-секции |
+| `rounded-app-card` | 28px | Самые крупные карточки-«герои» (см. `TodayReadingCard`) |
+
+### Тени (`shadow-app-*`)
+
+`shadow-app-sm` / `shadow-app-md` / `shadow-app-card` — мягкие многослойные тени
+(две полупрозрачные тени вместо одной жёсткой), отдельные значения для light/dark
+(в dark чёрные тени малоразличимы на тёмном фоне — акцент на подъём через
+`bg-app-surface-elevated`, а не через shadow).
+
+### Контраст текста
+
+`text-app-text-muted` (вспомогательный текст) подобран под AA (≥4.5:1 на
+`bg-app-bg`/`bg-app-surface` в обеих темах). `text-app-text-subtle` — **декоративный
+маркер** (disabled-состояния, `aria-hidden`), не для основного текста — его контраст
+ниже порога специально.
+
+## Примитивы (`src/shared/components/ui/`)
+
+- **`Button`** — варианты `primary`/`secondary`/`ghost`/`inverse`/`danger`, размеры
+  `sm`/`md`/`lg` (md/lg ≥44px по высоте — Fitts), pill-форма (`rounded-full`),
+  press-отклик (`active:scale-[0.97]`), `focus-visible` ring.
+- **`Card`** — варианты `surface`/`elevated`, `rounded-app-card`, разделение тоном
+  фона вместо жёсткой рамки.
+- **`PageHeader`** (`src/shared/components/layout/`) — единая шапка экрана,
+  `variant="page"` (top-level таб) / `variant="view"` (экран с «назад»). НЕ
+  используйте для: `ReadingHeader` (независимая тема ридера light/dark/sepia),
+  `SongView`-контент-хедера (заголовок песни внутри `<article>`, не шапка страницы),
+  greeting-хедера `PlanView` (прозрачный editorial-блок, бровь красится отдельно —
+  см. комментарий в `PageHeader.tsx`).
+
+Прежде чем писать новый `<button>`/карточку с нуля — проверьте, не решает ли задачу
+`Button`/`Card`.
+
+## Тач-таргеты
+
+Каждый интерактивный элемент — ≥44×44px область клика (не обязательно визуальный
+размер: используйте padding/hit-area трюк, как в `SearchBar` clear-кнопке или
+переключателях в `ReadingSettingsForm` — маленький визуальный track внутри
+увеличенной прозрачной кнопки). Иконки-кнопки без видимого текста — обязателен
+`aria-label`.
+
+## Анимация
+
+Дисциплина: только `transform`/`opacity` (никаких `width`/`height`/`top` — не
+триггерят layout, честные 60fps). Entrance — fade+rise (`opacity: 0, y: 8 → 1, 0`),
+easing out-expo (`cubic-bezier(0.16, 1, 0.3, 1)`), ≤250ms, каскад ≤3 элементов
+(пример: три карточки дашборда в `PlanView`). Press-отклик — `active:scale-[0.97]`
+(CSS) или `whileTap={{ scale: 0.97 }}` (`motion`-компоненты).
+
+`prefers-reduced-motion` уважается **везде**: `useReducedMotion()` из `motion/react`
+для motion-компонентов, `@media (prefers-reduced-motion: reduce)` для CSS-keyframes.
+Не удаляйте существующие гарды.
+
+**Исключение — `DayNavigationBar`:** perf-critical компонент (React.memo +
+`useTransform` на scroll position). Меняйте там только визуальные пропсы (цвета,
+радиусы) — не трогайте wiring мемоизации/трансформов.
+
+## See Also
+
+- [Архитектура](architecture.md) — FSD-структура, слои, паттерны
+- [Конфигурация](configuration.md) — переменные окружения
+- [Offline PWA](offline-pwa.md) — precache-бюджет шрифтов и static export

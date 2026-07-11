@@ -28,7 +28,8 @@ Web application for the New Baptist Church (NBC) community — a structured Bibl
 - **Frontend:** Next.js 16 (App Router, `output: 'export'` — static, no server runtime) + React 19
 - **API:** Hono BFF (`server/`) — separate Node process (`tsx`, no build step), was `src/app/api/**` before the static-export migration
 - **Service Worker:** `@serwist/build` — build-time precache manifest (`scripts/build-sw.ts` → `out/sw.js`)
-- **Styling:** Tailwind CSS v4 + custom CSS variables
+- **Styling:** Tailwind CSS v4 + custom CSS variables (design tokens — colors, radius scale, shadows; see `docs/design-system.md`)
+- **Fonts:** Inter (UI) + Literata (long-form reading: Bible text, song lyrics) + Geist Mono (chords/numbers), self-hosted via `next/font/google`
 - **Animation:** Framer Motion (`motion` package)
 - **Icons:** Lucide React
 - **UI Components:** shadcn/ui (components.json configured)

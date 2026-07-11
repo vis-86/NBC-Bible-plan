@@ -1,4 +1,4 @@
-[← Архитектура](architecture.md) · [Back to README](../README.md) · [Аутентификация →](authentication.md)
+[← Дизайн-система](design-system.md) · [Back to README](../README.md) · [Аутентификация →](authentication.md)
 
 # Конфигурация
 
