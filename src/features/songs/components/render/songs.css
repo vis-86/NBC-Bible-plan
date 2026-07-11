@@ -7,7 +7,8 @@
   background-color: var(--app-bg);
   color: var(--app-text);
   border: none;
-  font-family: Verdana, Arial, Helvetica, sans-serif;
+  font-family: var(--font-serif);
+  font-size: 17px;
   overflow: visible;
 }
 
@@ -41,7 +42,7 @@
 
 .cproSongLine {
   display: block;
-  line-height: 1.1em;
+  line-height: 1.5;
   padding-top: .2em;
   letter-spacing: 0.1px !important;
 }
@@ -67,7 +68,7 @@
 }
 
 .cproSongLine .chordWrapper .chord {
-  font-family: Verdana, Arial, Helvetica, sans-serif;
+  font-family: var(--font-mono);
   color: var(--app-primary);
   background-color: transparent;
   border: none;
@@ -289,6 +290,7 @@ code.chord {
   margin-bottom: 1rem;
 }
 .song-view-title {
+  font-family: var(--font-sans);
   font-size: 1.5rem;
   font-weight: 700;
   color: var(--app-text);
@@ -296,6 +298,7 @@ code.chord {
   line-height: 1.2;
 }
 .song-view-subtitle {
+  font-family: var(--font-sans);
   font-size: 0.95rem;
   color: var(--app-text-secondary);
   margin: 0.25rem 0 0;
@@ -304,11 +307,12 @@ code.chord {
   display: inline-block;
   margin-top: 0.5rem;
   padding: 0.15em 0.6em;
+  font-family: var(--font-sans);
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--app-primary);
   background-color: var(--app-primary-muted);
-  border-radius: 999px;
+  border-radius: var(--app-radius-xl);
 }
 .song-blocks-layout {
   display: flex;

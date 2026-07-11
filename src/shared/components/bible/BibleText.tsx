@@ -26,15 +26,21 @@ export const BibleText: React.FC<BibleTextProps> = ({ text, settings, displayThe
   const firstVerseNum = markedText.match(/\*\*(\d+)\*\*/)?.[1] ?? null;
 
   return (
-    <article className="prose prose-stone prose-lg">
-      <ReactMarkdown 
+    <article
+      className="prose prose-stone prose-lg"
+      style={{
+        '--reading-font-size': `${settings.font_size}px`,
+        '--reading-line-height': settings.line_height,
+      } as React.CSSProperties}
+    >
+      <ReactMarkdown
         components={{
           p: ({ children }) => (
             <p
-              className={`mb-6 ${textColorClass} font-serif ${textAlignClass}`}
+              className={`mb-7 ${textColorClass} font-serif ${textAlignClass}`}
               style={{
-                fontSize: `${settings.font_size}px`,
-                lineHeight: settings.line_height
+                fontSize: 'var(--reading-font-size)',
+                lineHeight: 'var(--reading-line-height)',
               }}
             >{children}</p>
           ),
@@ -54,7 +60,7 @@ export const BibleText: React.FC<BibleTextProps> = ({ text, settings, displayThe
               }
               return <>{verseBreak}<strong data-verse={verseNum} className="font-bold">{children}</strong></>;
             }
-            return <span className="text-red-600 font-sans text-[0.55em] font-bold mr-1 -ml-2 -mt-1 align-top select-none opacity-60 relative top-[-2px]">{children}</span>;
+            return <span className="text-app-accent font-sans text-[0.55em] font-semibold mr-1 -ml-2 align-top select-none opacity-70 relative top-[-1px]">{children}</span>;
           }
         }}
       >
