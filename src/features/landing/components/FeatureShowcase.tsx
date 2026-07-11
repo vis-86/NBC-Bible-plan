@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { Check } from 'lucide-react';
 import { getBasePath } from '@/lib/utils';
@@ -10,7 +10,8 @@ interface ShowcaseSection {
   id: 'plan' | 'reader' | 'songs' | 'offline';
   title: string;
   bullets: string[];
-  screenshot: string;
+  /** Несколько файлов — автоматический кросс-фейд между кадрами (список ↔ деталь). */
+  screenshots: string[];
 }
 
 const SECTIONS: ShowcaseSection[] = [
@@ -22,7 +23,7 @@ const SECTIONS: ShowcaseSection[] = [
       'Отметьте пропущенные дни разом',
       'Видно, где вы в плане — идите дальше',
     ],
-    screenshot: 'screen-plan.png',
+    screenshots: ['screen-plan.jpg'],
   },
   {
     id: 'reader',
@@ -32,25 +33,37 @@ const SECTIONS: ShowcaseSection[] = [
       'Светлая, тёмная тема и сепия',
       'Быстрый переход к любой книге и главе',
     ],
-    screenshot: 'screen-reader.png',
+    screenshots: ['screen-reader.jpg'],
   },
   {
     id: 'songs',
     title: 'Песни собрания',
     bullets: ['Аккорды над текстом', 'Быстрый поиск по названию', 'Крупный удобный шрифт'],
-    screenshot: 'screen-song-view.png',
+    screenshots: ['screen-song-view.jpg', 'screen-song-list-view.jpg'],
   },
   {
     id: 'offline',
     title: 'Всегда с собой — даже без сети',
     bullets: ['Скачайте один раз', 'Читайте офлайн — в метро, в дороге', 'Прогресс синхронизируется сам'],
-    screenshot: 'screen-offline.png',
+    screenshots: ['screen-offline.png'],
   },
 ];
 
-const ShowcaseScreenshot: React.FC<{ src: string; alt: string }> = ({ src, alt }) => {
+/** Интервал автосмены кадров, когда у секции несколько скриншотов. */
+const ROTATE_INTERVAL_MS = 4000;
+
+const ShowcaseScreenshot: React.FC<{ srcs: string[]; alt: string }> = ({ srcs, alt }) => {
   const [failed, setFailed] = useState(false);
+  const [active, setActive] = useState(0);
   const basePath = getBasePath();
+
+  // Кросс-фейд list ↔ detail: чистая смена opacity (без движения), поэтому
+  // допустим и при reduced-motion. Один кадр — таймер не нужен.
+  useEffect(() => {
+    if (srcs.length < 2 || failed) return;
+    const timer = setInterval(() => setActive((i) => (i + 1) % srcs.length), ROTATE_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [srcs.length, failed]);
 
   return (
     <div className="relative mx-auto w-[240px] overflow-hidden rounded-[32px] border-[6px] border-[#0f0e0d] bg-app-bg shadow-app-card sm:w-[260px]">
@@ -60,16 +73,25 @@ const ShowcaseScreenshot: React.FC<{ src: string; alt: string }> = ({ src, alt }
           className="aspect-[390/844] w-full bg-gradient-to-br from-app-primary-light to-app-surface-muted"
         />
       ) : (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={`${basePath}/landing/${src}`}
-          alt={alt}
-          width={390}
-          height={844}
-          loading="lazy"
-          className="aspect-[390/844] w-full object-cover object-top"
-          onError={() => setFailed(true)}
-        />
+        <div className="relative aspect-[390/844] w-full">
+          {srcs.map((src, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={src}
+              src={`${basePath}/landing/${src}`}
+              alt={i === 0 ? alt : ''}
+              aria-hidden={i !== active}
+              width={390}
+              height={844}
+              loading="lazy"
+              className={
+                'absolute inset-0 h-full w-full object-cover object-top transition-opacity duration-700 ' +
+                (i === active ? 'opacity-100' : 'opacity-0')
+              }
+              onError={() => i === 0 && setFailed(true)}
+            />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -85,7 +107,7 @@ export const FeatureShowcase: React.FC = () => {
   return (
     <section className="py-16 sm:py-24" data-feature-showcase>
       <div className="flex flex-col gap-20 sm:gap-28">
-        {SECTIONS.map(({ id, title, bullets, screenshot }, index) => {
+        {SECTIONS.map(({ id, title, bullets, screenshots }, index) => {
           const reversed = index % 2 === 1;
           return (
             <motion.div
@@ -114,7 +136,7 @@ export const FeatureShowcase: React.FC = () => {
                 </ul>
               </div>
 
-              <ShowcaseScreenshot src={screenshot} alt={title} />
+              <ShowcaseScreenshot srcs={screenshots} alt={title} />
             </motion.div>
           );
         })}

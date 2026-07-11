@@ -93,7 +93,7 @@ export const PhoneMockup: React.FC = () => {
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`${basePath}/landing/hero-app.png`}
+            src={`${basePath}/landing/hero-app.jpg`}
             alt="Экран приложения: план чтения на сегодня с прогрессом"
             width={780}
             height={1688}

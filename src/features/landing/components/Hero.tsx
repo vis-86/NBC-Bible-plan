@@ -33,13 +33,13 @@ export const Hero: React.FC = () => {
         initial={reduceMotion ? false : 'hidden'}
         animate="show"
       >
-        <motion.span
+        {!isRegisterEnabled() && <motion.span
           variants={rise}
           className="inline-flex items-center gap-2 rounded-full border border-app-border bg-app-surface/70 px-4 py-2 text-[13px] font-semibold text-app-text-secondary backdrop-blur"
         >
           <span className="h-1.5 w-1.5 rounded-full bg-app-success" />
-          {isRegisterEnabled() ? 'Бесплатно. Без рекламы и спешки' : 'Доступ — по приглашению от церкви'}
-        </motion.span>
+          Доступ — по приглашению от церкви
+        </motion.span>}
 
         <motion.h1
           variants={rise}

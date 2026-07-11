@@ -241,8 +241,10 @@ export const InstallGuide: React.FC = () => {
             )}
           </div>
 
-          {/* Видео-инструкция (появляется, только если файл существует) */}
-          <InstallVideo platform={active} />
+          {/* Видео-инструкция (появляется, только если файл существует).
+              key: сбрасываем failed/ready при смене вкладки — иначе 404 одной
+              платформы навсегда прятал бы видео другой. */}
+          <InstallVideo key={active} platform={active} />
         </div>
 
         <p className="mx-auto mt-8 flex max-w-md items-center justify-center gap-2 text-sm text-app-text-muted">
