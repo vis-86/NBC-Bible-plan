@@ -30,25 +30,39 @@ const FEATURES: Feature[] = [
   {
     icon: WifiOff,
     title: 'Работает без интернета',
-    text: 'Скачайте Писание и песни — читайте в метро, в дороге, где угодно.',
+    text: 'Установите приложение и скачайте Писание и песни — читайте в метро, в дороге, где угодно.',
   },
 ];
 
 /**
- * Секция «Что это» — карточки ключевых фич с плотным копирайтом.
+ * Секция «Что это» — четыре карточки ключевых возможностей.
+ * Спокойная сетка на токен-поверхностях, без стеклянных эффектов.
  */
 export const About: React.FC = () => {
   const reduceMotion = useReducedMotion() ?? false;
 
   return (
-    <section className="py-16 sm:py-20" data-landing-about>
+    <section className="py-16 sm:py-24" data-landing-about>
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-serif text-[clamp(28px,4vw,40px)] font-medium leading-tight tracking-[-0.02em] text-app-text">
+        <p className="text-sm font-semibold uppercase tracking-[0.08em] text-app-primary">
+          Возможности
+        </p>
+        <h2 className="mt-3 font-serif text-[clamp(30px,4.5vw,46px)] font-medium leading-[1.1] tracking-[-0.02em] text-app-text">
           Держитесь плана — и легко догоняйте
         </h2>
         <p className="mt-4 text-lg leading-relaxed text-app-text-secondary">
-          Приложение делает чтение по плану удобным и предсказуемым. Пропустили — отметили разом и продолжили. Главное — идти дальше.
+          Приложение делает чтение по плану удобным и предсказуемым. Пропустили день —
+          отметьте и продолжайте. Пропустили много — не унывайте: отметьте все разом
+          и просто читайте дальше.
         </p>
+        <blockquote className="mx-auto mt-8 max-w-lg">
+          <p className="font-serif text-[clamp(19px,2.4vw,24px)] italic leading-[1.5] text-app-text">
+            «…забывая заднее и простираясь вперёд, стремлюсь к цели»
+          </p>
+          <cite className="mt-3 block text-sm font-semibold not-italic tracking-wide text-app-text-muted">
+            Филиппийцам 3:13–14
+          </cite>
+        </blockquote>
       </div>
 
       <motion.div
@@ -62,12 +76,12 @@ export const About: React.FC = () => {
           <motion.article
             key={title}
             variants={revealItem}
-            className="rounded-3xl border border-app-border bg-app-surface/70 p-6 shadow-[0_8px_32px_rgba(15,23,42,0.06)] backdrop-blur-sm transition-shadow hover:shadow-[0_12px_40px_rgba(15,23,42,0.1)] sm:p-8"
+            className="rounded-app-card border border-app-border bg-app-surface p-7 shadow-app-sm transition-shadow hover:shadow-app-md sm:p-9"
           >
-            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-app-primary-light text-app-primary">
+            <div className="grid h-12 w-12 place-items-center rounded-app-lg bg-app-primary-light text-app-primary">
               <Icon size={24} strokeWidth={2} />
             </div>
-            <h3 className="mt-5 text-xl font-semibold text-app-text">{title}</h3>
+            <h3 className="mt-5 text-xl font-semibold tracking-tight text-app-text">{title}</h3>
             <p className="mt-2 leading-relaxed text-app-text-secondary">{text}</p>
           </motion.article>
         ))}

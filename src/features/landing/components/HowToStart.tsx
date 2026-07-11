@@ -56,15 +56,15 @@ const CHURCH_CODE_STEPS: Step[] = [
 /** Шаги открытой регистрации без кода церкви (прод с 2026-07-01, см. isRegisterCodeRequired()). */
 const NO_CODE_STEPS: Step[] = [
   {
+    icon: Smartphone,
+    title: 'Установите на телефон',
+    text: 'Иконка на экране, запуск в одно касание — и офлайн работает стабильно.',
+    href: '#install',
+  },
+  {
     icon: KeyRound,
     title: 'Придумайте логин и пароль',
     text: 'Ни почты, ни лишних данных — регистрация в одну форму.',
-  },
-  {
-    icon: Smartphone,
-    title: 'Установите на телефон',
-    text: 'Иконка на экране, запуск в одно касание.',
-    href: '#install',
   },
   {
     icon: BookOpen,
@@ -87,18 +87,21 @@ export const HowToStart: React.FC = () => {
   const steps = registerEnabled ? (codeRequired ? CHURCH_CODE_STEPS : NO_CODE_STEPS) : INVITE_STEPS;
 
   return (
-    <section className="py-16 sm:py-20" data-landing-how-to-start>
+    <section className="py-16 sm:py-24" data-landing-how-to-start>
       <div className="mx-auto max-w-2xl text-center">
-        <h2 className="font-serif text-[clamp(28px,4vw,40px)] font-medium leading-tight tracking-[-0.02em] text-app-text">
+        <p className="text-sm font-semibold uppercase tracking-[0.08em] text-app-primary">
+          Три шага
+        </p>
+        <h2 className="mt-3 font-serif text-[clamp(30px,4.5vw,46px)] font-medium leading-[1.1] tracking-[-0.02em] text-app-text">
           Как начать
         </h2>
-        <p className="mt-4 text-lg leading-relaxed text-app-text-secondary">
-          {registerEnabled
-            ? codeRequired
+        {(!registerEnabled || codeRequired) && (
+          <p className="mt-4 text-lg leading-relaxed text-app-text-secondary">
+            {registerEnabled
               ? 'Нужен код церкви. Три шага, и вы читаете.'
-              : 'Без кода и приглашений. Три шага, и вы читаете.'
-            : 'Доступ — по приглашению от церкви. Три шага, и вы читаете.'}
-        </p>
+              : 'Доступ — по приглашению от церкви. Три шага, и вы читаете.'}
+          </p>
+        )}
       </div>
 
       <motion.ol
@@ -110,17 +113,17 @@ export const HowToStart: React.FC = () => {
       >
         {steps.map(({ icon: Icon, title, text, href }, i) => {
           const cardClassName =
-            'relative h-full rounded-3xl border border-app-border bg-app-surface/70 p-6 shadow-[0_8px_32px_rgba(15,23,42,0.06)] backdrop-blur-sm sm:p-7' +
-            (href ? ' block transition-shadow hover:shadow-[0_12px_40px_rgba(15,23,42,0.1)]' : '');
+            'relative h-full rounded-app-card border border-app-border bg-app-surface p-6 shadow-app-sm sm:p-7' +
+            (href ? ' block transition-shadow hover:shadow-app-md' : '');
           const content = (
             <>
-              <span className="absolute right-6 top-6 font-serif text-3xl font-medium text-app-text-subtle">
-                {i + 1}
-              </span>
-              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-app-text text-app-text-inverse">
+              <p className="text-xs font-bold uppercase tracking-[0.1em] text-app-text-muted">
+                Шаг {i + 1}
+              </p>
+              <div className="mt-4 grid h-12 w-12 place-items-center rounded-app-lg bg-app-primary-light text-app-primary">
                 <Icon size={22} strokeWidth={2} />
               </div>
-              <h3 className="mt-5 text-lg font-semibold text-app-text">{title}</h3>
+              <h3 className="mt-5 text-lg font-semibold tracking-tight text-app-text">{title}</h3>
               <p className="mt-2 leading-relaxed text-app-text-secondary">{text}</p>
             </>
           );

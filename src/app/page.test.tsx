@@ -56,8 +56,8 @@ describe('Лендинг (page.tsx)', () => {
     expect(screen.getByText('Откройте ссылку с телефона')).toBeInTheDocument();
     expect(screen.getByText('Придумайте логин и пароль')).toBeInTheDocument();
 
-    // Секция установки PWA (canInstall=false → iOS-инструкция)
-    expect(screen.getByText('Установите как приложение')).toBeInTheDocument();
+    // Секция установки PWA (canInstall=false → пошаговая инструкция)
+    expect(screen.getByText('Установите на телефон')).toBeInTheDocument();
 
     // Кнопки «Войти» (header + hero + finalCta)
     expect(screen.getAllByText('Войти').length).toBeGreaterThan(0);

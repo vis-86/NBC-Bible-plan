@@ -7,7 +7,7 @@ import { getBasePath } from '@/lib/utils';
 import { revealItem, revealViewport } from './anim';
 
 interface ShowcaseSection {
-  id: 'plan' | 'songs' | 'offline';
+  id: 'plan' | 'reader' | 'songs' | 'offline';
   title: string;
   bullets: string[];
   screenshot: string;
@@ -23,6 +23,16 @@ const SECTIONS: ShowcaseSection[] = [
       'Видно, где вы в плане — идите дальше',
     ],
     screenshot: 'screen-plan.png',
+  },
+  {
+    id: 'reader',
+    title: 'Читалка, которая не отвлекает',
+    bullets: [
+      'Крупный удобный шрифт — размер настраивается',
+      'Светлая, тёмная тема и сепия',
+      'Быстрый переход к любой книге и главе',
+    ],
+    screenshot: 'screen-reader.png',
   },
   {
     id: 'songs',
@@ -43,7 +53,7 @@ const ShowcaseScreenshot: React.FC<{ src: string; alt: string }> = ({ src, alt }
   const basePath = getBasePath();
 
   return (
-    <div className="relative mx-auto w-[240px] overflow-hidden rounded-[32px] border-[6px] border-[#0f0e0d] bg-app-bg shadow-app-md sm:w-[260px]">
+    <div className="relative mx-auto w-[240px] overflow-hidden rounded-[32px] border-[6px] border-[#0f0e0d] bg-app-bg shadow-app-card sm:w-[260px]">
       {failed ? (
         <div
           aria-hidden
@@ -66,16 +76,15 @@ const ShowcaseScreenshot: React.FC<{ src: string; alt: string }> = ({ src, alt }
 };
 
 /**
- * Зигзаг-секции со скриншотами приложения (паттерн YouVersion, адаптированный
- * под Sacred Minimal): текст и экран меняются сторонами через секцию.
- * На мобиле текст всегда идёт над скриншотом.
+ * Зигзаг-секции со скриншотами приложения: текст и экран меняются сторонами
+ * через секцию. На мобиле текст всегда идёт над скриншотом.
  */
 export const FeatureShowcase: React.FC = () => {
   const reduceMotion = useReducedMotion() ?? false;
 
   return (
-    <section className="py-16 sm:py-20" data-feature-showcase>
-      <div className="flex flex-col gap-16 sm:gap-24">
+    <section className="py-16 sm:py-24" data-feature-showcase>
+      <div className="flex flex-col gap-20 sm:gap-28">
         {SECTIONS.map(({ id, title, bullets, screenshot }, index) => {
           const reversed = index % 2 === 1;
           return (
@@ -92,7 +101,7 @@ export const FeatureShowcase: React.FC = () => {
               data-feature-showcase-item={id}
             >
               <div className="text-center md:text-left">
-                <h3 className="font-serif text-[clamp(26px,3.4vw,34px)] font-medium leading-tight tracking-[-0.02em] text-app-text">
+                <h3 className="font-serif text-[clamp(26px,3.4vw,36px)] font-medium leading-tight tracking-[-0.02em] text-app-text">
                   {title}
                 </h3>
                 <ul className="mx-auto mt-6 max-w-[38ch] space-y-3 md:mx-0">
