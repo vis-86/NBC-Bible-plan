@@ -8,13 +8,13 @@
 - **Components:** Named exports with explicit React.FC typing (`export const PlanView: React.FC<PlanViewProps> = ...`)
 - **Hooks:** prefix `use` (`usePlan`, `useDayCompletion`, `useReadingSettings`)
 - **Types/Interfaces:** PascalCase, defined in `src/types/index.ts` or `types.ts` within feature
-- **API routes:** kebab-case directories (`app/api/user/reading-settings/route.ts`)
+- **API routes:** Hono-роуты в `server/src/routes/*.ts`, один файл на группу эндпоинтов (auth, bible, plan, songs, user, chat, graphql, directus-proxy, ai)
 - **Variables:** camelCase
 - **CSS classes:** Tailwind utilities, custom tokens via CSS variables
 
 ## Module Structure (FSD)
 
-- `src/app/` — Next.js App Router pages, layouts, API routes only
+- `src/app/` — Next.js App Router pages/layouts only (static export — API-роутов здесь НЕТ, весь API в `server/`)
 - `src/features/<name>/` — self-contained feature slices:
   - `components/` — React components for this feature
   - `hooks/` — React hooks
@@ -47,7 +47,7 @@
 
 ## Error Handling
 
-- API routes: return `NextResponse.json({ error: ... }, { status: ... })`
+- BFF-роуты (Hono): return `c.json({ error: ... }, status)`
 - Client fetch: use `ApiClientError` from `@/shared/services/api/client`
 - Async state: explicit loading/error states in component (`useState`)
 
@@ -67,28 +67,32 @@
 
 - Directus SDK: `@directus/sdk` v20
 - Server-side only: `DIRECTUS_ADMIN_TOKEN` via env vars
-- Client proxy: `/api/directus/[...path]/route.ts` — all client Directus calls go through this proxy
+- Client proxy: `server/src/routes/directus-proxy.ts` (`{basePath}/api/directus/*`) — all client Directus calls go through this proxy
 - Never expose admin token to client
 
 ## Authentication
 
-- **Sessions:** `iron-session` — зашифрованный+подписанный httpOnly cookie `bible-plan-session` (`src/lib/session.ts`). `SESSION_SECRET` валидируется лениво (не на этапе `next build`). Сессия хранит `directus_id` + имя, **без** Directus access_token. (Lucia/`better-sqlite3` — vestigial, не используется.)
+- **Sessions:** `iron-session` — зашифрованный+подписанный httpOnly cookie `bible-plan-session` (ядро `src/lib/session-core.ts`, Hono-адаптер `server/src/session.ts`). `SESSION_SECRET` валидируется лениво (не на этапе `next build`). Сессия хранит `directus_id` + имя, **без** Directus access_token. (Lucia/`better-sqlite3` — vestigial, не используется.)
 - **Аккаунты создаются ТОЛЬКО через invite на вебе** (`/api/auth/invite/create` → `/api/auth/activate`). Логин — псевдоним, маппится в `{login}@local.baptistnn.ru` (синтетический email ОБЯЗАН иметь реальный TLD — Directus отклоняет single-label `@local`). Без email/телефона/ФИО (ФЗ-152).
 - **Invite/reset токены:** stateful записи в коллекции Directus `auth_invites` (`src/lib/invite.ts`: `findValidInvite`/`consumeInvite`/`createInvite`). Одноразовость = поле `used_at`, TTL = `expires_at`; `kind`/`user` берутся из записи, НЕ из URL `mode`. Та же ссылка = активация (`mode=activate`) и сброс пароля (`mode=reset`). HMAC/`INVITE_SECRET` не используются.
 - **Telegram (вторично):** mini-app только привязывает `tg_id` к существующему аккаунту (`/api/auth/telegram/link`); `/api/auth/telegram` НЕ создаёт аккаунты. Клиент ветвится по `data.linked`, не по `res.ok` (иначе redirect-loop).
 - **Доступ к данным:** admin-client + фильтр по `directus_id` из сессии (без user access_token Directus).
 - **Валидация:** zod-схемы (`src/lib/validators/auth.schemas.ts`) + rate-limit (`src/lib/rate-limiter.ts`) на всех auth-эндпоинтах.
-- Middleware (`src/middleware.ts`, async) защищает `/dashboard`.
+- `/dashboard` защищает клиентский `DashboardAuthGate` (`src/app/dashboard/layout.tsx`) — `middleware.ts` удалён, несовместим с `output: 'export'`.
 
 ## Deployment
 
-- Next.js `output: 'standalone'`
-- `NEXT_PUBLIC_BASE_PATH=/app` — all paths prefixed with `/app`
+- Next.js `output: 'export'` — статика `out/` печётся в nginx-образ; API — контейнер `bff` (Hono)
+- `NEXT_PUBLIC_BASE_PATH=/app` — all paths prefixed with `/app`; `NEXT_PUBLIC_*` инлайнятся на этапе сборки (тоггл ⇒ пересборка)
 - Use `getApiPath()` from `@/shared/utils/api` for constructing API URLs client-side
-- Deploy via `./copy-prod.sh` to production server
+- Deploy via `deploy/deploy.sh` (rsync + сборка образов на сервере; `deploy/` из rsync исключён — инфра доставляется вручную). См. `docs/deployment.md`
 
 ## Offline-first (PWA) — read-path parity
 
+> **Offline-first по умолчанию:** любая новая фича/экран/ресурс обязана работать офлайн
+> (чтение через read-through + IDB, запись через outbox, новый маршрут → `APP_SHELL_ROUTES`,
+> офлайн-тест обязателен). Исключение возможно только по явному решению владельца, не по умолчанию.
+>
 > Инвариант: если ресурс объявлен «читается офлайн» (Писание, песни, план — см. DESCRIPTION),
 > то **каждый** read-путь к нему обязан идти через network-first + IDB-фолбэк. Нельзя,
 > чтобы список фичи работал офлайн, а деталь падала (или наоборот).

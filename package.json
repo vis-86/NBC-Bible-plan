@@ -9,7 +9,7 @@
     "bff:start": "tsx server/src/index.ts",
     "static:serve": "tsx scripts/static-serve.ts",
     "lint": "eslint",
-    "deploy": "./copy-prod.sh",
+    "deploy": "deploy/deploy.sh",
     "bible:import": "tsx scripts/bible-import/cli.ts",
     "bible:import:smoke": "tsx scripts/bible-import/smoke.ts",
     "songs:bootstrap": "tsx scripts/songs-import/bootstrap.ts",

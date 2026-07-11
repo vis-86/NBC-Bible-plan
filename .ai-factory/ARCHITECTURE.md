@@ -14,20 +14,27 @@
 - `shared/` has no imports from `features/` or `app/`
 - Cross-feature communication goes through `app/` or shared state
 
-## Pattern: Server/Client Component Split (Next.js App Router)
+## Pattern: Static Export + Hono BFF (no Next.js server runtime)
 
-**Decision:** Use React Server Components as default; opt into client-side with `'use client'` only where needed.
-
-**Rationale:** Reduces bundle size and enables server-side data access. Next.js 16 + React 19 React Compiler further optimizes client components.
+**Decision:** Next.js is a **static export** (`output: 'export'` in `next.config.ts`); all API lives
+in a separate **Hono BFF** (`server/`, own process/container, port 3001, run via `tsx` without a
+build step). Migration rationale: `.ai-factory/plans/feature-static-export-hono-bff.md`.
 
 **Rules:**
-- Data fetching in API routes or server actions, not client components
-- Components needing state, effects, or browser APIs get `'use client'`
-- All event handlers and animations live in client components
+- No `src/app/api/**`, no `middleware.ts`, no Server Actions, no SSR data access — the export has
+  no server runtime. Auth guard is the client-side `DashboardAuthGate` in `src/app/dashboard/layout.tsx`.
+- No dynamic `[slug]` segments — client-readable params go in the query string
+  (`/dashboard/read?book=&chapter=`); a finite `APP_SHELL_ROUTES` set serves everything offline.
+- All data fetching is client-side against the BFF; every new endpoint is a Hono route in
+  `server/src/routes/*` (auth, bible, plan, songs, user, chat, graphql, directus-proxy, ai).
+- Shared business logic (session-core, directus-*, invite, register-access) lives in `src/lib/`
+  and is imported by both the client and `server/`.
+- BFF is testable without a real server: `createApp()` factory (`server/src/app.ts`) + `app.request()`.
 
-## Pattern: API Route Proxy for Directus
+## Pattern: BFF Proxy for Directus
 
-**Decision:** All Directus SDK calls from the client go through a Next.js API proxy (`/api/directus/[...path]`), never directly.
+**Decision:** All Directus calls from the client go through the BFF proxy
+`{basePath}/api/directus/*` (`server/src/routes/directus-proxy.ts`), never directly.
 
 **Rationale:**
 - `DIRECTUS_ADMIN_TOKEN` must never be exposed to the browser
@@ -36,7 +43,7 @@
 
 **Implementation:**
 - Server-to-server: direct `@directus/sdk` calls with admin token
-- Client-to-Directus: `fetch('/api/directus/...')` → proxy adds auth header
+- Client-to-Directus: `fetch(getApiPath('/api/directus/...'))` → proxy adds auth header
 
 ## Pattern: Typed API Client
 
@@ -74,13 +81,15 @@ shared/services/api/
 **Invite/reset токены:** stateful записи в Directus `auth_invites` (`token` unique, `kind`, `user`, `expires_at`, `used_at`, `invite_url`). Одноразовость = `used_at`, TTL = `expires_at`. HMAC/`INVITE_SECRET` не используются.
 
 **Sessions:** iron-session — зашифрованный+подписанный httpOnly cookie (`bible-plan-session`),
-30 дней. `SESSION_SECRET` валидируется лениво (не на этапе сборки). Middleware (`src/middleware.ts`,
-async) гардит `/dashboard/*`. Lucia/SQLite (`database/*.db`) — vestigial, не используется.
+30 дней. Ядро — `src/lib/session-core.ts`, Hono-адаптер — `server/src/session.ts`. `SESSION_SECRET`
+валидируется лениво (не на этапе сборки). `/dashboard/*` гардит клиентский `DashboardAuthGate`
+(`src/app/dashboard/layout.tsx`) — `middleware.ts` удалён, несовместим с `output: 'export'`.
+Lucia/SQLite (`database/*.db`) — vestigial, не используется.
 
 ## Pattern: Data access — admin-client + directus_id (без user access_token)
 
-**Decision:** API-роуты данных (`plan`, `progress`, `app-settings`, `graphql`, `reading-settings`)
-ходят в Directus через **admin-client** с фильтрацией по `directus_id` из сессии. Сессия НЕ хранит
+**Decision:** BFF-роуты данных (`plan`, `progress`, `app-settings`, `graphql`, `reading-settings` —
+`server/src/routes/*`) ходят в Directus через **admin-client** с фильтрацией по `directus_id` из сессии. Сессия НЕ хранит
 Directus user access_token.
 
 **Rationale:** Directus user-токен короткоживущий (~15 мин) без refresh → на пароль-пути давал бы
@@ -101,14 +110,16 @@ Directus permissions на API-слое сознательно не исполь�
 - `REGISTER_CHURCH_CODE` — secret; set ⇒ church code required (timing-safe compare)
 - `REGISTER_OPEN_NO_CODE` — `true`/`1` ⇒ registration open without a code (only honored when `REGISTER_CHURCH_CODE` is empty). Neither set ⇒ registration closed (503). See `src/lib/register-access.ts` (`isRegistrationOpen` / `isChurchCodeRequired`).
 
-## Pattern: Standalone Deployment with Base Path
+## Pattern: Static Export Deployment with Base Path
 
-**Decision:** `output: 'standalone'` in `next.config.ts`, deployed behind nginx with base path `/app`.
+**Decision:** `output: 'export'` in `next.config.ts`; nginx serves the baked `out/` under
+base path `/app` and proxies `/app/api/*` to the `bff` container (Docker Compose, `deploy/`).
 
 **Implications:**
-- `NEXT_PUBLIC_BASE_PATH=/app` must be set in production
+- `NEXT_PUBLIC_BASE_PATH=/app` must be set at build time in production
 - All client-side URL construction uses `getApiPath()` from `@/shared/utils/api`
 - `assetPrefix` and `basePath` both set in next.config.ts
+- `NEXT_PUBLIC_*` flags are baked into the bundle — toggling them requires a rebuild/redeploy
 
 ## Pattern: Directus as Primary CMS/Data Layer
 
@@ -133,8 +144,10 @@ Directus permissions на API-слое сознательно не исполь�
 ## Anti-Patterns to Avoid
 
 - ❌ Calling Directus directly from client components
-- ❌ Importing between feature slices (plan ↔ reading)
+- ❌ Importing between feature slices (plan ↔ reading ↔ songs)
 - ❌ Putting business logic in page components (use hooks)
 - ❌ Hardcoding API URLs without `getApiPath()`
-- ❌ Storing session data in localStorage (use Lucia cookies)
+- ❌ Storing session data in localStorage (use iron-session cookies)
 - ❌ Fetching data in client components without loading/error states
+- ❌ Adding anything that assumes a Next.js server runtime (API routes, middleware, Server Actions, dynamic segments)
+- ❌ Bare `fetch`/`apiClient.get` for offline-readable resources — read-through + IDB fallback only (see `.ai-factory/rules/base.md`)

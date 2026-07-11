@@ -13,7 +13,7 @@ npm install
 # 2. Настройте переменные окружения
 cp .env.example .env.local
 # Обязательно: NEXT_PUBLIC_DIRECTUS_URL, DIRECTUS_ADMIN_TOKEN, TELEGRAM_BOT_TOKEN,
-#              SESSION_SECRET, INVITE_SECRET (см. ENV_SETUP.md)
+#              SESSION_SECRET, INVITE_ADMIN_SECRET (см. ENV_SETUP.md)
 
 # 3. Запустите dev-сервер
 npm run dev
