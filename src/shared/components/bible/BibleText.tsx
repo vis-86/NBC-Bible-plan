@@ -58,7 +58,7 @@ export const BibleText: React.FC<BibleTextProps> = ({ text, settings, displayThe
               if (!settings.verse_numbers_visible) {
                 return <>{verseBreak}<strong data-verse={verseNum} className="hidden">{children}</strong></>;
               }
-              return <>{verseBreak}<strong data-verse={verseNum} className="font-bold">{children}</strong></>;
+              return <>{verseBreak}<strong data-verse={verseNum} className="font-bold px-2">{children}</strong></>;
             }
             return <span className="text-app-accent font-sans text-[0.55em] font-semibold mr-1 -ml-2 align-top select-none opacity-70 relative top-[-1px]">{children}</span>;
           }

@@ -3,7 +3,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Book } from 'lucide-react';
 import { BibleReference, ReadingPlanDay, PlanItem } from '@/types';
-import { BIBLE_STRUCTURE } from '@/lib/constants';
 import { getReferenceInfo } from '@/lib/ai';
 import { isAIEnabled } from '@/shared/utils/constants';
 import { parseReadingItem } from '@/shared/utils/bible';
