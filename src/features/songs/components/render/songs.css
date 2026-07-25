@@ -8,8 +8,13 @@
   color: var(--app-text);
   border: none;
   font-family: var(--font-serif);
-  font-size: 17px;
+  font-size: var(--lyric-size, 17px);
   overflow: visible;
+}
+
+/* Режим «только текст» (§3.3): аккорды скрыты через CSS, а не отдельную ветку рендера. */
+[data-chords='off'] .chord {
+  display: none;
 }
 
 .cproColumn {
@@ -23,6 +28,7 @@
 .cproSongSection {
   display: block;
   page-break-inside: avoid;
+  break-inside: avoid;
 }
 .cproComment {
   display: block;
@@ -45,6 +51,8 @@
   line-height: 1.5;
   padding-top: .2em;
   letter-spacing: 0.1px !important;
+  page-break-inside: avoid;
+  break-inside: avoid;
 }
 .cproSongLine::after {
   content: "";

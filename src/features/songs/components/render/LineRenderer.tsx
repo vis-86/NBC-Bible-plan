@@ -10,15 +10,13 @@ import { hasLetters, parseLine, splitIntoWords } from '../../lib/lineParser';
 
 interface LineRendererProps {
   line: string;
-  hideChords: boolean;
-  fontSize?: number;
 }
 
 /**
  * Рендерит слово с аккордами
  * Возвращает объект с элементом и информацией о том, начинается/заканчивается ли слово аккордом
  */
-const renderWord = (word: string, isChordsOnly: boolean, hideChords: boolean, key: number): { element: React.ReactNode; startsWithChord: boolean; endsWithChord: boolean } => {
+const renderWord = (word: string, isChordsOnly: boolean, key: number): { element: React.ReactNode; startsWithChord: boolean; endsWithChord: boolean } => {
   const parts = word.split(/(\[.*?\])/g).filter(Boolean);
   const children: React.ReactNode[] = [];
   let childKey = 0;
@@ -48,7 +46,7 @@ const renderWord = (word: string, isChordsOnly: boolean, hideChords: boolean, ke
               const lyricsPart = parts[i + 3];
               const lyrics = lyricsPart && !lyricsPart.startsWith('[') ? lyricsPart : '';
 
-              children.push(<ChordRenderer key={`chord-${key}-${childKey++}`} chord={combinedChord} lyrics={lyrics} isChordsOnly={isChordsOnly} hideChords={hideChords} />);
+              children.push(<ChordRenderer key={`chord-${key}-${childKey++}`} chord={combinedChord} lyrics={lyrics} isChordsOnly={isChordsOnly} />);
 
               // Пропускаем обработанные токены
               i += 2; // Пропускаем [(] и [аккорд]
@@ -65,7 +63,7 @@ const renderWord = (word: string, isChordsOnly: boolean, hideChords: boolean, ke
       const nextIsChord = nextPart?.startsWith('[') && nextPart?.endsWith(']');
       const lyrics = nextPart && !nextIsChord ? nextPart : '';
 
-      children.push(<ChordRenderer key={`chord-${key}-${childKey++}`} chord={chord} lyrics={lyrics} isChordsOnly={isChordsOnly} hideChords={hideChords} />);
+      children.push(<ChordRenderer key={`chord-${key}-${childKey++}`} chord={chord} lyrics={lyrics} isChordsOnly={isChordsOnly} />);
 
       if (lyrics) {
         i++; // Пропускаем следующий токен
@@ -131,7 +129,7 @@ const renderWord = (word: string, isChordsOnly: boolean, hideChords: boolean, ke
   };
 };
 
-export const LineRenderer: React.FC<LineRendererProps> = ({ line, hideChords, fontSize }) => {
+export const LineRenderer: React.FC<LineRendererProps> = ({ line }) => {
   const { isChordsOnly } = useMemo(() => parseLine(line), [line]);
   const className = `cproSongLine${isChordsOnly ? ' chordsOnly' : ''}`;
 
@@ -147,7 +145,7 @@ export const LineRenderer: React.FC<LineRendererProps> = ({ line, hideChords, fo
         result.push(<React.Fragment key={`space-${key++}`}>{word}</React.Fragment>);
       } else {
         // Слово
-        const wordData = renderWord(word, isChordsOnly, hideChords, key++);
+        const wordData = renderWord(word, isChordsOnly, key++);
         wordInfo.push(wordData);
         result.push(wordData.element);
       }
@@ -189,13 +187,9 @@ export const LineRenderer: React.FC<LineRendererProps> = ({ line, hideChords, fo
     }
 
     return result;
-  }, [line, isChordsOnly, hideChords]);
+  }, [line, isChordsOnly]);
 
-  return (
-    <span className={className} style={{ fontSize: fontSize ? `${fontSize}px` : undefined }}>
-      {segments}
-    </span>
-  );
+  return <span className={className}>{segments}</span>;
 };
 
 export default LineRenderer;

@@ -14,9 +14,9 @@ interface SongViewProps {
   /** Тональность (проп назван songKey, чтобы не путать с React key). */
   songKey?: string;
   tempo?: string;
-  /** Размер шрифта лирики в px (прокидывается в блоки). */
+  /** Размер шрифта лирики в px — задаёт CSS-переменную `--lyric-size` на корне. */
   fontSize?: number;
-  /** Скрыть аккорды (режим «только текст»). */
+  /** Скрыть аккорды (режим «только текст») — переключает `data-chords="off"` на корне. */
   hideChords?: boolean;
 }
 
@@ -37,7 +37,12 @@ export const SongView: React.FC<SongViewProps> = ({ content, title, subtitle, so
   const meta = [songKey, tempo].filter(Boolean).join(' · ');
 
   return (
-    <article className="cproSongBody" data-song-view>
+    <article
+      className="cproSongBody"
+      data-song-view
+      data-chords={hideChords ? 'off' : undefined}
+      style={fontSize ? ({ '--lyric-size': `${fontSize}px` } as React.CSSProperties) : undefined}
+    >
       {(title || subtitle || meta) && (
         <header className="song-view-header" data-song-view-header>
           {title && <h1 className="song-view-title" data-song-view-title>{title}</h1>}
@@ -48,7 +53,7 @@ export const SongView: React.FC<SongViewProps> = ({ content, title, subtitle, so
 
       <div className="song-blocks-layout single" data-song-view-blocks>
         {blocks.map((block, index) => (
-          <SongBlock key={index} block={block} blockIndex={index} fontSize={fontSize} hideChords={hideChords} />
+          <SongBlock key={index} block={block} blockIndex={index} />
         ))}
       </div>
     </article>

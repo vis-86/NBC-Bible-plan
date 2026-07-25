@@ -9,8 +9,6 @@ interface Props {
   /** Индекс блока (для стабильных data-хуков/классов). */
   blockIndex?: number;
   lines?: string[];
-  fontSize?: number;
-  hideChords?: boolean;
 }
 
 /**
@@ -18,7 +16,7 @@ interface Props {
  * autoscroll-логика источника (onClick/isActive/isContinuation) не портирована.
  */
 export const SongBlock = React.forwardRef<HTMLDivElement, Props>(
-  ({ block, blockIndex = 0, lines, fontSize, hideChords = false }, ref) => {
+  ({ block, blockIndex = 0, lines }, ref) => {
     if (!block) return null;
     const renderLines = lines ?? block.content.split('\n');
 
@@ -27,8 +25,6 @@ export const SongBlock = React.forwardRef<HTMLDivElement, Props>(
         <div className="song-block-content">
           <div className="cproColumn" style={{ width: '100%' }}>
             <ChordProHtmlColumn
-              fontSize={fontSize}
-              hideChords={hideChords}
               sections={[
                 {
                   comment: block.comment || undefined,

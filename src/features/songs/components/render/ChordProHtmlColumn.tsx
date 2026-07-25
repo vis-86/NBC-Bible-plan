@@ -11,13 +11,7 @@ export interface HtmlSection {
 }
 
 interface Props {
-  fontSize?: number;
   sections: HtmlSection[];
-  /**
-   * Скрыть аккорды (режим «только текст»). Раньше бралось из zustand `useSettingsStore`;
-   * теперь прокидывается пропом сверху (SongView → SongBlock → сюда).
-   */
-  hideChords?: boolean;
 }
 
 /**
@@ -32,29 +26,22 @@ const CommentRenderer: React.FC<{ comment: string; commentType?: 'normal' | 'ita
 /**
  * Компонент для рендеринга секции песни
  */
-const SectionRenderer: React.FC<{
-  section: HtmlSection;
-  fontSize?: number;
-  hideChords: boolean;
-}> = ({ section, fontSize, hideChords }) => {
+const SectionRenderer: React.FC<{ section: HtmlSection }> = ({ section }) => {
   return (
-    <span
-      className="cproSongSection"
-      style={{ fontSize: fontSize ? `${fontSize}px` : undefined }}
-    >
+    <span className="cproSongSection">
       {section.comment && <CommentRenderer comment={section.comment} commentType={section.commentType} />}
       {section.lines.map((line, idx) => (
-        <LineRenderer key={idx} line={line} hideChords={hideChords} fontSize={fontSize} />
+        <LineRenderer key={idx} line={line} />
       ))}
     </span>
   );
 };
 
-export const ChordProHtmlColumn: React.FC<Props> = ({ sections, fontSize, hideChords = false }) => {
+export const ChordProHtmlColumn: React.FC<Props> = ({ sections }) => {
   return (
     <>
       {sections.map((section, i) => (
-        <SectionRenderer key={i} section={section} fontSize={fontSize} hideChords={hideChords} />
+        <SectionRenderer key={i} section={section} />
       ))}
     </>
   );

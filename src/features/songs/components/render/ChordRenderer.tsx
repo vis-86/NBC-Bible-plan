@@ -11,7 +11,6 @@ interface ChordRendererProps {
   chord: string;
   lyrics?: string;
   isChordsOnly: boolean;
-  hideChords: boolean;
 }
 
 /**
@@ -204,13 +203,9 @@ function renderChordSigns(chord: string): React.ReactNode[] {
   });
 }
 
-export const ChordRenderer: React.FC<ChordRendererProps> = ({ chord, lyrics = '', isChordsOnly, hideChords }) => {
+export const ChordRenderer: React.FC<ChordRendererProps> = ({ chord, lyrics = '', isChordsOnly }) => {
   const chordSigns = useMemo(() => renderChordSigns(chord), [chord]);
   const hasChordLyricsSpace = !lyrics && !isChordsOnly;
-
-  if (hideChords) {
-    return lyrics ? <>{lyrics}</> : null;
-  }
 
   const classes = ['chordWrapper'];
   if (hasChordLyricsSpace) {
