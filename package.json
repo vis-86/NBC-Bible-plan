@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "concurrently -n next,bff -c blue,green \"next dev\" \"tsx watch server/src/index.ts\"",
     "build": "tsx scripts/build-manifest.ts && next build && tsx scripts/build-sw.ts",
     "bff:dev": "tsx watch server/src/index.ts",
     "bff:start": "tsx server/src/index.ts",
@@ -51,6 +51,7 @@
     "@vitest/coverage-v8": "^4.1.9",
     "babel-plugin-react-compiler": "1.0.0",
     "baseline-browser-mapping": "^2.10.19",
+    "concurrently": "^10.0.4",
     "dotenv": "^17.4.2",
     "esbuild": "^0.28.1",
     "eslint": "^9",

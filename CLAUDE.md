@@ -20,8 +20,8 @@ Next.js 16 — **static export** (`output: 'export'`): серверного ра
 ## Команды
 
 ```bash
-npm run dev          # Next dev на :3000/app — И ПАРАЛЛЕЛЬНО нужен BFF:
-npm run bff:dev      # Hono BFF на :3001 (tsx watch); без него все /api падают
+npm run dev          # Next dev (:3000/app) + Hono BFF (:3001) вместе — concurrently, один процесс/Ctrl+C
+npm run bff:dev      # только Hono BFF (tsx watch), без Next — если нужен раздельный запуск
 npm run build        # manifest → next build (out/) → сборка sw.js
 npm run lint         # eslint
 npm run test         # vitest run (юнит: src/** + server/**)
