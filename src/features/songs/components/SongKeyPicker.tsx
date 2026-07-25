@@ -2,20 +2,27 @@
 
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
-import { ChoiceGroup } from '@/shared/components/ui/ChoiceGroup';
+import { BottomSheet } from '@/shared/components/ui/BottomSheet';
 import { cn } from '@/shared/utils/cn';
-import type { SongKeySource } from '../lib/songKey';
+import { keyByOffset, keyFromParts, semitonesBetween, splitKey, type KeyAccidental, type KeyBase, type SongKeySource } from '../lib/songKey';
 
 export interface SongKeyPickerProps {
-  /** Действующая тональность (§10.1) — она же выбранная опция. */
+  /** Звучащая действующая тональность (§10.1) — она же выбранная опция. */
   value: string;
   /** Откуда она взялась: подпись рядом со значением. */
   source: SongKeySource;
-  /** Тональности в том же ладу, что исходная (`keyOptions`). */
+  /** Исходная тональность песни — точка отсчёта слайдера полутонов. */
+  originalKey?: string;
+  /** Тональности в том же ладу, что исходная (`keyOptions`). Используются для валидации выбора. */
   options: readonly string[];
   onChange: (key: string) => void;
   /** Сброс к основной/исходной — кнопка видна только при личной тональности. */
   onReset: () => void;
+  /** Каподастр в ладах, 0..9. */
+  capo: number;
+  onCapoChange: (capo: number) => void;
+  /** Тональность форм аккордов при текущем капо (`keyByOffset(value, -capo)`). */
+  shapeKey?: string;
   className?: string;
 }
 
@@ -27,18 +34,58 @@ const SOURCE_LABEL: Record<SongKeySource, string> = {
   original: '',
 };
 
+const BASES: readonly KeyBase[] = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+const ACCIDENTALS: readonly { value: KeyAccidental; label: string }[] = [
+  { value: 'b', label: '♭' },
+  { value: '', label: '♮' },
+  { value: '#', label: '#' },
+];
+const CAPO_MAX = 9;
+const SEMITONE_MIN = -6;
+const SEMITONE_MAX = 6;
+
+/** Знаковый сдвиг −6…+6 от исходной к действующей тональности (тритон отображается как ±6). */
+function signedOffset(originalKey: string | undefined, value: string): number {
+  const normalized = semitonesBetween(originalKey, value); // 0..11
+  return normalized > SEMITONE_MAX ? normalized - 12 : normalized;
+}
+
 /**
- * Выбор рабочей тональности песни. Раскрывающаяся панель позиционируется абсолютно:
- * в режимах `sheets`/`paged` высота шапки участвует в расчёте листа, и панель в потоке
- * пересобирала бы разбивку на каждое открытие.
+ * Выбор рабочей тональности песни («Транспонирование»): триггер-кнопка в шапке страницы
+ * раскрывает bottom-sheet с основой+знаком, слайдером полутонов и каподастром.
+ *
+ * Каподастр не тональность: он не трогает `value`/`onChange`, а живёт своим `onCapoChange`
+ * и показывает лишь форму аккордов (`shapeKey`) — звучит песня в той же тональности.
  */
-export function SongKeyPicker({ value, source, options, onChange, onReset, className }: SongKeyPickerProps) {
+export function SongKeyPicker({
+  value,
+  source,
+  originalKey,
+  options,
+  onChange,
+  onReset,
+  capo,
+  onCapoChange,
+  shapeKey,
+  className,
+}: SongKeyPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const sourceLabel = SOURCE_LABEL[source];
 
-  const handleChange = (key: string) => {
-    onChange(key);
-    setIsOpen(false);
+  const parts = splitKey(value);
+  const minor = parts?.minor ?? false;
+  const currentBase = parts?.base;
+  const currentAccidental = parts?.accidental ?? '';
+  const offset = signedOffset(originalKey, value);
+
+  const selectParts = (base: KeyBase, accidental: KeyAccidental) => {
+    const next = keyFromParts(base, accidental, minor);
+    if (next && next !== value) onChange(next);
+  };
+
+  const selectOffset = (semitones: number) => {
+    const next = keyByOffset(originalKey, semitones);
+    if (next && next !== value) onChange(next);
   };
 
   const handleReset = () => {
@@ -47,41 +94,148 @@ export function SongKeyPicker({ value, source, options, onChange, onReset, class
   };
 
   return (
-    <div className={cn('relative inline-flex items-center gap-1', className)} data-song-key-picker>
+    <div className={cn('inline-flex', className)} data-song-key-picker>
       <button
         type="button"
         data-song-key-picker-toggle
+        aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-label="Тональность"
-        onClick={() => setIsOpen((open) => !open)}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-app-sm px-2 text-app-text-secondary transition-colors hover:bg-app-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
+        onClick={() => setIsOpen(true)}
+        // Габариты выровнены с кнопкой настроек справа (иконка + p-2 ≈ h-9): фиксированная
+        // высота и min-width держат шапку однородной вне зависимости от длины тональности.
+        className="inline-flex h-9 min-w-11 items-center justify-center gap-1.5 rounded-app-sm bg-app-primary px-3 text-sm font-medium text-app-text-inverse transition-colors duration-150 hover:bg-app-primary-hover active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2"
       >
-        <span className="font-medium text-app-text" data-song-key-picker-value>
-          {value}
-        </span>
-        {sourceLabel && <span className="text-sm text-app-text-muted">({sourceLabel})</span>}
+        <span data-song-key-picker-value>{value}</span>
+        {sourceLabel && <span className="text-sm opacity-80">({sourceLabel})</span>}
+        {capo > 0 && (
+          <>
+            {/* Внутренний разделитель: капо — отдельная величина от тональности. */}
+            <span aria-hidden className="h-4 w-px bg-app-text-inverse/40" />
+            <span className="text-sm opacity-90" data-song-key-picker-capo-badge>
+              капо {capo}
+            </span>
+          </>
+        )}
       </button>
 
-      {source === 'personal' && (
-        <button
-          type="button"
-          data-song-key-picker-reset
-          aria-label="Сбросить тональность"
-          onClick={handleReset}
-          className="flex h-11 w-11 items-center justify-center rounded-app-sm text-app-text-muted transition-transform duration-150 hover:bg-app-surface-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
-        >
-          <RotateCcw size={16} />
-        </button>
-      )}
+      <BottomSheet isOpen={isOpen} onClose={() => setIsOpen(false)} title="Транспонирование">
+        <div data-song-key-picker-panel className="space-y-6 pb-2">
+          <div data-section="base">
+            <label className="mb-2 block text-sm font-medium text-app-text-secondary">Выберите основу</label>
+            <div className="grid grid-cols-7 gap-2">
+              {BASES.map((base) => {
+                const selected = base === currentBase;
+                return (
+                  <button
+                    key={base}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => selectParts(base, currentAccidental)}
+                    className={cn(
+                      'min-h-11 rounded-app-md border-2 px-1 py-2 text-center transition-all',
+                      selected ? 'border-app-primary bg-app-primary-light font-medium text-app-primary' : 'border-app-border text-app-text-secondary hover:border-app-border-strong',
+                    )}
+                  >
+                    {base}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
 
-      {isOpen && (
-        <div
-          data-song-key-picker-options
-          className="absolute left-0 top-full z-20 mt-1 w-64 rounded-app-md border border-app-border bg-app-surface-elevated p-2 shadow-app-md"
-        >
-          <ChoiceGroup options={options} value={value} onChange={handleChange} labelFor={(key) => key} columns={3} />
+          <div data-section="accidental">
+            <label className="mb-2 block text-sm font-medium text-app-text-secondary">Знак</label>
+            <div className="grid grid-cols-3 gap-2">
+              {ACCIDENTALS.map(({ value: acc, label }) => {
+                const selected = acc === currentAccidental;
+                return (
+                  <button
+                    key={acc || 'natural'}
+                    type="button"
+                    aria-pressed={selected}
+                    aria-label={acc === 'b' ? 'Бемоль' : acc === '#' ? 'Диез' : 'Без знака'}
+                    onClick={() => currentBase && selectParts(currentBase, acc)}
+                    className={cn(
+                      'min-h-11 rounded-app-md border-2 px-4 py-2 text-lg transition-all',
+                      selected ? 'border-app-primary bg-app-primary-light font-medium text-app-primary' : 'border-app-border text-app-text-secondary hover:border-app-border-strong',
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <p className="text-sm text-app-text-secondary" data-song-key-picker-current>
+            Тональность: <span className="font-bold text-app-text">{value}</span>
+          </p>
+
+          <div data-section="semitones">
+            <label className="mb-2 block text-sm font-medium text-app-text-secondary">Полутона: {offset > 0 ? `+${offset}` : offset}</label>
+            <input
+              type="range"
+              min={SEMITONE_MIN}
+              max={SEMITONE_MAX}
+              value={offset}
+              data-song-key-picker-semitone-slider
+              onChange={(e) => selectOffset(parseInt(e.target.value, 10))}
+              className="h-2 w-full cursor-pointer appearance-none rounded-app-sm bg-app-surface-muted accent-app-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2"
+            />
+            <div className="mt-1 flex justify-between text-xs text-app-text-muted">
+              <span>{SEMITONE_MIN}</span>
+              <span>0</span>
+              <span>+{SEMITONE_MAX}</span>
+            </div>
+          </div>
+
+          <div data-section="capo">
+            <label className="mb-2 block text-sm font-medium text-app-text-secondary" data-song-key-picker-capo-label>
+              {capo > 0 && shapeKey ? (
+                <>
+                  Каподастр на <span className="font-bold text-app-primary">{capo}</span> ладу, играйте как в{' '}
+                  <span className="font-bold text-app-primary">{shapeKey}</span>
+                </>
+              ) : (
+                'Каподастр'
+              )}
+            </label>
+            <input
+              type="range"
+              min={0}
+              max={CAPO_MAX}
+              value={capo}
+              data-song-key-picker-capo-slider
+              onChange={(e) => onCapoChange(parseInt(e.target.value, 10))}
+              className="h-2 w-full cursor-pointer appearance-none rounded-app-sm bg-app-surface-muted accent-app-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2"
+            />
+            <div className="mt-1 flex justify-between text-xs text-app-text-muted">
+              {Array.from({ length: CAPO_MAX + 1 }, (_, fret) => (
+                <span key={fret}>{fret}</span>
+              ))}
+            </div>
+          </div>
+
+          {source === 'personal' && (
+            <button
+              type="button"
+              data-song-key-picker-reset
+              onClick={handleReset}
+              className="inline-flex min-h-11 items-center gap-2 rounded-app-md px-3 text-app-text-secondary transition-colors hover:bg-app-surface-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
+            >
+              <RotateCcw size={16} />
+              Сбросить к основной
+            </button>
+          )}
+
+          {/* Список валидных тональностей для скринридера — источник опций явный (§10.3),
+              выбор идёт через основу+знак/слайдер, но набор ограничен `options`. */}
+          <span className="sr-only" data-song-key-picker-options>
+            {options.join(' ')}
+          </span>
         </div>
-      )}
+      </BottomSheet>
     </div>
   );
 }

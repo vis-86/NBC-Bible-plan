@@ -18,15 +18,18 @@ interface SongViewProps {
   title?: string;
   subtitle?: string;
   /**
-   * ДЕЙСТВУЮЩАЯ тональность (§10.1; проп назван songKey, чтобы не путать с React key).
-   * Показывается в шапке и задаёт спеллинг диезов/бемолей при транспозиции (§10.2),
-   * поэтому источник у отображения и у транспозиции один.
+   * Тональность ФОРМ аккордов на листе (проп назван songKey, чтобы не путать с React key).
+   * Задаёт спеллинг диезов/бемолей при транспозиции (§10.2) — обязан совпадать с реально
+   * напечатанными аккордами. При каподастре это НЕ звучащая тональность (см. `metaKey`).
    */
   songKey?: string;
-  /** Сдвиг от исходной тональности к действующей. 0 ⇒ рендер идёт по исходным строкам. */
+  /**
+   * ЗВУЧАЩАЯ тональность для плашки `key · tempo`. По умолчанию = `songKey`; расходится с
+   * ним только при каподастре (формы на листе ниже звучащей). Показывается пользователю.
+   */
+  metaKey?: string;
+  /** Сдвиг для рендера листа. 0 ⇒ рендер идёт по исходным строкам. */
   semitones?: number;
-  /** Селектор тональности — слот в шапке песни (§3.5). Владелец персиста — страница. */
-  keyPicker?: React.ReactNode;
   tempo?: string;
   /** Размер шрифта лирики в px — задаёт CSS-переменную `--lyric-size` на корне. */
   fontSize?: number;
@@ -61,8 +64,8 @@ export const SongView: React.FC<SongViewProps> = ({
   title,
   subtitle,
   songKey,
+  metaKey,
   semitones = 0,
-  keyPicker,
   tempo,
   fontSize,
   hideChords = false,
@@ -118,9 +121,9 @@ export const SongView: React.FC<SongViewProps> = ({
     else if (x > (rect.width * 2) / 3) paged.turn(1);
   };
 
-  const meta = [songKey, tempo].filter(Boolean).join(' · ');
-  // Когда тональность показывает селектор, в плашке она была бы дублем.
-  const metaText = keyPicker ? tempo : meta;
+  // Плашка показывает ЗВУЧАЩУЮ тональность (metaKey), а не форму (songKey): при капо это
+  // разные значения, а видеть пользователь должен то, в чём песня звучит.
+  const meta = [metaKey ?? songKey, tempo].filter(Boolean).join(' · ');
   const rootStyle = {
     ...(fontSize ? { '--lyric-size': `${fontSize}px` } : null),
     '--col-count': effectiveColumns,
@@ -139,15 +142,13 @@ export const SongView: React.FC<SongViewProps> = ({
       data-mode={mode}
       style={rootStyle}
     >
-      {showHeader && (title || subtitle || meta || keyPicker) && (
+      {showHeader && (title || subtitle || meta) && (
         <header className="song-view-header" data-song-view-header>
           {title && <h1 className="song-view-title" data-song-view-title>{title}</h1>}
           {subtitle && <p className="song-view-subtitle" data-song-view-subtitle>{subtitle}</p>}
-          {(keyPicker || meta) && (
+          {meta && (
             <div className="song-view-header-row" data-song-view-header-row>
-              {keyPicker}
-              {/* Тональность показывает селектор, когда он есть — в плашке остаётся темп. */}
-              {metaText && <span className="song-view-meta" data-song-view-meta>{metaText}</span>}
+              <span className="song-view-meta" data-song-view-meta>{meta}</span>
             </div>
           )}
         </header>

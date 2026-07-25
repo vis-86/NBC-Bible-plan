@@ -8,7 +8,7 @@
  * Хранится тональность (строка), а не полутона: `+3` от `C` — это `D#` или `Eb`,
  * ответ даёт только целевая тональность (§10.2).
  */
-import { Interval } from 'tonal';
+import { Interval, Note } from 'tonal';
 import { parseKey } from './transpose';
 
 export type SongKeySource = 'personal' | 'setlist' | 'default' | 'original';
@@ -87,6 +87,57 @@ export function keyOptions(originalKey: string | undefined): string[] {
   // отсутствует — добавляем, чтобы действующая тональность всегда была в списке.
   const original = parsed.minor ? `${parsed.tonic}m` : parsed.tonic;
   return options.includes(original) ? options : [original, ...options];
+}
+
+/** Основа тональности без знака — семь кнопок панели «Транспонирование» (§10.3). */
+export type KeyBase = 'C' | 'D' | 'E' | 'F' | 'G' | 'A' | 'B';
+/** Знак при основе: бемоль, натурал (без знака), диез. */
+export type KeyAccidental = '' | '#' | 'b';
+
+export interface KeyParts {
+  base: KeyBase;
+  accidental: KeyAccidental;
+  minor: boolean;
+}
+
+/**
+ * Разбор тональности на основу+знак+лад для панели транспозиции. Нераспознанное или
+ * тональность с двойным знаком (в корпусе не встречается) ⇒ `null` — панель тогда просто
+ * не подсвечивает основу, а не падает.
+ */
+export function splitKey(key: string | undefined): KeyParts | null {
+  const parsed = parseKey(key);
+  if (!parsed) return null;
+  const base = parsed.tonic[0] as KeyBase;
+  const accidental = parsed.tonic.slice(1);
+  if (accidental !== '' && accidental !== '#' && accidental !== 'b') return null;
+  return { base, accidental, minor: parsed.minor };
+}
+
+/**
+ * Сборка тональности из основы+знака с нормализацией в спеллинг `CHROMATIC_MAJOR`
+ * (`Db→C#`, `D#→Eb`, `Gb→F#`, `A#→Bb`, `Cb→B`, `E#→F`). Нормализация обязательна: без неё
+ * `Db` из панели не совпал бы с `C#` в `keyOptions`, и подсветка «выбрано» отвалилась бы.
+ * Нераспознанная нота (например `B#` вне таблицы) ⇒ пустая строка — вызывающий это не пишет.
+ */
+export function keyFromParts(base: KeyBase, accidental: KeyAccidental, minor: boolean): string {
+  const chroma = Note.chroma(`${base}${accidental}`);
+  if (chroma == null || Number.isNaN(chroma)) return '';
+  return CHROMATIC_MAJOR[chroma] + (minor ? 'm' : '');
+}
+
+/**
+ * Тональность, отстоящая от `key` на `semitones` (любой знак и модуль: слайдер даёт −6…+6,
+ * каподастр — до −9). Результат нормализован по mod 12 в спеллинг `CHROMATIC_MAJOR`, поэтому
+ * всегда входит в `keyOptions(key)`. Нераспознанная `key` ⇒ `undefined` (не бросаем).
+ */
+export function keyByOffset(key: string | undefined, semitones: number): string | undefined {
+  const parsed = parseKey(key);
+  if (!parsed) return undefined;
+  const chroma = Note.chroma(parsed.tonic);
+  if (chroma == null || Number.isNaN(chroma)) return undefined;
+  const shifted = (((chroma + semitones) % 12) + 12) % 12;
+  return CHROMATIC_MAJOR[shifted] + (parsed.minor ? 'm' : '');
 }
 
 /** Только для тестов: сбрасывает флаг однократного warn. */

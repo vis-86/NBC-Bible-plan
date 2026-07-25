@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  SONG_CAPO_STORAGE_KEY,
   SONG_PERSONAL_KEYS_STORAGE_KEY,
   clearPersonalKey,
+  readCapo,
   readPersonalKey,
   resetPersonalKeyWarnings,
   subscribePersonalKeys,
+  writeCapo,
   writePersonalKey,
 } from './personalKeyStore';
 
@@ -93,5 +96,54 @@ describe('personalKeyStore', () => {
     expect(readPersonalKey('42')).toBeUndefined();
     expect(() => clearPersonalKey('42')).not.toThrow();
     expect(warn).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('capo store', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetPersonalKeyWarnings();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('пишет, читает и сбрасывает капо (0 удаляет запись)', () => {
+    expect(readCapo('42')).toBe(0);
+
+    writeCapo('42', 2);
+    expect(readCapo('42')).toBe(2);
+    expect(JSON.parse(localStorage.getItem(SONG_CAPO_STORAGE_KEY) as string)).toEqual({ 42: 2 });
+
+    writeCapo('42', 0);
+    expect(readCapo('42')).toBe(0);
+    expect(JSON.parse(localStorage.getItem(SONG_CAPO_STORAGE_KEY) as string)).toEqual({});
+  });
+
+  it('капо и личная тональность независимы', () => {
+    writePersonalKey('7', 'Ab');
+    writeCapo('7', 3);
+    expect(readPersonalKey('7')).toBe('Ab');
+    expect(readCapo('7')).toBe(3);
+
+    clearPersonalKey('7');
+    expect(readCapo('7')).toBe(3);
+  });
+
+  it('запись капо уведомляет подписчиков (общий listener-набор)', () => {
+    const listener = vi.fn();
+    const unsubscribe = subscribePersonalKeys(listener);
+    writeCapo('1', 4);
+    expect(listener).toHaveBeenCalled();
+    unsubscribe();
+  });
+
+  it('нечисловые и неположительные значения игнорируются', () => {
+    localStorage.setItem(SONG_CAPO_STORAGE_KEY, JSON.stringify({ 1: '2', 2: 0, 3: -1, 4: 5 }));
+    expect(readCapo('1')).toBe(0);
+    expect(readCapo('2')).toBe(0);
+    expect(readCapo('3')).toBe(0);
+    expect(readCapo('4')).toBe(5);
   });
 });

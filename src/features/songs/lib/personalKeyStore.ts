@@ -17,7 +17,15 @@
  */
 export const SONG_PERSONAL_KEYS_STORAGE_KEY = 'songs:keys';
 
+/**
+ * Ключ хранилища каподастра — тот же принцип «один литерал». Капо живёт отдельной картой
+ * (не в тональности): при капо песня звучит в той же тональности, меняются лишь формы
+ * аккордов на листе, поэтому и семантика записи другая (число ладов, не строка).
+ */
+export const SONG_CAPO_STORAGE_KEY = 'songs:capo';
+
 type PersonalKeys = Record<string, string>;
+type CapoMap = Record<string, number>;
 
 /**
  * Подписчики на изменение личных тональностей. Нужны, чтобы React читал хранилище через
@@ -86,6 +94,52 @@ export function clearPersonalKey(songId: string): void {
   if (!(songId in keys)) return;
   delete keys[songId];
   writeAll(keys);
+}
+
+/**
+ * Каподастр песни (число ладов). Хранится в отдельной карте, но через тот же
+ * listener-набор: `useSyncExternalStore` в `useSongKey` подписан один раз и обязан
+ * реагировать и на смену тональности, и на смену капо.
+ */
+function readAllCapo(): CapoMap {
+  try {
+    const raw = localStorage.getItem(SONG_CAPO_STORAGE_KEY);
+    if (raw === null) return {};
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+    return Object.fromEntries(
+      Object.entries(parsed as Record<string, unknown>).filter(([, value]) => typeof value === 'number' && Number.isFinite(value) && value > 0),
+    ) as CapoMap;
+  } catch (err) {
+    warnStorageUnavailable(err);
+    return {};
+  }
+}
+
+function writeAllCapo(capos: CapoMap): void {
+  try {
+    localStorage.setItem(SONG_CAPO_STORAGE_KEY, JSON.stringify(capos));
+  } catch (err) {
+    warnStorageUnavailable(err);
+  }
+  for (const listener of listeners) listener();
+}
+
+/** Каподастр песни в ладах (0, если не выставлен). */
+export function readCapo(songId: string): number {
+  return readAllCapo()[songId] ?? 0;
+}
+
+/** Записать капо; 0 удаляет запись, чтобы хранилище не пухло дефолтными значениями. */
+export function writeCapo(songId: string, capo: number): void {
+  const capos = readAllCapo();
+  if (capo <= 0) {
+    if (!(songId in capos)) return;
+    delete capos[songId];
+  } else {
+    capos[songId] = capo;
+  }
+  writeAllCapo(capos);
 }
 
 /** Только для тестов: сбрасывает флаг однократного warn. */

@@ -91,17 +91,15 @@ describe('SongView', () => {
     expect(chords).toEqual(expect.arrayContaining(['Am', 'F', 'C', 'G']));
   });
 
-  it('селектор тональности занимает место плашки с тональностью в шапке', () => {
-    const withPicker = render(
-      <SongView content={CONTENT} title="Песня" songKey="G" tempo="72" keyPicker={<span data-test-picker>picker</span>} />,
-    );
-    expect(withPicker.container.querySelector('[data-test-picker]')).not.toBeNull();
-    // В плашке остаётся только темп — тональность уже показана селектором.
-    expect(withPicker.container.querySelector('[data-song-view-meta]')?.textContent).toBe('72');
-    withPicker.unmount();
+  it('плашка показывает тональность и темп', () => {
+    const { container } = render(<SongView content={CONTENT} title="Песня" songKey="G" tempo="72" />);
+    expect(container.querySelector('[data-song-view-meta]')?.textContent).toBe('G · 72');
+  });
 
-    const withoutPicker = render(<SongView content={CONTENT} title="Песня" songKey="G" tempo="72" />);
-    expect(withoutPicker.container.querySelector('[data-song-view-meta]')?.textContent).toBe('G · 72');
+  it('при капо плашка показывает звучащую тональность (metaKey), а не форму (songKey)', () => {
+    // songKey=G — форма на листе; metaKey=A — звучащая тональность (капо 2).
+    const { container } = render(<SongView content={CONTENT} title="Песня" songKey="G" metaKey="A" tempo="72" />);
+    expect(container.querySelector('[data-song-view-meta]')?.textContent).toBe('A · 72');
   });
 
   // Подводный камень 2 (§4.2): клон, из которого вырезаются листы, обязан наследовать

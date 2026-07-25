@@ -68,15 +68,30 @@ function SongPageContent() {
               onBack={handleBack}
               backAriaLabel="Назад к списку"
               right={
-                <button
-                  type="button"
-                  data-song-page-view-settings-button
-                  aria-label="Настройки просмотра"
-                  onClick={() => setIsViewSettingsOpen(true)}
-                  className="rounded-app-sm p-2 text-app-text-secondary transition-transform duration-150 hover:bg-app-surface-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
-                >
-                  <Settings size={20} />
-                </button>
+                <div className="flex items-center gap-1">
+                  {song && showKeyPicker && (
+                    <SongKeyPicker
+                      value={songKeyState.effectiveKey as string}
+                      source={songKeyState.source}
+                      originalKey={song.key}
+                      options={songKeyState.options}
+                      onChange={songKeyState.setKey}
+                      onReset={songKeyState.resetKey}
+                      capo={songKeyState.capo}
+                      onCapoChange={songKeyState.setCapo}
+                      shapeKey={songKeyState.shapeKey}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    data-song-page-view-settings-button
+                    aria-label="Настройки просмотра"
+                    onClick={() => setIsViewSettingsOpen(true)}
+                    className="rounded-app-sm p-2 text-app-text-secondary transition-transform duration-150 hover:bg-app-surface-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
+                  >
+                    <Settings size={20} />
+                  </button>
+                </div>
               }
             />
           </div>
@@ -103,20 +118,13 @@ function SongPageContent() {
               // title не прокидываем: он уже показан в PageHeader сверху (без дубля).
               content={song.content}
               subtitle={song.subtitle}
-              // Действующая тональность (§10.1), не исходная: она же задаёт спеллинг.
-              songKey={songKeyState.effectiveKey ?? song.key}
-              semitones={songKeyState.semitones}
-              keyPicker={
-                showKeyPicker ? (
-                  <SongKeyPicker
-                    value={songKeyState.effectiveKey as string}
-                    source={songKeyState.source}
-                    options={songKeyState.options}
-                    onChange={songKeyState.setKey}
-                    onReset={songKeyState.resetKey}
-                  />
-                ) : undefined
-              }
+              // songKey — тональность ФОРМ на листе (при капо ≠ звучащей): она задаёт спеллинг
+              // диезов/бемолей, обязанный совпадать с реально напечатанными аккордами.
+              songKey={songKeyState.shapeKey ?? songKeyState.effectiveKey ?? song.key}
+              // metaKey — ЗВУЧАЩАЯ тональность для плашки key·tempo.
+              metaKey={songKeyState.effectiveKey ?? song.key}
+              // renderSemitones уже учитывает капо (semitones − capo).
+              semitones={songKeyState.renderSemitones}
               tempo={song.tempo}
               fontSize={viewSettings.fontSize}
               hideChords={!viewSettings.showChords}

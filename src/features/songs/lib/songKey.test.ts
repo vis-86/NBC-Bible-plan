@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { keyOptions, resetSongKeyWarnings, resolveEffectiveKey, semitonesBetween } from './songKey';
+import { keyByOffset, keyFromParts, keyOptions, resetSongKeyWarnings, resolveEffectiveKey, semitonesBetween, splitKey } from './songKey';
 
 describe('resolveEffectiveKey', () => {
   it('личная тональность перебивает всё', () => {
@@ -82,5 +82,60 @@ describe('keyOptions', () => {
   it('нераспознанная исходная — пустой список', () => {
     expect(keyOptions('Zz')).toEqual([]);
     expect(keyOptions(undefined)).toEqual([]);
+  });
+});
+
+describe('splitKey', () => {
+  it('разбирает основу, знак и лад', () => {
+    expect(splitKey('G')).toEqual({ base: 'G', accidental: '', minor: false });
+    expect(splitKey('F#')).toEqual({ base: 'F', accidental: '#', minor: false });
+    expect(splitKey('Ab')).toEqual({ base: 'A', accidental: 'b', minor: false });
+    expect(splitKey('Em')).toEqual({ base: 'E', accidental: '', minor: true });
+    expect(splitKey('C#m')).toEqual({ base: 'C', accidental: '#', minor: true });
+  });
+
+  it('нераспознанное и двойной знак ⇒ null', () => {
+    expect(splitKey(undefined)).toBeNull();
+    expect(splitKey('Zz')).toBeNull();
+    expect(splitKey('C##')).toBeNull();
+  });
+});
+
+describe('keyFromParts', () => {
+  it('нормализует энгармоники к спеллингу CHROMATIC_MAJOR', () => {
+    expect(keyFromParts('D', 'b', false)).toBe('C#');
+    expect(keyFromParts('D', '#', false)).toBe('Eb');
+    expect(keyFromParts('G', 'b', false)).toBe('F#');
+    expect(keyFromParts('A', '#', false)).toBe('Bb');
+    expect(keyFromParts('C', 'b', false)).toBe('B');
+    expect(keyFromParts('E', '#', false)).toBe('F');
+  });
+
+  it('сохраняет лад и результат входит в keyOptions', () => {
+    expect(keyFromParts('E', '', true)).toBe('Em');
+    expect(keyOptions('Am')).toContain(keyFromParts('D', 'b', true));
+  });
+});
+
+describe('keyByOffset', () => {
+  it('сдвигает в обе стороны и нормализует по mod 12', () => {
+    expect(keyByOffset('A', 2)).toBe('B');
+    expect(keyByOffset('A', -2)).toBe('G');
+    expect(keyByOffset('C', -1)).toBe('B');
+    expect(keyByOffset('C', 13)).toBe('C#');
+    expect(keyByOffset('C', -9)).toBe('Eb');
+  });
+
+  it('сохраняет лад, результат всегда в keyOptions', () => {
+    expect(keyByOffset('Em', 3)).toBe('Gm');
+    for (let n = -9; n <= 6; n += 1) {
+      const result = keyByOffset('A', n);
+      expect(keyOptions('A')).toContain(result);
+    }
+  });
+
+  it('нераспознанная тональность ⇒ undefined', () => {
+    expect(keyByOffset(undefined, 1)).toBeUndefined();
+    expect(keyByOffset('Zz', 1)).toBeUndefined();
   });
 });
