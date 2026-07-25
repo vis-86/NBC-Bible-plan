@@ -55,9 +55,9 @@ bible-plan/
 │   │   │   ├── types.ts              # Reading-specific types
 │   │   │   └── bible-text-cache.ts   # Client-side cache for bible text
 │   │   ├── songs/                    # Songs (ChordPro) feature slice
-│   │   │   ├── components/           # SongList, SongCard, SongView, SearchBar, render/*
-│   │   │   ├── hooks/                # useSongs, useSong, useSongSearch, useScrollRestore
-│   │   │   ├── lib/                  # ChordPro parser, offlineSongs (read-through)
+│   │   │   ├── components/           # SongList, SongCard, SongView, SongKeyPicker, SearchBar, render/*
+│   │   │   ├── hooks/                # useSongs, useSong, useSongSearch, useScrollRestore, useSongViewSettings, useSongKey
+│   │   │   ├── lib/                  # ChordPro parser, offlineSongs (read-through), markers/transpose/songKey (§10), personalKeyStore
 │   │   │   └── types.ts              # Song-specific types
 │   │   └── landing/                  # Public landing slice (orchestrated by app/page.tsx)
 │   │       ├── components/           # Header, Hero, About, HowToStart, InstallGuide, FinalCta, Footer, Atmosphere, PhoneMockup, cta

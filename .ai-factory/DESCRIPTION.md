@@ -35,6 +35,7 @@ Web application for the New Baptist Church (NBC) community — a structured Bibl
 - **UI Components:** shadcn/ui (components.json configured)
 - **Markdown:** react-markdown + remark-gfm + rehype-raw
 - **Search:** fuse.js (клиентский нечёткий поиск по каталогу песен)
+- **Music theory:** tonal (транспозиция аккордов и спеллинг по целевой тональности — `src/features/songs/lib/transpose.ts`)
 - **Auth:** iron-session (sealed cookie, framework-agnostic core in `src/lib/session-core.ts`) + Directus password auth + Telegram link; validation via `zod`
 - **Offline storage:** `idb` (typed IndexedDB wrapper) — bibleChapters/songs/apiCache/outbox/meta/manifest, schema-versioned
 - **Tests:** Vitest (auth lib/API unit tests, node env); component tests via @testing-library/react + jsdom (per-file `// @vitest-environment jsdom`); IndexedDB-зависимые тесты через `fake-indexeddb/auto`; Playwright для офлайн E2E-регрессии (`e2e/offline/`, `npm run e2e:offline`)

@@ -224,6 +224,50 @@ test.describe('Раскладка песни — постраничный реж
   });
 });
 
+test.describe('Раскладка песни — смена тональности (M4)', () => {
+  // Транспозиция меняет ширину аккордов (`Bb7` шире `A7`), а значит и разбивку по листам.
+  // Если сдвиг не входит в триггеры `useSheets`, листы остаются от прежней тональности:
+  // на экране это пустой или обрезанный лист. jsdom этого не видит — только браузер.
+  test('после смены тональности листы пересобираются, пустых нет', async () => {
+    await openSong(page, songId, WIDE, { mode: 'sheets', columns: 2, fontSize: 18 });
+    const countBefore = await waitForStableSheets(page);
+    const keyBefore = await page.locator('[data-song-key-picker-value]').textContent();
+    expect(keyBefore, 'селектор тональности должен показывать действующую тональность').toBeTruthy();
+
+    await page.locator('[data-song-key-picker-toggle]').click();
+    const options = page.locator('[data-song-key-picker-options] button');
+    await options.first().waitFor({ state: 'visible', timeout: 5_000 });
+
+    // Берём заведомо другую тональность, чтобы сдвиг был ненулевым.
+    const target = (await options.allTextContents()).find((label) => label.trim() !== keyBefore?.trim());
+    expect(target, 'в списке должна быть тональность, отличная от действующей').toBeTruthy();
+    await page.locator('[data-song-key-picker-options] button', { hasText: new RegExp(`^${(target as string).trim()}$`) }).first().click();
+
+    await expect(page.locator('[data-song-key-picker-value]')).toHaveText((target as string).trim());
+
+    const countAfter = await waitForStableSheets(page);
+    const geo = await measureSheets(page);
+    expect(geo.sheets).toHaveLength(countAfter);
+
+    geo.sheets.forEach((sheet, i) => {
+      expect(sheet.visible.length, `после транспозиции лист ${i + 1}/${countAfter} не должен быть пустым`).toBeGreaterThan(0);
+    });
+
+    // Все секции по-прежнему видны, ничего не потеряно и не обрезано снизу.
+    const seen = new Set<number>();
+    geo.sheets.forEach((sheet) => sheet.visible.forEach((v) => seen.add(v.idx)));
+    expect(seen.size, 'после транспозиции все секции должны остаться видимыми').toBe(geo.totalSections);
+    const last = geo.sheets[geo.sheets.length - 1];
+    expect(Math.max(...last.visible.map((v) => v.clippedBottom))).toBeLessThanOrEqual(2);
+    expect(geo.docNoHScroll, 'после транспозиции не должно появляться горизонтального скролла').toBe(true);
+    expect(countBefore, 'листы должны быть посчитаны и до, и после').toBeGreaterThan(0);
+
+    // Личная тональность остаётся у песни — убираем её, чтобы не влиять на другие тесты.
+    await page.locator('[data-song-key-picker-reset]').click();
+    await expect(page.locator('[data-song-key-picker-reset]')).toHaveCount(0);
+  });
+});
+
 test.describe('Раскладка песни — без горизонтального скролла', () => {
   test('узкий экран (390px): режим приведён к scroll, скролла по X нет', async () => {
     // Даже сохранённый sheets обязан выключиться на телефоне (SONG_WIDE_LAYOUT_QUERY).
