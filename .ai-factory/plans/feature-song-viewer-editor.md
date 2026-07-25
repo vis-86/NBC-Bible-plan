@@ -79,7 +79,56 @@
 
 - [ ] **Этап 3 — раскладка листами, колонки, настройки отображения**
   Спека: **§4 целиком** (колонки, режим `sheets`, три подводных камня, §4.6 разрывы), **§5** (размер шрифта, плотность, тумблер шапки), **§7** (таблица настроек и скоупов), **§3.3** (режим «только текст»), **§11** (доступность). Прототип раскладки — `docs/song-viewer-prototype.html`.
-  Ключевое: `fontSize` перевести с inline-стилей на CSS-переменную `--lyric-size` на контейнере + производные (§5); `hideChords` — на `.chord { display: none }` вместо ветвления в React (§3.3); `break-inside: avoid` добавить на строку, не только на секцию (§4.6); диапазон шрифта расширить до 12–32.
+
+#### Фактура на 2026-07-25 (проверено чтением кода)
+
+- Рендер-цепочка: `app/dashboard/song/page.tsx` → `SongView` (шапка + `.song-blocks-layout.single`) → `SongBlock` (обёртка `.song-block > .song-block-content{overflow-x:auto} > .cproColumn`, **по одной на блок**) → `ChordProHtmlColumn` (`.cproSongSection` + `LineRenderer`) → `ChordRenderer`.
+- `fontSize` прокидывается пропом через 4 уровня и садится inline-стилем в двух местах: `ChordProHtmlColumn.tsx:43` (секция) и `LineRenderer.tsx:195` (строка). `hideChords` — пропом до `ChordRenderer`.
+- `useSongFontSize`: ключ `songs:font-size`, диапазон 14–28, дефолт 17. Настроек кроме шрифта нет.
+- **Прототип использует ту же legacy-разметку** (`chordWrapper`/`float`/`wordWrapper`), что и React-код. Значит токен-модель §3.1/§3.2 на этом этапе НЕ переписываем — этап чисто про раскладку вокруг существующего рендера.
+- Блокирующее для колонок: multicol требует **один** поток со всеми секциями, а сейчас flex-колонка из N `.cproColumn` с `overflow-x:auto` на каждом блоке. DOM надо перестроить в один `.cproColumn` (как в прототипе); `.song-block-content{overflow-x:auto}` уходит — §11/§12 требуют отсутствия горизонтального скролла в reflow-модели.
+- DOM-якорей песни снаружи фичи нет (`grep`: только `data-song-page*` в page.tsx) — перестройка разметки ничего не ломает.
+
+#### Принятые решения (не развилки, зафиксировано)
+
+1. Все настройки раскладки — **один** localStorage-ключ `songs:view-settings` (JSON), одноразовая миграция из `songs:font-size`. Отдельные ключи на каждую настройку = 6 ключей и 6 путей рассинхрона.
+2. Дефолт `mode` — `scroll` на любом устройстве (переключатель явный, §4.5). Авто-выбора по ширине нет.
+3. В `sheets`/`paged` авто-скрытие шапки (`useAutoHideOnScroll`) отключается: смена высоты вьюпорта = перестройка листов на каждый скролл. Экран освобождает тумблер «скрыть шапку» (§5).
+4. `SongBlock` удаляется — после перехода на один поток он ничего не добавляет к `.cproSongSection`.
+
+#### Коммиты
+
+- [ ] **Коммит A** — `refactor(songs): drive song rendering from CSS variables`
+  - `songs.css`: на корне `.cproSongBody` — `--lyric-size` (задаётся из JS), производные `--chord-size: calc(var(--lyric-size) * 0.85)`, `--line-height`, `--section-gap` (§5). `.cproSongLine` / `.chord` / `.cproSongSection` переводятся на них.
+  - Убрать проп `fontSize` из `SongView`/`SongBlock`/`ChordProHtmlColumn`/`LineRenderer` и оба inline-`style`. Значение ставится один раз: `style={{ '--lyric-size': fontSize+'px' }}` на `.cproSongBody`.
+  - `hideChords` → атрибут `data-chords="off"` на корне + `.chord { display: none }` (§3.3); проп убрать из всей цепочки до `ChordRenderer`. `aria-hidden` на аккорде в этом режиме (§11).
+  - `break-inside: avoid` на `.cproSongLine` в дополнение к `.cproSongSection` (§4.6).
+  - **Тесты:** новый `SongView.test.tsx` (jsdom): CSS-переменная стоит на корне; при `hideChords` есть `data-chords="off"` и `aria-hidden` на аккорде; в DOM нет inline `font-size`.
+
+- [ ] **Коммит B** — `feat(songs): song view settings (density, chords, header, columns, mode)`
+  - Новый `hooks/useSongViewSettings.ts`: `{ mode, columns, fontSize, density, showChords, showHeader }`, персист одним JSON-ключом, клампы (`fontSize` 12–32, §5), миграция со старого ключа, устойчивость к битому JSON. `useSongFontSize` удаляется вместе с тестом (его кейсы переезжают).
+  - `SongFontSettings` → `SongViewSettings`: слайдер 12–32, сегменты плотности/режима/колонок, тумблеры аккордов и шапки. Тап-таргеты ≥44px (§11). «2 колонки» дизейблятся при `< 640px` с подсказкой «доступно на планшете» (§4.5).
+  - `SongView`: `showHeader=false` убирает `<header>`; `density` → `data-density` на корне, CSS меняет `--line-height` 1.45/1.2 и `--section-gap`.
+  - **Тесты:** `useSongViewSettings.test.ts` (дефолты, кламп границ 12/32, миграция `songs:font-size` → JSON, битый JSON → дефолты, недоступность localStorage); компонентный тест дизейбла «2 колонки» на узком экране.
+
+- [ ] **Коммит C** — `feat(songs): single multicol flow and sheets layout`
+  - `SongView` рендерит **один** `.cproColumn` со всеми секциями (`SongBlock.tsx` удалить, `parseSongBlocks` → массив секций для `ChordProHtmlColumn`). `columns: var(--col-count); column-gap: 2rem` — по прототипу.
+  - Новый `lib/sheets.ts` — **чистые** функции: `pitch(clientWidth, columnGap)` = ширина + gap (подводный камень 1), `sheetCount(maxSectionRight, pitch)` = `max(1, ceil((maxRight-2)/pitch))` (подводный камень 3). Измерения передаются аргументами, DOM внутри нет.
+  - Новый `hooks/useSheets.ts`: измеряет источник, строит N листов-«окон» (`.sheet` `content-box` + `.sheet-flow` с `transform: translateX(-i*pitch)`), перестраивает на смену колонок/шрифта (debounce 120мс)/плотности/режима «только текст»/resize/поворот (ResizeObserver + `orientationchange`). Клон живёт **внутри** контейнера с той же типографикой (подводный камень 2).
+  - Высота листа: `--page-h` из высоты скролл-контейнера — `page.tsx` передаёт `viewportRef`; в `sheets`/`paged` `useAutoHideOnScroll` не подключается (решение 3).
+  - CSS стыка §4.3: зазор 14px, волосяная линия, `padding-top: 18px`, номер «2 / 3» в углу. Токены только семантические (`--app-*`), никаких хардкод-шейдов.
+  - **Тесты:** `sheets.test.ts` — шаг с gap и без, отсутствие хвостового пустого листа (`maxRight` ровно кратен шагу), одна страница при контенте уже экрана, защита от нулевой ширины.
+
+- [ ] **Коммит D** — `feat(songs): paged mode with keyboard and tap paging`
+  - Режим `paged`: тот же поток, `flow.scrollLeft += pitch` (§4.4), без клонирования.
+  - Управление: `→`/пробел/`PageDown` вперёд, `←`/`PageUp` назад (Bluetooth-педали), тап по правой/левой трети, кнопки панели (≥44px), индикатор «2 / 3» — обязателен и в `sheets`, и в `paged`.
+  - **Тесты:** unit на чистый резолвер клавиши → направление (`nextPageDelta(key)`), чтобы не тащить это в e2e.
+
+- [ ] **Коммит E** — `test(songs): e2e regression for sheets and paged layout`
+  - Новый `e2e/layout/song-layout.spec.ts` (тот же playwright-конфиг, отдельная папка от `e2e/offline`): ни одного пустого листа в комбинациях 1/2 колонки × шрифт 12/18/30; левый край содержимого одинаков на всех листах; объединение секций по листам = все секции песни без пересечений; низ последнего листа не обрезан; в `paged` шаг ровно `clientWidth + column-gap`; нет горизонтального скролла на 390px и 1024px (§12).
+  - Требует прод-контур + `.env.test` с кредами тест-аккаунта. Если Playwright/креды недоступны — по правилу верификации №4 фиксируем `E2E НЕ ПРОГНАН` в Progress Log, этап галочкой не закрываем.
+
+  **Верификация этапа:** `npm run test` + `npm run lint` (baseline снять ДО работы) на каждом коммите; роутинг/SW/офлайн не трогаются (данные песни не меняются, новых маршрутов нет) ⇒ полный прод-контур нужен только под коммит E.
 
 - [ ] **Этап 4 — транспозиция и тональности**
   Спека: **§10 целиком** (три уровня тональности, хранение строкой, правила транспозиции токенов), **§3.1** (токен-модель — нужна классификация `Chord`/`Bar`/`Note`), **§2** (виды токенов в корпусе), **§12** (критерии приёмки по транспозиции).
