@@ -382,7 +382,7 @@ select,
    совпадать по ширине, иначе бар «съезжает» относительно оболочки.
    48rem ≈ iPad portrait во всю ширину; на десктопе остаются поля с тенью. */
 :root {
-    --app-shell-max-w: 48rem;
+    --app-shell-max-w: 52rem;
 }
 
 .app-shell-width {

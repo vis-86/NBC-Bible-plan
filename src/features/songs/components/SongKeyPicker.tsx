@@ -24,6 +24,8 @@ export interface SongKeyPickerProps {
   /** Тональность форм аккордов при текущем капо (`keyByOffset(value, -capo)`). */
   shapeKey?: string;
   className?: string;
+  /** Уведомляет родителя об открытии/закрытии шторки (гейт перекрывающих оверлеев страницы). */
+  onOpenChange?: (open: boolean) => void;
 }
 
 /** Подписи уровней §10.1. Названия нот — латиницей, как в корпусе и в аккордах на листе. */
@@ -68,9 +70,20 @@ export function SongKeyPicker({
   onCapoChange,
   shapeKey,
   className,
+  onOpenChange,
 }: SongKeyPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const sourceLabel = SOURCE_LABEL[source];
+
+  const open = () => {
+    setIsOpen(true);
+    onOpenChange?.(true);
+  };
+
+  const close = () => {
+    setIsOpen(false);
+    onOpenChange?.(false);
+  };
 
   const parts = splitKey(value);
   const minor = parts?.minor ?? false;
@@ -90,7 +103,7 @@ export function SongKeyPicker({
 
   const handleReset = () => {
     onReset();
-    setIsOpen(false);
+    close();
   };
 
   return (
@@ -101,7 +114,7 @@ export function SongKeyPicker({
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-label="Тональность"
-        onClick={() => setIsOpen(true)}
+        onClick={open}
         // Габариты выровнены с кнопкой настроек справа (иконка + p-2 ≈ h-9): фиксированная
         // высота и min-width держат шапку однородной вне зависимости от длины тональности.
         className="inline-flex h-9 min-w-11 items-center justify-center gap-1.5 rounded-app-sm bg-app-primary px-3 text-sm font-medium text-app-text-inverse transition-colors duration-150 hover:bg-app-primary-hover active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2"
@@ -119,7 +132,7 @@ export function SongKeyPicker({
         )}
       </button>
 
-      <BottomSheet isOpen={isOpen} onClose={() => setIsOpen(false)} title="Транспонирование">
+      <BottomSheet isOpen={isOpen} onClose={close} title="Транспонирование">
         <div data-song-key-picker-panel className="space-y-6 pb-2">
           <div data-section="base">
             <label className="mb-2 block text-sm font-medium text-app-text-secondary">Выберите основу</label>

@@ -11,7 +11,9 @@ import { useSongViewSettings, SONG_WIDE_LAYOUT_QUERY } from '@/features/songs/ho
 import { SongView } from '@/features/songs/components/SongView';
 import { SongKeyPicker } from '@/features/songs/components/SongKeyPicker';
 import { SongViewSettings } from '@/features/songs/components/SongViewSettings';
+import { SongAutoScroll } from '@/features/songs/components/SongAutoScroll';
 import { useSongKey } from '@/features/songs/hooks/useSongKey';
+import { useAutoScroll } from '@/features/songs/hooks/useAutoScroll';
 import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 import { cn } from '@/shared/utils/cn';
@@ -29,9 +31,10 @@ function SongPageContent() {
 
   const { song, loading, error } = useSong(id);
   const contentRef = useRef<HTMLDivElement>(null);
-  const { hidden } = useAutoHideOnScroll(contentRef, song?.id);
+  const { hidden, ignoreNextScroll } = useAutoHideOnScroll(contentRef, song?.id);
   const [viewSettings, setViewSettings] = useSongViewSettings();
   const [isViewSettingsOpen, setIsViewSettingsOpen] = useState(false);
+  const [isKeyPickerOpen, setIsKeyPickerOpen] = useState(false);
   const songKeyState = useSongKey(song);
   // В режиме «только текст» аккордов на экране нет — тональность ни на что не влияет
   // и селектор не показывается. Выбирать не из чего — тоже (нераспознанная тональность).
@@ -46,12 +49,22 @@ function SongPageContent() {
   // пересборка листов на каждый скролл, поэтому шапка там всегда видна.
   const headerHidden = mode === 'scroll' ? hidden : false;
 
+  // Автоскролл активен только в режиме scroll при загруженной песне (§4.5, §8).
+  // Скорость — per-song device-local настройка (autoScrollSpeedStore).
+  // ignoreNextScroll гасит реакцию useScrollDirection на программный сдвиг scrollTop.
+  const autoscroll = useAutoScroll({
+    containerRef: contentRef,
+    songId: song?.id ?? '',
+    enabled: mode === 'scroll' && !!song,
+    onBeforeProgrammaticScroll: ignoreNextScroll,
+  });
+
   const handleBack = () => router.push('/dashboard/songs');
 
   return (
     // hideBottomNav — фокус-режим чтения: нижняя навигация скрыта.
     <DashboardLayout onChangeView={() => {}} hideBottomNav>
-      <div data-song-page className="flex min-h-0 flex-1 flex-col">
+      <div data-song-page className="relative flex min-h-0 flex-1 flex-col">
         {/* grid-rows 0fr↔1fr анимирует высоту без измерения. pt-safe в скрытом
             состоянии сохраняет закрашенную полоску брови (PageHeader несёт
             свой pt-safe-3 только когда виден) — инвариант «бровь = цвет шапки». */}
@@ -80,6 +93,7 @@ function SongPageContent() {
                       capo={songKeyState.capo}
                       onCapoChange={songKeyState.setCapo}
                       shapeKey={songKeyState.shapeKey}
+                      onOpenChange={setIsKeyPickerOpen}
                     />
                   )}
                   <button
@@ -136,6 +150,21 @@ function SongPageContent() {
             />
           )}
         </div>
+
+        {/* FAB автоскролла — сиблинг скролл-контейнера (не внутри него): слушатель паузы
+            висит на контейнере, а тап по FAB внутри всплыл бы в touchstart → пауза на play.
+            Только в scroll при загруженной песне; на showChords не гейтим (§4.5).
+            Прячем при любой открытой нижней шторке на странице песни (настройки ИЛИ
+            транспонирование), иначе контрол перекрывает лист. */}
+        {mode === 'scroll' && song && !isViewSettingsOpen && !isKeyPickerOpen && (
+          <SongAutoScroll
+            playing={autoscroll.playing}
+            step={autoscroll.step}
+            canScroll={autoscroll.canScroll}
+            onToggle={autoscroll.toggle}
+            onSetStep={autoscroll.setStep}
+          />
+        )}
       </div>
 
       <SongViewSettings
