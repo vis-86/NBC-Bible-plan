@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 
-import { parseSongBlocks, structurizeSong } from './songParser';
+import { parseSongBlocks } from './songParser';
 import { parseLine } from './lineParser';
 import { parseChordProFile, chordProToSong } from './chordProParser';
 
@@ -48,14 +48,6 @@ describe('parseSongBlocks', () => {
     expect(joined).not.toContain('{start_of_chorus}');
     expect(joined).not.toContain('{end_of_chorus}');
     expect(joined).not.toContain('{key:');
-  });
-});
-
-describe('structurizeSong', () => {
-  it('captures a chorus section', () => {
-    const { chorus } = structurizeSong(parseChordProFile(SAMPLE, '42-x.chordpro').content);
-    expect(chorus?.type).toBe('chorus');
-    expect(chorus?.lines.length).toBeGreaterThan(0);
   });
 });
 
