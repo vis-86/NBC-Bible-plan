@@ -5,6 +5,7 @@ import { useMemo, useRef, type RefObject } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { parseSongBlocks } from '../lib/songParser';
+import { transposeLine } from '../lib/transpose';
 import { useSheets } from '../hooks/useSheets';
 import { usePagedFlow } from '../hooks/usePagedFlow';
 import { PAGE_PADDING, PAGER_HEIGHT, SHEET_PADDING_TOP } from '../lib/sheets';
@@ -16,8 +17,16 @@ interface SongViewProps {
   content: string;
   title?: string;
   subtitle?: string;
-  /** Тональность (проп назван songKey, чтобы не путать с React key). */
+  /**
+   * ДЕЙСТВУЮЩАЯ тональность (§10.1; проп назван songKey, чтобы не путать с React key).
+   * Показывается в шапке и задаёт спеллинг диезов/бемолей при транспозиции (§10.2),
+   * поэтому источник у отображения и у транспозиции один.
+   */
   songKey?: string;
+  /** Сдвиг от исходной тональности к действующей. 0 ⇒ рендер идёт по исходным строкам. */
+  semitones?: number;
+  /** Селектор тональности — слот в шапке песни (§3.5). Владелец персиста — страница. */
+  keyPicker?: React.ReactNode;
   tempo?: string;
   /** Размер шрифта лирики в px — задаёт CSS-переменную `--lyric-size` на корне. */
   fontSize?: number;
@@ -52,6 +61,8 @@ export const SongView: React.FC<SongViewProps> = ({
   title,
   subtitle,
   songKey,
+  semitones = 0,
+  keyPicker,
   tempo,
   fontSize,
   hideChords = false,
@@ -63,12 +74,16 @@ export const SongView: React.FC<SongViewProps> = ({
 }) => {
   const sections = useMemo<HtmlSection[]>(
     () =>
-      parseSongBlocks(content).map((block) => ({
-        comment: block.comment || undefined,
-        commentType: block.commentType || undefined,
-        lines: block.content.split('\n'),
-      })),
-    [content],
+      parseSongBlocks(content).map((block) => {
+        const lines = block.content.split('\n');
+        return {
+          comment: block.comment || undefined,
+          commentType: block.commentType || undefined,
+          // При нулевом сдвиге строки идут как есть — без копирования и без работы.
+          lines: semitones === 0 ? lines : lines.map((line) => transposeLine(line, semitones, songKey ?? '')),
+        };
+      }),
+    [content, semitones, songKey],
   );
 
   if (process.env.NODE_ENV !== 'production') {
@@ -83,7 +98,9 @@ export const SongView: React.FC<SongViewProps> = ({
     enabled: mode !== 'scroll',
     sourceRef,
     viewportRef,
-    layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}`,
+    // Транспозиция входит в подпись: `Bb7` шире `A7`, ширина аккордов меняет разбивку,
+    // а без пересборки лист остался бы обрезанным или пустым.
+    layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}|${semitones}`,
     fontSize: fontSize ?? 0,
     // PAGE_PADDING — нижнее поле корня: `chromeAboveFlow` меряет только то, что над потоком.
     reservedHeight: (mode === 'paged' ? PAGER_HEIGHT : SHEET_PADDING_TOP) + PAGE_PADDING,
@@ -102,6 +119,8 @@ export const SongView: React.FC<SongViewProps> = ({
   };
 
   const meta = [songKey, tempo].filter(Boolean).join(' · ');
+  // Когда тональность показывает селектор, в плашке она была бы дублем.
+  const metaText = keyPicker ? tempo : meta;
   const rootStyle = {
     ...(fontSize ? { '--lyric-size': `${fontSize}px` } : null),
     '--col-count': effectiveColumns,
@@ -120,11 +139,17 @@ export const SongView: React.FC<SongViewProps> = ({
       data-mode={mode}
       style={rootStyle}
     >
-      {showHeader && (title || subtitle || meta) && (
+      {showHeader && (title || subtitle || meta || keyPicker) && (
         <header className="song-view-header" data-song-view-header>
           {title && <h1 className="song-view-title" data-song-view-title>{title}</h1>}
           {subtitle && <p className="song-view-subtitle" data-song-view-subtitle>{subtitle}</p>}
-          {meta && <span className="song-view-meta" data-song-view-meta>{meta}</span>}
+          {(keyPicker || meta) && (
+            <div className="song-view-header-row" data-song-view-header-row>
+              {keyPicker}
+              {/* Тональность показывает селектор, когда он есть — в плашке остаётся темп. */}
+              {metaText && <span className="song-view-meta" data-song-view-meta>{metaText}</span>}
+            </div>
+          )}
         </header>
       )}
 

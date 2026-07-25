@@ -9,7 +9,9 @@ import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { useSong } from '@/features/songs/hooks/useSong';
 import { useSongViewSettings, SONG_WIDE_LAYOUT_QUERY } from '@/features/songs/hooks/useSongViewSettings';
 import { SongView } from '@/features/songs/components/SongView';
+import { SongKeyPicker } from '@/features/songs/components/SongKeyPicker';
 import { SongViewSettings } from '@/features/songs/components/SongViewSettings';
+import { useSongKey } from '@/features/songs/hooks/useSongKey';
 import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 import { cn } from '@/shared/utils/cn';
@@ -30,6 +32,10 @@ function SongPageContent() {
   const { hidden } = useAutoHideOnScroll(contentRef, song?.id);
   const [viewSettings, setViewSettings] = useSongViewSettings();
   const [isViewSettingsOpen, setIsViewSettingsOpen] = useState(false);
+  const songKeyState = useSongKey(song);
+  // В режиме «только текст» аккордов на экране нет — тональность ни на что не влияет
+  // и селектор не показывается. Выбирать не из чего — тоже (нераспознанная тональность).
+  const showKeyPicker = viewSettings.showChords && Boolean(songKeyState.effectiveKey) && songKeyState.options.length > 0;
 
   // Постраничные режимы существуют только там, где панель настроек их показывает
   // (та же константа) — иначе сохранённый на планшете `sheets` включится на телефоне,
@@ -97,7 +103,20 @@ function SongPageContent() {
               // title не прокидываем: он уже показан в PageHeader сверху (без дубля).
               content={song.content}
               subtitle={song.subtitle}
-              songKey={song.key}
+              // Действующая тональность (§10.1), не исходная: она же задаёт спеллинг.
+              songKey={songKeyState.effectiveKey ?? song.key}
+              semitones={songKeyState.semitones}
+              keyPicker={
+                showKeyPicker ? (
+                  <SongKeyPicker
+                    value={songKeyState.effectiveKey as string}
+                    source={songKeyState.source}
+                    options={songKeyState.options}
+                    onChange={songKeyState.setKey}
+                    onReset={songKeyState.resetKey}
+                  />
+                ) : undefined
+              }
               tempo={song.tempo}
               fontSize={viewSettings.fontSize}
               hideChords={!viewSettings.showChords}

@@ -257,6 +257,17 @@ code.chord {
   color: var(--app-text-secondary);
   margin: 0.25rem 0 0;
 }
+/* Ряд «селектор тональности + плашка темпа» под заголовком (§3.5). */
+.song-view-header-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+.song-view-header-row .song-view-meta {
+  margin-top: 0;
+}
 .song-view-meta {
   display: inline-block;
   margin-top: 0.5rem;

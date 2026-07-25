@@ -72,6 +72,38 @@ describe('SongView', () => {
     expect(container.querySelector('[data-song-view-sheets]')).toBeNull();
   });
 
+  it('транспонирует аккорды при ненулевом сдвиге, не трогая такты и пометки', () => {
+    const content = '{comment: Куплет 1}\n[Am]Хор [|]поёт [(пауза)] [F]тут';
+    const { container } = render(<SongView content={content} songKey="Bm" semitones={2} />);
+    const chords = Array.from(container.querySelectorAll('code.chord')).map((node) => node.textContent);
+
+    expect(chords).toContain('Bm');
+    expect(chords).toContain('G');
+    expect(chords).not.toContain('Am');
+    // Такт и текстовая пометка транспозиции не подлежат (§10.3).
+    expect(chords).toContain('|');
+    expect(chords).toContain('(пауза)');
+  });
+
+  it('при нулевом сдвиге аккорды остаются исходными', () => {
+    const { container } = render(<SongView content={CONTENT} songKey="Am" semitones={0} />);
+    const chords = Array.from(container.querySelectorAll('code.chord')).map((node) => node.textContent);
+    expect(chords).toEqual(expect.arrayContaining(['Am', 'F', 'C', 'G']));
+  });
+
+  it('селектор тональности занимает место плашки с тональностью в шапке', () => {
+    const withPicker = render(
+      <SongView content={CONTENT} title="Песня" songKey="G" tempo="72" keyPicker={<span data-test-picker>picker</span>} />,
+    );
+    expect(withPicker.container.querySelector('[data-test-picker]')).not.toBeNull();
+    // В плашке остаётся только темп — тональность уже показана селектором.
+    expect(withPicker.container.querySelector('[data-song-view-meta]')?.textContent).toBe('72');
+    withPicker.unmount();
+
+    const withoutPicker = render(<SongView content={CONTENT} title="Песня" songKey="G" tempo="72" />);
+    expect(withoutPicker.container.querySelector('[data-song-view-meta]')?.textContent).toBe('G · 72');
+  });
+
   // Подводный камень 2 (§4.2): клон, из которого вырезаются листы, обязан наследовать
   // ту же типографику, что и источник, — значит лежать внутри того же корня.
   it('renders sheets inside the same typography root as the measured source', () => {
