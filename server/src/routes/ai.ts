@@ -4,6 +4,7 @@
  */
 import { Hono } from 'hono';
 import { proxyToDirectus } from '../../../src/lib/directus-proxy';
+import { getSession } from '../session';
 import { logger } from '../logger';
 
 const AI_FLOW_ID = process.env.DIRECTUS_AI_FLOW_ID || 'ai-service';
@@ -93,6 +94,11 @@ aiRoutes.post('/:path', async (c) => {
   if (!aiEnabled) {
     return c.json({ error: 'Функциональность ИИ отключена' }, 403);
   }
+
+  // Триггер AI-flow идёт под admin-токеном (proxyToDirectus(..., true)), поэтому
+  // роут обязан быть закрыт сессией — иначе неаутентифицированный вызов жжёт AI/n8n.
+  const session = await getSession(c);
+  if (!session) return c.json({ error: 'Unauthorized' }, 401);
 
   try {
     const endpoint = c.req.param('path');
