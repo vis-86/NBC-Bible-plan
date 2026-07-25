@@ -66,7 +66,7 @@ export const FloatingChapterNav: React.FC<FloatingChapterNavProps> = ({
 
   return (
     <div
-      className={`fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+16px)] z-40 mx-auto flex max-w-md items-center justify-between px-4 pointer-events-none transition-transform duration-300 ${
+      className={`fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+16px)] z-40 app-shell-width flex items-center justify-between px-4 pointer-events-none transition-transform duration-300 ${
         chromeHidden ? 'translate-y-0' : 'translate-y-[calc(-1*(var(--dock-nav-h)-4px))]'
       }`}
     >

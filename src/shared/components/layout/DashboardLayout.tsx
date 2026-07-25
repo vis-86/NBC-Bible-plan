@@ -76,7 +76,8 @@ function DashboardMain({ reserveNavSpace, children }: DashboardMainProps) {
         showReserve && 'pb-nav'
       )}
     >
-      <div className="mx-auto flex h-full min-h-0 w-full max-w-md flex-1 flex-col bg-app-bg md:shadow-xl">
+      {/* Ширина оболочки — одна переменная на контент и на докнутый nav (.app-shell-width). */}
+      <div className="app-shell-width flex h-full min-h-0 flex-1 flex-col bg-app-bg md:shadow-xl">
         {children}
       </div>
     </main>

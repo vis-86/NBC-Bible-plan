@@ -148,7 +148,7 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
       ref={navRef}
       data-dashboard-layout-bottom-nav
       data-dashboard-layout-bottom-nav-hidden={chromeHidden || undefined}
-      className={`fixed bottom-0 left-0 right-0 max-w-md mx-auto min-h-[var(--dock-nav-h)] pt-1.5 glass-nav rounded-t-[24px] flex items-center justify-around z-50 border-t border-app-border dock-nav-safe-b dock-nav-safe-x transition-transform duration-300 ${
+      className={`fixed bottom-0 left-0 right-0 app-shell-width min-h-[var(--dock-nav-h)] pt-1.5 glass-nav rounded-t-[24px] flex items-center justify-around z-50 border-t border-app-border dock-nav-safe-b dock-nav-safe-x transition-transform duration-300 ${
         chromeHidden ? 'translate-y-[110%] pointer-events-none' : 'translate-y-0'
       }`}
       aria-label="Основная навигация"

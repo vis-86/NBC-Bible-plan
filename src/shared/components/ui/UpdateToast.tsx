@@ -47,7 +47,7 @@ export function UpdateToast() {
       data-update-toast
       role="status"
       {...motionProps}
-      className="fixed inset-x-0 z-[60] mx-auto flex max-w-md items-center justify-between gap-3 px-4"
+      className="fixed inset-x-0 z-[60] app-shell-width flex items-center justify-between gap-3 px-4"
       style={{ bottom: 'calc(var(--dock-nav-h) + env(safe-area-inset-bottom) + 12px)' }}
     >
       <div

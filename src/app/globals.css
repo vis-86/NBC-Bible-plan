@@ -377,6 +377,20 @@ select,
     height: env(safe-area-inset-top);
 }
 
+/* ── Ширина дашборд-оболочки ─────────────────────────────────────────
+   Один источник для колонки контента и для докнутого nav: они обязаны
+   совпадать по ширине, иначе бар «съезжает» относительно оболочки.
+   48rem ≈ iPad portrait во всю ширину; на десктопе остаются поля с тенью. */
+:root {
+    --app-shell-max-w: 48rem;
+}
+
+.app-shell-width {
+    width: 100%;
+    max-width: var(--app-shell-max-w);
+    margin-inline: auto;
+}
+
 /* ── Docked bottom nav ───────────────────────────────────────────────
    --dock-nav-h — fallback estimate of the docked nav row height, used only
    for the very first paint (before JS measures the real thing) and as a
