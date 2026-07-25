@@ -46,7 +46,7 @@ export async function getSongsList(): Promise<SongSummary[]> {
   const client = getDirectusAdminClient();
   const rows: SongRow[] = await client.request(
     readItems('songs', {
-      fields: ['id', 'title', 'subtitle', 'song_key'],
+      fields: ['id', 'title', 'subtitle', 'song_key', 'tempo', 'time'],
       filter: { status: { _eq: 'published' } },
       sort: ['sort', 'title'],
       limit: -1,
