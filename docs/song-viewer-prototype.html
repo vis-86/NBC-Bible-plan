@@ -1,0 +1,706 @@
+<title>Проба колонок · ChordPro</title>
+<style>
+  :root {
+    --paper: #f6f7f9;
+    --surface: #ffffff;
+    --ink: #151a21;
+    --ink-soft: #5b6472;
+    --line: #dfe3ea;
+    --accent: #3a4fbf;
+    --accent-soft: #eceffb;
+    --ok: #1d7a4d;
+    --warn: #a8620a;
+    --bad: #b3261e;
+
+    --font-ui: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-serif: Georgia, "Times New Roman", serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --lyric-size: 18px;
+    --col-count: 1;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #12151a;
+      --surface: #191d24;
+      --ink: #e7eaf0;
+      --ink-soft: #949dad;
+      --line: #2b313b;
+      --accent: #93a3ff;
+      --accent-soft: #1c2135;
+      --ok: #5cc98d;
+      --warn: #e8b168;
+      --bad: #ff8a80;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #12151a;
+    --surface: #191d24;
+    --ink: #e7eaf0;
+    --ink-soft: #949dad;
+    --line: #2b313b;
+    --accent: #93a3ff;
+    --accent-soft: #1c2135;
+    --ok: #5cc98d;
+    --warn: #e8b168;
+    --bad: #ff8a80;
+  }
+  :root[data-theme="light"] {
+    --paper: #f6f7f9;
+    --surface: #ffffff;
+    --ink: #151a21;
+    --ink-soft: #5b6472;
+    --line: #dfe3ea;
+    --accent: #3a4fbf;
+    --accent-soft: #eceffb;
+    --ok: #1d7a4d;
+    --warn: #a8620a;
+    --bad: #b3261e;
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--font-ui);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 16px 64px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── Панель управления ─────────────────────────────── */
+  .bar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: color-mix(in srgb, var(--paper) 92%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+    margin: 0 -16px;
+    padding: 10px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 18px;
+  }
+  .ctl { display: flex; align-items: center; gap: 8px; }
+  .ctl > .lbl {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    font-weight: 600;
+  }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button {
+    font: inherit;
+    font-size: 14px;
+    padding: 7px 13px;
+    min-height: 40px;
+    border: 0;
+    background: var(--surface);
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--surface); font-weight: 600; }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  input[type="range"] { accent-color: var(--accent); width: 120px; }
+  .val { font-variant-numeric: tabular-nums; font-size: 13px; color: var(--ink-soft); min-width: 4ch; }
+
+  /* ── Карточка проверок ─────────────────────────────── */
+  .checks {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .checks h1 { font-size: 17px; font-weight: 650; margin: 0; text-wrap: balance; }
+  .checks p { margin: 0; font-size: 14px; color: var(--ink-soft); max-width: 62ch; }
+  .results { display: flex; flex-direction: column; gap: 6px; }
+  .res {
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    gap: 10px;
+    align-items: baseline;
+    font-size: 14px;
+    padding: 7px 0;
+    border-top: 1px solid var(--line);
+  }
+  .res .mark { font-weight: 700; font-size: 15px; }
+  .res[data-s="ok"] .mark { color: var(--ok); }
+  .res[data-s="bad"] .mark { color: var(--bad); }
+  .res[data-s="warn"] .mark { color: var(--warn); }
+  .res .num { font-variant-numeric: tabular-nums; color: var(--ink-soft); font-size: 13px; }
+  .manual { font-size: 14px; color: var(--ink-soft); }
+  .manual strong { color: var(--ink); font-weight: 620; }
+  .manual ul { margin: 6px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+
+  /* ── Песня ─────────────────────────────────────────── */
+  .song {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 18px;
+    overflow-x: auto;
+  }
+  /* Листы: поля компактные, но есть — текст не должен липнуть к краю. */
+  [data-mode="sheets"] .song { padding: 14px 16px; }
+  [data-mode="sheets"] .song-head { margin-bottom: 10px; }
+  .song-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 14px; }
+  .song-head h2 { font-family: var(--font-serif); font-size: 21px; font-weight: 600; margin: 0; }
+  .song-head .sub { margin: 0; font-size: 13px; color: var(--ink-soft); }
+  .song-head .badge {
+    margin: 6px 0 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--accent);
+    background: var(--accent-soft);
+    align-self: flex-start;
+    padding: 3px 9px;
+    border-radius: 999px;
+  }
+  .song-head .note { color: var(--ink-soft); }
+
+  /* ── Рендер ChordPro: копия правил из songs.css ─────── */
+  .cproSongBody { font-family: var(--font-serif); color: var(--ink); font-size: var(--lyric-size); }
+  .cproColumn {
+    columns: var(--col-count);
+    column-gap: 2rem;
+    white-space: pre-wrap;
+    box-sizing: border-box;
+  }
+
+  /* ── Постраничный режим: страница = экран, колонки уезжают вправо ── */
+  [data-mode="paged"] .cproColumn,
+  [data-mode="sheets"] .cproColumn {
+    height: var(--page-h);
+    column-fill: auto;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-behavior: smooth;
+    overscroll-behavior-x: contain;
+  }
+  [data-mode="paged"] .cproColumn::-webkit-scrollbar { height: 0; }
+
+  /* ── Листы: страницы стопкой вниз, свободный скролл ── */
+  /* Типографика листов обязана совпадать с источником до пикселя,
+     иначе клон разобьётся иначе и появятся пустые листы. */
+  .sheets {
+    display: none;
+    font-family: var(--font-serif);
+    color: var(--ink);
+    font-size: var(--lyric-size);
+    background: var(--paper);
+    padding: 2px 0;
+    border-radius: 6px;
+  }
+  /* Источник остаётся в потоке, но схлопнут: нужен для замера числа страниц. */
+  [data-mode="sheets"] .cproSongBody { height: 0; overflow: hidden; }
+  [data-mode="sheets"] .sheets { display: block; }
+
+  .sheet {
+    /* content-box: высота = ровно поток страницы, отступ сверху идёт плюсом,
+       иначе верхнее поле съело бы низ листа. */
+    box-sizing: content-box;
+    height: var(--page-h);
+    padding-top: 18px;
+    overflow: hidden;
+    position: relative;
+    background: var(--surface);
+    border-radius: 6px;
+  }
+  /* Зазор показывает фон «стола» — стык читается как переход на новый лист. */
+  .sheet + .sheet {
+    margin-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  .sheet-num {
+    position: absolute;
+    right: 0;
+    bottom: 2px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-soft);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+  .sheet-flow {
+    columns: var(--col-count);
+    column-gap: 2rem;
+    column-fill: auto;
+    height: var(--page-h);
+    white-space: pre-wrap;
+    box-sizing: border-box;
+    will-change: transform;
+  }
+
+  .pager { display: none; }
+  [data-mode="paged"] .pager {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .pager button {
+    font: inherit;
+    font-size: 14px;
+    min-height: 40px;
+    padding: 8px 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .pager button:disabled { opacity: 0.4; cursor: default; }
+  .pager button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .pager .count {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-soft);
+  }
+  .pager .hint { font-size: 12px; color: var(--ink-soft); margin-left: auto; }
+  .cproSongSection { display: block; break-inside: avoid; page-break-inside: avoid; margin-bottom: 0.6em; }
+  .cproComment {
+    display: block;
+    line-height: 2;
+    text-transform: uppercase;
+    font-family: var(--font-ui);
+    font-size: 0.72em;
+    letter-spacing: 0.06em;
+    color: var(--ink-soft);
+  }
+  .cproSongLine { display: block; line-height: 1.5; padding-top: 0.2em; break-inside: avoid; }
+  .cproSongLine::after { content: ""; display: block; clear: both; }
+  .wordWrapper { white-space: nowrap; }
+  .chordWrapper { display: inline-block; position: relative; vertical-align: bottom; }
+  .chordWrapper .chord {
+    font-family: var(--font-mono);
+    color: var(--accent);
+    font-weight: 700;
+    white-space: nowrap;
+    padding: 0 0.1em 0 0;
+    float: left;
+    font-size: 0.85em;
+    line-height: 1.2;
+  }
+  .chordLyrics { float: left; clear: both; }
+  .chordsOnly .chordWrapper .chord { padding: 0; float: none; }
+  .chordsOnly .chordWrapper .chordLyrics { float: none; }
+  .chordLyricsSpace { opacity: 0; width: 0; height: 0; }
+
+  /* Вариант без флоатов — та же стопка через display:block */
+  [data-technique="block"] .chordWrapper .chord { float: none; display: block; }
+  [data-technique="block"] .chordLyrics { float: none; display: block; }
+  [data-technique="block"] .cproSongLine::after { display: none; }
+
+  /* Режим «только текст» */
+  [data-chords="off"] .chordWrapper .chord { display: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+
+<div class="wrap">
+  <div class="bar">
+    <div class="ctl">
+      <span class="lbl">Колонки</span>
+      <div class="seg" id="segCols">
+        <button type="button" data-v="1" aria-pressed="true">1</button>
+        <button type="button" data-v="2" aria-pressed="false">2</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="lbl">Стопка</span>
+      <div class="seg" id="segTech">
+        <button type="button" data-v="float" aria-pressed="true">float</button>
+        <button type="button" data-v="block" aria-pressed="false">block</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="lbl">Аккорды</span>
+      <div class="seg" id="segChords">
+        <button type="button" data-v="on" aria-pressed="true">вкл</button>
+        <button type="button" data-v="off" aria-pressed="false">выкл</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="lbl">Режим</span>
+      <div class="seg" id="segMode">
+        <button type="button" data-v="scroll" aria-pressed="true">лента</button>
+        <button type="button" data-v="sheets" aria-pressed="false">листы ↓</button>
+        <button type="button" data-v="paged" aria-pressed="false">страницы →</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="lbl">Высота</span>
+      <div class="seg" id="segPageH">
+        <button type="button" data-v="60vh" aria-pressed="true">60vh</button>
+        <button type="button" data-v="75vh" aria-pressed="false">75vh</button>
+        <button type="button" data-v="88vh" aria-pressed="false">экран</button>
+      </div>
+    </div>
+    <div class="ctl">
+      <span class="lbl">Шрифт</span>
+      <input type="range" id="fs" min="12" max="32" step="1" value="18" aria-label="Размер шрифта" />
+      <span class="val" id="fsVal">18px</span>
+    </div>
+  </div>
+
+  <section class="checks">
+    <h1>Проба колонок и постраничного режима</h1>
+    <p>
+      Разметка и стили — копия <code>songs.css</code> из bible-plan. Режим <strong>«страницы»</strong>
+      режет песню на экраны: колонки заполняются доверху по очереди и уезжают вправо, скролла вниз нет.
+      Листается кнопками, стрелками и пробелом — то есть и Bluetooth-педалью тоже.
+      Вердикт пересчитывается на каждое переключение.
+    </p>
+    <div class="results" id="results"></div>
+    <div class="manual">
+      <strong>Глазами, автопроверка это не поймает:</strong>
+      <ul>
+        <li>в режиме «страницы» песня отыгрывается без единого скролла вниз;</li>
+        <li>аккорд стоит ровно над своим слогом, а не съехал вправо или на строку ниже;</li>
+        <li>перелистывание не рвёт куплет посередине так, что играть неудобно;</li>
+        <li>читается ли всё с расстояния вытянутой руки при шрифте 18–20px.</li>
+      </ul>
+    </div>
+  </section>
+
+  <article class="song" data-note="42 аккордовые строки подряд">
+  <header class="song-head">
+    <h2>На кресте совершилось всё</h2>
+    <p class="sub">Слово Благодати</p>
+    <p class="badge">E · 53 · 6/8 <span class="note">42 аккордовые строки подряд</span></p>
+  </header>
+  <div class="cproSongBody"><div class="cproColumn"><span class="cproSongSection"><span class="cproComment">Вступление</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Куплет 1</span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Как</span></span></span> <span class="wordWrapper">люблю</span> <span class="wordWrapper">я</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A2/E</span><span class="chordLyrics">это</span></span></span> <span class="wordWrapper">слово,</span> </span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Возглас</span></span></span> <span class="wordWrapper">громкий</span> <span class="wordWrapper">с<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">о</span></span></span> <span class="wordWrapper">крест<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">а:</span></span></span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">«Совершилось!»</span></span></span> <span class="wordWrapper">‑</span> <span class="wordWrapper">сл<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">ышу</span></span></span> <span class="wordWrapper">снова,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">Весть</span></span></span> <span class="wordWrapper">над<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">ежды</span></span></span> <span class="wordWrapper">из</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">уст</span></span></span> <span class="wordWrapper">Хрис<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">та.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">И</span></span></span> <span class="wordWrapper">хотя</span> <span class="wordWrapper">пога<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">сло</span></span></span> <span class="wordWrapper">солнце,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">И</span></span></span> <span class="wordWrapper">поник</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">главою</span></span></span> <span class="wordWrapper">Он,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">Пало</span></span></span> <span class="wordWrapper">зло</span> <span class="wordWrapper">в</span> <span class="wordWrapper">той</span> <span class="wordWrapper">схв<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">атке</span></span></span> <span class="wordWrapper">жёсткой,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">На</span></span></span> <span class="wordWrapper">крест<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">е</span></span></span> <span class="wordWrapper">соверши<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">лось</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">всё.</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Проигрыш</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">(</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">)</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Куплет 2</span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Он</span></span></span> <span class="wordWrapper">развеял</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">тень</span></span></span> <span class="wordWrapper">проклятья,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Оплатил</span></span></span> <span class="wordWrapper">мой</span> <span class="wordWrapper">в<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ечный</span></span></span> <span class="wordWrapper">до<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">лг,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Как</span></span></span> <span class="wordWrapper">прощенье</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">благодатно!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">Как</span></span></span> <span class="wordWrapper">рад<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ушен</span></span></span> <span class="wordWrapper">Ег<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">о</span></span></span> <span class="wordWrapper">при<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ём!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">В</span></span></span> <span class="wordWrapper">Сына</span> <span class="wordWrapper">праведн<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">ость</span></span></span> <span class="wordWrapper">одетый,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Я</span></span></span> <span class="wordWrapper">един</span> <span class="wordWrapper">теп<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ерь</span></span></span> <span class="wordWrapper">с</span> <span class="wordWrapper">Отцом,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">Груз</span></span></span> <span class="wordWrapper">вины</span> <span class="wordWrapper">не</span> <span class="wordWrapper">д<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">авит</span></span></span> <span class="wordWrapper">плечи,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">На</span></span></span> <span class="wordWrapper">крест<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">е</span></span></span> <span class="wordWrapper">соверши<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">лось</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">всё.</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Проигрыш</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">(</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">)</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A/C#</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">E/B</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A/C#</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">E/B</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Куплет 3</span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Помню</span></span></span> <span class="wordWrapper">я,</span> <span class="wordWrapper">как</span> <span class="wordWrapper">см<span class="chordWrapper"><span class="chord">A2/E</span><span class="chordLyrics">ерть</span></span></span> <span class="wordWrapper">глумилась,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Как</span></span></span> <span class="wordWrapper">владел</span> <span class="wordWrapper">душ<span class="chordWrapper"><span class="chord">C#m/E</span><span class="chordLyrics">ою</span></span></span> <span class="wordWrapper">стр<span class="chordWrapper"><span class="chord">B/E</span><span class="chordLyrics">ах,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Умер</span></span></span> <span class="wordWrapper">Он,</span> <span class="wordWrapper">чтоб</span> <span class="wordWrapper">да<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">ть</span></span></span> <span class="wordWrapper">нам</span> <span class="wordWrapper">милость,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">И</span></span></span> <span class="wordWrapper">воскре<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">с,</span></span></span> <span class="wordWrapper">чтобы</span> <span class="wordWrapper">ж<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">изнь</span></span></span> <span class="wordWrapper">н<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ам</span></span></span> <span class="wordWrapper">дать.</span></span></span><span class="cproSongSection"><span class="cproComment">Проигрыш</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">(</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">)</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Куплет 4</span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Помню</span></span></span> <span class="wordWrapper">я,</span> <span class="wordWrapper">как</span> <span class="wordWrapper">см<span class="chordWrapper"><span class="chord">A2/E</span><span class="chordLyrics">ерть</span></span></span> <span class="wordWrapper">глумилась,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Как</span></span></span> <span class="wordWrapper">владел</span> <span class="wordWrapper">душ<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ою</span></span></span> <span class="wordWrapper">стр<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ах,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Умер</span></span></span> <span class="wordWrapper">Он,</span> <span class="wordWrapper">чтоб</span> <span class="wordWrapper">да<span class="chordWrapper"><span class="chord">A2/E</span><span class="chordLyrics">ть</span></span></span> <span class="wordWrapper">нам</span> <span class="wordWrapper">милость,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">И</span></span></span> <span class="wordWrapper">воскре<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">с,</span></span></span> <span class="wordWrapper">чтобы</span> <span class="wordWrapper">жи<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">знь</span></span></span> <span class="wordWrapper">нам</span> <span class="wordWrapper">д<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ать.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Да,</span> <span class="wordWrapper">воскр<span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">ес,</span></span></span> <span class="wordWrapper">чтоб</span> <span class="wordWrapper">своб<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">оду</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">И</span> <span class="wordWrapper">жи<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">знь</span></span></span> <span class="wordWrapper">нам</span> <span class="wordWrapper">да<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ть.</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Мост</span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">Жизнь</span></span></span> <span class="wordWrapper">в</span> <span class="wordWrapper">Завете</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">с</span></span></span> <span class="wordWrapper">Ним</span> <span class="wordWrapper">прекрасном,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Жизнь</span></span></span> <span class="wordWrapper">вдали</span> <span class="wordWrapper">от</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">тьмы</span></span></span> <span class="wordWrapper">угроз,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">Смерть</span></span></span> <span class="wordWrapper">поправ,</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">воскрес</span></span></span> <span class="wordWrapper">Всевластный,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">На</span></span></span> <span class="wordWrapper">крест<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">е</span></span></span> <span class="wordWrapper">соверши<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">лось</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">всё.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">Так</span></span></span> <span class="wordWrapper">вперёд</span> <span class="wordWrapper">же,</span> <span class="wordWrapper">к</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">вечной</span></span></span> <span class="wordWrapper">славе,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">Где</span></span></span> <span class="wordWrapper">давно</span> <span class="wordWrapper">Спас<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">итель</span></span></span> <span class="wordWrapper">ждёт,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">С</span></span></span> <span class="wordWrapper">Ним</span> <span class="wordWrapper">делить</span> <span class="wordWrapper">поб<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">еды</span></span></span> <span class="wordWrapper">радость,</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">На</span></span></span> <span class="wordWrapper">крес<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">те</span></span></span> <span class="wordWrapper">соверш<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">илось</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">всё,</span></span></span> </span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">На</span></span></span> <span class="wordWrapper">крес<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">те</span></span></span> <span class="wordWrapper">соверш<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">илось</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">всё,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">На</span></span></span> <span class="wordWrapper">крес<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">те</span></span></span> <span class="wordWrapper">соверш<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">лось</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">всё,</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Проигрыш</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">(</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">)</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span></div></div>
+  <div class="sheets"></div>
+  <div class="pager">
+    <button type="button" data-nav="prev">← Назад</button>
+    <button type="button" data-nav="next">Вперёд →</button>
+    <span class="count">— / —</span>
+    <span class="hint">стрелки и пробел — как педаль</span>
+  </div>
+</article>
+<article class="song" data-note="самая длинная песня, 101 строка">
+  <header class="song-head">
+    <h2>Его слава – благо мне</h2>
+    <p class="sub"></p>
+    <p class="badge">A · 65 · 4/4 <span class="note">самая длинная песня, 101 строка</span></p>
+  </header>
+  <div class="cproSongBody"><div class="cproColumn"><span class="cproSongSection"><span class="cproComment">Вступление - 2x</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Куплет 1</span><span class="cproSongLine"><span class="wordWrapper">Я</span> <span class="wordWrapper">От<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">ца</span></span></span> <span class="wordWrapper">увидел</span> <span class="wordWrapper">сл<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">аву,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Что</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">нам</span></span></span> <span class="wordWrapper">явил</span> <span class="wordWrapper">Христ<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ос.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">С</span> <span class="wordWrapper">уп<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">оеньем</span></span></span> <span class="wordWrapper">созерц<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">аю</span></span></span> <span class="wordWrapper">–</span></span><span class="cproSongLine"><span class="wordWrapper">Нет</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">лучше</span></span></span> <span class="wordWrapper">ниче<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">го.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Как</span> <span class="wordWrapper">вел<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">ик</span></span></span> <span class="wordWrapper">Он</span> <span class="wordWrapper">и</span> <span class="wordWrapper">прекр<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">асен,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">И</span> <span class="wordWrapper">Ем<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">у</span></span></span> <span class="wordWrapper">подобных</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">нет.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">К</span> <span class="wordWrapper">Богу</span> <span class="wordWrapper">в<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">зор</span></span></span> <span class="wordWrapper">свой</span> <span class="wordWrapper">подни<span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">маю</span></span></span> <span class="wordWrapper">–</span></span><span class="cproSongLine"><span class="wordWrapper">Его</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">слава</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">благо</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">мне!</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Проигрыш</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">(</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">)</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Куплет 2</span><span class="cproSongLine"><span class="wordWrapper">В</span> <span class="wordWrapper">испыт<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">аньях</span></span></span> <span class="wordWrapper">есть</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">надежда,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">На</span> <span class="wordWrapper">Б<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ога</span></span></span> <span class="wordWrapper">поло<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">жусь,</span></span></span> </span><span class="cproSongLine"><span class="wordWrapper">Моё</span> <span class="wordWrapper">се<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">рдце</span></span></span> <span class="wordWrapper">Он</span> <span class="wordWrapper">напра<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">вит,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Прой<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ти</span></span></span> <span class="wordWrapper">поможет</span> <span class="wordWrapper">пу<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ть.</span></span></span> </span><span class="cproSongLine"><span class="wordWrapper">За</span> <span class="wordWrapper">Хрис<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">том</span></span></span> <span class="wordWrapper">иду</span> <span class="wordWrapper">я</span> <span class="wordWrapper">в<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ерой,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Пусть</span> <span class="wordWrapper">не</span> <span class="wordWrapper">вс<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ё</span></span></span> <span class="wordWrapper">понятно</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">мне.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Знаю,</span> <span class="wordWrapper">Б<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">ог</span></span></span> <span class="wordWrapper">всё</span> <span class="wordWrapper">совер<span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">шает</span></span></span> <span class="wordWrapper">–</span></span><span class="cproSongLine"><span class="wordWrapper">Его</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">слава</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">благо</span> <span class="wordWrapper">мн<span class="chordWrapper"><span class="chord">Esus4</span><span class="chordLyrics">е!</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Припев</span><span class="cproSongLine"><span class="wordWrapper">Только</span> <span class="wordWrapper">Б<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">огу</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">вся</span> <span class="wordWrapper">слава!</span></span><span class="cproSongLine"><span class="wordWrapper">Лишь</span> <span class="wordWrapper">Хрис<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ту</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">вся</span> <span class="wordWrapper">че<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">сть!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Он</span> <span class="wordWrapper">од<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ин,</span></span></span> <span class="wordWrapper">чьё</span> <span class="wordWrapper">Имя</span> <span class="wordWrapper">выше</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">всех.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Только</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">Богом</span></span></span> <span class="wordWrapper">хвалиться</span></span><span class="cproSongLine"><span class="wordWrapper">Буду</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">я</span></span></span> <span class="wordWrapper">вов<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ек!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Знаю</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">я,</span></span></span> <span class="wordWrapper">Его</span> <span class="wordWrapper">сл<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ава</span></span></span> <span class="wordWrapper">–</span></span><span class="cproSongLine"><span class="wordWrapper">Благо</span> <span class="wordWrapper">м<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">не!</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Проигрыш</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">(</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">)</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Куплет 3</span><span class="cproSongLine"><span class="wordWrapper">Ии<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">сус</span></span></span> <span class="wordWrapper">раскрыл</span> <span class="wordWrapper">объ<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ятья</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">На</span> <span class="wordWrapper">стр<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ашном</span></span></span> <span class="wordWrapper">том</span> <span class="wordWrapper">кре<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">сте.</span></span></span> </span><span class="cproSongLine"><span class="wordWrapper">То,</span> <span class="wordWrapper">что</span> <span class="wordWrapper">со<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">чтено</span></span></span> <span class="wordWrapper">за</span> <span class="wordWrapper">сл<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">абость,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Дост<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ойно</span></span></span> <span class="wordWrapper">славы</span> <span class="wordWrapper">вс<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ей.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Ведь</span> <span class="wordWrapper">смерт<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">ельный</span></span></span> <span class="wordWrapper">пригов<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ор</span></span></span> <span class="wordWrapper">мой</span></span><span class="cproSongLine"><span class="wordWrapper">Пригво<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">здил</span></span></span> <span class="wordWrapper">Господь</span> <span class="wordWrapper">на</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">крест.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Я</span> <span class="wordWrapper">спа<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">сён</span></span></span> <span class="wordWrapper">и</span> <span class="wordWrapper">знаю</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">твёрдо,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Его</span> <span class="wordWrapper">сл<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ава</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">благо</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">мне!</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Припев</span><span class="cproSongLine"><span class="wordWrapper">Только</span> <span class="wordWrapper">Б<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">огу</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">вся</span> <span class="wordWrapper">слава!</span></span><span class="cproSongLine"><span class="wordWrapper">Лишь</span> <span class="wordWrapper">Хрис<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ту</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">вся</span> <span class="wordWrapper">че<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">сть!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Он</span> <span class="wordWrapper">од<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ин,</span></span></span> <span class="wordWrapper">чьё</span> <span class="wordWrapper">Имя</span> <span class="wordWrapper">выше</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">всех.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Только</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">Богом</span></span></span> <span class="wordWrapper">хвалиться</span></span><span class="cproSongLine"><span class="wordWrapper">Буду</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">я</span></span></span> <span class="wordWrapper">вов<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ек!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Знаю</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">я,</span></span></span> <span class="wordWrapper">Его</span> <span class="wordWrapper">сл<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ава</span></span></span> <span class="wordWrapper">–</span></span><span class="cproSongLine"><span class="wordWrapper">Благо</span> <span class="wordWrapper">м<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">не!</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Инструменты</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">(</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">)</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Куплет 4 (piano)</span><span class="cproSongLine"><span class="wordWrapper">Я</span> <span class="wordWrapper">жел<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">аю</span></span></span> <span class="wordWrapper">умал<span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">яться,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Пусть</span> <span class="wordWrapper">Хрис<span class="chordWrapper"><span class="chord">B/F#</span><span class="chordLyrics">тос</span></span></span> <span class="wordWrapper">наполнит</span> <span class="wordWrapper">в<span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">сё,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">И</span> <span class="wordWrapper">иск<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">ать</span></span></span> <span class="wordWrapper">одно</span> <span class="wordWrapper">лишь</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">Царство,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Что</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">B/F#</span><span class="chordLyrics">мир</span></span></span> <span class="wordWrapper">весь</span> <span class="wordWrapper">превзош<span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">ло.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Пред</span> <span class="wordWrapper">От<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">цом</span></span></span> <span class="wordWrapper">моим</span> <span class="wordWrapper">предст<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ану,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Со</span> <span class="wordWrapper">свят<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ыми</span></span></span> <span class="wordWrapper">буду</span> <span class="wordWrapper">пе<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ть,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Восхвал<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">ю</span></span></span> <span class="wordWrapper">Его</span> <span class="wordWrapper">всем</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">сердцем,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Его</span> <span class="wordWrapper">сл<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ава</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">благо</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">-</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">мне!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Восхвал<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">ю</span></span></span> <span class="wordWrapper">Его</span> <span class="wordWrapper">всем</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">сердцем,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Его</span> <span class="wordWrapper">сл<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ава</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">благо</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">Esus4</span><span class="chordLyrics">мне!</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Припев</span><span class="cproSongLine"><span class="wordWrapper">Только</span> <span class="wordWrapper">Б<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">огу</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">вся</span> <span class="wordWrapper">слава!</span></span><span class="cproSongLine"><span class="wordWrapper">Лишь</span> <span class="wordWrapper">Хрис<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ту</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">вся</span> <span class="wordWrapper">че<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">сть!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Он</span> <span class="wordWrapper">од<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ин,</span></span></span> <span class="wordWrapper">чьё</span> <span class="wordWrapper">Имя</span> <span class="wordWrapper">выше</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">всех.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Только</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">Богом</span></span></span> <span class="wordWrapper">хвалиться</span></span><span class="cproSongLine"><span class="wordWrapper">Буду</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">я</span></span></span> <span class="wordWrapper">вов<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ек!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Знаю</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">я,</span></span></span> <span class="wordWrapper">Его</span> <span class="wordWrapper">сл<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ава</span></span></span> <span class="wordWrapper">–</span></span><span class="cproSongLine"><span class="wordWrapper">Благо</span> <span class="wordWrapper">м<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">не!</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Припев</span><span class="cproSongLine"><span class="wordWrapper">Только</span> <span class="wordWrapper">Б<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">огу</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">вся</span> <span class="wordWrapper">слава!</span></span><span class="cproSongLine"><span class="wordWrapper">Лишь</span> <span class="wordWrapper">Хрис<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ту</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">вся</span> <span class="wordWrapper">че<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">сть!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Он</span> <span class="wordWrapper">од<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ин,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Чьё</span> <span class="wordWrapper">Имя</span> <span class="wordWrapper">выше</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">всех.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Только</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">Богом</span></span></span> <span class="wordWrapper">хвалиться</span></span><span class="cproSongLine"><span class="wordWrapper">Буду</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">я</span></span></span> <span class="wordWrapper">вов<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ек!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Знаю</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">я,</span></span></span> <span class="wordWrapper">Его</span> <span class="wordWrapper">сл<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ава</span></span></span> <span class="wordWrapper">–</span> <span class="wordWrapper">благо</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">мне!</span></span></span> </span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">E/G#</span><span class="chordLyrics">Знаю</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">я,</span></span></span> <span class="wordWrapper">Его</span> <span class="wordWrapper">сл<span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics">ава</span></span></span> <span class="wordWrapper">–</span></span><span class="cproSongLine"><span class="wordWrapper">Благо</span> <span class="wordWrapper">м<span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics">не!</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Инструменты</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">(</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">)</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">A2</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">B</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span></div></div>
+  <div class="sheets"></div>
+  <div class="pager">
+    <button type="button" data-nav="prev">← Назад</button>
+    <button type="button" data-nav="next">Вперёд →</button>
+    <span class="count">— / —</span>
+    <span class="hint">стрелки и пробел — как педаль</span>
+  </div>
+</article>
+<article class="song" data-note="самая плотная строка, 110 символов">
+  <header class="song-head">
+    <h2>Святая ночь</h2>
+    <p class="sub">O holy night (Sovereign Grace arr.)</p>
+    <p class="badge">A · 60 · 4/4 (6/8) <span class="note">самая плотная строка, 110 символов</span></p>
+  </header>
+  <div class="cproSongBody"><div class="cproColumn"><span class="cproSongSection"><span class="cproComment">Вступление</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Куплет 1</span><span class="cproSongLine"><span class="wordWrapper">Св<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ятая</span></span></span> <span class="wordWrapper">ночь!</span> <span class="wordWrapper">Сверк<span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">ают</span></span></span> <span class="wordWrapper">ярко</span> <span class="wordWrapper">зв<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">езды.</span></span></span> </span><span class="cproSongLine"><span class="wordWrapper">В</span> <span class="wordWrapper">тиши</span> <span class="wordWrapper">ночн<span class="chordWrapper"><span class="chord">F#m</span><span class="chordLyrics">ой</span></span></span> <span class="wordWrapper">нам</span> <span class="wordWrapper">род<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ился</span></span></span> <span class="wordWrapper">Христ<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ос.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">В<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">есь</span></span></span> <span class="wordWrapper">мир</span> <span class="wordWrapper">тонул</span> <span class="wordWrapper">в</span> <span class="wordWrapper">грех<span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">е</span></span></span> <span class="wordWrapper">и</span> <span class="wordWrapper">беззак<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">оньи,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Но</span> <span class="wordWrapper">Божий</span> <span class="wordWrapper">С<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ын</span></span></span> <span class="wordWrapper">нам</span> <span class="wordWrapper">спас<span class="chordWrapper"><span class="chord">G#</span><span class="chordLyrics">енье</span></span></span> <span class="wordWrapper">прин<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ес.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Над<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ежда</span></span></span> <span class="wordWrapper">счастьем</span> <span class="wordWrapper">с<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ердце</span></span></span> <span class="wordWrapper">наполняет,</span> </span><span class="cproSongLine"><span class="wordWrapper">Вдал<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">и</span></span></span> <span class="wordWrapper">горит</span> <span class="wordWrapper">гряд<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ущих</span></span></span> <span class="wordWrapper">дней</span> <span class="wordWrapper">заря.</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">F#m</span><span class="chordLyrics">О</span></span></span> <span class="wordWrapper">челов<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ек!</span></span></span> <span class="wordWrapper">Вним<span class="chordWrapper"><span class="chord">Bm</span><span class="chordLyrics">ай</span></span></span> <span class="wordWrapper">певцам</span> <span class="wordWrapper">из</span> <span class="wordWrapper">р<span class="chordWrapper"><span class="chord">F#m</span><span class="chordLyrics">ая!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">О,</span> <span class="wordWrapper">н<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">о</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">чь,</span></span></span> <span class="wordWrapper">о,</span> <span class="wordWrapper">н<span class="chordWrapper"><span class="chord">A/C#</span><span class="chordLyrics">о</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">очь</span></span></span> <span class="wordWrapper">Христ<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">о</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ова</span></span></span> <span class="wordWrapper">рождеств<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">а!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">О,</span> <span class="wordWrapper">н<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">о</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">чь,</span></span></span> <span class="wordWrapper">о,</span> <span class="wordWrapper">н<span class="chordWrapper"><span class="chord">A/C#</span><span class="chordLyrics">о</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">очь</span></span></span> <span class="wordWrapper">Христ<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">о</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ва</span></span></span> <span class="wordWrapper">рождеств<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">а!</span></span></span>  <span class="wordWrapper"><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Куплет 2</span><span class="cproSongLine"><span class="wordWrapper">Неб<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">есный</span></span></span> <span class="wordWrapper">свет</span> <span class="wordWrapper">расс<span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">еял</span></span></span> <span class="wordWrapper">мрак</span> <span class="wordWrapper">печ<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">али,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">С</span> <span class="wordWrapper">огнем</span> <span class="wordWrapper">в</span> <span class="wordWrapper">душ<span class="chordWrapper"><span class="chord">F#m</span><span class="chordLyrics">е</span></span></span> <span class="wordWrapper">мы</span> <span class="wordWrapper">у</span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">яслей</span></span></span> <span class="wordWrapper">сто<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">им.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Т<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ак</span></span></span> <span class="wordWrapper">мудрецы</span> <span class="wordWrapper">Цар<span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">я</span></span></span> <span class="wordWrapper">царей</span> <span class="wordWrapper">иск<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">али,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Несли</span> <span class="wordWrapper">дар<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ы</span></span></span> <span class="wordWrapper">и</span> <span class="wordWrapper">склон<span class="chordWrapper"><span class="chord">G#</span><span class="chordLyrics">ились</span></span></span> <span class="wordWrapper">пред</span> <span class="wordWrapper">Н<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">им.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Госп<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">одь</span></span></span> <span class="wordWrapper">господ</span> <span class="wordWrapper">леж<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ал</span></span></span> <span class="wordWrapper">в</span> <span class="wordWrapper">хлеву</span> <span class="wordWrapper">на</span> <span class="wordWrapper">сене,</span></span><span class="cproSongLine"><span class="wordWrapper">Соч<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">увствовать</span></span></span> <span class="wordWrapper">Он</span> <span class="wordWrapper">м<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ожет</span></span></span> <span class="wordWrapper">нам</span> <span class="wordWrapper">во</span> <span class="wordWrapper">всем</span></span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">F#m</span><span class="chordLyrics">Он</span></span></span> <span class="wordWrapper">знает</span> <span class="wordWrapper">ж<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">изнь,</span></span></span> <span class="wordWrapper">Он</span> <span class="wordWrapper">и<span class="chordWrapper"><span class="chord">Bm</span><span class="chordLyrics">спытал</span></span></span> <span class="wordWrapper">муч<span class="chordWrapper"><span class="chord">F#m</span><span class="chordLyrics">енья.</span></span></span> </span><span class="cproSongLine"><span class="wordWrapper">Пад<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">и</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">пред</span></span></span> <span class="wordWrapper">Н<span class="chordWrapper"><span class="chord">A/C#</span><span class="chordLyrics">и</span></span><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">м,</span></span></span> <span class="wordWrapper">призн<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">ай</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper">Его</span> <span class="wordWrapper">Цар<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ем!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Пад<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">и</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">пред</span></span></span> <span class="wordWrapper">Н<span class="chordWrapper"><span class="chord">A/C#</span><span class="chordLyrics">им</span></span><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">,</span></span></span> <span class="wordWrapper">призн<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">ай</span></span><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper">Его</span> <span class="wordWrapper">Цар<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ем!</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Проигрыш</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">(</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">)</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Куплет 3</span><span class="cproSongLine"><span class="wordWrapper"><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">Он</span></span></span> <span class="wordWrapper">нас</span> <span class="wordWrapper">учил</span> <span class="wordWrapper">все</span> <span class="wordWrapper">п<span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">окрывать</span></span></span> <span class="wordWrapper">люб<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">овью.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Любви</span> <span class="wordWrapper">зак<span class="chordWrapper"><span class="chord">F#m</span><span class="chordLyrics">он</span></span></span> <span class="wordWrapper">и</span> <span class="wordWrapper">Свой</span> <span class="wordWrapper">м<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">ир</span></span></span> <span class="wordWrapper">Он</span> <span class="wordWrapper">нам</span> <span class="wordWrapper">д<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ал.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">В</span> <span class="wordWrapper">Ег<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">о</span></span></span> <span class="wordWrapper">руках</span> <span class="wordWrapper">спас<span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">ение</span></span></span> <span class="wordWrapper">для</span> <span class="wordWrapper">гр<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ешных,</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">За</span> <span class="wordWrapper">грех</span> <span class="wordWrapper">люд<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ей</span></span></span> <span class="wordWrapper">наш</span> <span class="wordWrapper">Госп<span class="chordWrapper"><span class="chord">G#</span><span class="chordLyrics">одь</span></span></span> <span class="wordWrapper">пострад<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">ал.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Пусть</span> <span class="wordWrapper">п<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">есни</span></span></span> <span class="wordWrapper">славы</span> <span class="wordWrapper">ль<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ются,</span></span></span> <span class="wordWrapper">словно</span> <span class="wordWrapper">реки.</span> </span><span class="cproSongLine"><span class="wordWrapper">Пусть</span> <span class="wordWrapper">к<span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics">аждый</span></span></span> <span class="wordWrapper">к</span> <span class="wordWrapper">Богу</span> <span class="wordWrapper">с</span> <span class="wordWrapper">р<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">адостью</span></span></span> <span class="wordWrapper">спешит.</span></span><span class="cproSongLine"><span class="wordWrapper">Хр<span class="chordWrapper"><span class="chord">F#m</span><span class="chordLyrics">истос</span></span></span> <span class="wordWrapper">—</span> <span class="wordWrapper">Госп<span class="chordWrapper"><span class="chord">C#m</span><span class="chordLyrics">одь!</span></span></span> <span class="wordWrapper">Хвал<span class="chordWrapper"><span class="chord">Bm</span><span class="chordLyrics">а</span></span></span> <span class="wordWrapper">Ему</span> <span class="wordWrapper">нав<span class="chordWrapper"><span class="chord">F#m</span><span class="chordLyrics">еки!</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Ем<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">у</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">вся</span></span></span> <span class="wordWrapper">вл<span class="chordWrapper"><span class="chord">A/C#</span><span class="chordLyrics">асть</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">и</span></span></span> <span class="wordWrapper">ч<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">есть</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper">принадлеж<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ит.</span></span></span></span><span class="cproSongLine"><span class="wordWrapper">Ем<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">у</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">вся</span></span></span> <span class="wordWrapper">вл<span class="chordWrapper"><span class="chord">A/C#</span><span class="chordLyrics">асть</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics">и</span></span></span> <span class="wordWrapper">ч<span class="chordWrapper"><span class="chord">A/E</span><span class="chordLyrics">есть</span></span></span> <span class="wordWrapper"><span class="chordWrapper"><span class="chord">E</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span> <span class="wordWrapper">принадлеж<span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics">ит.</span></span></span></span></span><span class="cproSongSection"><span class="cproComment">Завершение</span><span class="cproSongLine chordsOnly"><span class="wordWrapper chordsOnlyWord"><span class="chordWrapper"><span class="chord">D</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">|</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span><span class="chordWrapper"><span class="chord">A</span><span class="chordLyrics chordLyricsSpace">&nbsp;</span></span></span></span></span></div></div>
+  <div class="sheets"></div>
+  <div class="pager">
+    <button type="button" data-nav="prev">← Назад</button>
+    <button type="button" data-nav="next">Вперёд →</button>
+    <span class="count">— / —</span>
+    <span class="hint">стрелки и пробел — как педаль</span>
+  </div>
+</article>
+</div>
+
+<script>
+  (function () {
+    var root = document.documentElement;
+
+    function seg(id, apply) {
+      var el = document.getElementById(id);
+      el.addEventListener('click', function (e) {
+        var btn = e.target.closest('button');
+        if (!btn) return;
+        el.querySelectorAll('button').forEach(function (b) {
+          b.setAttribute('aria-pressed', String(b === btn));
+        });
+        apply(btn.dataset.v);
+        run();
+      });
+    }
+
+    /* Любая смена раскладки меняет разбивку на листы — перестраиваем их. */
+    seg('segCols', function (v) { root.style.setProperty('--col-count', v); resetPages(); });
+    seg('segTech', function (v) { root.setAttribute('data-technique', v); resetPages(); });
+    seg('segChords', function (v) { root.setAttribute('data-chords', v); resetPages(); });
+    seg('segMode', function (v) { root.setAttribute('data-mode', v); resetPages(); });
+    seg('segPageH', function (v) { root.style.setProperty('--page-h', v); resetPages(); });
+
+    /* ── Листалка: страница = ширина контейнера ───────── */
+    function flows() { return [].slice.call(document.querySelectorAll('.cproColumn')); }
+
+    function pageInfo(flow) {
+      var w = flow.clientWidth;
+      if (!w) return { page: 1, total: 1 };
+      var step = pitch(flow);
+      return {
+        page: Math.round(flow.scrollLeft / step) + 1,
+        total: Math.max(1, Math.ceil((flow.scrollWidth - 2) / step)),
+      };
+    }
+
+    function updatePager(song) {
+      var flow = song.querySelector('.cproColumn');
+      var info = pageInfo(flow);
+      song.querySelector('.count').textContent = info.page + ' / ' + info.total;
+      song.querySelector('[data-nav="prev"]').disabled = info.page <= 1;
+      song.querySelector('[data-nav="next"]').disabled = info.page >= info.total;
+    }
+
+    function turn(song, dir) {
+      var flow = song.querySelector('.cproColumn');
+      flow.scrollLeft += dir * pitch(flow);
+      setTimeout(function () { updatePager(song); }, 350);
+    }
+
+    /*
+     * Шаг между страницами — НЕ ширина контейнера: после последней колонки страницы идёт
+     * column-gap, поэтому следующая пара колонок начинается с w + gap. Сдвиг на голую
+     * ширину копил бы лишний отступ на каждом листе и завышал их число (пустой хвост).
+     */
+    function pitch(flow) {
+      var gap = parseFloat(getComputedStyle(flow).columnGap);
+      return flow.clientWidth + (isFinite(gap) ? gap : 0);
+    }
+
+    /* ── Листы: каждый лист — окно, вырезающее свою страницу ── */
+    function buildSheets(song) {
+      var src = song.querySelector('.cproColumn');
+      var box = song.querySelector('.sheets');
+      var w = src.clientWidth;
+      if (!w) return;
+
+      /*
+       * scrollWidth прихватывает пустую хвостовую колонку, которую multicol резервирует,
+       * поэтому число листов считаем по правому краю последней секции.
+       */
+      src.scrollLeft = 0;
+      var origin = src.getBoundingClientRect().left;
+      var maxRight = 0;
+      src.querySelectorAll('.cproSongSection').forEach(function (s) {
+        var r = s.getBoundingClientRect();
+        if (r.height > 0) maxRight = Math.max(maxRight, r.right - origin);
+      });
+      var total = Math.max(1, Math.ceil((maxRight - 2) / pitch(src)));
+      var step = pitch(src);
+      var html = '';
+      for (var i = 0; i < total; i++) {
+        html +=
+          '<div class="sheet"><div class="sheet-flow" style="width:' + w + 'px;' +
+          'transform:translateX(-' + i * step + 'px)">' + src.innerHTML + '</div>' +
+          '<span class="sheet-num">' + (i + 1) + ' / ' + total + '</span></div>';
+      }
+      box.innerHTML = html;
+      box.style.width = w + 'px';
+    }
+
+    function resetPages() {
+      requestAnimationFrame(function () {
+        document.querySelectorAll('.song').forEach(function (song) {
+          song.querySelector('.cproColumn').scrollLeft = 0;
+          updatePager(song);
+          if (root.getAttribute('data-mode') === 'sheets') buildSheets(song);
+        });
+        run();
+      });
+    }
+
+    var active = null;
+    document.addEventListener('click', function (e) {
+      var song = e.target.closest('.song');
+      if (song) active = song;
+      var nav = e.target.closest('[data-nav]');
+      if (!nav) return;
+      turn(nav.closest('.song'), nav.dataset.nav === 'next' ? 1 : -1);
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (root.getAttribute('data-mode') !== 'paged') return;
+      var song = active || document.querySelector('.song');
+      if (!song) return;
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        turn(song, 1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        turn(song, -1);
+      }
+    });
+
+    document.addEventListener(
+      'scroll',
+      function (e) {
+        var flow = e.target.closest ? e.target.closest('.cproColumn') : null;
+        if (flow) updatePager(flow.closest('.song'));
+      },
+      true
+    );
+
+    var fs = document.getElementById('fs');
+    var fsVal = document.getElementById('fsVal');
+    var fsTimer;
+    fs.addEventListener('input', function () {
+      root.style.setProperty('--lyric-size', fs.value + 'px');
+      fsVal.textContent = fs.value + 'px';
+      clearTimeout(fsTimer);
+      fsTimer = setTimeout(resetPages, 120);
+    });
+
+    var out = document.getElementById('results');
+
+    function row(status, label, detail) {
+      var mark = status === 'ok' ? '✓' : status === 'bad' ? '✕' : '!';
+      return '<div class="res" data-s="' + status + '"><span class="mark">' + mark +
+        '</span><span>' + label + '</span><span class="num">' + detail + '</span></div>';
+    }
+
+    /** Считаем только видимый контент: в режиме листов источник схлопнут. */
+    function scope() {
+      return root.getAttribute('data-mode') === 'sheets' ? '.sheets ' : '.cproSongBody ';
+    }
+
+    /** Аккорд обязан стоять НАД слогом: его низ не ниже верха слога. */
+    function checkStacking() {
+      var bad = 0, total = 0;
+      document.querySelectorAll(scope() + '.cproSongLine:not(.chordsOnly) .chordWrapper').forEach(function (w) {
+        var c = w.querySelector('.chord');
+        var l = w.querySelector('.chordLyrics:not(.chordLyricsSpace)');
+        if (!c || !l || c.offsetParent === null) return;
+        total++;
+        var cr = c.getBoundingClientRect();
+        var lr = l.getBoundingClientRect();
+        if (cr.bottom > lr.top + 1.5) bad++;
+      });
+      return { bad: bad, total: total };
+    }
+
+    /** Секция не должна вылезать за свою колонку. */
+    function checkColumnEscape() {
+      var bad = 0, total = 0;
+      document.querySelectorAll('.cproColumn').forEach(function (col) {
+        var cols = parseInt(getComputedStyle(col).columnCount, 10) || 1;
+        if (cols < 2) return;
+        var colW = col.getBoundingClientRect().width;
+        var limit = colW / cols + 8;
+        col.querySelectorAll('.cproSongSection').forEach(function (s) {
+          total++;
+          if (s.getBoundingClientRect().width > limit) bad++;
+        });
+      });
+      return { bad: bad, total: total };
+    }
+
+    /** Секция выше страницы будет разорвана между экранами — считаем такие. */
+    function checkTallSections() {
+      var bad = 0, total = 0, pages = [];
+      flows().forEach(function (flow) {
+        var h = flow.clientHeight;
+        if (!h) return;
+        var info = pageInfo(flow);
+        pages.push(info.total);
+        flow.querySelectorAll('.cproSongSection').forEach(function (s) {
+          total++;
+          if (s.getBoundingClientRect().height > h) bad++;
+        });
+      });
+      return { bad: bad, total: total, pages: pages };
+    }
+
+    /** Лист не должен оказаться пустым: клоны обязаны разбиться одинаково. */
+    function checkSheets() {
+      var blank = 0, sheets = 0, counts = [];
+      document.querySelectorAll('.song').forEach(function (song) {
+        var list = song.querySelectorAll('.sheet');
+        if (!list.length) return;
+        counts.push(list.length);
+        list.forEach(function (sh) {
+          sheets++;
+          var box = sh.getBoundingClientRect();
+          var seen = false;
+          sh.querySelectorAll('.cproSongSection').forEach(function (s) {
+            if (seen) return;
+            var r = s.getBoundingClientRect();
+            if (r.right > box.left + 2 && r.left < box.right - 2 && r.height > 0) seen = true;
+          });
+          if (!seen) blank++;
+        });
+      });
+      return { blank: blank, sheets: sheets, counts: counts };
+    }
+
+    function run() {
+      requestAnimationFrame(function () {
+        var mode = root.getAttribute('data-mode');
+        var paged = mode === 'paged' || mode === 'sheets';
+        var st = checkStacking();
+        var esc = checkColumnEscape();
+        var overflow = document.body.scrollWidth - document.body.clientWidth;
+
+        var html = '';
+        html += row(st.bad === 0 ? 'ok' : 'bad',
+          st.bad === 0 ? 'Аккорды стоят над слогами' : 'Аккорды наезжают на текст',
+          st.bad + ' из ' + st.total);
+        html += row(esc.total === 0 ? 'warn' : esc.bad === 0 ? 'ok' : 'bad',
+          esc.total === 0 ? 'Проверка колонок — включи «2»' : esc.bad === 0 ? 'Секции держатся в колонке' : 'Секции вылезают за колонку',
+          esc.total === 0 ? '—' : esc.bad + ' из ' + esc.total);
+        html += row(overflow <= 1 ? 'ok' : 'bad',
+          overflow <= 1 ? 'Нет горизонтального скролла' : 'Страница едет вбок',
+          overflow <= 1 ? '0px' : overflow + 'px');
+
+        if (paged) {
+          var tall = checkTallSections();
+          html += row(tall.bad === 0 ? 'ok' : 'warn',
+            tall.bad === 0 ? 'Секции влезают в страницу целиком' : 'Секции разорвутся между экранами',
+            tall.bad + ' из ' + tall.total);
+          html += row(tall.pages.every(function (p) { return p <= 2; }) ? 'ok' : 'warn',
+            'Страниц на песню (меньше — лучше)',
+            tall.pages.join(' · '));
+        }
+
+        if (mode === 'sheets') {
+          var sh = checkSheets();
+          html += row(sh.blank === 0 ? 'ok' : 'bad',
+            sh.blank === 0 ? 'Все листы с содержимым' : 'Есть пустые листы',
+            sh.blank + ' из ' + sh.sheets);
+          html += row('ok', 'Листов на песню', sh.counts.join(' · '));
+        }
+        out.innerHTML = html;
+      });
+    }
+
+    root.setAttribute('data-technique', 'float');
+    root.setAttribute('data-chords', 'on');
+    root.setAttribute('data-mode', 'scroll');
+    root.style.setProperty('--page-h', '60vh');
+    window.addEventListener('resize', resetPages);
+    resetPages();
+  })();
+</script>
