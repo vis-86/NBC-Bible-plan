@@ -110,9 +110,10 @@ export const SongView: React.FC<SongViewProps> = ({
 
   return (
     <article
-      // p-2 в постраничных режимах: поле переехало сюда со скролл-контейнера
-      // страницы, чтобы лист/страница считались от края корня песни (PAGE_PADDING).
-      className={cn('cproSongBody', mode !== 'scroll' && 'p-2')}
+      // В постраничных режимах поля живут здесь, а не на скролл-контейнере:
+      // боковое (px-4) лист компенсирует наружу и держит внутри себя, вертикальное
+      // (py-2 = PAGE_PADDING) вычитается из высоты страницы.
+      className={cn('cproSongBody', mode !== 'scroll' && 'px-4 py-2')}
       data-song-view
       data-chords={hideChords ? 'off' : undefined}
       data-density={density}

@@ -76,9 +76,10 @@ function SongPageContent() {
           </div>
         </div>
 
-        {/* В постраничных режимах поле отдано корню песни (`p-2` в SongView):
-            страница считается от его края, а не от края скролл-контейнера. */}
-        <div ref={contentRef} className={cn('min-h-0 flex-1 overflow-y-auto', mode === 'scroll' ? 'px-4 py-4' : 'px-2 py-2')}>
+        {/* В постраничных режимах боковое поле целиком отдано корню песни
+            (`px-4` в SongView): подложка листа тянется до края оболочки, а поле
+            остаётся внутри листа — текст не впритык к его краю. */}
+        <div ref={contentRef} className={cn('min-h-0 flex-1 overflow-y-auto', mode === 'scroll' ? 'px-4 py-4' : 'py-2')}>
           {!id ? (
             <ErrorMessage title="Песня не найдена" message="Не указан идентификатор песни." onRetry={handleBack} retryLabel="К списку" />
           ) : error ? (
