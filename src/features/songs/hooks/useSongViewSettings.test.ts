@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, beforeEach, vi } from 'vitest';
+import { StrictMode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import {
   useSongViewSettings,
@@ -43,6 +44,17 @@ describe('useSongViewSettings', () => {
     expect(result.current[0].fontSize).toBe(24);
     expect(result.current[0].mode).toBe('scroll');
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
+    expect(JSON.parse(localStorage.getItem(SONG_VIEW_SETTINGS_STORAGE_KEY)!).fontSize).toBe(24);
+  });
+
+  // Smoke, не регресс-гард: инициализатор useState в StrictMode вызывается дважды.
+  // Прежняя (нечистая) реализация этот сценарий тоже проходила — её спасал порядок
+  // операций, — поэтому тест фиксирует требуемое поведение, но сам по себе разницы
+  // между чистым и нечистым инициализатором не ловит.
+  it('миграция переживает двойной вызов инициализатора (StrictMode)', () => {
+    localStorage.setItem(LEGACY_KEY, '24');
+    const { result } = renderHook(() => useSongViewSettings(), { wrapper: StrictMode });
+    expect(result.current[0].fontSize).toBe(24);
     expect(JSON.parse(localStorage.getItem(SONG_VIEW_SETTINGS_STORAGE_KEY)!).fontSize).toBe(24);
   });
 

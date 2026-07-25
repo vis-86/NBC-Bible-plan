@@ -11,7 +11,7 @@
    два отдельных процесса, как в проде nginx+bff, см. `deploy/Dockerfile`):
    ```bash
    npm run build                 # out/ + out/sw.js
-   npm run bff:start &           # BFF на :3001 (нужны DIRECTUS_URL/DIRECTUS_ADMIN_TOKEN/SESSION_SECRET и т.д. — см. server/src/env.ts; для локального прогона источник — .env.local, экспортировать в shell перед запуском)
+   npm run bff:start &           # BFF на :3001 (нужны DIRECTUS_URL/DIRECTUS_ADMIN_TOKEN/SESSION_SECRET и т.д. — см. server/src/env.ts; .env.local подхватывается автоматически, экспортировать в shell не нужно — см. server/src/loadEnv.ts)
    npm run static:serve &        # отдаёт out/ + проксирует /app/api → :3001, см. scripts/static-serve.ts
    ```
    По умолчанию `static:serve` поднимается на `http://localhost:8080`, приложение —

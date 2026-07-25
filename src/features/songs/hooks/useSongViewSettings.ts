@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 export const SONG_VIEW_SETTINGS_STORAGE_KEY = 'songs:view-settings';
 /** Старый ключ (v1, только fontSize) — мигрируем из него один раз при первом чтении. */
@@ -57,20 +57,20 @@ function sanitize(raw: Partial<SongViewSettings> | null | undefined): SongViewSe
   return { mode, columns, fontSize, density, showChords, showHeader };
 }
 
-/** Читает и удаляет legacy-ключ размера шрифта (одноразовая миграция v1 → v2). */
-function readAndClearLegacyFontSize(): number | null {
-  try {
-    const raw = localStorage.getItem(LEGACY_FONT_SIZE_STORAGE_KEY);
-    if (raw === null) return null;
-    localStorage.removeItem(LEGACY_FONT_SIZE_STORAGE_KEY);
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) ? clampFontSize(parsed) : null;
-  } catch (err) {
-    warnStorageUnavailable(err);
-    return null;
-  }
+/** Читает legacy-ключ размера шрифта (миграция v1 → v2). Только чтение — см. `readSettings`. */
+function readLegacyFontSize(): number | null {
+  const raw = localStorage.getItem(LEGACY_FONT_SIZE_STORAGE_KEY);
+  if (raw === null) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? clampFontSize(parsed) : null;
 }
 
+/**
+ * Чистая (только чтение): вызывается из инициализатора `useState`, а он обязан быть
+ * чистым — React выполняет его повторно (StrictMode, отброшенный concurrent-рендер).
+ * Ранняя версия удаляла legacy-ключ прямо здесь и держалась лишь на том, что запись
+ * нового ключа успевала произойти до второго прогона. Все записи вынесены в эффекты.
+ */
 function readSettings(): SongViewSettings {
   try {
     const raw = localStorage.getItem(SONG_VIEW_SETTINGS_STORAGE_KEY);
@@ -79,12 +79,10 @@ function readSettings(): SongViewSettings {
       return sanitize(parsed);
     }
 
-    const legacyFontSize = readAndClearLegacyFontSize();
-    if (legacyFontSize === null) return { ...DEFAULT_SONG_VIEW_SETTINGS };
-
-    const migrated = { ...DEFAULT_SONG_VIEW_SETTINGS, fontSize: legacyFontSize };
-    writeSettings(migrated);
-    return migrated;
+    const legacyFontSize = readLegacyFontSize();
+    return legacyFontSize === null
+      ? { ...DEFAULT_SONG_VIEW_SETTINGS }
+      : { ...DEFAULT_SONG_VIEW_SETTINGS, fontSize: legacyFontSize };
   } catch (err) {
     warnStorageUnavailable(err);
     return { ...DEFAULT_SONG_VIEW_SETTINGS };
@@ -99,6 +97,14 @@ function writeSettings(settings: SongViewSettings): void {
   }
 }
 
+function clearLegacyFontSize(): void {
+  try {
+    localStorage.removeItem(LEGACY_FONT_SIZE_STORAGE_KEY);
+  } catch (err) {
+    warnStorageUnavailable(err);
+  }
+}
+
 /**
  * Персист настроек просмотра песни (режим/колонки/шрифт/плотность/аккорды/шапка)
  * одним JSON-ключом в localStorage (device-scoped, без серверной синхронизации).
@@ -106,12 +112,21 @@ function writeSettings(settings: SongViewSettings): void {
 export function useSongViewSettings(): [SongViewSettings, (patch: Partial<SongViewSettings>) => void] {
   const [settings, setSettingsState] = useState<SongViewSettings>(() => readSettings());
 
+  // Персист — эффектом, а не внутри updater'а: React вправе вызвать updater повторно
+  // (StrictMode, прерванный concurrent-рендер), и запись из отброшенного прогона
+  // разошлась бы с закоммиченным стейтом.
+  useEffect(() => {
+    writeSettings(settings);
+  }, [settings]);
+
+  // Новый ключ уже записан эффектом выше (эффекты выполняются в порядке объявления),
+  // поэтому legacy можно убрать — читать его больше некому.
+  useEffect(() => {
+    clearLegacyFontSize();
+  }, []);
+
   const setSettings = useCallback((patch: Partial<SongViewSettings>) => {
-    setSettingsState((prev) => {
-      const next = sanitize({ ...prev, ...patch });
-      writeSettings(next);
-      return next;
-    });
+    setSettingsState((prev) => sanitize({ ...prev, ...patch }));
   }, []);
 
   return [settings, setSettings];
