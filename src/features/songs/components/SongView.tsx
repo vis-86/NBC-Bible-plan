@@ -2,9 +2,11 @@
 
 import type React from 'react';
 import { useMemo, useRef, type RefObject } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { parseSongBlocks } from '../lib/songParser';
 import { useSheets } from '../hooks/useSheets';
-import { SHEET_PADDING_TOP } from '../lib/sheets';
+import { usePagedFlow } from '../hooks/usePagedFlow';
+import { PAGER_HEIGHT, SHEET_PADDING_TOP } from '../lib/sheets';
 import ChordProHtmlColumn, { type HtmlSection } from './render/ChordProHtmlColumn';
 import './render/songs.css';
 
@@ -82,7 +84,20 @@ export const SongView: React.FC<SongViewProps> = ({
     viewportRef,
     layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}`,
     fontSize: fontSize ?? 0,
+    reservedHeight: mode === 'paged' ? PAGER_HEIGHT : SHEET_PADDING_TOP,
   });
+  const paged = usePagedFlow({ enabled: mode === 'paged', flowRef: sourceRef, pitch: sheets.pitch, totalPages: sheets.count });
+
+  /** Тап по правой/левой трети листает, когда руки заняты инструментом (§4.4). */
+  const handleFlowClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (mode !== 'paged') return;
+    // Клик после выделения текста — не листание: выделение осталось бы потерянным.
+    if (window.getSelection()?.toString()) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    if (x < rect.width / 3) paged.turn(-1);
+    else if (x > (rect.width * 2) / 3) paged.turn(1);
+  };
 
   const meta = [songKey, tempo].filter(Boolean).join(' · ');
   const rootStyle = {
@@ -111,11 +126,44 @@ export const SongView: React.FC<SongViewProps> = ({
       {/* Источник разбивки. В `sheets` обёртка схлопнута в ноль, но остаётся в потоке
           и внутри того же контейнера типографики — иначе клон разобьётся иначе
           и появятся пустые листы (подводный камень 2, §4.2). */}
-      <div className="cproSongMeasure" data-song-view-measure aria-hidden={mode === 'sheets' ? true : undefined}>
+      <div
+        className="cproSongMeasure"
+        data-song-view-measure
+        aria-hidden={mode === 'sheets' ? true : undefined}
+        onClick={mode === 'paged' ? handleFlowClick : undefined}
+      >
         <div ref={sourceRef} className="cproColumn" data-song-view-flow>
           <ChordProHtmlColumn sections={sections} />
         </div>
       </div>
+
+      {mode === 'paged' && (
+        <div className="mt-3 flex items-center justify-between gap-3" data-song-view-pager>
+          <button
+            type="button"
+            data-song-view-pager-prev
+            aria-label="Предыдущая страница"
+            onClick={() => paged.turn(-1)}
+            disabled={paged.page <= 0}
+            className="flex h-11 w-11 items-center justify-center rounded-app-sm text-app-text-secondary transition-transform duration-150 hover:bg-app-surface-muted active:scale-95 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
+          >
+            <ChevronLeft size={22} />
+          </button>
+          <span className="text-sm tabular-nums text-app-text-muted" data-song-view-pager-count>
+            {paged.page + 1} / {sheets.count}
+          </span>
+          <button
+            type="button"
+            data-song-view-pager-next
+            aria-label="Следующая страница"
+            onClick={() => paged.turn(1)}
+            disabled={paged.page >= sheets.count - 1}
+            className="flex h-11 w-11 items-center justify-center rounded-app-sm text-app-text-secondary transition-transform duration-150 hover:bg-app-surface-muted active:scale-95 disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
+          >
+            <ChevronRight size={22} />
+          </button>
+        </div>
+      )}
 
       {mode === 'sheets' && (
         <div className="sheets" data-song-view-sheets style={sheets.width ? { width: `${sheets.width}px` } : undefined}>

@@ -34,11 +34,24 @@ function measureMaxSectionRight(source: HTMLElement): number {
   return maxRight;
 }
 
-/** Высота содержимого скролл-контейнера без его собственных полей. */
-function contentHeight(el: HTMLElement): number {
+/** Высота содержимого скролл-контейнера без его собственных полей + верхнее поле. */
+function viewportBox(el: HTMLElement): { height: number; paddingTop: number } {
   const style = getComputedStyle(el);
-  const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
-  return el.clientHeight - (Number.isFinite(padding) ? padding : 0);
+  const paddingTop = parseFloat(style.paddingTop);
+  const paddingBottom = parseFloat(style.paddingBottom);
+  const padding = (Number.isFinite(paddingTop) ? paddingTop : 0) + (Number.isFinite(paddingBottom) ? paddingBottom : 0);
+  return { height: el.clientHeight - padding, paddingTop: Number.isFinite(paddingTop) ? paddingTop : 0 };
+}
+
+/**
+ * Сколько высоты съедает всё, что нарисовано над потоком (шапка песни). Считается
+ * от верха контента скролл-контейнера и не зависит от его текущего скролла.
+ * Без этого страница выходит ровно на высоту шапки длиннее экрана — и в
+ * постраничном режиме появляется вертикальный скролл, которого там быть не должно.
+ */
+function chromeAboveFlow(source: HTMLElement, viewport: HTMLElement, paddingTop: number): number {
+  const offset = source.getBoundingClientRect().top + viewport.scrollTop - viewport.getBoundingClientRect().top - paddingTop;
+  return Math.max(0, Math.round(offset));
 }
 
 /**
@@ -56,8 +69,10 @@ export function useSheets(params: {
   layoutSignature: string;
   /** Размер шрифта — отдельно, потому что приходит слайдером и требует дебаунса. */
   fontSize: number;
+  /** Сколько высоты вьюпорта занимает обвязка режима (поле листа / панель листалки). */
+  reservedHeight: number;
 }): SheetsMetrics {
-  const { enabled, sourceRef, viewportRef, layoutSignature, fontSize } = params;
+  const { enabled, sourceRef, viewportRef, layoutSignature, fontSize, reservedHeight } = params;
   const [metrics, setMetrics] = useState<SheetsMetrics>(EMPTY);
   const pageHeight = metrics.pageHeight;
   const previousFontSize = useRef(fontSize);
@@ -75,7 +90,11 @@ export function useSheets(params: {
       if (!source) return;
 
       const viewport = viewportRef?.current;
-      const nextPageHeight = viewport ? sheetPageHeight(contentHeight(viewport)) : pageHeight;
+      let nextPageHeight = pageHeight;
+      if (viewport) {
+        const box = viewportBox(viewport);
+        nextPageHeight = sheetPageHeight(box.height, reservedHeight + chromeAboveFlow(source, viewport, box.paddingTop));
+      }
 
       // Разбивка на колонки зависит от высоты потока, а высота приезжает CSS-переменной.
       // Пока она не применена к DOM, мерить ширину бессмысленно — ждём следующего прохода
@@ -128,7 +147,7 @@ export function useSheets(params: {
       observer.disconnect();
       window.removeEventListener('orientationchange', onOrientationChange);
     };
-  }, [enabled, sourceRef, viewportRef, layoutSignature, fontSize, pageHeight]);
+  }, [enabled, sourceRef, viewportRef, layoutSignature, fontSize, reservedHeight, pageHeight]);
 
   return enabled ? metrics : EMPTY;
 }

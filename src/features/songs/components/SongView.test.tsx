@@ -58,6 +58,20 @@ describe('SongView', () => {
     expect(root.style.getPropertyValue('--col-count')).toBe('2');
   });
 
+  it('shows the pager with a page indicator in paged mode only', () => {
+    const scroll = render(<SongView content={CONTENT} mode="scroll" />);
+    expect(scroll.container.querySelector('[data-song-view-pager]')).toBeNull();
+    scroll.unmount();
+
+    const { container } = render(<SongView content={CONTENT} mode="paged" columns={2} />);
+    expect(container.querySelector('[data-song-view-pager-count]')?.textContent).toBe('1 / 1');
+    // На первой странице назад листать некуда, вперёд — тоже (страница одна).
+    expect((container.querySelector('[data-song-view-pager-prev]') as HTMLButtonElement).disabled).toBe(true);
+    expect((container.querySelector('[data-song-view-pager-next]') as HTMLButtonElement).disabled).toBe(true);
+    // Клонов в paged нет — листается сам поток (§4.4).
+    expect(container.querySelector('[data-song-view-sheets]')).toBeNull();
+  });
+
   // Подводный камень 2 (§4.2): клон, из которого вырезаются листы, обязан наследовать
   // ту же типографику, что и источник, — значит лежать внутри того же корня.
   it('renders sheets inside the same typography root as the measured source', () => {

@@ -7,6 +7,13 @@
 export const SHEET_PADDING_TOP = 18;
 
 /**
+ * Высота панели листалки в `paged`: кнопка 44px (§11) + верхний отступ 12px.
+ * Её место вычитается из высоты страницы, иначе панель вылезает за экран
+ * и в постраничном режиме появляется вертикальный скролл.
+ */
+export const PAGER_HEIGHT = 56;
+
+/**
  * Шаг между страницами — НЕ ширина потока: после последней колонки страницы идёт
  * `column-gap`, поэтому следующая пара колонок начинается с `width + gap`. Сдвиг на
  * голую ширину копит лишний отступ слева на каждом листе и завышает их число
@@ -30,10 +37,31 @@ export function sheetCount(maxSectionRight: number, pagePitch: number): number {
 }
 
 /**
- * Высота потока страницы: содержимое скролл-контейнера минус верхнее поле листа,
- * иначе лист вместе с полем не влезает в экран и низ последней строки срезается.
+ * Клавиша → направление листания (§4.4). Bluetooth-педали (AirTurn, PageFlip) шлют
+ * именно эти коды, поэтому поддержка клавиатуры даёт поддержку педалей бесплатно.
+ * `Spacebar` — legacy-значение `KeyboardEvent.key` в старых WebKit-прошивках педалей.
  */
-export function sheetPageHeight(viewportContentHeight: number, paddingTop = SHEET_PADDING_TOP): number {
+export function nextPageDelta(key: string): -1 | 0 | 1 {
+  switch (key) {
+    case 'ArrowRight':
+    case 'PageDown':
+    case ' ':
+    case 'Spacebar':
+      return 1;
+    case 'ArrowLeft':
+    case 'PageUp':
+      return -1;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * Высота потока страницы: содержимое скролл-контейнера минус то, что занимает
+ * обвязка режима (поле листа в `sheets`, панель листалки в `paged`), иначе
+ * страница вместе с обвязкой не влезает в экран и низ срезается.
+ */
+export function sheetPageHeight(viewportContentHeight: number, reserved = SHEET_PADDING_TOP): number {
   if (!Number.isFinite(viewportContentHeight)) return 0;
-  return Math.max(0, Math.round(viewportContentHeight - paddingTop));
+  return Math.max(0, Math.round(viewportContentHeight - reserved));
 }

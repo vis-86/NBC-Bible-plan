@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pitch, sheetCount, sheetPageHeight, SHEET_PADDING_TOP } from './sheets';
+import { pitch, sheetCount, sheetPageHeight, nextPageDelta, SHEET_PADDING_TOP } from './sheets';
 
 describe('pitch', () => {
   // Подводный камень 1 (§4.2): шаг = ширина + column-gap.
@@ -34,6 +34,21 @@ describe('sheetCount', () => {
 
   it('keeps a single sheet when the pitch is unknown (zero width)', () => {
     expect(sheetCount(1500, 0)).toBe(1);
+  });
+});
+
+describe('nextPageDelta', () => {
+  // Педали шлют именно эти коды (§4.4) — резолвер чистый, чтобы не проверять это в e2e.
+  it.each(['ArrowRight', 'PageDown', ' ', 'Spacebar'])('turns forward on %s', (key) => {
+    expect(nextPageDelta(key)).toBe(1);
+  });
+
+  it.each(['ArrowLeft', 'PageUp'])('turns back on %s', (key) => {
+    expect(nextPageDelta(key)).toBe(-1);
+  });
+
+  it.each(['Enter', 'a', 'ArrowUp', 'ArrowDown', 'Escape'])('ignores %s', (key) => {
+    expect(nextPageDelta(key)).toBe(0);
   });
 });
 
