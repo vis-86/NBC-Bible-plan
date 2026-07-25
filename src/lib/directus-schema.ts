@@ -64,8 +64,10 @@ export interface DirectusSchema {
     id: number;
     title: string;
     subtitle?: string | null;
-    /** Тональность (директива {key}). */
+    /** Исходная тональность (директива {key}) — в ней записаны аккорды в content. */
     song_key?: string | null;
+    /** Основная тональность: в ней команда обычно играет. Пусто ⇒ действует song_key. */
+    default_key?: string | null;
     tempo?: number | null;
     time?: string | null;
     /** Сырой ChordPro-контент. */
