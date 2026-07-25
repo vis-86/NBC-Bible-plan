@@ -53,7 +53,7 @@
 
 Проверенная фактура (на 2026-07-25): `SongView.tsx:51` → `SongBlock` не передаёт `renderMode`; `ChordProHtmlColumn.tsx:141` дефолт `'inline'`; `shouldUseTableMode` вызывается только в ветке `'auto'`. Значит табличный путь недостижим.
 
-- [ ] **Коммит A** — `refactor(songs): drop dead render paths`
+- [x] **Коммит A** — `refactor(songs): drop dead render paths` (7b66d79)
   - Удалить файл `src/features/songs/components/render/TableLineRenderer.tsx`
   - В `ChordProHtmlColumn.tsx`: удалить импорт `TableLineRenderer`, функцию `shouldUseTableMode`, проп `renderMode` и всё ветвление по нему, проп `showDebugHeights` вместе с `useEffect`, измеряющим `offsetHeight`
   - В `songParser.ts`: удалить `structurizeSong`, `StructuredSection`, `StructuredSong`
@@ -61,9 +61,9 @@
   - В `SongBlock.tsx`: удалить пропы `isActive`, `onClick` (в `SongView.tsx:51` не передаются) и завязанные на них классы `active`. **Проп `isContinuation` в `SongBlock` тоже мёртв — но не путать с `section.meta?.isContinuation` в `ChordProHtmlColumn.tsx:64`, это другое поле, его НЕ трогать.** Удалить и устаревший комментарий про «убрана autoscroll-логика», раз пропов больше нет
   - **Тесты:** `songParser.test.ts` импортирует `structurizeSong` (строка 5) и тестирует его (`describe` на строке 54) — удалить этот `describe`-блок и импорт вместе с функцией. Остальные тесты файла должны остаться зелёными без правок. Новых тестов не требуется (удаление недостижимого кода)
 
-- [ ] **Коммит B** — `fix(songs): request tempo and time in songs list query`
-  - `songsServer.ts:49` — в `fields` списка добавить `tempo`, `time`. Сейчас `toSummary` их читает, а запрос не запрашивает ⇒ в списке всегда `undefined` (в детали, `:64`, они запрашиваются)
-  - Тест: в существующий тестовый контур songs добавить проверку, что элемент списка отдаёт `tempo`/`time`
+- [x] **Коммит B** — `fix(songs): request tempo and time in songs list query` (0f21ce9) — добавлен юнит-тест `songsServer.test.ts`
+
+**Этап 1 завершён.** Мёртвый код удалён (−642 строки), рендер-путь один (`LineRenderer`). Типографику аккордов не трогали. 388 тестов зелёные.
 
 ---
 
@@ -129,3 +129,16 @@
 Формат: `### YYYY-MM-DD HH:MM UTC — <что сделано>` + что дальше / блокеры. Новые записи — сверху.
 
 <!-- Автономный агент дописывает записи ниже -->
+
+### 2026-07-25 08:53 UTC — Этап 1 завершён (вручную, режим переведён на ручной)
+
+Сделано:
+- Коммит A (7b66d79): удалён мёртвый табличный рендер-путь — `TableLineRenderer.tsx`, `shouldUseTableMode`, `renderMode`/`showDebugHeights` в `ChordProHtmlColumn`, `offsetHeight`-измерение, `structurizeSong`+интерфейсы, осиротевшие `decomposeLine`/`DecomposedLine`/`escapeHtml`/`isChordSymbol` в `chordProUtils`, dead CSS `.cproTableLine`/`.cproSpecialSymbol`, мёртвые пропы `isActive`/`onClick`/`isContinuation` в `SongBlock`. −642 строки.
+- Коммит B (0f21ce9): `getSongsList` теперь запрашивает `tempo`/`time` (были всегда undefined в списке) + юнит-тест `songsServer.test.ts`.
+- Влит `main` в `chordpro-viewer` (merge eebbb8f) — подтянут security-фикс прокси (89088c4), которого на этой ветке не было.
+
+Проверка: `npm run test` → 388 зелёных. Lint по тронутым файлам — чисто, кроме pre-existing `@ts-nocheck` в `songsServer.ts` (baseline, не новый). Offline/SW/роутинг не тронуты — e2e не требовался.
+
+**Режим работы:** переведён на РУЧНОЙ. Автономная routine (trig_01VaTmwsNGcbMbKVmgRmya8s) ВЫКЛЮЧЕНА (первый прогон 04:23 UTC не дал ни коммита, ни записи в лог). Дальше этапы делает Игорь в сессиях с Claude, не автономно.
+
+Дальше: этап 3 (раскладка/колонки/настройки §4+§5+§7+§3.3+§11) — объёмный, начинать со свежего контекста. Заблокированные этапы 2/6/7/9 — требований в спеке нет, нужны решения Игоря (роли, editing-флоу). Этап 7 (сетлисты) зависит от этапа 2 (роль musician_editor).
