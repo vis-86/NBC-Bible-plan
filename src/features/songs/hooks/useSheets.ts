@@ -1,0 +1,134 @@
+'use client';
+
+import { useEffect, useRef, useState, type RefObject } from 'react';
+import { pitch, sheetCount, sheetPageHeight } from '../lib/sheets';
+
+/** Дебаунс перестроек по «шумным» источникам: слайдер шрифта, resize, поворот (§4.2). */
+const REBUILD_DEBOUNCE_MS = 120;
+
+export interface SheetsMetrics {
+  /** Число листов; 1 — пока не измерено или контент уже экрана. */
+  count: number;
+  /** Шаг сдвига потока листа, px. */
+  pitch: number;
+  /** Ширина потока листа, px (0 — ещё не измерено). */
+  width: number;
+  /** Высота потока страницы, px (0 — ещё не измерено). */
+  pageHeight: number;
+}
+
+const EMPTY: SheetsMetrics = { count: 1, pitch: 0, width: 0, pageHeight: 0 };
+
+/**
+ * Правый край последней непустой секции. `scrollWidth` тут не годится: multicol
+ * резервирует пустую хвостовую колонку (подводный камень 3, §4.2).
+ */
+function measureMaxSectionRight(source: HTMLElement): number {
+  source.scrollLeft = 0;
+  const origin = source.getBoundingClientRect().left;
+  let maxRight = 0;
+  source.querySelectorAll('.cproSongSection').forEach((section) => {
+    const rect = section.getBoundingClientRect();
+    if (rect.height > 0) maxRight = Math.max(maxRight, rect.right - origin);
+  });
+  return maxRight;
+}
+
+/** Высота содержимого скролл-контейнера без его собственных полей. */
+function contentHeight(el: HTMLElement): number {
+  const style = getComputedStyle(el);
+  const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+  return el.clientHeight - (Number.isFinite(padding) ? padding : 0);
+}
+
+/**
+ * Измеряет источник (единый multicol-поток) и отдаёт параметры листов-«окон» §4.2.
+ * Перестраивается на смену колонок/шрифта/плотности/режима, resize и поворот экрана.
+ *
+ * Клон листа обязан жить внутри того же контейнера с той же типографикой
+ * (подводный камень 2) — за это отвечает разметка `SongView`, здесь только числа.
+ */
+export function useSheets(params: {
+  enabled: boolean;
+  sourceRef: RefObject<HTMLElement | null>;
+  viewportRef?: RefObject<HTMLElement | null>;
+  /** Строка-подпись раскладки: любое её изменение = перестройка (колонки, плотность, режим…). */
+  layoutSignature: string;
+  /** Размер шрифта — отдельно, потому что приходит слайдером и требует дебаунса. */
+  fontSize: number;
+}): SheetsMetrics {
+  const { enabled, sourceRef, viewportRef, layoutSignature, fontSize } = params;
+  const [metrics, setMetrics] = useState<SheetsMetrics>(EMPTY);
+  const pageHeight = metrics.pageHeight;
+  const previousFontSize = useRef(fontSize);
+
+  useEffect(() => {
+    // Выключенный режим стейт не сбрасывает: наружу и так отдаётся EMPTY, а
+    // сохранённые числа переиспользуются при возврате в постраничный режим.
+    if (!enabled) return;
+
+    let frame = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const measure = () => {
+      const source = sourceRef.current;
+      if (!source) return;
+
+      const viewport = viewportRef?.current;
+      const nextPageHeight = viewport ? sheetPageHeight(contentHeight(viewport)) : pageHeight;
+
+      // Разбивка на колонки зависит от высоты потока, а высота приезжает CSS-переменной.
+      // Пока она не применена к DOM, мерить ширину бессмысленно — ждём следующего прохода
+      // (эффект перезапустится, потому что pageHeight в его зависимостях).
+      if (Math.abs(nextPageHeight - pageHeight) > 1) {
+        setMetrics((prev) => ({ ...prev, pageHeight: nextPageHeight }));
+        return;
+      }
+      if (nextPageHeight <= 0) return;
+
+      const width = source.clientWidth;
+      const gap = parseFloat(getComputedStyle(source).columnGap);
+      const nextPitch = pitch(width, gap);
+      const next: SheetsMetrics = {
+        count: sheetCount(measureMaxSectionRight(source), nextPitch),
+        pitch: nextPitch,
+        width,
+        pageHeight: nextPageHeight,
+      };
+
+      setMetrics((prev) =>
+        prev.count === next.count && prev.pitch === next.pitch && prev.width === next.width && prev.pageHeight === next.pageHeight
+          ? prev
+          : next,
+      );
+    };
+
+    const schedule = (delay: number) => {
+      clearTimeout(timer);
+      cancelAnimationFrame(frame);
+      timer = setTimeout(() => {
+        frame = requestAnimationFrame(measure);
+      }, delay);
+    };
+
+    // Смена шрифта приходит слайдером — её дебаунсим; остальные причины мгновенные.
+    const fontChanged = previousFontSize.current !== fontSize;
+    previousFontSize.current = fontSize;
+    schedule(fontChanged ? REBUILD_DEBOUNCE_MS : 0);
+
+    const observer = new ResizeObserver(() => schedule(REBUILD_DEBOUNCE_MS));
+    if (sourceRef.current) observer.observe(sourceRef.current);
+    if (viewportRef?.current) observer.observe(viewportRef.current);
+    const onOrientationChange = () => schedule(REBUILD_DEBOUNCE_MS);
+    window.addEventListener('orientationchange', onOrientationChange);
+
+    return () => {
+      clearTimeout(timer);
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener('orientationchange', onOrientationChange);
+    };
+  }, [enabled, sourceRef, viewportRef, layoutSignature, fontSize, pageHeight]);
+
+  return enabled ? metrics : EMPTY;
+}

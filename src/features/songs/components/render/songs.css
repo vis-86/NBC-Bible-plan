@@ -23,18 +23,26 @@
   display: none;
 }
 
+/*
+ * Единый поток песни. Multicol раскладывает по колонкам содержимое ОДНОГО потока,
+ * поэтому все секции живут здесь, а не в контейнере на блок.
+ */
 .cproColumn {
   float: none;
   width: 100%;
   font-size: 1em; /* базируется на fontSize контейнера */
   white-space: pre-wrap;
   box-sizing: border-box;
+  columns: var(--col-count, 1);
+  column-gap: 2rem;
 }
 
 .cproSongSection {
   display: block;
   page-break-inside: avoid;
   break-inside: avoid;
+  /* Зазор между секциями: раньше его давал flex-gap обёртки блоков, которой больше нет. */
+  margin-bottom: var(--section-gap, 1rem);
 }
 .cproComment {
   display: block;
@@ -65,7 +73,8 @@
   display: block;
   clear: both;
 }
-.single .cproColumn {
+/* Комфортная длина строки — только в обычном скролле: лист занимает всю ширину. */
+[data-mode='scroll'] .cproColumn {
   max-width: 420px;
 }
 .cproSongLine .chordWrapper .chord {
@@ -259,20 +268,60 @@ code.chord {
   background-color: var(--app-primary-muted);
   border-radius: var(--app-radius-xl);
 }
-.song-blocks-layout {
-  display: flex;
-  flex-direction: column;
-  gap: var(--section-gap, 1rem);
-}
-.song-block-content {
-  /* Горизонтальный скролл для широких строк с аккордами. */
+
+/* ── Постраничные режимы (§4.2, §4.4) ─────────────────────────────────────
+   Страница = экран: поток фиксирован по высоте, колонки заполняются доверху
+   и уезжают вправо. Горизонтального скролла в обычном `scroll` нет вовсе
+   (§11/§12) — длинные строки переносятся. */
+[data-mode='sheets'] .cproColumn,
+[data-mode='paged'] .cproColumn {
+  height: var(--page-h, 60vh);
+  column-fill: auto;
   overflow-x: auto;
-  /* ВАЖНО: без явного overflow-y спека вычисляет его в `auto` (раз overflow-x
-     не `visible`) → блок становится вертикальным scroll-контейнером и
-     перехватывает свайп страницы (iOS rubber-band «дёргает» блок).
-     overflow-y: hidden убирает вертикальный контейнер → вертикальный свайп
-     штатно скроллит страницу, горизонталь остаётся у блока.
-     НЕ ставить здесь touch-action: pan-x — он вовсе запрещает вертикальный
-     пан на блоке (страница перестаёт скроллиться). */
+  /* Без явного overflow-y спека вычислит его в `auto` → поток станет вертикальным
+     scroll-контейнером и перехватит свайп страницы (iOS rubber-band). */
   overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+}
+
+/* В `sheets` источник схлопнут, но остаётся в потоке: по нему считается разбивка,
+   и он обязан наследовать ту же типографику, что и листы. */
+[data-mode='sheets'] .cproSongMeasure {
+  height: 0;
+  overflow: hidden;
+}
+
+.sheet {
+  /* content-box: высота = ровно поток страницы, верхнее поле идёт плюсом,
+     иначе оно съело бы низ листа. */
+  box-sizing: content-box;
+  height: var(--page-h, 60vh);
+  overflow: hidden;
+  position: relative;
+  background-color: var(--app-surface);
+  border-radius: var(--app-radius-sm);
+}
+/* Зазор показывает фон «стола» — стык читается как переход на новый лист (§4.3). */
+.sheet + .sheet {
+  margin-top: 14px;
+  border-top: 1px solid var(--app-border);
+}
+.sheet-num {
+  position: absolute;
+  right: 0.25rem;
+  bottom: 0.125rem;
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  color: var(--app-text-muted);
+  pointer-events: none;
+}
+.sheet-flow {
+  columns: var(--col-count, 1);
+  column-gap: 2rem;
+  column-fill: auto;
+  height: var(--page-h, 60vh);
+  white-space: pre-wrap;
+  box-sizing: border-box;
+  will-change: transform;
 }

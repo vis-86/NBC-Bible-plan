@@ -1,9 +1,21 @@
 // @vitest-environment jsdom
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { render } from '@testing-library/react';
 import { SongView } from './SongView';
 
-const CONTENT = '{comment: Куплет 1}\n[Am]Хор поёт [F]тут';
+const CONTENT = '{comment: Куплет 1}\n[Am]Хор поёт [F]тут\n\n{comment: Припев}\n[C]Второй [G]блок';
+
+// jsdom не реализует ResizeObserver, а useSheets подписывается на него.
+// Раскладку он тут всё равно не считает (нет layout) — достаточно заглушки.
+beforeAll(() => {
+  if (typeof globalThis.ResizeObserver === 'undefined') {
+    globalThis.ResizeObserver = class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver;
+  }
+});
 
 describe('SongView', () => {
   it('sets --lyric-size on the root instead of inline font-size on descendants', () => {
@@ -25,5 +37,41 @@ describe('SongView', () => {
     const { container } = render(<SongView content={CONTENT} />);
     const root = container.querySelector('[data-song-view]') as HTMLElement;
     expect(root.hasAttribute('data-chords')).toBe(false);
+  });
+
+  it('renders all sections in a single multicol flow (multicol works on one flow only)', () => {
+    const { container } = render(<SongView content={CONTENT} />);
+    expect(container.querySelectorAll('.cproColumn').length).toBe(1);
+    expect(container.querySelectorAll('.cproColumn .cproSongSection').length).toBe(2);
+  });
+
+  it('keeps a single column in scroll mode even when two are requested (§4.1)', () => {
+    const { container } = render(<SongView content={CONTENT} columns={2} mode="scroll" />);
+    const root = container.querySelector('[data-song-view]') as HTMLElement;
+    expect(root.style.getPropertyValue('--col-count')).toBe('1');
+    expect(container.querySelector('[data-song-view-sheets]')).toBeNull();
+  });
+
+  it('applies the requested column count in sheets mode', () => {
+    const { container } = render(<SongView content={CONTENT} columns={2} mode="sheets" />);
+    const root = container.querySelector('[data-song-view]') as HTMLElement;
+    expect(root.style.getPropertyValue('--col-count')).toBe('2');
+  });
+
+  // Подводный камень 2 (§4.2): клон, из которого вырезаются листы, обязан наследовать
+  // ту же типографику, что и источник, — значит лежать внутри того же корня.
+  it('renders sheets inside the same typography root as the measured source', () => {
+    const { container } = render(<SongView content={CONTENT} fontSize={12} mode="sheets" />);
+    const root = container.querySelector('[data-song-view]') as HTMLElement;
+    const sheets = container.querySelector('[data-song-view-sheets]') as HTMLElement;
+    const source = container.querySelector('[data-song-view-flow]') as HTMLElement;
+
+    expect(root.contains(sheets)).toBe(true);
+    expect(root.contains(source)).toBe(true);
+    // Источник остаётся в DOM (по нему считается разбивка), но скрыт от скринридера —
+    // содержимое уже озвучено листами.
+    expect(container.querySelector('[data-song-view-measure]')?.getAttribute('aria-hidden')).toBe('true');
+    expect(container.querySelectorAll('[data-song-view-sheet]').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelector('[data-song-view-sheet-number]')?.textContent).toBe('1 / 1');
   });
 });

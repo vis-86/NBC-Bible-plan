@@ -1,9 +1,11 @@
 'use client';
 
 import type React from 'react';
-import { useMemo } from 'react';
+import { useMemo, useRef, type RefObject } from 'react';
 import { parseSongBlocks } from '../lib/songParser';
-import { SongBlock } from './render/SongBlock';
+import { useSheets } from '../hooks/useSheets';
+import { SHEET_PADDING_TOP } from '../lib/sheets';
+import ChordProHtmlColumn, { type HtmlSection } from './render/ChordProHtmlColumn';
 import './render/songs.css';
 
 interface SongViewProps {
@@ -22,23 +24,72 @@ interface SongViewProps {
   density?: 'comfortable' | 'compact';
   /** Показывать шапку (title/subtitle/key·tempo) — по умолчанию показана. */
   showHeader?: boolean;
+  /**
+   * Эффективный режим раскладки (§4.5). Приводить `sheets`/`paged` к `scroll` на узком
+   * экране обязан вызывающий — по `SONG_WIDE_LAYOUT_QUERY`, той же константе, что прячет
+   * контролы в панели настроек.
+   */
+  mode?: 'scroll' | 'sheets' | 'paged';
+  /** Число колонок в постраничных режимах; в `scroll` всегда одна (§4.1). */
+  columns?: 1 | 2;
+  /** Скролл-контейнер страницы — из его высоты берётся высота листа (§4.2). */
+  viewportRef?: RefObject<HTMLElement | null>;
 }
 
 /**
- * Одноколоночный просмотр песни: шапка (title/subtitle/key·tempo) + список блоков.
+ * Просмотр песни: шапка + ОДИН multicol-поток со всеми секциями.
  *
- * Порт `MobileBlocksLayout` без autoscroll: убраны `scrollIntoView`/эффект активного
- * блока и клики — в v1 песня статична (фокус-режим чтения).
+ * Поток один намеренно: multicol раскладывает по колонкам содержимое одного потока,
+ * поэтому прежняя схема «блок = свой контейнер» с колонками несовместима.
+ * В режиме `sheets` источник схлопнут и служит линейкой, а видимые листы — окна,
+ * вырезающие свою страницу сдвигом одинаковой копии (§4.2).
  */
-export const SongView: React.FC<SongViewProps> = ({ content, title, subtitle, songKey, tempo, fontSize, hideChords = false, density = 'comfortable', showHeader = true }) => {
-  const blocks = useMemo(() => parseSongBlocks(content), [content]);
+export const SongView: React.FC<SongViewProps> = ({
+  content,
+  title,
+  subtitle,
+  songKey,
+  tempo,
+  fontSize,
+  hideChords = false,
+  density = 'comfortable',
+  showHeader = true,
+  mode = 'scroll',
+  columns = 1,
+  viewportRef,
+}) => {
+  const sections = useMemo<HtmlSection[]>(
+    () =>
+      parseSongBlocks(content).map((block) => ({
+        comment: block.comment || undefined,
+        commentType: block.commentType || undefined,
+        lines: block.content.split('\n'),
+      })),
+    [content],
+  );
 
   if (process.env.NODE_ENV !== 'production') {
-    // Standard logging: сколько блоков распарсили (диагностика пустых/битых песен).
-    console.debug(`[SongView] parsed ${blocks.length} block(s)`, { title });
+    // Standard logging: сколько секций распарсили (диагностика пустых/битых песен).
+    console.debug(`[SongView] parsed ${sections.length} section(s)`, { title });
   }
 
+  const sourceRef = useRef<HTMLDivElement>(null);
+  // Две колонки существуют только вместе с постраничным режимом (§4.1).
+  const effectiveColumns = mode === 'scroll' ? 1 : columns;
+  const sheets = useSheets({
+    enabled: mode !== 'scroll',
+    sourceRef,
+    viewportRef,
+    layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}`,
+    fontSize: fontSize ?? 0,
+  });
+
   const meta = [songKey, tempo].filter(Boolean).join(' · ');
+  const rootStyle = {
+    ...(fontSize ? { '--lyric-size': `${fontSize}px` } : null),
+    '--col-count': effectiveColumns,
+    ...(sheets.pageHeight ? { '--page-h': `${sheets.pageHeight}px` } : null),
+  } as React.CSSProperties;
 
   return (
     <article
@@ -46,7 +97,8 @@ export const SongView: React.FC<SongViewProps> = ({ content, title, subtitle, so
       data-song-view
       data-chords={hideChords ? 'off' : undefined}
       data-density={density}
-      style={fontSize ? ({ '--lyric-size': `${fontSize}px` } as React.CSSProperties) : undefined}
+      data-mode={mode}
+      style={rootStyle}
     >
       {showHeader && (title || subtitle || meta) && (
         <header className="song-view-header" data-song-view-header>
@@ -56,11 +108,35 @@ export const SongView: React.FC<SongViewProps> = ({ content, title, subtitle, so
         </header>
       )}
 
-      <div className="song-blocks-layout single" data-song-view-blocks>
-        {blocks.map((block, index) => (
-          <SongBlock key={index} block={block} blockIndex={index} />
-        ))}
+      {/* Источник разбивки. В `sheets` обёртка схлопнута в ноль, но остаётся в потоке
+          и внутри того же контейнера типографики — иначе клон разобьётся иначе
+          и появятся пустые листы (подводный камень 2, §4.2). */}
+      <div className="cproSongMeasure" data-song-view-measure aria-hidden={mode === 'sheets' ? true : undefined}>
+        <div ref={sourceRef} className="cproColumn" data-song-view-flow>
+          <ChordProHtmlColumn sections={sections} />
+        </div>
       </div>
+
+      {mode === 'sheets' && (
+        <div className="sheets" data-song-view-sheets style={sheets.width ? { width: `${sheets.width}px` } : undefined}>
+          {Array.from({ length: sheets.count }, (_, index) => (
+            <div key={index} className="sheet" data-song-view-sheet style={{ paddingTop: SHEET_PADDING_TOP }}>
+              <div
+                className="sheet-flow"
+                style={{
+                  width: sheets.width ? `${sheets.width}px` : undefined,
+                  transform: `translateX(-${index * sheets.pitch}px)`,
+                }}
+              >
+                <ChordProHtmlColumn sections={sections} />
+              </div>
+              <span className="sheet-num" data-song-view-sheet-number>
+                {index + 1} / {sheets.count}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
     </article>
   );
 };

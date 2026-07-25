@@ -7,10 +7,11 @@ import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { useSong } from '@/features/songs/hooks/useSong';
-import { useSongViewSettings } from '@/features/songs/hooks/useSongViewSettings';
+import { useSongViewSettings, SONG_WIDE_LAYOUT_QUERY } from '@/features/songs/hooks/useSongViewSettings';
 import { SongView } from '@/features/songs/components/SongView';
 import { SongViewSettings } from '@/features/songs/components/SongViewSettings';
 import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
+import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 import { cn } from '@/shared/utils/cn';
 
 /**
@@ -30,6 +31,15 @@ function SongPageContent() {
   const [viewSettings, setViewSettings] = useSongViewSettings();
   const [isViewSettingsOpen, setIsViewSettingsOpen] = useState(false);
 
+  // Постраничные режимы существуют только там, где панель настроек их показывает
+  // (та же константа) — иначе сохранённый на планшете `sheets` включится на телефоне,
+  // где контрола нет и выключить его нечем.
+  const isWideLayout = useMediaQuery(SONG_WIDE_LAYOUT_QUERY);
+  const mode = isWideLayout ? viewSettings.mode : 'scroll';
+  // Автоскрытие шапки меняет высоту вьюпорта — в постраничных режимах это
+  // пересборка листов на каждый скролл, поэтому шапка там всегда видна.
+  const headerHidden = mode === 'scroll' ? hidden : false;
+
   const handleBack = () => router.push('/dashboard/songs');
 
   return (
@@ -43,7 +53,7 @@ function SongPageContent() {
           data-song-page-header-collapse
           className={cn(
             'grid bg-app-surface transition-[grid-template-rows,padding] duration-300 ease-out',
-            hidden ? 'grid-rows-[0fr] pt-safe' : 'grid-rows-[1fr] pt-0'
+            headerHidden ? 'grid-rows-[0fr] pt-safe' : 'grid-rows-[1fr] pt-0'
           )}
         >
           <div className="min-h-0 overflow-hidden">
@@ -90,6 +100,9 @@ function SongPageContent() {
               hideChords={!viewSettings.showChords}
               density={viewSettings.density}
               showHeader={viewSettings.showHeader}
+              mode={mode}
+              columns={viewSettings.columns}
+              viewportRef={contentRef}
             />
           )}
         </div>
