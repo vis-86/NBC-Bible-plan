@@ -3,54 +3,13 @@
 import React from 'react';
 import { ReadingSettings as ReadingSettingsType } from '@/features/reading/types';
 import { getSelfHostedTranslationOptions } from '@/lib/bible-translations';
+import { ChoiceGroup } from '@/shared/components/ui/ChoiceGroup';
 
 export interface ReadingSettingsFormProps {
   settings: ReadingSettingsType;
   onSettingsChange: (settings: ReadingSettingsType) => void;
   className?: string;
   disabled?: boolean;
-}
-
-const selectedChoice =
-  'border-app-primary bg-app-primary-light text-app-primary font-medium';
-const idleChoice =
-  'border-app-border text-app-text-secondary hover:border-app-border-strong';
-
-/** Repeated pattern: a row of mutually-exclusive option buttons (align/theme). */
-function ChoiceGroup<T extends string>({
-  options,
-  value,
-  onChange,
-  labelFor,
-  disabled,
-  columns,
-}: {
-  options: readonly T[];
-  value: T;
-  onChange: (option: T) => void;
-  labelFor: (option: T) => string;
-  disabled?: boolean;
-  columns: 2 | 3;
-}) {
-  // Tailwind needs statically-visible class names — no dynamic `grid-cols-${n}`.
-  const columnsClass = columns === 3 ? 'grid-cols-3' : 'grid-cols-2';
-  return (
-    <div className={`grid gap-2 ${columnsClass}`}>
-      {options.map((option) => (
-        <button
-          key={option}
-          type="button"
-          disabled={disabled}
-          onClick={() => onChange(option)}
-          className={`min-h-11 rounded-app-md border-2 px-4 py-2 transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-            value === option ? selectedChoice : idleChoice
-          }`}
-        >
-          {labelFor(option)}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 export function ReadingSettingsForm({

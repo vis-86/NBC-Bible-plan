@@ -22,21 +22,32 @@ afterEach(() => {
 });
 
 describe('SongViewSettings', () => {
-  it('disables "2 колонки" and shows a hint below the 640px breakpoint', () => {
+  it('hides the layout controls (mode/columns) below the 640px breakpoint', () => {
     mockMatchMedia(false);
     render(<SongViewSettings isOpen settings={DEFAULT_SONG_VIEW_SETTINGS} onClose={() => {}} onSettingsChange={() => {}} />);
 
-    const twoColumnsButton = screen.getByRole('button', { name: '2 колонки' });
-    expect(twoColumnsButton).toBeDisabled();
-    expect(screen.getByText(/2 колонки доступны на планшете/)).toBeInTheDocument();
+    expect(screen.queryByText('Режим просмотра')).not.toBeInTheDocument();
+    expect(screen.queryByText('Колонки')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '2 колонки' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Постранично' })).not.toBeInTheDocument();
   });
 
-  it('enables "2 колонки" at or above the 640px breakpoint', () => {
+  it('shows the layout controls at or above the 640px breakpoint', () => {
     mockMatchMedia(true);
     render(<SongViewSettings isOpen settings={DEFAULT_SONG_VIEW_SETTINGS} onClose={() => {}} onSettingsChange={() => {}} />);
 
-    const twoColumnsButton = screen.getByRole('button', { name: '2 колонки' });
-    expect(twoColumnsButton).not.toBeDisabled();
-    expect(screen.queryByText(/2 колонки доступны на планшете/)).not.toBeInTheDocument();
+    expect(screen.getByText('Режим просмотра')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '2 колонки' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Постранично' })).toBeEnabled();
+  });
+
+  it('keeps font size, density and toggles available on mobile', () => {
+    mockMatchMedia(false);
+    render(<SongViewSettings isOpen settings={DEFAULT_SONG_VIEW_SETTINGS} onClose={() => {}} onSettingsChange={() => {}} />);
+
+    expect(screen.getByText(/Размер шрифта/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Компактно' })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Показывать аккорды' })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Показывать шапку' })).toBeInTheDocument();
   });
 });

@@ -3,6 +3,15 @@
 import { useCallback, useEffect, useState } from 'react';
 
 export const SONG_VIEW_SETTINGS_STORAGE_KEY = 'songs:view-settings';
+
+/**
+ * Ниже этой ширины раскладочные настройки (`mode`, `columns`) не имеют смысла: вторая
+ * колонка читаемой ширины не помещается, а листы/страницы на телефоне проигрывают
+ * обычному скроллу. Панель настроек прячет эти контролы, а потребитель раскладки
+ * обязан читать ту же константу — иначе сохранённый с планшета `mode: 'sheets'`
+ * включится на телефоне без возможности его выключить.
+ */
+export const SONG_WIDE_LAYOUT_QUERY = '(min-width: 640px)';
 /** Старый ключ (v1, только fontSize) — мигрируем из него один раз при первом чтении. */
 const LEGACY_FONT_SIZE_STORAGE_KEY = 'songs:font-size';
 

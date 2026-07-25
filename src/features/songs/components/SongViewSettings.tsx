@@ -2,7 +2,9 @@
 
 import type React from 'react';
 import { BottomSheet } from '@/shared/components/ui/BottomSheet';
+import { ChoiceGroup } from '@/shared/components/ui/ChoiceGroup';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
+import { SONG_WIDE_LAYOUT_QUERY } from '../hooks/useSongViewSettings';
 import type { SongViewColumns, SongViewDensity, SongViewMode, SongViewSettings as SongViewSettingsValue } from '../hooks/useSongViewSettings';
 
 export interface SongViewSettingsProps {
@@ -10,50 +12,6 @@ export interface SongViewSettingsProps {
   onClose: () => void;
   settings: SongViewSettingsValue;
   onSettingsChange: (patch: Partial<SongViewSettingsValue>) => void;
-}
-
-/** Ниже этой ширины страница физически не вмещает 2 колонки читаемой ширины (§4.5). */
-const TWO_COLUMNS_MIN_WIDTH_QUERY = '(min-width: 640px)';
-
-const selectedChoice = 'border-app-primary bg-app-primary-light text-app-primary font-medium';
-const idleChoice = 'border-app-border text-app-text-secondary hover:border-app-border-strong';
-
-function ChoiceGroup<T extends string | number>({
-  options,
-  value,
-  onChange,
-  labelFor,
-  disabledOptions,
-  columns,
-}: {
-  options: readonly T[];
-  value: T;
-  onChange: (option: T) => void;
-  labelFor: (option: T) => string;
-  disabledOptions?: readonly T[];
-  columns: 2 | 3;
-}) {
-  const columnsClass = columns === 3 ? 'grid-cols-3' : 'grid-cols-2';
-  return (
-    <div className={`grid gap-2 ${columnsClass}`}>
-      {options.map((option) => {
-        const disabled = disabledOptions?.includes(option) ?? false;
-        return (
-          <button
-            key={option}
-            type="button"
-            disabled={disabled}
-            onClick={() => onChange(option)}
-            className={`min-h-11 rounded-app-md border-2 px-4 py-2 transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
-              value === option ? selectedChoice : idleChoice
-            }`}
-          >
-            {labelFor(option)}
-          </button>
-        );
-      })}
-    </div>
-  );
 }
 
 function ToggleRow({ label, checked, onChange, dataAttr }: { label: string; checked: boolean; onChange: () => void; dataAttr?: string }) {
@@ -90,8 +48,9 @@ const COLUMNS_LABELS: Record<SongViewColumns, string> = { 1: '1 колонка',
  * панель на всё, что описано в §5/§7.
  */
 export const SongViewSettings: React.FC<SongViewSettingsProps> = ({ isOpen, onClose, settings, onSettingsChange }) => {
-  const canFitTwoColumns = useMediaQuery(TWO_COLUMNS_MIN_WIDTH_QUERY);
-  const columnsDisabled = canFitTwoColumns ? [] : ([2] as const);
+  // На телефоне листы/страницы и вторая колонка не имеют смысла — контролы скрыты
+  // целиком, а не задизейблены: настройка, которая ни на что не влияет, только шумит.
+  const isWideLayout = useMediaQuery(SONG_WIDE_LAYOUT_QUERY);
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title="Настройки просмотра">
@@ -113,23 +72,19 @@ export const SongViewSettings: React.FC<SongViewSettingsProps> = ({ isOpen, onCl
           </div>
         </div>
 
-        <div data-section="mode">
-          <label className="mb-2 block text-sm font-medium text-app-text-secondary">Режим просмотра</label>
-          <ChoiceGroup options={['scroll', 'sheets', 'paged'] as const} value={settings.mode} onChange={(mode) => onSettingsChange({ mode })} labelFor={(m) => MODE_LABELS[m]} columns={3} />
-        </div>
+        {isWideLayout && (
+          <>
+            <div data-section="mode">
+              <label className="mb-2 block text-sm font-medium text-app-text-secondary">Режим просмотра</label>
+              <ChoiceGroup options={['scroll', 'sheets', 'paged'] as const} value={settings.mode} onChange={(mode) => onSettingsChange({ mode })} labelFor={(m) => MODE_LABELS[m]} columns={3} />
+            </div>
 
-        <div data-section="columns">
-          <label className="mb-2 block text-sm font-medium text-app-text-secondary">Колонки</label>
-          <ChoiceGroup
-            options={[1, 2] as const}
-            value={settings.columns}
-            onChange={(columns) => onSettingsChange({ columns })}
-            labelFor={(c) => COLUMNS_LABELS[c]}
-            disabledOptions={columnsDisabled}
-            columns={2}
-          />
-          {!canFitTwoColumns && <p className="mt-2 text-xs text-app-text-muted">2 колонки доступны на планшете и шире.</p>}
-        </div>
+            <div data-section="columns">
+              <label className="mb-2 block text-sm font-medium text-app-text-secondary">Колонки</label>
+              <ChoiceGroup options={[1, 2] as const} value={settings.columns} onChange={(columns) => onSettingsChange({ columns })} labelFor={(c) => COLUMNS_LABELS[c]} columns={2} />
+            </div>
+          </>
+        )}
 
         <div data-section="density">
           <label className="mb-2 block text-sm font-medium text-app-text-secondary">Плотность</label>
