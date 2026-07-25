@@ -18,6 +18,7 @@ type SongRow = {
   title: string;
   subtitle?: string | null;
   song_key?: string | null;
+  default_key?: string | null;
   tempo?: number | null;
   time?: string | null;
   content?: string;
@@ -37,6 +38,8 @@ function toSummary(row: SongRow): SongSummary {
 function toSong(row: SongRow): Song {
   return {
     ...toSummary(row),
+    // Основная тональность (§10.1) — только в детали: в списке она не запрашивается.
+    defaultKey: row.default_key ?? undefined,
     content: row.content ?? '',
   };
 }
@@ -61,7 +64,7 @@ export async function getSongById(id: number): Promise<Song | null> {
   const client = getDirectusAdminClient();
   try {
     const row: SongRow = await client.request(
-      readItem('songs', id, { fields: ['id', 'title', 'subtitle', 'song_key', 'tempo', 'time', 'content'] }),
+      readItem('songs', id, { fields: ['id', 'title', 'subtitle', 'song_key', 'default_key', 'tempo', 'time', 'content'] }),
     );
     return row ? toSong(row) : null;
   } catch (error) {

@@ -77,6 +77,19 @@ describe('offlineSongs', () => {
     expect(result).toEqual(SONG);
   });
 
+  it('запись СТАРОЙ формы (без defaultKey) читается без ошибки', async () => {
+    // Песни, скачанные до появления `default_key`, лежат в IDB без этого поля.
+    // Поле аддитивное, DB_VERSION не поднимался — читатель обязан отработать undefined
+    // (резолвер тогда откатывается на исходную тональность, см. songKey.test.ts).
+    const legacy = { id: '77', title: 'Старая запись', key: 'G', content: '[G]текст' } as Song;
+    await persistCachedSong(legacy);
+    const fetcher = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+
+    const result = await readSongThrough('77', fetcher);
+    expect(result).toEqual(legacy);
+    expect(result.defaultKey).toBeUndefined();
+  });
+
   it('ЗАВЕДОМЫЙ офлайн + песни нет в IDB -> падает OfflineNoDataError, а не висит', async () => {
     vi.stubGlobal('navigator', { onLine: false });
     const fetcher = vi.fn(() => new Promise<Song>(() => {}));
