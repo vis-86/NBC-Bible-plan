@@ -301,6 +301,11 @@ code.chord {
   position: relative;
   background-color: var(--app-surface);
   border-radius: var(--app-radius-sm);
+  /* Подложка листа шире своего потока: боковое поле нельзя отнимать у потока
+     (его ширина зафиксирована замером — текст обрезался бы), поэтому лист
+     расширяется наружу на то же поле, которое корень песни держит от края экрана. */
+  margin-inline: -8px;
+  padding-inline: 8px;
 }
 /* Зазор показывает фон «стола» — стык читается как переход на новый лист (§4.3). */
 .sheet + .sheet {
@@ -309,7 +314,7 @@ code.chord {
 }
 .sheet-num {
   position: absolute;
-  right: 0.25rem;
+  right: 0.5rem;
   bottom: 0.125rem;
   font-family: var(--font-sans);
   font-size: 0.7rem;

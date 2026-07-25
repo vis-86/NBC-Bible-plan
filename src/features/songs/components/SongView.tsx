@@ -3,10 +3,11 @@
 import type React from 'react';
 import { useMemo, useRef, type RefObject } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from '@/shared/utils/cn';
 import { parseSongBlocks } from '../lib/songParser';
 import { useSheets } from '../hooks/useSheets';
 import { usePagedFlow } from '../hooks/usePagedFlow';
-import { PAGER_HEIGHT, SHEET_PADDING_TOP } from '../lib/sheets';
+import { PAGE_PADDING, PAGER_HEIGHT, SHEET_PADDING_TOP } from '../lib/sheets';
 import ChordProHtmlColumn, { type HtmlSection } from './render/ChordProHtmlColumn';
 import './render/songs.css';
 
@@ -84,7 +85,8 @@ export const SongView: React.FC<SongViewProps> = ({
     viewportRef,
     layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}`,
     fontSize: fontSize ?? 0,
-    reservedHeight: mode === 'paged' ? PAGER_HEIGHT : SHEET_PADDING_TOP,
+    // PAGE_PADDING — нижнее поле корня: `chromeAboveFlow` меряет только то, что над потоком.
+    reservedHeight: (mode === 'paged' ? PAGER_HEIGHT : SHEET_PADDING_TOP) + PAGE_PADDING,
   });
   const paged = usePagedFlow({ enabled: mode === 'paged', flowRef: sourceRef, pitch: sheets.pitch, totalPages: sheets.count });
 
@@ -108,7 +110,9 @@ export const SongView: React.FC<SongViewProps> = ({
 
   return (
     <article
-      className="cproSongBody"
+      // p-2 в постраничных режимах: поле переехало сюда со скролл-контейнера
+      // страницы, чтобы лист/страница считались от края корня песни (PAGE_PADDING).
+      className={cn('cproSongBody', mode !== 'scroll' && 'p-2')}
       data-song-view
       data-chords={hideChords ? 'off' : undefined}
       data-density={density}
