@@ -179,6 +179,17 @@
 
 <!-- Автономный агент дописывает записи ниже -->
 
+### 2026-07-25 09:30 UTC — Этап 3, коммиты A+B готовы
+
+Сделано:
+- Коммит A (c59c19a): `fontSize`/`hideChords` больше не прокидываются пропами через SongView → SongBlock → ChordProHtmlColumn → LineRenderer → ChordRenderer. Вместо этого: `--lyric-size` CSS-переменная на `.cproSongBody` (потомки уже наследуют через em-каскад — отдельная `--chord-size` не понадобилась), `data-chords="off"` + `[data-chords="off"] .chord{display:none}` для режима «только текст». `break-inside: avoid` добавлен на `.cproSongLine` (раньше был только на секции).
+- Коммит B (8a8d135): `useSongViewSettings` — единый JSON-ключ `songs:view-settings` (mode/columns/fontSize/density/showChords/showHeader), одноразовая миграция из `songs:font-size` (с немедленной записью нового ключа — без этого миграция теряла значение при повторном маунте). `SongFontSettings` → `SongViewSettings` (слайдер + 3 сегмента + 2 тумблера). Новый generic `useMediaQuery` (`shared/hooks`) — «2 колонки» дизейблится под 640px. `SongView` применяет `density`/`showHeader`; `mode`/`columns` персистятся, но раскладку ещё не меняют (это коммит C).
+- Побочный фикс вне плана: BFF (`server/src/index.ts`) никогда не подхватывал `.env.local` (отдельный tsx-процесс, не Next) → `npm run bff:dev` тихо работал без Directus-конфига, login падал `ECONNREFUSED`. Добавлен `server/src/loadEnv.ts` (dotenv, гейт по `NODE_ENV!==production`). `npm run dev` теперь поднимает Next+BFF вместе через `concurrently` — отдельный `bff:dev` остался для раздельного запуска. **Важно:** первая попытка сделать это была через `npm install`, что зашумило `yarn.lock` (проект на Yarn, не npm) — откачено, переустановлено через `yarn add -D concurrently`. Проверять пакетный менеджер перед `npm install` в этом репо впредь.
+
+Проверено: `npm run test` (394 зелёных), `npx tsc --noEmit`, `npm run lint` (только preexisting warnings в других файлах), ручная проверка в браузере (логин, список песен, открытие песни, все тумблеры/слайдер панели настроек, персист между песнями/перезагрузкой). Offline/SW/роутинг не тронуты — e2e не требовался.
+
+Дальше: коммит C (multicol/sheets — `lib/sheets.ts` + `useSheets` + перестройка `SongView` на один `.cproColumn`, `SongBlock.tsx` удаляется).
+
 ### 2026-07-25 08:53 UTC — Этап 1 завершён (вручную, режим переведён на ручной)
 
 Сделано:
