@@ -36,6 +36,7 @@
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.4.0",
+    "tonal": "^6.4.3",
     "zod": "^4.4.3"
   },
   "devDependencies": {
