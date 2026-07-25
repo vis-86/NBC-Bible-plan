@@ -18,6 +18,10 @@ interface SongViewProps {
   fontSize?: number;
   /** Скрыть аккорды (режим «только текст») — переключает `data-chords="off"` на корне. */
   hideChords?: boolean;
+  /** Плотность строк/секций — переключает `data-density` на корне (§5). */
+  density?: 'comfortable' | 'compact';
+  /** Показывать шапку (title/subtitle/key·tempo) — по умолчанию показана. */
+  showHeader?: boolean;
 }
 
 /**
@@ -26,7 +30,7 @@ interface SongViewProps {
  * Порт `MobileBlocksLayout` без autoscroll: убраны `scrollIntoView`/эффект активного
  * блока и клики — в v1 песня статична (фокус-режим чтения).
  */
-export const SongView: React.FC<SongViewProps> = ({ content, title, subtitle, songKey, tempo, fontSize, hideChords = false }) => {
+export const SongView: React.FC<SongViewProps> = ({ content, title, subtitle, songKey, tempo, fontSize, hideChords = false, density = 'comfortable', showHeader = true }) => {
   const blocks = useMemo(() => parseSongBlocks(content), [content]);
 
   if (process.env.NODE_ENV !== 'production') {
@@ -41,9 +45,10 @@ export const SongView: React.FC<SongViewProps> = ({ content, title, subtitle, so
       className="cproSongBody"
       data-song-view
       data-chords={hideChords ? 'off' : undefined}
+      data-density={density}
       style={fontSize ? ({ '--lyric-size': `${fontSize}px` } as React.CSSProperties) : undefined}
     >
-      {(title || subtitle || meta) && (
+      {showHeader && (title || subtitle || meta) && (
         <header className="song-view-header" data-song-view-header>
           {title && <h1 className="song-view-title" data-song-view-title>{title}</h1>}
           {subtitle && <p className="song-view-subtitle" data-song-view-subtitle>{subtitle}</p>}

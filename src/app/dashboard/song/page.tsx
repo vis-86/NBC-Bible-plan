@@ -7,9 +7,9 @@ import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { useSong } from '@/features/songs/hooks/useSong';
-import { useSongFontSize } from '@/features/songs/hooks/useSongFontSize';
+import { useSongViewSettings } from '@/features/songs/hooks/useSongViewSettings';
 import { SongView } from '@/features/songs/components/SongView';
-import { SongFontSettings } from '@/features/songs/components/SongFontSettings';
+import { SongViewSettings } from '@/features/songs/components/SongViewSettings';
 import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
 import { cn } from '@/shared/utils/cn';
 
@@ -27,8 +27,8 @@ function SongPageContent() {
   const { song, loading, error } = useSong(id);
   const contentRef = useRef<HTMLDivElement>(null);
   const { hidden } = useAutoHideOnScroll(contentRef, song?.id);
-  const [fontSize, setFontSize] = useSongFontSize();
-  const [isFontSettingsOpen, setIsFontSettingsOpen] = useState(false);
+  const [viewSettings, setViewSettings] = useSongViewSettings();
+  const [isViewSettingsOpen, setIsViewSettingsOpen] = useState(false);
 
   const handleBack = () => router.push('/dashboard/songs');
 
@@ -54,9 +54,9 @@ function SongPageContent() {
               right={
                 <button
                   type="button"
-                  data-song-page-font-settings-button
-                  aria-label="Настройки шрифта"
-                  onClick={() => setIsFontSettingsOpen(true)}
+                  data-song-page-view-settings-button
+                  aria-label="Настройки просмотра"
+                  onClick={() => setIsViewSettingsOpen(true)}
                   className="rounded-app-sm p-2 text-app-text-secondary transition-transform duration-150 hover:bg-app-surface-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
                 >
                   <Settings size={20} />
@@ -86,17 +86,20 @@ function SongPageContent() {
               subtitle={song.subtitle}
               songKey={song.key}
               tempo={song.tempo}
-              fontSize={fontSize}
+              fontSize={viewSettings.fontSize}
+              hideChords={!viewSettings.showChords}
+              density={viewSettings.density}
+              showHeader={viewSettings.showHeader}
             />
           )}
         </div>
       </div>
 
-      <SongFontSettings
-        isOpen={isFontSettingsOpen}
-        onClose={() => setIsFontSettingsOpen(false)}
-        fontSize={fontSize}
-        onFontSizeChange={setFontSize}
+      <SongViewSettings
+        isOpen={isViewSettingsOpen}
+        onClose={() => setIsViewSettingsOpen(false)}
+        settings={viewSettings}
+        onSettingsChange={setViewSettings}
       />
     </DashboardLayout>
   );
