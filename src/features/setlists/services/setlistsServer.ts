@@ -1,12 +1,9 @@
-// @ts-nocheck - Directus SDK typing issue with custom schema (см. src/lib/directus-data.ts):
-// коллекции в DirectusSchema типизированы объектами (не массивами), из-за чего SDK v20
-// сужает collection-параметр readItems/readItem до never. Экспортируемые функции при этом
-// типизированы для потребителей (роутов) — проверка отключена только внутри файла.
 /**
  * Серверный доступ к коллекциям `setlists`/`setlist_items` через admin-клиент Directus.
  * Клиент в Directus напрямую не ходит — только через эти функции + BFF-роуты (arch: proxy).
  */
 import { createItem, createItems, deleteItem, deleteItems, readItem, readItems, updateItem } from '@directus/sdk';
+import type { DirectusClient, RestClient } from '@directus/sdk';
 import { getDirectusAdminClient } from '@/lib/directus';
 
 const LOG = '[Setlists API]';
@@ -34,12 +31,43 @@ export interface SetlistDetail {
   items: SetlistDetailItem[];
 }
 
-type SetlistRow = { id: string; title: string; date: string | null; date_created: string };
+type SetlistRow = {
+  id: string;
+  title: string;
+  date: string | null;
+  date_created: string;
+  created_by: string;
+};
 type SetlistItemRow = { id: string; setlist: string; song: number | null; sort: number };
 type SongRow = { id: number; title: string; subtitle?: string | null; song_key?: string | null };
 
+/**
+ * Локальная схема для admin-клиента. В общей `DirectusSchema` (`src/lib/directus-schema.ts`)
+ * коллекций сетлистов нет, а сами коллекции там описаны объектами вместо массивов — SDK v20
+ * из-за этого сужает collection-параметр `readItems`/`readItem` до `never` (раньше файл был
+ * целиком под `@ts-nocheck`). Описываем массивами ровно те три коллекции, которые нужны здесь,
+ * — запросы ниже типизируются по-настоящему.
+ */
+interface SetlistsSchema {
+  setlists: SetlistRow[];
+  setlist_items: SetlistItemRow[];
+  songs: SongRow[];
+}
+
+type SetlistsClient = DirectusClient<SetlistsSchema> & RestClient<SetlistsSchema>;
+
+/** Поля, которых достаточно для сортировки списка (запрос тянет именно их). */
+type SetlistSortFields = Pick<SetlistRow, 'date' | 'date_created'>;
+/** Item в том виде, в каком его читает деталь сета (без `setlist` — он известен из фильтра). */
+type SetlistItemBrief = Pick<SetlistItemRow, 'id' | 'song' | 'sort'>;
+
+/** Тот же admin-клиент, но типизированный локальной схемой (см. `SetlistsSchema`). */
+function getClient(): SetlistsClient {
+  return getDirectusAdminClient() as unknown as SetlistsClient;
+}
+
 /** `date` ASC NULLS LAST, тай-брейк `date_created` DESC. Directus не выражает NULLS LAST в query — сортируем в JS. */
-function compareSetlists(a: SetlistRow, b: SetlistRow): number {
+function compareSetlists(a: SetlistSortFields, b: SetlistSortFields): number {
   if (a.date && b.date) {
     if (a.date !== b.date) return a.date < b.date ? -1 : 1;
   } else if (a.date && !b.date) {
@@ -52,8 +80,8 @@ function compareSetlists(a: SetlistRow, b: SetlistRow): number {
 
 /** Список сетов с числом песен. Каталог маленький — считаем items в памяти, без агрегирующих запросов. */
 export async function getSetlistsList(): Promise<SetlistSummary[]> {
-  const client = getDirectusAdminClient();
-  const [setlists, items]: [SetlistRow[], SetlistItemRow[]] = await Promise.all([
+  const client = getClient();
+  const [setlists, items] = await Promise.all([
     client.request(readItems('setlists', { fields: ['id', 'title', 'date', 'date_created'], limit: -1 })),
     client.request(readItems('setlist_items', { fields: ['setlist'], limit: -1 })),
   ]);
@@ -75,9 +103,9 @@ export async function getSetlistsList(): Promise<SetlistSummary[]> {
 
 /** Деталь сета: сам сет + items, отсортированные по `sort`, с краткими данными песен. null — не найден. */
 export async function getSetlistDetail(id: string): Promise<SetlistDetail | null> {
-  const client = getDirectusAdminClient();
+  const client = getClient();
 
-  let setlist: SetlistRow;
+  let setlist: Pick<SetlistRow, 'id' | 'title' | 'date'>;
   try {
     setlist = await client.request(readItem('setlists', id, { fields: ['id', 'title', 'date'] }));
   } catch (error) {
@@ -86,7 +114,7 @@ export async function getSetlistDetail(id: string): Promise<SetlistDetail | null
   }
   if (!setlist) return null;
 
-  const rawItems: SetlistItemRow[] = await client.request(
+  const rawItems: SetlistItemBrief[] = await client.request(
     readItems('setlist_items', {
       filter: { setlist: { _eq: id } },
       fields: ['id', 'song', 'sort'],
@@ -99,7 +127,7 @@ export async function getSetlistDetail(id: string): Promise<SetlistDetail | null
   for (const orphan of orphans) {
     console.warn(`${LOG} orphan item ${orphan.id} in setlist ${id}`);
   }
-  const validItems = rawItems.filter((item): item is SetlistItemRow & { song: number } => item.song !== null);
+  const validItems = rawItems.filter((item): item is SetlistItemBrief & { song: number } => item.song !== null);
 
   const songIds = validItems.map((item) => item.song);
   const songs: SongRow[] =
@@ -111,7 +139,7 @@ export async function getSetlistDetail(id: string): Promise<SetlistDetail | null
   const songById = new Map(songs.map((song) => [song.id, song]));
 
   const items: SetlistDetailItem[] = validItems
-    .map((item) => {
+    .map((item): SetlistDetailItem | null => {
       const song = songById.get(item.song);
       if (!song) return null;
       return {
@@ -157,7 +185,7 @@ export interface CreateSetlistInput {
 
 /** Создаёт сет + items (`sort = index`). При сбое создания items удаляет уже созданный сет (компенсация). */
 export async function createSetlist(input: CreateSetlistInput): Promise<string> {
-  const client = getDirectusAdminClient();
+  const client = getClient();
   const created: { id: string } = await client.request(
     createItem('setlists', { title: input.title, date: input.date, created_by: input.createdBy })
   );
@@ -190,7 +218,7 @@ export interface UpdateSetlistInput {
 
 /** PATCH заменяет состав целиком при переданном `songIds` (не диффит) — см. план, раздел «Архитектура». */
 export async function updateSetlist(id: string, input: UpdateSetlistInput): Promise<void> {
-  const client = getDirectusAdminClient();
+  const client = getClient();
 
   const patch: Record<string, unknown> = {};
   if (input.title !== undefined) patch.title = input.title;
@@ -220,7 +248,7 @@ export async function updateSetlist(id: string, input: UpdateSetlistInput): Prom
 
 /** Удаляет сет; items уходят по FK CASCADE (руками не чистить). */
 export async function deleteSetlist(id: string): Promise<void> {
-  const client = getDirectusAdminClient();
+  const client = getClient();
   await client.request(deleteItems('setlists', [id]));
   console.debug(`${LOG} delete ${id}`);
 }
