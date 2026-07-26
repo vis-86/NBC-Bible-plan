@@ -6,7 +6,7 @@ import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { useSongs } from '@/features/songs/hooks/useSongs';
 import { useSongSearch } from '@/features/songs/hooks/useSongSearch';
-import { SearchBar } from '@/features/songs/components/SearchBar';
+import { SearchBar } from '@/shared/components/ui/SearchBar';
 import { SongList } from '@/features/songs/components/SongList';
 import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
 import { useChromeVisibility } from '@/shared/components/layout/ChromeVisibility';

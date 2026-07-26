@@ -1,0 +1,54 @@
+'use client';
+
+import { Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import DashboardLayout from '@/shared/components/layout/DashboardLayout';
+import { useAppRole } from '@/shared/hooks/useAppRole';
+import { useSongs } from '@/features/songs/hooks/useSongs';
+import { useSetlist } from '@/features/setlists/hooks/useSetlist';
+import { SetlistBuilder } from '@/features/setlists/components/SetlistBuilder';
+
+function AccessDenied() {
+  const router = useRouter();
+  return (
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-4 text-center">
+      <p className="text-app-text-secondary">Недостаточно прав для управления сетлистами.</p>
+      <button
+        type="button"
+        onClick={() => router.push('/dashboard/songs')}
+        className="rounded-app-md border-2 border-app-primary px-4 py-2.5 text-sm font-medium text-app-primary"
+      >
+        Назад
+      </button>
+    </div>
+  );
+}
+
+function SetlistEditPageContent() {
+  const searchParams = useSearchParams();
+  const editingId = searchParams.get('id');
+  const { canManageSetlists, loading: roleLoading } = useAppRole();
+  const { songs } = useSongs();
+  const { setlist } = useSetlist(editingId);
+
+  return (
+    <div data-setlist-edit-page className="flex min-h-0 flex-1 flex-col">
+      {roleLoading ? null : canManageSetlists ? (
+        <SetlistBuilder songs={songs} editingId={editingId} initialSetlist={setlist} />
+      ) : (
+        <AccessDenied />
+      )}
+    </div>
+  );
+}
+
+export default function SetlistEditPage() {
+  return (
+    <DashboardLayout onChangeView={() => {}} hideBottomNav>
+      {/* useSearchParams требует Suspense-границу в App Router. */}
+      <Suspense fallback={null}>
+        <SetlistEditPageContent />
+      </Suspense>
+    </DashboardLayout>
+  );
+}
