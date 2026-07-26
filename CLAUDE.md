@@ -66,6 +66,22 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
 - Поле, скопированное в iron-session cookie, — это кэш: перед добавлением ответь «что происходит, когда источник меняется?» (нужен refresh-путь).
 - Регистрация — tri-state, сервер источник истины (`src/lib/register-access.ts`, матрица в `ENV_SETUP.md`); UI-флаги `NEXT_PUBLIC_REGISTER_*` — build-time зеркало, обязаны совпадать с серверными. Прод-состояние смотри в серверных compose-файлах, не предполагай.
 
+## Роли доступа (сетлисты)
+
+- Роли: `reader` (дефолт), `musician` (CRUD сетлистов), `musician_editor` (задел под M9,
+  прав в коде пока не даёт). Маппинг Directus-роль → `AppRole` — `src/lib/app-roles.ts`.
+- **Реальный гейт — BFF, не Directus.** Приложение ходит в Directus админ-токеном через
+  BFF, поэтому Directus-права — второй рубеж, а не защита. Каждый мутирующий роут
+  сетлистов обязан пройти через `requireSetlistWrite` (`server/src/middleware/requireRole.ts`).
+  Клиентский `useAppRole`/`canManageSetlists` управляет только видимостью кнопок.
+- Роль резолвится отдельным эндпоинтом `GET /api/user/role` — в iron-session cookie её
+  НЕ класть (кэш в cookie требует refresh-пути, см. инвариант выше; отдельный эндпоинт
+  этой проблемы не создаёт).
+- **Осознанное исключение из offline-first:** запись сетлистов (создание/редактирование/
+  удаление) — online-only, с явным UI «нужен интернет». Чтение — полноценно офлайн
+  (read-through + IDB), как и все остальные ресурсы. Подробности и обоснование —
+  `docs/offline-pwa.md`.
+
 ## Прод и деплой
 
 - Стек: Docker Compose на своём сервере, `/opt/nbc/bible-plan/deploy`. Сервисы: `bff` (Hono) + `nginx` (запечённый `out/` + прокси). Образы собираются НА сервере из rsync-нутого дерева.

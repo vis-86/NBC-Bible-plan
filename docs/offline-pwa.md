@@ -77,6 +77,21 @@ T8) SW больше не runtime-кеширует посещённые стра�
   (`plan:days`, `plan:progress`, `plan:weekly:proverbs`, `songs:list`, `bible:books`,
   `reading:settings`), при сетевой ошибке — чтение из `apiCache`.
 
+### Сетлисты — read-through + online-only запись (исключение)
+
+Чтение сетлистов (список и деталь) — обычный `readThrough`, как всё остальное:
+`SETLISTS_LIST_CACHE_KEY` / `setlistCacheKey(id)` (`src/features/setlists/lib/offlineSetlists.ts`),
+прогрев — `downloadSetlists()` в `downloadManager.ts`, входит в `ensureOfflineData()`
+(автозагрузка после логина) и в ручное «Скачать всё».
+
+**Запись (создание/редактирование/удаление) — осознанное исключение из offline-first.**
+Решение Игоря (2026-07-26, `.ai-factory/plans/feature-setlists.md`): `POST/PATCH/DELETE
+/api/setlists*` не идут через outbox — при `navigator.onLine === false` UI сразу
+показывает «Нужен интернет» и блокирует кнопку, без попытки записи и без постановки в
+очередь. Причина — редакторов единицы, конфликт синхронизации маловероятен и не
+оправдывает сложность LWW/outbox для этого пути; при росте числа муз. редакторов это
+можно пересмотреть (`M6` — обобщение outbox).
+
 ### Офлайн-вход
 
 `src/shared/offline/lastKnownUser.ts` + `AuthProvider.tsx`: последний подтверждённый

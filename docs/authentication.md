@@ -111,6 +111,14 @@ Directus через **admin-клиент** с фильтрацией по `direc
 Directus не используется (он короткоживущий ~15 мин без refresh → давал бы логаут).
 Trade-off: per-user Directus permissions на API-слое не применяются (сервер доверенный).
 
+## Роли доступа (сетлисты)
+
+Помимо сессии — прикладная роль `AppRole` (`reader` / `musician` / `musician_editor`),
+резолвится по имени Directus-роли (`src/lib/app-roles.ts`) отдельным эндпоинтом
+`GET /api/user/role` (НЕ хранится в iron-session cookie — кэш роли в cookie не имеет
+refresh-пути). Реальный гейт мутирующих роутов сетлистов — `requireSetlistWrite`
+(BFF middleware); Directus-права — второй рубеж, не защита (см. `CLAUDE.md`).
+
 ## PWA
 
 Установка вне Telegram: манифест — статический `public/manifest.webmanifest`,

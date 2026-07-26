@@ -101,6 +101,24 @@ API живёт ОТДЕЛЬНО от `src/app` — в `server/`, вне Next.js 
 - **Хуки:** `useBibleText`, `useChapterNavigation`, `useReadingSettings`
 - **Кэш:** `bible-text-cache.ts` — client-side кэш текста глав
 
+### features/setlists/ — Фича: сетлисты
+
+- **Экраны:** `/dashboard/setlists` (список: Ближайшие/Без даты/Архив),
+  `/dashboard/setlist?id=` (просмотр), `/dashboard/setlist-edit` (билдер:
+  создание без `?id=`, редактирование с `?id=`)
+- **Билдер:** `SetlistBuilder` (мобильный multi-select + FAB + `NameSetlistSheet`,
+  либо планшетный master-detail при `min-width: 768px`), `SelectedChipsRow`,
+  `SetlistSongPickRow`, `SetlistItemRow` (переупорядочивание кнопками Вверх/Вниз)
+- **Playback-режим в просмотре песни:** `useSetlistPlayback` + свайп
+  (`useHorizontalSwipe`, `shared/hooks/`) + `SetlistPlaybackSheet` — навигация между
+  песнями сета прямо из `/dashboard/song?id=&setlistId=`
+- **Хуки:** `useSetlists`, `useSetlist(id)`, `useSetlistDraft` (черновик билдера
+  в `sessionStorage`)
+- **Офлайн:** `lib/offlineSetlists.ts` (read-through) + `lib/archive.ts`
+  (`partitionSetlists`) — чтение офлайн, запись online-only (см. `docs/offline-pwa.md`)
+- **Роль:** `src/lib/app-roles.ts` + `shared/hooks/useAppRole.ts` — гейт кнопок
+  создания/редактирования/удаления (реальный гейт — BFF, см. `CLAUDE.md`)
+
 ### shared/ — Общий код
 
 ```

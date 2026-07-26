@@ -55,10 +55,18 @@ bible-plan/
 │   │   │   ├── types.ts              # Reading-specific types
 │   │   │   └── bible-text-cache.ts   # Client-side cache for bible text
 │   │   ├── songs/                    # Songs (ChordPro) feature slice
-│   │   │   ├── components/           # SongList, SongCard, SongView, SongKeyPicker, SearchBar, render/*
+│   │   │   ├── components/           # SongList, SongCard, SongView, SongKeyPicker, render/*
 │   │   │   ├── hooks/                # useSongs, useSong, useSongSearch, useScrollRestore, useSongViewSettings, useSongKey
 │   │   │   ├── lib/                  # ChordPro parser, offlineSongs (read-through), markers/transpose/songKey (§10), personalKeyStore
 │   │   │   └── types.ts              # Song-specific types
+│   │   ├── setlists/                 # Setlists feature slice (M7)
+│   │   │   ├── components/           # SetlistsList, SetlistCard, SetlistView, SetlistBuilder, SelectedChipsRow,
+│   │   │   │                         # SetlistSongPickRow, SetlistItemRow, NameSetlistSheet, SetlistPlaybackSheet,
+│   │   │   │                         # SetlistDashboardStrip
+│   │   │   ├── hooks/                # useSetlists, useSetlist, useSetlistDraft, useSetlistPlayback
+│   │   │   ├── lib/                  # offlineSetlists (read-through + cache keys), archive (partitionSetlists), formatSetlistDate
+│   │   │   ├── services/setlistsServer.ts # Directus admin-client access (used only by server/src/routes/setlists.ts)
+│   │   │   └── types.ts              # Setlist-specific types
 │   │   └── landing/                  # Public landing slice (orchestrated by app/page.tsx)
 │   │       ├── components/           # Header, Hero, About, HowToStart, InstallGuide, FinalCta, Footer, Atmosphere, PhoneMockup, cta
 │   │       ├── components/anim.ts    # Shared motion reveal variants
@@ -79,10 +87,10 @@ bible-plan/
 │   │   │   ├── animations/           # Shared animation components
 │   │   │   ├── bible/                # Bible-specific UI components
 │   │   │   ├── skeletons/            # Loading skeleton components
-│   │   │   └── ui/                   # Generic UI primitives (shadcn/ui) + UpdateToast.tsx
+│   │   │   └── ui/                   # Generic UI primitives (shadcn/ui) + UpdateToast.tsx, SearchBar.tsx
 │   │   ├── config/
 │   │   │   └── design-tokens.ts      # TS design token constants (maps to CSS vars)
-│   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast), useAutoHideOnScroll (hide-on-scroll обёртка над useScrollDirection)
+│   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast), useAutoHideOnScroll (hide-on-scroll обёртка над useScrollDirection), useAppRole, useIsOnline, useHorizontalSwipe
 │   │   ├── offline/                  # IndexedDB layer (idb), read-through, write-ahead outbox, sync, downloadManager, autoDownload (T11), chunkGuard, networkTimeout
 │   │   ├── services/
 │   │   │   └── api/
@@ -147,8 +155,12 @@ bible-plan/
 | `src/shared/services/api/endpoints.ts` | All API calls with TypeScript types |
 | `src/shared/offline/db.ts` | IndexedDB schema (idb) — bibleChapters/songs/apiCache/outbox/meta/manifest |
 | `src/shared/offline/outbox.ts` + `sync.ts` | Write-ahead outbox для прогресса + replay-движок (LWW) |
-| `src/shared/offline/downloadManager.ts` | Опциональная офлайн-загрузка Писания/песен/плана + очистка |
+| `src/shared/offline/downloadManager.ts` | Опциональная офлайн-загрузка Писания/песен/плана/сетлистов + очистка |
 | `src/shared/offline/autoDownload.ts` | Автозагрузка базового набора после логина (iOS partition fix, T11) |
+| `src/lib/app-roles.ts` + `src/shared/hooks/useAppRole.ts` | `AppRole` (reader/musician/musician_editor), `GET /api/user/role` — гейт кнопок сетлистов (реальный гейт — BFF `requireSetlistWrite`, см. `CLAUDE.md`) |
+| `server/src/routes/setlists.ts` + `src/features/setlists/services/setlistsServer.ts` | CRUD сетлистов (Directus admin-client), `requireSetlistWrite` на мутирующих роутах |
+| `src/app/dashboard/setlists/page.tsx`, `.../setlist/page.tsx`, `.../setlist-edit/page.tsx` | Список/просмотр/билдер сетлистов — все три в `APP_SHELL_ROUTES` |
+| `src/features/setlists/hooks/useSetlistPlayback.ts` | Навигация между песнями сета в просмотре песни (`/dashboard/song?id=&setlistId=`), свайп через `useHorizontalSwipe` |
 | `src/sw/sw.ts` + `scripts/build-sw.ts` | Build-time precache service worker (Serwist `injectManifest` → `out/sw.js`) |
 | `src/shared/hooks/useSwUpdate.ts` + `src/shared/components/ui/UpdateToast.tsx` | Update flow: `registration.waiting` → тост «Обновить» → `SKIP_WAITING` → reload |
 | `src/shared/hooks/useAutoHideOnScroll.ts` | Hide-on-scroll обёртка над `useScrollDirection` для не-ридер страниц (список/деталь песен) |
