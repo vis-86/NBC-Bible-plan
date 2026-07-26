@@ -13,6 +13,7 @@ import { chatRoutes } from './routes/chat';
 import { directusProxyRoutes } from './routes/directus-proxy';
 import { graphqlRoutes } from './routes/graphql';
 import { planRoutes } from './routes/plan';
+import { setlistsRoutes } from './routes/setlists';
 import { songsRoutes } from './routes/songs';
 import { userRoutes } from './routes/user';
 
@@ -42,6 +43,7 @@ export function createApp() {
   app.route('/bible', bibleRoutes);
   app.route('/plan', planRoutes);
   app.route('/songs', songsRoutes);
+  app.route('/setlists', setlistsRoutes);
   app.route('/user', userRoutes);
   app.route('/chat', chatRoutes);
   app.route('/graphql', graphqlRoutes);
