@@ -3,6 +3,12 @@ import { BibleReference, ReadingPlanDay, PlanItem } from '@/types';
 import type { AppRole } from '@/lib/app-roles';
 // Type-only import (стирается при компиляции) — доменные типы фичи songs.
 import type { SongListResponse, SongResponse } from '@/features/songs/types';
+import type {
+  CreateSetlistPayload,
+  SetlistResponse,
+  SetlistsListResponse,
+  UpdateSetlistPayload,
+} from '@/features/setlists/types';
 
 // Types for API responses
 export interface PlanResponse {
@@ -118,6 +124,24 @@ export interface UserRoleResponse {
 export const userApi = {
   getRole: async (): Promise<UserRoleResponse> => {
     return apiClient.get<UserRoleResponse>('/api/user/role');
+  },
+};
+
+export const setlistsApi = {
+  getSetlists: async (): Promise<SetlistsListResponse> => {
+    return apiClient.get<SetlistsListResponse>('/api/setlists');
+  },
+  getSetlist: async (id: string): Promise<SetlistResponse> => {
+    return apiClient.get<SetlistResponse>(`/api/setlists/${id}`);
+  },
+  create: async (payload: CreateSetlistPayload): Promise<{ id: string }> => {
+    return apiClient.post<{ id: string }>('/api/setlists', payload);
+  },
+  update: async (id: string, payload: UpdateSetlistPayload): Promise<void> => {
+    return apiClient.patch(`/api/setlists/${id}`, payload);
+  },
+  remove: async (id: string): Promise<void> => {
+    return apiClient.delete(`/api/setlists/${id}`);
   },
 };
 
