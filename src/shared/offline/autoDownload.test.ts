@@ -10,17 +10,20 @@ vi.mock('@/shared/services/api/endpoints', () => ({
   readingSettingsApi: { getSettings: getSettingsMock },
 }));
 
-const { downloadPlanMock, downloadSongsMock, downloadBibleTranslationMock, getManifestMock } = vi.hoisted(() => ({
-  downloadPlanMock: vi.fn(),
-  downloadSongsMock: vi.fn(),
-  downloadBibleTranslationMock: vi.fn(),
-  getManifestMock: vi.fn(),
-}));
+const { downloadPlanMock, downloadSongsMock, downloadSetlistsMock, downloadBibleTranslationMock, getManifestMock } =
+  vi.hoisted(() => ({
+    downloadPlanMock: vi.fn(),
+    downloadSongsMock: vi.fn(),
+    downloadSetlistsMock: vi.fn(),
+    downloadBibleTranslationMock: vi.fn(),
+    getManifestMock: vi.fn(),
+  }));
 
 vi.mock('./downloadManager', () => ({
   getManifest: getManifestMock,
   downloadPlan: downloadPlanMock,
   downloadSongs: downloadSongsMock,
+  downloadSetlists: downloadSetlistsMock,
   downloadBibleTranslation: downloadBibleTranslationMock,
 }));
 
@@ -31,6 +34,7 @@ describe('offline/autoDownload', () => {
     getSettingsMock.mockReset().mockResolvedValue({ settings: { nt_translation: 'rst' } });
     downloadPlanMock.mockReset().mockResolvedValue(undefined);
     downloadSongsMock.mockReset().mockResolvedValue(undefined);
+    downloadSetlistsMock.mockReset().mockResolvedValue(undefined);
     downloadBibleTranslationMock.mockReset().mockResolvedValue(undefined);
     getManifestMock.mockReset().mockResolvedValue([]);
     __resetAutoDownloadGuard();
@@ -42,10 +46,11 @@ describe('offline/autoDownload', () => {
   });
 
   describe('ensureOfflineData', () => {
-    it('полный manifest (план, песни, дефолтный перевод уже есть) -> ноль загрузок', async () => {
+    it('полный manifest (план, песни, сетлисты, дефолтный перевод уже есть) -> ноль загрузок', async () => {
       getManifestMock.mockResolvedValue([
         { key: 'plan', downloadedAt: 1 },
         { key: 'songs', downloadedAt: 1 },
+        { key: 'setlists', downloadedAt: 1 },
         { key: 'rst', downloadedAt: 1 },
       ]);
 
@@ -53,6 +58,7 @@ describe('offline/autoDownload', () => {
 
       expect(downloadPlanMock).not.toHaveBeenCalled();
       expect(downloadSongsMock).not.toHaveBeenCalled();
+      expect(downloadSetlistsMock).not.toHaveBeenCalled();
       expect(downloadBibleTranslationMock).not.toHaveBeenCalled();
     });
 
@@ -63,6 +69,7 @@ describe('offline/autoDownload', () => {
 
       expect(downloadPlanMock).not.toHaveBeenCalled();
       expect(downloadSongsMock).toHaveBeenCalledTimes(1);
+      expect(downloadSetlistsMock).toHaveBeenCalledTimes(1);
       expect(downloadBibleTranslationMock).toHaveBeenCalledTimes(1);
       expect(downloadBibleTranslationMock).toHaveBeenCalledWith('rst');
     });
@@ -72,6 +79,7 @@ describe('offline/autoDownload', () => {
       getManifestMock.mockResolvedValue([
         { key: 'plan', downloadedAt: 1 },
         { key: 'songs', downloadedAt: 1 },
+        { key: 'setlists', downloadedAt: 1 },
       ]);
 
       await ensureOfflineData();
@@ -84,6 +92,7 @@ describe('offline/autoDownload', () => {
       getManifestMock.mockResolvedValue([
         { key: 'plan', downloadedAt: 1 },
         { key: 'songs', downloadedAt: 1 },
+        { key: 'setlists', downloadedAt: 1 },
       ]);
 
       await ensureOfflineData();
@@ -107,6 +116,7 @@ describe('offline/autoDownload', () => {
       await expect(ensureOfflineData()).resolves.toBeUndefined();
 
       expect(downloadPlanMock).toHaveBeenCalledTimes(1);
+      expect(downloadSetlistsMock).toHaveBeenCalledTimes(1);
       expect(downloadBibleTranslationMock).toHaveBeenCalledTimes(1);
     });
   });

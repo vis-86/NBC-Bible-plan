@@ -4,7 +4,8 @@ import { getPendingOutbox } from './outbox';
 import { replayOutbox } from './sync';
 import { getApiPath } from '@/shared/utils/api';
 import { warmAppShell } from './appShell';
-import { planApi, progressApi, songsApi, weeklyPlanApi } from '@/shared/services/api/endpoints';
+import { planApi, progressApi, songsApi, weeklyPlanApi, setlistsApi } from '@/shared/services/api/endpoints';
+import { SETLISTS_LIST_CACHE_KEY, setlistCacheKey } from '@/features/setlists/lib/offlineSetlists';
 import type { BibleTranslationId } from '@/lib/bible-translations';
 
 /**
@@ -192,6 +193,33 @@ export async function downloadPlan(): Promise<void> {
 
   await writeManifestEntry('plan', { downloadedAt: Date.now() });
   debug('downloaded plan warm-up (plan/weekly/books + app-shell routes)');
+}
+
+/**
+ * Греет apiCache списком сетов и деталью КАЖДОГО сета — не только список: рассинхрон
+ * list↔detail уже давал «офлайн: не открывается песня» на других фичах (см. downloadSongs).
+ * Деталь сета, недоступная одним запросом (сеть упала на середине), не должна ронять
+ * прогрев остальных — ошибка одного сета логируется и не прерывает цикл.
+ */
+export async function downloadSetlists(): Promise<void> {
+  await requestPersistentStorage();
+
+  const list = await setlistsApi.getSetlists();
+  await persistApiCache(SETLISTS_LIST_CACHE_KEY, list);
+
+  let warmed = 0;
+  for (const summary of list.setlists) {
+    try {
+      const detail = await setlistsApi.getSetlist(summary.id);
+      await persistApiCache(setlistCacheKey(summary.id), detail);
+      warmed++;
+    } catch (err) {
+      debug('failed to warm setlist detail', summary.id, err);
+    }
+  }
+
+  await writeManifestEntry('setlists', { downloadedAt: Date.now(), itemCount: list.setlists.length });
+  debug('setlists warmed:', warmed, 'of', list.setlists.length);
 }
 
 export interface ClearOfflineDataResult {

@@ -58,6 +58,7 @@ export function OfflineDataSection() {
     downloadTranslation,
     downloadSongsAction,
     downloadPlanAction,
+    downloadSetlistsAction,
     downloadAll,
     clear,
   } = useOfflineData();
@@ -71,12 +72,14 @@ export function OfflineDataSection() {
 
   const songsManifest = manifest.find((m) => m.key === 'songs');
   const planManifest = manifest.find((m) => m.key === 'plan');
+  const setlistsManifest = manifest.find((m) => m.key === 'setlists');
 
   const songsState = getItemState('songs');
   const planState = getItemState('plan');
+  const setlistsState = getItemState('setlists');
 
-  // Всё ли скачано? (все переводы + песни + план) — влияет на подпись кнопки «скачать всё».
-  const allKeys: OfflineDownloadKey[] = [...downloadableTranslationIds, 'songs', 'plan'];
+  // Всё ли скачано? (все переводы + песни + план + сетлисты) — влияет на подпись кнопки «скачать всё».
+  const allKeys: OfflineDownloadKey[] = [...downloadableTranslationIds, 'songs', 'plan', 'setlists'];
   const allDownloaded = allKeys.every((k) => manifest.some((m) => m.key === k));
 
   const handleClear = async (force: boolean) => {
@@ -238,6 +241,37 @@ export function OfflineDataSection() {
           </div>
           {planState.error && (
             <p className="text-xs text-app-missed-text" role="alert">{planState.error}</p>
+          )}
+        </div>
+
+        {/* Сетлисты */}
+        <div className="space-y-2">
+          <h3 className="flex items-center gap-1.5 text-sm font-medium text-app-text-secondary">
+            Сетлисты
+            <AutoDownloadBadge />
+          </h3>
+          <div className="flex items-center justify-between rounded-lg border border-app-border px-3 py-2">
+            <div className="min-w-0">
+              {setlistsManifest ? (
+                <p className="text-xs text-app-text-muted">
+                  Скачано {formatDate(setlistsManifest.downloadedAt)}
+                  {typeof setlistsManifest.itemCount === 'number' ? ` · ${setlistsManifest.itemCount} шт.` : ''}
+                </p>
+              ) : (
+                <p className="text-xs text-app-text-muted">Не скачано</p>
+              )}
+            </div>
+            <button
+              type="button"
+              disabled={setlistsState.loading || bulk.loading}
+              onClick={() => downloadSetlistsAction()}
+              className="shrink-0 rounded-lg border-2 border-app-primary px-3 py-1.5 text-sm font-medium text-app-primary transition-all disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {downloadLabel(setlistsState.loading, setlistsState.progress, !!setlistsManifest)}
+            </button>
+          </div>
+          {setlistsState.error && (
+            <p className="text-xs text-app-missed-text" role="alert">{setlistsState.error}</p>
           )}
         </div>
 

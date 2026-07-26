@@ -1,4 +1,4 @@
-import { getManifest, downloadPlan, downloadSongs, downloadBibleTranslation } from './downloadManager';
+import { getManifest, downloadPlan, downloadSongs, downloadSetlists, downloadBibleTranslation } from './downloadManager';
 import { readingSettingsApi } from '@/shared/services/api/endpoints';
 import { resolveSelfHostedTranslationId, type BibleTranslationId } from '@/lib/bible-translations';
 
@@ -76,6 +76,7 @@ export async function ensureOfflineData(): Promise<void> {
   const jobs: Array<{ key: string; run: () => Promise<void> }> = [];
   if (!have.has('plan')) jobs.push({ key: 'plan', run: downloadPlan });
   if (!have.has('songs')) jobs.push({ key: 'songs', run: downloadSongs });
+  if (!have.has('setlists')) jobs.push({ key: 'setlists', run: downloadSetlists });
   if (!have.has(translationId)) {
     jobs.push({ key: translationId, run: () => downloadBibleTranslation(translationId) });
   }

@@ -2,12 +2,23 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getSongsMock, getSongMock, getPlanMock, getProgressMock, getWeeklyPlanMock, mutateMock } = vi.hoisted(() => ({
+const {
+  getSongsMock,
+  getSongMock,
+  getPlanMock,
+  getProgressMock,
+  getWeeklyPlanMock,
+  getSetlistsMock,
+  getSetlistMock,
+  mutateMock,
+} = vi.hoisted(() => ({
   getSongsMock: vi.fn(),
   getSongMock: vi.fn(),
   getPlanMock: vi.fn(),
   getProgressMock: vi.fn(),
   getWeeklyPlanMock: vi.fn(),
+  getSetlistsMock: vi.fn(),
+  getSetlistMock: vi.fn(),
   mutateMock: vi.fn(),
 }));
 
@@ -16,6 +27,7 @@ vi.mock('@/shared/services/api/endpoints', () => ({
   planApi: { getPlan: getPlanMock },
   progressApi: { getProgress: getProgressMock },
   weeklyPlanApi: { getWeeklyPlan: getWeeklyPlanMock },
+  setlistsApi: { getSetlists: getSetlistsMock, getSetlist: getSetlistMock },
 }));
 
 vi.mock('@/shared/services/api/graphql', async () => {
@@ -29,6 +41,7 @@ import {
   downloadBibleTranslation,
   downloadSongs,
   downloadPlan,
+  downloadSetlists,
   getManifest,
   requestPersistentStorage,
   clearAllOfflineData,
@@ -36,6 +49,7 @@ import {
 import { getDB, __deleteDB } from './db';
 import { getApiCache } from './readThrough';
 import { enqueueSingleProgress, getPendingOutbox } from './outbox';
+import { readSetlistThrough, readSetlistsThrough } from '@/features/setlists/lib/offlineSetlists';
 
 describe('offline/downloadManager', () => {
   beforeEach(async () => {
@@ -45,6 +59,8 @@ describe('offline/downloadManager', () => {
     getPlanMock.mockReset();
     getProgressMock.mockReset();
     getWeeklyPlanMock.mockReset();
+    getSetlistsMock.mockReset();
+    getSetlistMock.mockReset();
     mutateMock.mockReset();
   });
 
@@ -190,6 +206,54 @@ describe('offline/downloadManager', () => {
 
       const manifest = await getManifest();
       expect(manifest.find((m) => m.key === 'plan')).toBeDefined();
+    });
+  });
+
+  describe('downloadSetlists', () => {
+    it('после downloadSetlists() читатель (readSetlistsThrough/readSetlistThrough) отдаёт данные офлайн', async () => {
+      const list = {
+        setlists: [
+          { id: 's1', title: 'Воскресное', date: null, itemCount: 2 },
+          { id: 's2', title: 'Молодёжка', date: null, itemCount: 1 },
+        ],
+      };
+      getSetlistsMock.mockResolvedValue(list);
+      getSetlistMock.mockImplementation(async (id: string) => ({
+        setlist: { id, title: `Сет ${id}`, date: null, items: [] },
+      }));
+
+      await downloadSetlists();
+
+      // Тем же вызовом, что читают экраны, а не сравнением строк ключей apiCache.
+      // Мгновенный reject fetcher-а имитирует реальный офлайн (навигатор без сети).
+      getSetlistsMock.mockRejectedValue(new TypeError('Failed to fetch'));
+      getSetlistMock.mockRejectedValue(new TypeError('Failed to fetch'));
+
+      expect(await readSetlistsThrough()).toEqual(list.setlists);
+      expect(await readSetlistThrough('s1')).toEqual({ id: 's1', title: 'Сет s1', date: null, items: [] });
+
+      const manifest = await getManifest();
+      expect(manifest.find((m) => m.key === 'setlists')).toMatchObject({ itemCount: 2 });
+    });
+
+    it('ошибка при прогреве детали одного сета не прерывает прогрев остальных', async () => {
+      getSetlistsMock.mockResolvedValue({
+        setlists: [
+          { id: 's1', title: 'Сломанный', date: null, itemCount: 0 },
+          { id: 's2', title: 'Рабочий', date: null, itemCount: 1 },
+        ],
+      });
+      getSetlistMock.mockImplementation(async (id: string) => {
+        if (id === 's1') throw new Error('network died');
+        return { setlist: { id, title: `Сет ${id}`, date: null, items: [] } };
+      });
+
+      await expect(downloadSetlists()).resolves.toBeUndefined();
+
+      expect(await getApiCache('setlists:item:s1')).toBeUndefined();
+      expect(await getApiCache('setlists:item:s2')).toEqual({
+        setlist: { id: 's2', title: 'Сет s2', date: null, items: [] },
+      });
     });
   });
 

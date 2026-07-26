@@ -5,6 +5,7 @@ import {
   downloadBibleTranslation,
   downloadSongs,
   downloadPlan,
+  downloadSetlists,
   clearAllOfflineData,
   getManifest,
   type ClearOfflineDataResult,
@@ -13,8 +14,8 @@ import { getPendingOutbox } from '@/shared/offline/outbox';
 import type { ManifestRecord } from '@/shared/offline/db';
 import { BIBLE_TRANSLATIONS, type BibleTranslationId } from '@/lib/bible-translations';
 
-/** Ключ загрузки: id перевода Писания, либо 'songs' / 'plan'. */
-export type OfflineDownloadKey = BibleTranslationId | 'songs' | 'plan';
+/** Ключ загрузки: id перевода Писания, либо 'songs' / 'plan' / 'setlists'. */
+export type OfflineDownloadKey = BibleTranslationId | 'songs' | 'plan' | 'setlists';
 
 export interface ItemState {
   loading: boolean;
@@ -124,13 +125,28 @@ export function useOfflineData() {
     }
   }, [patchItem, refresh]);
 
+  const downloadSetlistsAction = useCallback(async (): Promise<boolean> => {
+    patchItem('setlists', { loading: true, error: null });
+    try {
+      await downloadSetlists();
+      await refresh();
+      return true;
+    } catch (err) {
+      console.error('[useOfflineData] downloadSetlists failed', err);
+      patchItem('setlists', { error: err instanceof Error ? err.message : 'Не удалось скачать сетлисты' });
+      return false;
+    } finally {
+      patchItem('setlists', { loading: false });
+    }
+  }, [patchItem, refresh]);
+
   /**
    * Качает всё за один клик: переводы Писания по очереди (чтобы не долбить сервер),
    * затем песни и план. Ошибка одного элемента не прерывает остальные — считаем,
    * сколько упало, и отдаём в UI через `bulk.failed`.
    */
   const downloadAll = useCallback(async () => {
-    const total = DOWNLOADABLE_TRANSLATION_IDS.length + 2; // + песни + план
+    const total = DOWNLOADABLE_TRANSLATION_IDS.length + 3; // + песни + план + сетлисты
     setBulk({ loading: true, done: 0, total, failed: 0 });
     let done = 0;
     let failed = 0;
@@ -147,9 +163,10 @@ export function useOfflineData() {
     }
     await step(downloadSongsAction());
     await step(downloadPlanAction());
+    await step(downloadSetlistsAction());
 
     setBulk({ loading: false, done, total, failed });
-  }, [downloadTranslation, downloadSongsAction, downloadPlanAction]);
+  }, [downloadTranslation, downloadSongsAction, downloadPlanAction, downloadSetlistsAction]);
 
   const clear = useCallback(
     async (options?: { force?: boolean }): Promise<ClearOfflineDataResult> => {
@@ -169,6 +186,7 @@ export function useOfflineData() {
     downloadTranslation,
     downloadSongsAction,
     downloadPlanAction,
+    downloadSetlistsAction,
     downloadAll,
     clear,
     refresh,
