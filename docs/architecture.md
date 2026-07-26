@@ -103,15 +103,20 @@ API живёт ОТДЕЛЬНО от `src/app` — в `server/`, вне Next.js 
 
 ### features/setlists/ — Фича: сетлисты
 
-- **Экраны:** `/dashboard/setlists` (список: Ближайшие/Без даты/Архив),
-  `/dashboard/setlist?id=` (просмотр), `/dashboard/setlist-edit` (билдер:
-  создание без `?id=`, редактирование с `?id=`)
+- **Экраны:** `/dashboard/setlists` (список: Ближайшие/Без даты/Архив; карточка
+  показывает состав сразу и ведёт на первую песню сета), `/dashboard/setlist?id=`
+  (read-only просмотр — fallback для пустого сета, экрана после создания и прямой
+  ссылки), `/dashboard/setlist-edit` (билдер создания)
+- **Правка состава — только в `SetlistManageSheet`** (порядок, добавление, удаление
+  сета). Открывается кнопкой-счётчиком «n/m» в шапке просмотра песни и кнопкой
+  «Изменить сет» на странице сета; сами экраны read-only. Мутации — `useSetlistEditor`
+  (оптимистичное применение + откат при провале PATCH)
 - **Билдер:** `SetlistBuilder` (мобильный multi-select + FAB + `NameSetlistSheet`,
   либо планшетный master-detail при `min-width: 768px`), `SelectedChipsRow`,
   `SetlistSongPickRow`, `SetlistItemRow` (переупорядочивание кнопками Вверх/Вниз)
 - **Playback-режим в просмотре песни:** `useSetlistPlayback` + свайп
-  (`useHorizontalSwipe`, `shared/hooks/`) + `SetlistPlaybackSheet` — навигация между
-  песнями сета прямо из `/dashboard/song?id=&setlistId=`
+  (`useHorizontalSwipe`, `shared/hooks/`) + `SetlistManageSheet` — навигация между
+  песнями сета и правка состава прямо из `/dashboard/song?id=&setlistId=`
 - **Хуки:** `useSetlists`, `useSetlist(id)`, `useSetlistDraft` (черновик билдера
   в `sessionStorage`)
 - **Офлайн:** `lib/offlineSetlists.ts` (read-through) + `lib/archive.ts`

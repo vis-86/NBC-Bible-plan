@@ -50,8 +50,12 @@ describe('GET /api/setlists', () => {
       { id: 'has-date', title: 'С датой', date: '2026-08-01', date_created: '2026-01-02T00:00:00Z' },
     ]);
     adminRequestMock.mockResolvedValueOnce([
-      { setlist: 'has-date' },
-      { setlist: 'has-date' },
+      { setlist: 'has-date', song: 41, sort: 0 },
+      { setlist: 'has-date', song: 70, sort: 1 },
+    ]);
+    adminRequestMock.mockResolvedValueOnce([
+      { id: 41, title: 'Придите все', song_key: 'Bb' },
+      { id: 70, title: 'От небесных вершин', song_key: null },
     ]);
 
     const cookie = await sessionCookie();
@@ -60,8 +64,12 @@ describe('GET /api/setlists', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.setlists.map((s: { id: string }) => s.id)).toEqual(['has-date', 'no-date']);
-    expect(body.setlists[0].itemCount).toBe(2);
-    expect(body.setlists[1].itemCount).toBe(0);
+    // Состав приходит вместе со списком: карточка рендерит песни без запроса детали.
+    expect(body.setlists[0].items).toEqual([
+      { songId: 41, title: 'Придите все', songKey: 'Bb' },
+      { songId: 70, title: 'От небесных вершин' },
+    ]);
+    expect(body.setlists[1].items).toEqual([]);
   });
 });
 

@@ -13,7 +13,7 @@ import { SetlistsList } from './SetlistsList';
 const TODAY = '2026-07-26';
 
 function makeSetlist(overrides: Partial<SetlistSummary>): SetlistSummary {
-  return { id: '1', title: 'Сет', date: null, itemCount: 3, ...overrides };
+  return { id: '1', title: 'Сет', date: null, items: [{ songId: 41, title: 'Придите все', songKey: 'Bb' }], ...overrides };
 }
 
 describe('SetlistsList', () => {

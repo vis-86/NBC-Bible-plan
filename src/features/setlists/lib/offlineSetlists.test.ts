@@ -17,7 +17,7 @@ vi.mock('@/shared/services/api/endpoints', () => ({
 
 import { readSetlistsThrough, readSetlistThrough, SETLISTS_LIST_CACHE_KEY, setlistCacheKey } from './offlineSetlists';
 
-const SUMMARY: SetlistSummary = { id: 'set-1', title: 'Воскресное', date: '2026-08-02', itemCount: 2 };
+const SUMMARY: SetlistSummary = { id: 'set-1', title: 'Воскресное', date: '2026-08-02', items: [{ songId: 1, title: 'Песня' }] };
 const DETAIL: Setlist = {
   id: 'set-1',
   title: 'Воскресное',

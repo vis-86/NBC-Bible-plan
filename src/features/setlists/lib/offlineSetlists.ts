@@ -8,7 +8,12 @@ import type { Setlist, SetlistSummary } from '../types';
  * (`useSetlists`/`useSetlist`), и писателем (`downloadManager`). Расхождение строк
  * уже ломало офлайн (см. patches/2026-07-10-16.46) — не дублировать эти строки.
  */
-export const SETLISTS_LIST_CACHE_KEY = 'setlists:list';
+/**
+ * `:v2` — форма ответа списка изменилась (добавлен `items` с составом сета). Записи,
+ * закэшированные предыдущей версией приложения, не содержат `items` и уронили бы карточку;
+ * смена ключа выводит их из игры разом. Меняешь форму ответа — поднимай версию.
+ */
+export const SETLISTS_LIST_CACHE_KEY = 'setlists:list:v2';
 export function setlistCacheKey(id: string): string {
   return `setlists:item:${id}`;
 }

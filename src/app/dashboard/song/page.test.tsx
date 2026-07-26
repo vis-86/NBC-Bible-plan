@@ -55,8 +55,19 @@ vi.mock('@/shared/hooks/useMediaQuery', () => ({
   useMediaQuery: () => wideLayout,
 }));
 
+vi.mock('@/shared/hooks/useAppRole', () => ({
+  useAppRole: () => ({ canManageSetlists: true, role: 'musician', loading: false }),
+}));
+
+vi.mock('@/features/songs/hooks/useSongs', () => ({
+  useSongs: () => ({ songs: [], loading: false, error: null }),
+}));
+
 const goToMock = vi.fn();
+const applyItemsMock = vi.fn();
 let playbackState = {
+  title: 'Воскресное',
+  applyItems: applyItemsMock,
   items: [
     { id: 'i1', sort: 0, songId: 1, title: 'Первая' },
     { id: 'i2', sort: 1, songId: 2, title: 'Вторая' },
@@ -136,9 +147,17 @@ describe('SongPage — режим сета (T18/T19)', () => {
   it('тап по строке в шторке сета переходит к песне и закрывает шторку', () => {
     const { container, getByText } = render(<SongPage />);
     fireEvent.click(container.querySelector('[data-song-page-setlist-counter]') as HTMLElement);
-    const row = getByText('Первая').closest('[data-setlist-playback-sheet-item]') as HTMLElement;
+    const row = getByText('Первая').closest('[data-setlist-view-item]') as HTMLElement;
     fireEvent.click(row);
     expect(goToMock).toHaveBeenCalledWith(1);
+    expect(container.querySelector('[data-setlist-manage-sheet]')).toBeNull();
+  });
+
+  it('шторка сета — точка правки: в ней есть добавление и удаление сета', () => {
+    const { container } = render(<SongPage />);
+    fireEvent.click(container.querySelector('[data-song-page-setlist-counter]') as HTMLElement);
+    expect(container.querySelector('[data-setlist-manage-sheet-add]')).toBeTruthy();
+    expect(container.querySelector('[data-setlist-manage-sheet-delete]')).toBeTruthy();
   });
 
   it('текущая песня в шторке помечена aria-current', () => {

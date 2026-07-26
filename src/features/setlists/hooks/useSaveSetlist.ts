@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { setlistsApi } from '@/shared/services/api/endpoints';
 import { getDB } from '@/shared/offline/db';
 import { setlistCacheKey, SETLISTS_LIST_CACHE_KEY } from '../lib/offlineSetlists';
+import { resetSetlistsCache } from './useSetlists';
 import type { CreateSetlistPayload, UpdateSetlistPayload } from '../types';
 
 /**
@@ -12,6 +13,7 @@ import type { CreateSetlistPayload, UpdateSetlistPayload } from '../types';
  * писателя, и для читателя, иначе экраны читают из кеша, который никто не чистит.
  */
 async function invalidateCache(id?: string | null): Promise<void> {
+  resetSetlistsCache();
   try {
     const db = await getDB();
     await db.delete('apiCache', SETLISTS_LIST_CACHE_KEY);

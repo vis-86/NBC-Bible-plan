@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { X } from 'lucide-react';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
@@ -17,7 +18,10 @@ function SetlistPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get('id') ?? '';
-  const [showCreatedToast, setShowCreatedToast] = useState(false);
+  // Флаг снимается из URL сразу же (см. эффект ниже), поэтому читаем его один раз при
+  // монтировании: зависеть от searchParams нельзя — router.replace менял бы их и рвал
+  // таймер автозакрытия (тост висел вечно).
+  const [showCreatedToast, setShowCreatedToast] = useState(() => searchParams.get('created') === '1');
 
   const { setlist, loading, error } = useSetlist(id || null);
   const { canManageSetlists } = useAppRole();
@@ -26,14 +30,13 @@ function SetlistPageContent() {
   const { songs } = useSongs();
 
   useEffect(() => {
-    if (searchParams.get('created') !== '1') return;
-    setShowCreatedToast(true);
+    if (!showCreatedToast) return;
     // Снимаем ?created=1 из URL, чтобы обновление/повторный визит не показывали тост снова.
     router.replace(`/dashboard/setlist?id=${encodeURIComponent(id)}`);
     const t = setTimeout(() => setShowCreatedToast(false), CREATED_TOAST_MS);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- запускается только по searchParams (id стабилен здесь же).
-  }, [searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- только по флагу: id стабилен, а router/searchParams меняются этим же эффектом.
+  }, [showCreatedToast]);
 
   return (
     <div data-setlist-page className="flex min-h-0 flex-1 flex-col">
@@ -43,9 +46,18 @@ function SetlistPageContent() {
         <div
           role="status"
           data-setlist-created-toast
-          className="fixed bottom-4 left-1/2 z-[80] -translate-x-1/2 rounded-lg bg-app-success px-4 py-2.5 text-sm font-medium text-app-text-inverse shadow-app-lg"
+          className="fixed bottom-4 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-2 rounded-lg bg-app-success py-2.5 pl-4 pr-2 text-sm font-medium text-app-text-inverse shadow-app-lg"
         >
           Сет создан
+          <button
+            type="button"
+            data-setlist-created-toast-close
+            aria-label="Закрыть уведомление"
+            onClick={() => setShowCreatedToast(false)}
+            className="rounded-app-sm p-1 transition-transform active:scale-90"
+          >
+            <X size={16} aria-hidden />
+          </button>
         </div>
       )}
 

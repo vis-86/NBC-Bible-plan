@@ -16,10 +16,13 @@ interface SetlistItemRowProps {
   /** Открыть песню. Не задан — строка не кликабельна. */
   onOpen?: () => void;
   onRemove?: () => void;
+  /** Песня, открытая сейчас в режиме сета — подсвечивается. */
+  current?: boolean;
 }
 
 const ROW_CLASS =
   'flex items-center gap-2 rounded-app-md border border-app-border bg-app-surface pl-1 pr-1 shadow-app-sm';
+const CURRENT_CLASS = 'border-app-primary bg-app-primary-muted';
 
 /**
  * Строка песни в сете. В editable-режиме перетаскивается **целиком**, а не за ручку:
@@ -30,7 +33,15 @@ const ROW_CLASS =
  * порог сдвига у Framer Motion разводит клик и перетаскивание, а после реального drag'а
  * click не эмитится.
  */
-export const SetlistItemRow: React.FC<SetlistItemRowProps> = ({ song, index, editable, onOpen, onRemove }) => {
+export const SetlistItemRow: React.FC<SetlistItemRowProps> = ({
+  song,
+  index,
+  editable,
+  onOpen,
+  onRemove,
+  current = false,
+}) => {
+  const rowClass = current ? `${ROW_CLASS} ${CURRENT_CLASS}` : ROW_CLASS;
   /**
    * Framer Motion гасит click после drag'а только на самом draggable-элементе, а тут
    * обработчик висит на ВЛОЖЕННОЙ кнопке названия — без этого флага перетаскивание строки
@@ -90,7 +101,7 @@ export const SetlistItemRow: React.FC<SetlistItemRowProps> = ({ song, index, edi
 
   if (!editable) {
     return (
-      <li data-setlist-builder-item className={ROW_CLASS}>
+      <li data-setlist-builder-item aria-current={current ? 'true' : undefined} className={rowClass}>
         {content}
       </li>
     );
@@ -99,9 +110,10 @@ export const SetlistItemRow: React.FC<SetlistItemRowProps> = ({ song, index, edi
   return (
     <Reorder.Item
       value={song}
+      aria-current={current ? 'true' : undefined}
       // touch-none на САМОЙ строке (не только на ручке) — иначе скролл контейнера
       // забирает вертикальный жест и drag никогда не стартует на телефоне.
-      className={`${ROW_CLASS} touch-none select-none`}
+      className={`${rowClass} touch-none select-none`}
       data-setlist-builder-item
       whileDrag={{ scale: 1.02, zIndex: 1 }}
       dragElastic={0.1}

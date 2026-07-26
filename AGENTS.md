@@ -62,7 +62,7 @@ bible-plan/
 │   │   ├── setlists/                 # Setlists feature slice (M7)
 │   │   │   ├── components/           # SetlistsList, SetlistCard, SetlistView, SetlistBuilder, SetlistConfirmStep,
 │   │   │   │                         # SelectedChipsRow, SetlistSongPickRow, SetlistReorderList, SetlistItemRow,
-│   │   │   │                         # AddSongsSheet, SetlistPlaybackSheet
+│   │   │   │                         # AddSongsSheet, SetlistManageSheet
 │   │   │   ├── hooks/                # useSetlists, useSetlist, useSetlistDraft, useSaveSetlist, useSetlistPlayback
 │   │   │   ├── lib/                  # offlineSetlists (read-through + cache keys), archive (partitionSetlists), formatSetlistDate, setlistDefaults
 │   │   │   ├── services/setlistsServer.ts # Directus admin-client access (used only by server/src/routes/setlists.ts)
@@ -159,7 +159,8 @@ bible-plan/
 | `src/shared/offline/autoDownload.ts` | Автозагрузка базового набора после логина (iOS partition fix, T11) |
 | `src/lib/app-roles.ts` + `src/shared/hooks/useAppRole.ts` | `AppRole` (reader/musician/musician_editor), `GET /api/user/role` — гейт кнопок сетлистов (реальный гейт — BFF `requireSetlistWrite`, см. `CLAUDE.md`) |
 | `server/src/routes/setlists.ts` + `src/features/setlists/services/setlistsServer.ts` | CRUD сетлистов (Directus admin-client), `requireSetlistWrite` на мутирующих роутах |
-| `src/app/dashboard/setlists/page.tsx`, `.../setlist/page.tsx`, `.../setlist-edit/page.tsx` | Список / просмотр+правка / создание сета — все три в `APP_SHELL_ROUTES`. `setlist-edit` — ТОЛЬКО создание (два шага: выбор песен → название/дата/порядок); правка состава живёт в `SetlistView` |
+| `src/app/dashboard/setlists/page.tsx`, `.../setlist/page.tsx`, `.../setlist-edit/page.tsx` | Список / read-only просмотр / создание сета — все три в `APP_SHELL_ROUTES`. Карточка списка показывает состав и ведёт на первую песню сета (`/dashboard/song?id=&setlistId=`); `setlist-edit` — ТОЛЬКО создание (два шага: выбор песен → название/дата/порядок) |
+| `src/features/setlists/components/SetlistManageSheet.tsx` + `hooks/useSetlistEditor.ts` | Единственная точка правки состава (порядок/добавление/удаление сета) — шит из шапки просмотра песни («n/m») и со страницы сета. Экраны read-only; удаление песни и сета — через подтверждение |
 | `src/features/setlists/hooks/useSetlistPlayback.ts` | Навигация между песнями сета в просмотре песни (`/dashboard/song?id=&setlistId=`), свайп через `useHorizontalSwipe` |
 | `src/sw/sw.ts` + `scripts/build-sw.ts` | Build-time precache service worker (Serwist `injectManifest` → `out/sw.js`) |
 | `src/shared/hooks/useSwUpdate.ts` + `src/shared/components/ui/UpdateToast.tsx` | Update flow: `registration.waiting` → тост «Обновить» → `SKIP_WAITING` → reload |

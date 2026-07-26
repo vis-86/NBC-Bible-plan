@@ -25,6 +25,8 @@ interface SetlistReorderListProps {
   onRemove?: (songId: number) => void;
   /** Открыть песню. Не задан — строки не кликабельны. */
   onOpen?: (songId: number) => void;
+  /** id песни, открытой сейчас в режиме сета — её строка подсвечивается. */
+  currentSongId?: number;
 }
 
 /** Список песен сета: с drag-reorder и удалением (`editable`) или простой (`li`). */
@@ -34,6 +36,7 @@ export const SetlistReorderList: React.FC<SetlistReorderListProps> = ({
   onReorder,
   onRemove,
   onOpen,
+  currentSongId,
 }) => {
   if (items.length === 0) return null;
 
@@ -43,6 +46,7 @@ export const SetlistReorderList: React.FC<SetlistReorderListProps> = ({
       song={song}
       index={i}
       editable={editable}
+      current={song.id === currentSongId}
       onOpen={onOpen ? () => onOpen(song.id) : undefined}
       onRemove={onRemove ? () => onRemove(song.id) : undefined}
     />

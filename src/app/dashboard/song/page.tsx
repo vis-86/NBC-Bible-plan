@@ -2,7 +2,7 @@
 
 import { Suspense, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Settings, ChevronLeft, ChevronRight, ListMusic } from 'lucide-react';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
@@ -18,7 +18,10 @@ import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 import { useHorizontalSwipe } from '@/shared/hooks/useHorizontalSwipe';
 import { useSetlistPlayback } from '@/features/setlists/hooks/useSetlistPlayback';
-import { SetlistPlaybackSheet } from '@/features/setlists/components/SetlistPlaybackSheet';
+import { SetlistManageSheet } from '@/features/setlists/components/SetlistManageSheet';
+import { useAppRole } from '@/shared/hooks/useAppRole';
+import { useSongs } from '@/features/songs/hooks/useSongs';
+import type { SetlistItem } from '@/features/setlists/types';
 import { cn } from '@/shared/utils/cn';
 
 /**
@@ -42,6 +45,10 @@ function SongPageContent() {
   const [isSetlistSheetOpen, setIsSetlistSheetOpen] = useState(false);
   const songKeyState = useSongKey(song);
   const playback = useSetlistPlayback(setlistId, id);
+  const { canManageSetlists } = useAppRole();
+  // Каталог нужен шиту «Добавить песню». Read-through + module-кэш: офлайн отдаёт
+  // закешированный список, повторного запроса при переходах между песнями нет.
+  const { songs } = useSongs();
   // В режиме «только текст» аккордов на экране нет — тональность ни на что не влияет
   // и селектор не показывается. Выбирать не из чего — тоже (нераспознанная тональность).
   const showKeyPicker = viewSettings.showChords && Boolean(songKeyState.effectiveKey) && songKeyState.options.length > 0;
@@ -89,9 +96,23 @@ function SongPageContent() {
   });
 
   const handleBack = () =>
-    playback.inSetlist && setlistId
-      ? router.push(`/dashboard/setlist?id=${encodeURIComponent(setlistId)}`)
-      : router.push('/dashboard/songs');
+    playback.inSetlist ? router.push('/dashboard/setlists') : router.push('/dashboard/songs');
+
+  /**
+   * Правка состава из шита. Если убрали ПРОСМАТРИВАЕМУЮ сейчас песню — экран остался бы
+   * с песней вне сета (шапка сета исчезает, свайп мёртв), поэтому уходим на соседнюю,
+   * а из опустевшего сета — в список сетов.
+   */
+  const handleItemsChange = (next: SetlistItem[]) => {
+    const currentIndex = playback.index;
+    playback.applyItems(next);
+    if (next.some((item) => item.songId === Number(id))) return;
+    if (next.length === 0) {
+      router.push('/dashboard/setlists');
+      return;
+    }
+    navigateToSetlistSong(next[Math.min(Math.max(currentIndex, 0), next.length - 1)].songId);
+  };
 
   return (
     // hideBottomNav — фокус-режим чтения: нижняя навигация скрыта.
@@ -131,8 +152,11 @@ function SongPageContent() {
                         data-song-page-setlist-counter
                         aria-label={`Песня ${playback.index + 1} из ${playback.total}, открыть список сета`}
                         onClick={() => setIsSetlistSheetOpen(true)}
-                        className="rounded-app-sm px-1.5 py-2 text-sm font-medium text-app-text-secondary transition-transform duration-150 hover:bg-app-surface-muted active:scale-95"
+                        // Акцентная плашка, а не текст: это вход в единственное место
+                        // управления сетом (список песен, порядок, добавление, удаление).
+                        className="flex items-center gap-1 rounded-full bg-app-primary-muted px-2.5 py-1.5 text-sm font-semibold text-app-primary transition-transform duration-150 active:scale-95"
                       >
+                        <ListMusic size={16} aria-hidden />
                         {playback.index + 1} / {playback.total}
                       </button>
                       <button
@@ -243,16 +267,22 @@ function SongPageContent() {
         onSettingsChange={setViewSettings}
       />
 
-      {playback.inSetlist && (
-        <SetlistPlaybackSheet
+      {playback.inSetlist && setlistId && (
+        <SetlistManageSheet
           isOpen={isSetlistSheetOpen}
           onClose={() => setIsSetlistSheetOpen(false)}
+          setlistId={setlistId}
+          title={playback.title}
           items={playback.items}
-          currentSongId={typeof id === 'string' ? Number(id) : id}
-          onSelect={(songId) => {
+          onItemsChange={handleItemsChange}
+          songs={songs}
+          canManageSetlists={canManageSetlists}
+          currentSongId={Number(id)}
+          onOpenSong={(songId) => {
             setIsSetlistSheetOpen(false);
             navigateToSetlistSong(songId);
           }}
+          onDeleted={() => router.replace('/dashboard/setlists')}
         />
       )}
     </DashboardLayout>

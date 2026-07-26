@@ -8,6 +8,16 @@ import type { SetlistSummary } from '../types';
 let cache: SetlistSummary[] | null = null;
 let inflight: Promise<SetlistSummary[]> | null = null;
 
+/**
+ * Сбрасывает module-кэш списка — вызывать после ЛЮБОЙ мутации сета (создание, правка
+ * состава, удаление). Без этого экран списка после возврата рендерит состав, которого
+ * уже нет: apiCache в IDB инвалидируется, а память процесса — нет.
+ */
+export function resetSetlistsCache(): void {
+  cache = null;
+  console.debug('[useSetlists] module cache reset');
+}
+
 async function fetchSetlistsOnce(): Promise<SetlistSummary[]> {
   if (cache) return cache;
   if (!inflight) {

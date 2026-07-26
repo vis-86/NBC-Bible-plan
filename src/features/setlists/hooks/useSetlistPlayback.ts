@@ -5,10 +5,14 @@ import { useRouter } from 'next/navigation';
 import { readSetlistThrough } from '../lib/offlineSetlists';
 import { readSongThrough } from '@/features/songs/lib/offlineSongs';
 import { songsApi } from '@/shared/services/api/endpoints';
-import type { Setlist } from '../types';
+import type { Setlist, SetlistItem } from '../types';
 
 export interface SetlistPlaybackState {
-  items: Setlist['items'];
+  items: SetlistItem[];
+  /** Название сета — заголовок шита управления. Пусто, пока сет не загружен. */
+  title: string;
+  /** Применить новый состав локально (правка из шита управления сетом). */
+  applyItems: (next: SetlistItem[]) => void;
   /** Индекс текущей песни в сете, -1 если песня не входит в сет. */
   index: number;
   total: number;
@@ -85,5 +89,8 @@ export function useSetlistPlayback(setlistId: string | null | undefined, songId:
     router.replace(`/dashboard/song?id=${encodeURIComponent(targetSongId)}&setlistId=${encodeURIComponent(setlistId)}`);
   };
 
-  return { items, index, total, prevId, nextId, goTo, inSetlist };
+  const applyItems = (next: SetlistItem[]) =>
+    setSetlist((prev) => (prev ? { ...prev, items: next } : prev));
+
+  return { items, title: setlist?.title ?? '', applyItems, index, total, prevId, nextId, goTo, inSetlist };
 }

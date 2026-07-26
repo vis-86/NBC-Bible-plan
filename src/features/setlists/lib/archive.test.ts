@@ -3,7 +3,7 @@ import { partitionSetlists } from './archive';
 import type { SetlistSummary } from '../types';
 
 function summary(id: string, date: string | null): SetlistSummary {
-  return { id, title: id, date, itemCount: 1 };
+  return { id, title: id, date, items: [] };
 }
 
 describe('partitionSetlists', () => {

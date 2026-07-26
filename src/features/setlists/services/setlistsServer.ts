@@ -8,11 +8,17 @@ import { getDirectusAdminClient } from '@/lib/directus';
 
 const LOG = '[Setlists API]';
 
+export interface SetlistSummaryItem {
+  songId: number;
+  title: string;
+  songKey?: string;
+}
+
 export interface SetlistSummary {
   id: string;
   title: string;
   date: string | null;
-  itemCount: number;
+  items: SetlistSummaryItem[];
 }
 
 export interface SetlistDetailItem {
@@ -78,17 +84,35 @@ function compareSetlists(a: SetlistSortFields, b: SetlistSortFields): number {
   return a.date_created < b.date_created ? 1 : a.date_created > b.date_created ? -1 : 0;
 }
 
-/** Список сетов с числом песен. Каталог маленький — считаем items в памяти, без агрегирующих запросов. */
+/**
+ * Список сетов вместе с составом (карточка показывает песни сразу). Каталог маленький —
+ * читаем все items и все нужные песни тремя запросами и сшиваем в памяти, без агрегатов
+ * и без N запросов деталей.
+ */
 export async function getSetlistsList(): Promise<SetlistSummary[]> {
   const client = getClient();
   const [setlists, items] = await Promise.all([
     client.request(readItems('setlists', { fields: ['id', 'title', 'date', 'date_created'], limit: -1 })),
-    client.request(readItems('setlist_items', { fields: ['setlist'], limit: -1 })),
+    client.request(readItems('setlist_items', { fields: ['setlist', 'song', 'sort'], limit: -1, sort: ['sort'] })),
   ]);
 
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    counts.set(item.setlist, (counts.get(item.setlist) ?? 0) + 1);
+  const validItems = items.filter((item): item is SetlistItemRow & { song: number } => item.song !== null);
+  const songIds = [...new Set(validItems.map((item) => item.song))];
+  const songs: SongRow[] =
+    songIds.length > 0
+      ? await client.request(
+          readItems('songs', { filter: { id: { _in: songIds } }, fields: ['id', 'title', 'song_key'], limit: -1 })
+        )
+      : [];
+  const songById = new Map(songs.map((song) => [song.id, song]));
+
+  const bySetlist = new Map<string, SetlistSummaryItem[]>();
+  for (const item of validItems) {
+    const song = songById.get(item.song);
+    if (!song) continue; // Песню удалили из каталога — строка не рендерится.
+    const list = bySetlist.get(item.setlist) ?? [];
+    list.push({ songId: song.id, title: song.title, songKey: song.song_key ?? undefined });
+    bySetlist.set(item.setlist, list);
   }
 
   const sorted = [...setlists].sort(compareSetlists);
@@ -97,7 +121,7 @@ export async function getSetlistsList(): Promise<SetlistSummary[]> {
     id: row.id,
     title: row.title,
     date: row.date,
-    itemCount: counts.get(row.id) ?? 0,
+    items: bySetlist.get(row.id) ?? [],
   }));
 }
 

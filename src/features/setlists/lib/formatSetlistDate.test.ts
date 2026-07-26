@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { formatSetlistDate } from './formatSetlistDate';
 
 describe('formatSetlistDate', () => {
-  it('null/undefined -> "без даты"', () => {
-    expect(formatSetlistDate(null)).toBe('без даты');
-    expect(formatSetlistDate(undefined)).toBe('без даты');
+  it('null/undefined/битая дата -> null (UI не рендерит строку даты)', () => {
+    expect(formatSetlistDate(null)).toBeNull();
+    expect(formatSetlistDate(undefined)).toBeNull();
+    expect(formatSetlistDate('не-дата')).toBeNull();
   });
 
   it('форматирует YYYY-MM-DD в "вс, 3 августа"', () => {

@@ -15,17 +15,18 @@ const MONTH_GENITIVE = [
 ];
 
 /**
- * Форматирует дату сета вида `YYYY-MM-DD` в «вс, 3 августа». `null`/`undefined` — «без даты».
+ * Форматирует дату сета вида `YYYY-MM-DD` в «вс, 3 августа». Пустая/битая дата — `null`:
+ * UI не показывает строку вовсе, а не пишет «без даты» (лишний шум на карточке).
  * Разбор строки вручную (без `Date`-парсинга ISO), т.к. `new Date('YYYY-MM-DD')` трактует
  * дату как UTC-полночь — в отрицательных смещениях от UTC день недели съезжает на минус один.
  */
-export function formatSetlistDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return 'без даты';
+export function formatSetlistDate(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
   const [yearStr, monthStr, dayStr] = dateStr.split('-');
   const year = Number(yearStr);
   const month = Number(monthStr);
   const day = Number(dayStr);
-  if (!year || !month || !day) return 'без даты';
+  if (!year || !month || !day) return null;
 
   const date = new Date(year, month - 1, day);
   const weekday = WEEKDAY_SHORT[date.getDay()];
