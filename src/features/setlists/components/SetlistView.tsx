@@ -1,21 +1,28 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Plus } from 'lucide-react';
 import { formatSetlistDate } from '../lib/formatSetlistDate';
 import { setlistsApi } from '@/shared/services/api/endpoints';
 import { setlistCacheKey, SETLISTS_LIST_CACHE_KEY } from '../lib/offlineSetlists';
 import { getDB } from '@/shared/offline/db';
 import { Modal } from '@/shared/components/ui/Modal';
 import { useIsOnline } from '@/shared/hooks/useIsOnline';
-import type { Setlist } from '../types';
+import { useSaveSetlist } from '../hooks/useSaveSetlist';
+import { SetlistReorderList, type ReorderableSong } from './SetlistReorderList';
+import { AddSongsSheet } from './AddSongsSheet';
+import type { SongSummary } from '@/features/songs/types';
+import type { Setlist, SetlistItem } from '../types';
 
 interface SetlistViewProps {
   setlist: Setlist;
   canManageSetlists: boolean;
+  /** Каталог песен для шита добавления. Пустой массив, пока грузится. */
+  songs: SongSummary[];
 }
 
-/** Инвалидирует apiCache сета/списка после мутации — следующий readThrough увидит свежие данные. */
+/** Инвалидирует apiCache сета/списка после удаления — следующий readThrough увидит свежие данные. */
 async function invalidateSetlistCache(id: string): Promise<void> {
   try {
     const db = await getDB();
@@ -26,14 +33,91 @@ async function invalidateSetlistCache(id: string): Promise<void> {
   }
 }
 
-export const SetlistView: React.FC<SetlistViewProps> = ({ setlist, canManageSetlists }) => {
+export const SetlistView: React.FC<SetlistViewProps> = ({ setlist, canManageSetlists, songs }) => {
   const router = useRouter();
   const isOnline = useIsOnline();
+  const { update, submitting, error: saveError, resetError } = useSaveSetlist();
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isAddOpen, setIsAddOpen] = useState(false);
 
-  console.debug(`[SetlistView] id=${setlist.id} items=${setlist.items.length}`);
+  /**
+   * Локальная копия состава — источник правды для UI между оптимистичным изменением
+   * и ответом сервера. При провале PATCH откатываем её обратно, иначе экран показывал бы
+   * порядок, которого на сервере нет.
+   */
+  const [items, setItems] = useState<SetlistItem[]>(setlist.items);
+
+  useEffect(() => {
+    // Индирекция вместо прямого setState в теле эффекта (react-hooks/set-state-in-effect).
+    const syncFromServer = () => setItems(setlist.items);
+    syncFromServer();
+  }, [setlist.items]);
+
+  const isEditable = canManageSetlists && isOnline;
+
+  console.debug(`[SetlistView] id=${setlist.id} items=${items.length} editable=${isEditable}`);
+
+  /** Мемоизация обязательна — `Reorder` сопоставляет строки по идентичности объектов. */
+  const reorderable: ReorderableSong[] = useMemo(
+    () => items.map((item) => ({ id: item.songId, title: item.title, subtitle: item.subtitle, songKey: item.songKey })),
+    [items]
+  );
+
+  const openSong = (songId: number) =>
+    router.push(
+      `/dashboard/song?id=${encodeURIComponent(String(songId))}&setlistId=${encodeURIComponent(setlist.id)}`
+    );
+
+  /** Общий путь всех правок состава: оптимистично применяем, при ошибке откатываем. */
+  const persist = async (nextItems: SetlistItem[]) => {
+    const previous = items;
+    setItems(nextItems);
+    resetError();
+    const result = await update(setlist.id, { songIds: nextItems.map((item) => item.songId) });
+    if (result === null) {
+      console.warn('[SetlistView] PATCH состава не прошёл, откатываем порядок');
+      setItems(previous);
+    }
+  };
+
+  const handleReorder = (songIds: number[]) => {
+    const byId = new Map(items.map((item) => [item.songId, item]));
+    const next = songIds.map((id) => byId.get(id)).filter((item): item is SetlistItem => !!item);
+    // Состав обязан совпасть — иначе PATCH уехал бы усечённым списком.
+    if (next.length !== items.length) {
+      console.warn('[SetlistView] reorder отклонён: состав не совпадает', { incoming: songIds });
+      return;
+    }
+    void persist(next);
+  };
+
+  const handleRemove = (songId: number) => {
+    void persist(items.filter((item) => item.songId !== songId));
+  };
+
+  const handleAdd = (songIds: number[]) => {
+    const added: SetlistItem[] = songIds.flatMap((songId) => {
+      const song = songs.find((s) => Number(s.id) === songId);
+      if (!song) return [];
+      return [
+        {
+          // Временный id строки: сервер выдаст настоящий, но до перезагрузки
+          // нужен стабильный React-key, не совпадающий с существующими.
+          id: `pending-${songId}`,
+          sort: items.length,
+          songId,
+          title: song.title,
+          subtitle: song.subtitle ?? undefined,
+          songKey: song.key ?? undefined,
+        },
+      ];
+    });
+    if (added.length === 0) return;
+    setIsAddOpen(false);
+    void persist([...items, ...added]);
+  };
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -61,44 +145,33 @@ export const SetlistView: React.FC<SetlistViewProps> = ({ setlist, canManageSetl
         </h1>
       </div>
 
-      <ul data-setlist-view-items className="flex flex-col gap-2">
-        {setlist.items.map((item, i) => (
-          <li key={item.id}>
-            <button
-              type="button"
-              data-setlist-view-item
-              onClick={() =>
-                router.push(
-                  `/dashboard/song?id=${encodeURIComponent(String(item.songId))}&setlistId=${encodeURIComponent(setlist.id)}`
-                )
-              }
-              className="flex w-full items-center gap-3 rounded-app-md border border-app-border bg-app-surface px-4 py-3 text-left shadow-app-sm transition-transform active:scale-[0.98]"
-            >
-              <span className="w-5 shrink-0 text-sm text-app-text-muted">{i + 1}</span>
-              <div className="min-w-0 flex-1">
-                <h3 className="truncate font-semibold text-app-text">{item.title}</h3>
-                {item.subtitle && <p className="truncate text-sm text-app-text-secondary">{item.subtitle}</p>}
-              </div>
-              {item.songKey && (
-                <span className="shrink-0 rounded-full bg-app-primary-muted px-2.5 py-1 text-xs font-semibold text-app-primary">
-                  {item.songKey}
-                </span>
-              )}
-            </button>
-          </li>
-        ))}
-      </ul>
+      <SetlistReorderList
+        items={reorderable}
+        editable={isEditable}
+        onReorder={handleReorder}
+        onRemove={handleRemove}
+        onOpen={openSong}
+      />
+
+      {items.length === 0 && <p className="py-8 text-center text-app-text-muted">В сете пока нет песен</p>}
+
+      {saveError && (
+        <p role="alert" data-setlist-view-save-error className="text-sm text-app-missed-text">
+          {saveError}
+        </p>
+      )}
 
       {canManageSetlists && (
-        <div className="mt-4 flex flex-col gap-2">
+        <div className="mt-2 flex flex-col gap-2">
           <button
             type="button"
-            data-setlist-view-edit
-            disabled={!isOnline}
-            onClick={() => router.push(`/dashboard/setlist-edit?id=${encodeURIComponent(setlist.id)}`)}
-            className="w-full rounded-app-md border-2 border-app-primary px-4 py-2.5 text-sm font-medium text-app-primary transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+            data-setlist-view-add-song
+            disabled={!isOnline || submitting}
+            onClick={() => setIsAddOpen(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-app-md border-2 border-app-primary px-4 py-2.5 text-sm font-medium text-app-primary transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {isOnline ? 'Изменить' : 'Нужен интернет'}
+            <Plus size={18} aria-hidden />
+            {isOnline ? 'Добавить песню' : 'Нужен интернет'}
           </button>
 
           <div className="mt-4 border-t border-app-border pt-4">
@@ -118,6 +191,15 @@ export const SetlistView: React.FC<SetlistViewProps> = ({ setlist, canManageSetl
           </div>
         </div>
       )}
+
+      <AddSongsSheet
+        isOpen={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        songs={songs}
+        existingSongIds={items.map((item) => item.songId)}
+        onAdd={handleAdd}
+        submitting={submitting}
+      />
 
       <Modal isOpen={confirmingDelete} onClose={() => setConfirmingDelete(false)} title="Удалить сет?">
         <div className="space-y-4">

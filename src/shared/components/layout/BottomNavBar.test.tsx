@@ -47,6 +47,29 @@ describe('BottomNavBar', () => {
     expect(pushMock).toHaveBeenCalledWith('/dashboard/songs');
   });
 
+  it('пункт «Сеты» ведёт на список сетлистов', () => {
+    renderNav();
+    fireEvent.click(screen.getByText('Сеты'));
+    expect(pushMock).toHaveBeenCalledWith('/dashboard/setlists');
+  });
+
+  it.each(['/dashboard/setlists', '/dashboard/setlist', '/dashboard/setlist-edit'])(
+    '«Сеты» активны на %s',
+    (path) => {
+      mockPathname = path;
+      const { container } = renderNav();
+      const item = container.querySelector('[data-dashboard-nav-item="setlists"]')!;
+      expect(item).toHaveAttribute('data-dashboard-nav-item-active', 'true');
+    }
+  );
+
+  it.each(['/dashboard/songs', '/dashboard/song'])('«Сеты» НЕ активны на %s (префиксы не пересекаются)', (path) => {
+    mockPathname = path;
+    const { container } = renderNav();
+    const item = container.querySelector('[data-dashboard-nav-item="setlists"]')!;
+    expect(item).not.toHaveAttribute('data-dashboard-nav-item-active');
+  });
+
   it('клик по активному пункту («Библия» на /dashboard/read) — no-op, без router.push', () => {
     mockPathname = '/dashboard/read';
     mockSearchParams = new URLSearchParams({ book: 'Иоанна', chapter: '3' });

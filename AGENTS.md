@@ -60,11 +60,11 @@ bible-plan/
 │   │   │   ├── lib/                  # ChordPro parser, offlineSongs (read-through), markers/transpose/songKey (§10), personalKeyStore
 │   │   │   └── types.ts              # Song-specific types
 │   │   ├── setlists/                 # Setlists feature slice (M7)
-│   │   │   ├── components/           # SetlistsList, SetlistCard, SetlistView, SetlistBuilder, SelectedChipsRow,
-│   │   │   │                         # SetlistSongPickRow, SetlistItemRow, NameSetlistSheet, SetlistPlaybackSheet,
-│   │   │   │                         # SetlistDashboardStrip
-│   │   │   ├── hooks/                # useSetlists, useSetlist, useSetlistDraft, useSetlistPlayback
-│   │   │   ├── lib/                  # offlineSetlists (read-through + cache keys), archive (partitionSetlists), formatSetlistDate
+│   │   │   ├── components/           # SetlistsList, SetlistCard, SetlistView, SetlistBuilder, SetlistConfirmStep,
+│   │   │   │                         # SelectedChipsRow, SetlistSongPickRow, SetlistReorderList, SetlistItemRow,
+│   │   │   │                         # AddSongsSheet, SetlistPlaybackSheet
+│   │   │   ├── hooks/                # useSetlists, useSetlist, useSetlistDraft, useSaveSetlist, useSetlistPlayback
+│   │   │   ├── lib/                  # offlineSetlists (read-through + cache keys), archive (partitionSetlists), formatSetlistDate, setlistDefaults
 │   │   │   ├── services/setlistsServer.ts # Directus admin-client access (used only by server/src/routes/setlists.ts)
 │   │   │   └── types.ts              # Setlist-specific types
 │   │   └── landing/                  # Public landing slice (orchestrated by app/page.tsx)
@@ -159,7 +159,7 @@ bible-plan/
 | `src/shared/offline/autoDownload.ts` | Автозагрузка базового набора после логина (iOS partition fix, T11) |
 | `src/lib/app-roles.ts` + `src/shared/hooks/useAppRole.ts` | `AppRole` (reader/musician/musician_editor), `GET /api/user/role` — гейт кнопок сетлистов (реальный гейт — BFF `requireSetlistWrite`, см. `CLAUDE.md`) |
 | `server/src/routes/setlists.ts` + `src/features/setlists/services/setlistsServer.ts` | CRUD сетлистов (Directus admin-client), `requireSetlistWrite` на мутирующих роутах |
-| `src/app/dashboard/setlists/page.tsx`, `.../setlist/page.tsx`, `.../setlist-edit/page.tsx` | Список/просмотр/билдер сетлистов — все три в `APP_SHELL_ROUTES` |
+| `src/app/dashboard/setlists/page.tsx`, `.../setlist/page.tsx`, `.../setlist-edit/page.tsx` | Список / просмотр+правка / создание сета — все три в `APP_SHELL_ROUTES`. `setlist-edit` — ТОЛЬКО создание (два шага: выбор песен → название/дата/порядок); правка состава живёт в `SetlistView` |
 | `src/features/setlists/hooks/useSetlistPlayback.ts` | Навигация между песнями сета в просмотре песни (`/dashboard/song?id=&setlistId=`), свайп через `useHorizontalSwipe` |
 | `src/sw/sw.ts` + `scripts/build-sw.ts` | Build-time precache service worker (Serwist `injectManifest` → `out/sw.js`) |
 | `src/shared/hooks/useSwUpdate.ts` + `src/shared/components/ui/UpdateToast.tsx` | Update flow: `registration.waiting` → тост «Обновить» → `SKIP_WAITING` → reload |

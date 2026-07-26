@@ -8,6 +8,7 @@ import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { useSetlist } from '@/features/setlists/hooks/useSetlist';
 import { SetlistView } from '@/features/setlists/components/SetlistView';
 import { useAppRole } from '@/shared/hooks/useAppRole';
+import { useSongs } from '@/features/songs/hooks/useSongs';
 
 /** Тост «Сет создан» держится 3с — короче, чем стандартный Toast с Undo (тут отменять нечего). */
 const CREATED_TOAST_MS = 3000;
@@ -20,6 +21,9 @@ function SetlistPageContent() {
 
   const { setlist, loading, error } = useSetlist(id || null);
   const { canManageSetlists } = useAppRole();
+  // Каталог нужен шиту «Добавить песню». Читается через read-through, поэтому офлайн
+  // отдаёт закешированный список, а не пустоту.
+  const { songs } = useSongs();
 
   useEffect(() => {
     if (searchParams.get('created') !== '1') return;
@@ -57,7 +61,7 @@ function SetlistPageContent() {
             ))}
           </div>
         ) : setlist ? (
-          <SetlistView setlist={setlist} canManageSetlists={canManageSetlists} />
+          <SetlistView setlist={setlist} canManageSetlists={canManageSetlists} songs={songs} />
         ) : (
           <div className="px-4 pt-4">
             <ErrorMessage message="Сет не найден" />

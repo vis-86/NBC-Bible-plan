@@ -1,11 +1,9 @@
 'use client';
 
-import { Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { useAppRole } from '@/shared/hooks/useAppRole';
 import { useSongs } from '@/features/songs/hooks/useSongs';
-import { useSetlist } from '@/features/setlists/hooks/useSetlist';
 import { SetlistBuilder } from '@/features/setlists/components/SetlistBuilder';
 
 function AccessDenied() {
@@ -24,20 +22,18 @@ function AccessDenied() {
   );
 }
 
+/**
+ * Только СОЗДАНИЕ сета. Правка существующего живёт в `SetlistView` (`/dashboard/setlist?id=`):
+ * там же добавление песни, удаление и drag-порядок. Путь маршрута не меняем — он в
+ * `APP_SHELL_ROUTES` и в прекеше SW у уже установленных PWA.
+ */
 function SetlistEditPageContent() {
-  const searchParams = useSearchParams();
-  const editingId = searchParams.get('id');
   const { canManageSetlists, loading: roleLoading } = useAppRole();
   const { songs } = useSongs();
-  const { setlist } = useSetlist(editingId);
 
   return (
     <div data-setlist-edit-page className="flex min-h-0 flex-1 flex-col">
-      {roleLoading ? null : canManageSetlists ? (
-        <SetlistBuilder songs={songs} editingId={editingId} initialSetlist={setlist} />
-      ) : (
-        <AccessDenied />
-      )}
+      {roleLoading ? null : canManageSetlists ? <SetlistBuilder songs={songs} /> : <AccessDenied />}
     </div>
   );
 }
@@ -45,10 +41,7 @@ function SetlistEditPageContent() {
 export default function SetlistEditPage() {
   return (
     <DashboardLayout onChangeView={() => {}} hideBottomNav>
-      {/* useSearchParams требует Suspense-границу в App Router. */}
-      <Suspense fallback={null}>
-        <SetlistEditPageContent />
-      </Suspense>
+      <SetlistEditPageContent />
     </DashboardLayout>
   );
 }

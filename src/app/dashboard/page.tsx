@@ -7,7 +7,6 @@ import { parseReadingItem, normalizeBookNameForUrl } from '@/shared/utils/bible'
 import { useAuth } from '@/hooks/useAuth';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PlanView } from '@/features/plan/components/PlanView';
-import { SetlistDashboardStrip } from '@/features/setlists/components/SetlistDashboardStrip';
 import PastorChat from '@/components/PastorChat';
 import ReferenceTool from '@/components/ReferenceTool';
 import { isAIEnabled } from '@/shared/utils/constants';
@@ -184,7 +183,6 @@ function DashboardPageInner() {
           }
         >
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <SetlistDashboardStrip />
             <div className="min-h-0 flex-1">
               <PlanView
                 plan={plan}

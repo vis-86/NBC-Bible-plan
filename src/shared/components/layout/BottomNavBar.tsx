@@ -2,7 +2,7 @@
 
 import React, { Suspense, useEffect, useRef } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
-import { BookOpen, Home, User, MessageCircle, Music } from 'lucide-react';
+import { BookOpen, Home, User, MessageCircle, Music, ListMusic } from 'lucide-react';
 import { AppView } from '@/types';
 import { isAIEnabled } from '@/shared/utils/constants';
 import { bibleTabHref } from '@/features/reading/last-read-location';
@@ -91,6 +91,11 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
     if (item.id === 'songs') {
       return pathname.startsWith('/dashboard/songs');
     }
+    // Все три маршрута сетов (`/setlists`, `/setlist`, `/setlist-edit`) — один префикс.
+    // С `/dashboard/song(s)` он не пересекается, поэтому порядок веток не важен.
+    if (item.id === 'setlists') {
+      return pathname.startsWith('/dashboard/setlist');
+    }
     if (item.id === 'chat') {
       return pathname === '/dashboard' && viewParam === 'chat';
     }
@@ -137,6 +142,7 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
     { id: 'home', icon: Home, label: 'Главная', href: '/dashboard', isFilled: true },
     { id: 'bible', icon: BookOpen, label: 'Библия', href: '/dashboard/read?book=Бытие&chapter=1' },
     { id: 'songs', icon: Music, label: 'Песни', href: '/dashboard/songs' },
+    { id: 'setlists', icon: ListMusic, label: 'Сеты', href: '/dashboard/setlists' },
     ...(aiEnabled
       ? [{ id: 'chat', icon: MessageCircle, label: 'Пастырь', view: AppView.CHAT } as NavItem]
       : []),
@@ -156,13 +162,16 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
       {navItems.map((item) => {
         const isActive = getIsActive(item);
         const Icon = item.icon;
+        // `flex-1 max-w-16` вместо фиксированной `w-16`: с «Сетами» пунктов становится 6
+        // (при включённом AI), и 6×64px не помещаются в 360px — пункты ужимаются вместо
+        // переполнения бара.
         return (
           <button
             key={item.id}
             data-dashboard-nav-item={item.id}
             data-dashboard-nav-item-active={isActive || undefined}
             onClick={() => handleNav(item)}
-            className="flex min-h-11 flex-col items-center justify-center gap-1 p-1.5 w-16 relative group transition-transform duration-150 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary rounded-app-sm"
+            className="flex min-h-11 flex-col items-center justify-center gap-1 p-1.5 flex-1 max-w-16 relative group transition-transform duration-150 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary rounded-app-sm"
             aria-current={isActive ? 'page' : undefined}
           >
             <div

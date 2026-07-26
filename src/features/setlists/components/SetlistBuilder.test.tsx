@@ -2,7 +2,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { SongSummary } from '@/features/songs/types';
-import type { Setlist } from '../types';
 
 const pushMock = vi.fn();
 const replaceMock = vi.fn();
@@ -49,6 +48,7 @@ describe('SetlistBuilder', () => {
   });
   afterEach(() => {
     vi.clearAllMocks();
+    vi.useRealTimers();
   });
 
   it('тап по строке добавляет chip и ставит aria-selected', () => {
@@ -88,49 +88,64 @@ describe('SetlistBuilder', () => {
     expect(() => render(<SetlistBuilder songs={SONGS} />)).not.toThrow();
   });
 
-  it('кнопки «Вверх»/«Вниз» меняют порядок, disabled на границах (в режиме редактирования)', () => {
-    const setlist: Setlist = {
-      id: 's1',
-      title: 'Существующий',
-      date: null,
-      items: [
-        { id: 'i1', sort: 0, songId: 1, title: 'Господь мой пастырь' },
-        { id: 'i2', sort: 1, songId: 2, title: 'Свят, свят, свят' },
-      ],
-    };
-    const { container } = render(<SetlistBuilder songs={SONGS} editingId="s1" initialSetlist={setlist} />);
+  it('стрелок «Вверх»/«Вниз» больше нет — порядок задаётся только drag\'ом', () => {
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    fireEvent.click(pickRow(container, 'Аллилуйя'));
+    fireEvent.click(container.querySelector('[data-setlist-builder-next]') as HTMLElement);
 
-    const upButtons = container.querySelectorAll('[data-setlist-builder-item-up]');
-    const downButtons = container.querySelectorAll('[data-setlist-builder-item-down]');
-    expect((upButtons[0] as HTMLButtonElement).disabled).toBe(true);
-    expect((downButtons[1] as HTMLButtonElement).disabled).toBe(true);
-
-    fireEvent.click(downButtons[0]);
-    const items = container.querySelectorAll('[data-setlist-builder-item]');
-    expect(items[0].textContent).toContain('Свят, свят, свят');
-    expect(items[1].textContent).toContain('Господь мой пастырь');
+    expect(container.querySelector('[data-setlist-builder-item-up]')).toBeNull();
+    expect(container.querySelector('[data-setlist-builder-item-down]')).toBeNull();
+    expect(container.querySelector('[data-setlist-builder-item]')).toBeTruthy();
   });
 
-  it('редактирование существующего сета предзаполняет выбор/название/дату', () => {
-    const setlist: Setlist = {
-      id: 's1',
-      title: 'Существующий',
-      date: '2026-08-01',
-      items: [{ id: 'i1', sort: 0, songId: 2, title: 'Свят, свят, свят' }],
-    };
-    const { container } = render(<SetlistBuilder songs={SONGS} editingId="s1" initialSetlist={setlist} />);
+  it('«Далее» преднаполняет название «Вск. Служение dd.mm.yyyy» и дату ближайшего воскресенья', () => {
+    // 2026-07-27 — понедельник, ближайшее вс — 2026-08-02.
+    // shouldAdvanceTime: иначе анимации Framer Motion виснут на замороженных таймерах.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 6, 27, 12));
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    fireEvent.click(pickRow(container, 'Аллилуйя'));
+    fireEvent.click(container.querySelector('[data-setlist-builder-next]') as HTMLElement);
+
+    expect((container.querySelector('[data-setlist-builder-date-input]') as HTMLInputElement).value).toBe(
+      '2026-08-02'
+    );
+    expect((container.querySelector('[data-setlist-builder-title-input]') as HTMLInputElement).value).toBe(
+      'Вск. Служение 02.08.2026'
+    );
+  });
+
+  it('«Назад» с шага подтверждения сохраняет выбор', () => {
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    fireEvent.click(pickRow(container, 'Аллилуйя'));
+    fireEvent.click(container.querySelector('[data-setlist-builder-next]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-setlist-confirm-back]') as HTMLElement);
 
     expect(screen.getByText('Выбрано: 1')).toBeTruthy();
-    expect(pickRow(container, 'Свят').getAttribute('aria-selected')).toBe('true');
+    expect(pickRow(container, 'Аллилуйя').getAttribute('aria-selected')).toBe('true');
+  });
 
-    // Название/дата на мобильном живут в NameSetlistSheet — открываем его через FAB.
-    fireEvent.click(container.querySelector('[data-setlist-builder-next]') as HTMLElement);
-    expect((container.querySelector('[data-setlist-builder-title-input]') as HTMLInputElement).value).toBe(
-      'Существующий'
-    );
-    expect((container.querySelector('[data-setlist-builder-date-input]') as HTMLInputElement).value).toBe(
-      '2026-08-01'
-    );
+  it('сегмент «Выбранные» сворачивает список до выбранного, не сбрасывая запрос', () => {
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    expect(container.querySelectorAll('[data-setlist-builder-pick-row]')).toHaveLength(3);
+
+    fireEvent.click(pickRow(container, 'Аллилуйя'));
+    fireEvent.click(container.querySelector('[data-setlist-builder-filter-option="selected"]') as HTMLElement);
+
+    const rows = container.querySelectorAll('[data-setlist-builder-pick-row]');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].textContent).toContain('Аллилуйя');
+  });
+
+  it('сегмент «Выбранные» disabled, пока ничего не выбрано', () => {
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    const selectedTab = container.querySelector(
+      '[data-setlist-builder-filter-option="selected"]'
+    ) as HTMLButtonElement;
+    expect(selectedTab.disabled).toBe(true);
+
+    fireEvent.click(pickRow(container, 'Аллилуйя'));
+    expect(selectedTab.disabled).toBe(false);
   });
 
   it('широкий layout (≥768px): рендерит панель, не рендерит FAB/шапку с ✕', () => {

@@ -14,6 +14,16 @@ async function sessionCookie(directusId = 'user-1'): Promise<string> {
   return `${SESSION_COOKIE_NAME}=${sealed}`;
 }
 
+/**
+ * Тело запроса, ушедшего в Directus n-м вызовом `client.request`. Команды SDK v20 —
+ * функции-дескрипторы (`() => { path, method, body }`), поэтому разворачиваем и парсим.
+ */
+function itemsPayload(callIndex: number): unknown {
+  const command = adminRequestMock.mock.calls[callIndex]?.[0] as (() => { body: string }) | undefined;
+  if (typeof command !== 'function') throw new Error(`нет вызова Directus с индексом ${callIndex}`);
+  return JSON.parse(command().body);
+}
+
 /** Роль по умолчанию для write-роутов — musician (право на запись). */
 function mockMusicianRole() {
   adminRequestMock.mockResolvedValueOnce({ role: { name: 'musician' } });
@@ -152,8 +162,13 @@ describe('POST /api/setlists — создание (musician)', () => {
     expect(res.status).toBe(201);
     expect(await res.json()).toEqual({ id: 'new-set' });
 
-    const itemsCall = adminRequestMock.mock.calls[2];
-    expect(itemsCall).toBeDefined();
+    // `sort` — единственный носитель порядка: если он не идёт по индексу songIds,
+    // drag «работает», но после перезагрузки порядок откатывается.
+    expect(itemsPayload(2)).toEqual([
+      { setlist: 'new-set', song: 3, sort: 0 },
+      { setlist: 'new-set', song: 1, sort: 1 },
+      { setlist: 'new-set', song: 2, sort: 2 },
+    ]);
   });
 
   it('дубликаты в songIds -> 400', async () => {
@@ -237,6 +252,28 @@ describe('PATCH /api/setlists/:id — musician', () => {
       body: JSON.stringify({ title: 'Обновлено', songIds: [2, 1] }),
     });
     expect(res.status).toBe(200);
+  });
+
+  it('переставленный songIds сохраняется как sort по индексу (порядок после drag не откатится)', async () => {
+    mockMusicianRole();
+    adminRequestMock.mockResolvedValueOnce({}); // deleteItems старых items
+    adminRequestMock.mockResolvedValueOnce([]); // createItems новых items
+
+    const cookie = await sessionCookie();
+    const app = createApp();
+    const res = await app.request('/app/api/setlists/11111111-1111-1111-1111-111111111111', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      body: JSON.stringify({ songIds: [3, 1, 2] }),
+    });
+    expect(res.status).toBe(200);
+
+    // Без title/date патч самого сета не отправляется, поэтому createItems — вызов №2.
+    expect(itemsPayload(2)).toEqual([
+      { setlist: '11111111-1111-1111-1111-111111111111', song: 3, sort: 0 },
+      { setlist: '11111111-1111-1111-1111-111111111111', song: 1, sort: 1 },
+      { setlist: '11111111-1111-1111-1111-111111111111', song: 2, sort: 2 },
+    ]);
   });
 });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
@@ -8,61 +8,58 @@ import { SearchBar } from '@/shared/components/ui/SearchBar';
 import { useSongSearch } from '@/features/songs/hooks/useSongSearch';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 import { useSetlistDraft } from '../hooks/useSetlistDraft';
+import { useSaveSetlist } from '../hooks/useSaveSetlist';
+import { nextSundayISO, defaultSetlistTitle } from '../lib/setlistDefaults';
 import { SetlistSongPickRow } from './SetlistSongPickRow';
 import { SelectedChipsRow } from './SelectedChipsRow';
-import { SetlistItemRow } from './SetlistItemRow';
-import { NameSetlistSheet } from './NameSetlistSheet';
+import { SetlistConfirmStep } from './SetlistConfirmStep';
+import { SetlistReorderList, type ReorderableSong } from './SetlistReorderList';
 import type { SongSummary } from '@/features/songs/types';
-import type { Setlist } from '../types';
 
-/** Планшет (≥768px) — Master-Detail: правая панель вместо ленты chips/FAB/шита (T14). */
+/** Планшет (≥768px) — Master-Detail: обе половины флоу видны сразу, без шагов. */
 export const SETLIST_WIDE_LAYOUT_QUERY = '(min-width: 768px)';
 
 interface SetlistBuilderProps {
   songs: SongSummary[];
-  /** Присутствует ⇒ редактирование существующего сета (PATCH), иначе — создание (POST). */
-  editingId?: string | null;
-  /** Деталь редактируемого сета — для предзаполнения черновика (null, пока грузится). */
-  initialSetlist?: Setlist | null;
 }
 
-export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs, editingId, initialSetlist }) => {
+/**
+ * Создание сета в два шага: выбор песен → название/дата/порядок.
+ * Редактирование существующего сета живёт не здесь, а прямо в `SetlistView`
+ * (кнопка «Добавить песню» + drag-порядок на месте).
+ */
+export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
   const router = useRouter();
   const reduceMotion = useReducedMotion();
   const isWideLayout = useMediaQuery(SETLIST_WIDE_LAYOUT_QUERY);
-  const { draft, toggleSong, removeSong, moveSong, setTitle, setDate, load, clear } = useSetlistDraft();
+  const { draft, toggleSong, removeSong, reorderSongs, setStep, setTitle, setDate, clear } = useSetlistDraft();
+  const { create, submitting, error } = useSaveSetlist();
   const [query, setQuery] = useState('');
-  const [isNameSheetOpen, setIsNameSheetOpen] = useState(false);
-
-  // Предзаполнение черновика при входе в редактирование: только когда черновик
-  // ещё не относится к этому сету (иначе перезаписали бы незавершённую правку
-  // пользователя актуальными данными с сервера при каждом ремонтировании).
-  const prefilledRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!editingId) {
-      if (draft.editingId !== null && prefilledRef.current !== 'create') {
-        prefilledRef.current = 'create';
-        clear();
-      }
-      return;
-    }
-    if (draft.editingId === editingId) return;
-    if (!initialSetlist) return;
-    prefilledRef.current = editingId;
-    load({
-      editingId,
-      title: initialSetlist.title,
-      date: initialSetlist.date,
-      songIds: initialSetlist.items.map((item) => item.songId),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- clear/load стабильны (useCallback), draft исключён намеренно (иначе цикл).
-  }, [editingId, initialSetlist]);
+  const [filter, setFilter] = useState<'all' | 'selected'>('all');
 
   const results = useSongSearch(songs, query);
   const songById = useMemo(() => new Map(songs.map((s) => [Number(s.id), s])), [songs]);
-  const selectedSongs = draft.songIds.map((id) => songById.get(id)).filter((s): s is SongSummary => !!s);
+
+  /**
+   * Мемоизация обязательна: `Reorder` сопоставляет строки по идентичности объектов,
+   * и новый массив новых объектов на каждый рендер молча ломает перетаскивание.
+   */
+  const selectedItems: ReorderableSong[] = useMemo(
+    () =>
+      draft.songIds
+        .map((id) => songById.get(id))
+        .filter((s): s is SongSummary => !!s)
+        .map((s) => ({ id: Number(s.id), title: s.title })),
+    [draft.songIds, songById]
+  );
 
   const hasSelection = draft.songIds.length > 0;
+
+  /** Список для показа: «Все» — результаты поиска, «Выбранные» — только выбранное, тем же запросом. */
+  const visibleResults = useMemo(() => {
+    if (filter === 'all') return results;
+    return results.filter((song) => draft.songIds.includes(Number(song.id)));
+  }, [filter, results, draft.songIds]);
 
   const handleCancel = () => {
     if (hasSelection) {
@@ -70,70 +67,33 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs, editingId
       if (!confirmed) return;
     }
     clear();
-    router.push(editingId ? `/dashboard/setlist?id=${encodeURIComponent(editingId)}` : '/dashboard/songs');
+    router.push('/dashboard/setlists');
   };
 
-  const handleSuccess = (id: string) => {
+  /** Переход на шаг 2 заполняет пустые название/дату дефолтами (ближайшее воскресенье). */
+  const handleNext = () => {
+    if (!hasSelection) return;
+    const sunday = draft.date ?? nextSundayISO();
+    if (!draft.date) setDate(sunday);
+    if (draft.title.trim().length === 0) setTitle(defaultSetlistTitle(sunday));
+    setStep('confirm');
+  };
+
+  const handleSubmit = async () => {
+    const id = await create({ title: draft.title.trim(), date: draft.date, songIds: draft.songIds });
+    if (id === null) return; // Текст ошибки уже в `error`, черновик сохраняем для повтора.
     clear();
-    setIsNameSheetOpen(false);
     router.replace(`/dashboard/setlist?id=${encodeURIComponent(id)}&created=1`);
   };
 
-  const titleSection = (
-    <div className="space-y-4">
-      <div>
-        <label htmlFor="setlist-title-input-desktop" className="mb-1.5 block text-sm font-medium text-app-text-secondary">
-          Название сета
-        </label>
-        <input
-          id="setlist-title-input-desktop"
-          data-setlist-builder-title-input
-          type="text"
-          maxLength={100}
-          value={draft.title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Например, Воскресное утро"
-          className="w-full rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
-        />
-      </div>
-      <div>
-        <label htmlFor="setlist-date-input-desktop" className="mb-1.5 block text-sm font-medium text-app-text-secondary">
-          Дата (необязательно)
-        </label>
-        <input
-          id="setlist-date-input-desktop"
-          data-setlist-builder-date-input
-          type="date"
-          value={draft.date ?? ''}
-          onChange={(e) => setDate(e.target.value || null)}
-          className="w-full rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
-        />
-      </div>
-    </div>
-  );
-
-  const reorderList =
-    selectedSongs.length > 0 ? (
-      <ul data-setlist-builder-reorder-list className="flex flex-col gap-2">
-        {selectedSongs.map((song, i) => (
-          <SetlistItemRow
-            key={song.id}
-            song={song}
-            index={i}
-            total={selectedSongs.length}
-            onMoveUp={() => moveSong(i, -1)}
-            onMoveDown={() => moveSong(i, 1)}
-          />
-        ))}
-      </ul>
-    ) : null;
-
   const pickList = (
     <div role="listbox" aria-multiselectable="true" data-setlist-builder-pick-list className="flex flex-col gap-2">
-      {results.length === 0 ? (
-        <p className="py-8 text-center text-app-text-muted">Ничего не найдено</p>
+      {visibleResults.length === 0 ? (
+        <p className="py-8 text-center text-app-text-muted">
+          {filter === 'selected' ? 'Ничего не выбрано по этому запросу' : 'Ничего не найдено'}
+        </p>
       ) : (
-        results.map((song, i) => {
+        visibleResults.map((song, i) => {
           const songId = Number(song.id);
           const selected = draft.songIds.includes(songId);
           return (
@@ -151,6 +111,8 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs, editingId
     </div>
   );
 
+  // Планшет: обе половины видны сразу — шаги и фильтр «Выбранные» не нужны,
+  // выбранное и так постоянно на экране в правой колонке.
   if (isWideLayout) {
     return (
       <div data-setlist-builder className="flex min-h-0 flex-1 gap-4 p-4">
@@ -159,29 +121,78 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs, editingId
           <div className="min-h-0 flex-1 overflow-y-auto">{pickList}</div>
         </div>
         <div className="flex min-h-0 w-1/3 flex-col gap-4 overflow-y-auto border-l border-app-border pl-4">
-          {titleSection}
-          {reorderList}
+          <div>
+            <label
+              htmlFor="setlist-title-input-desktop"
+              className="mb-1.5 block text-sm font-medium text-app-text-secondary"
+            >
+              Название сета
+            </label>
+            <input
+              id="setlist-title-input-desktop"
+              data-setlist-builder-title-input
+              type="text"
+              maxLength={100}
+              value={draft.title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Например, Воскресное утро"
+              className="w-full rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
+            />
+          </div>
+          <div>
+            <label
+              htmlFor="setlist-date-input-desktop"
+              className="mb-1.5 block text-sm font-medium text-app-text-secondary"
+            >
+              Дата
+            </label>
+            <input
+              id="setlist-date-input-desktop"
+              data-setlist-builder-date-input
+              type="date"
+              value={draft.date ?? ''}
+              onChange={(e) => setDate(e.target.value || null)}
+              className="w-full rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
+            />
+          </div>
+
+          <SetlistReorderList items={selectedItems} onReorder={reorderSongs} onRemove={removeSong} />
+
+          {error && (
+            <p role="alert" className="text-sm text-app-missed-text">
+              {error}
+            </p>
+          )}
+
           <button
             type="button"
             data-setlist-builder-submit-desktop
-            disabled={draft.title.trim().length === 0 || draft.songIds.length === 0}
-            onClick={() => setIsNameSheetOpen(true)}
+            disabled={draft.title.trim().length === 0 || !hasSelection || submitting}
+            onClick={handleSubmit}
             className="w-full rounded-app-md bg-app-primary px-4 py-2.5 text-sm font-semibold text-app-text-inverse disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Сохранить
+            {submitting ? 'Сохранение…' : 'Сохранить'}
           </button>
         </div>
-
-        <NameSetlistSheet
-          isOpen={isNameSheetOpen}
-          onClose={() => setIsNameSheetOpen(false)}
-          initialTitle={draft.title}
-          initialDate={draft.date}
-          songIds={draft.songIds}
-          editingId={editingId}
-          onSuccess={handleSuccess}
-        />
       </div>
+    );
+  }
+
+  if (draft.step === 'confirm') {
+    return (
+      <SetlistConfirmStep
+        title={draft.title}
+        date={draft.date}
+        items={selectedItems}
+        submitting={submitting}
+        error={error}
+        onTitleChange={setTitle}
+        onDateChange={setDate}
+        onReorder={reorderSongs}
+        onRemove={removeSong}
+        onBack={() => setStep('pick')}
+        onSubmit={handleSubmit}
+      />
     );
   }
 
@@ -197,29 +208,49 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs, editingId
         >
           <X size={20} />
         </button>
-        <h1 className="flex-1 truncate text-center font-semibold text-app-text">
-          {editingId ? 'Редактирование сета' : 'Новый сет'}
-        </h1>
+        <h1 className="flex-1 truncate text-center font-semibold text-app-text">Новый сет</h1>
         <span aria-live="polite" data-setlist-builder-count className="shrink-0 text-sm text-app-text-secondary">
           Выбрано: {draft.songIds.length}
         </span>
       </div>
 
-      <div className="sticky top-[57px] z-10 bg-app-surface px-4 py-2">
+      <div className="sticky top-[57px] z-10 space-y-2 bg-app-surface px-4 py-2">
         <SearchBar onSearch={setQuery} placeholder="Поиск по песням" />
+        {/* На большом каталоге выбранное теряется из виду при скролле — этот
+            переключатель сворачивает список до выбранного, не сбрасывая запрос. */}
+        <div
+          role="tablist"
+          aria-label="Фильтр списка песен"
+          data-setlist-builder-filter
+          className="flex gap-1 rounded-app-md bg-app-surface-muted p-1"
+        >
+          {(['all', 'selected'] as const).map((value) => {
+            const isActive = filter === value;
+            const disabled = value === 'selected' && !hasSelection;
+            return (
+              <button
+                key={value}
+                type="button"
+                role="tab"
+                aria-selected={isActive}
+                data-setlist-builder-filter-option={value}
+                disabled={disabled}
+                onClick={() => setFilter(value)}
+                className={`min-h-9 flex-1 rounded-app-sm px-3 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  isActive ? 'bg-app-surface text-app-text shadow-app-sm' : 'text-app-text-secondary'
+                }`}
+              >
+                {value === 'all' ? 'Все' : `Выбранные (${draft.songIds.length})`}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <SelectedChipsRow
-        items={selectedSongs.map((s) => ({ songId: Number(s.id), title: s.title }))}
+        items={selectedItems.map((s) => ({ songId: s.id, title: s.title }))}
         onRemove={removeSong}
       />
-
-      {editingId && reorderList && (
-        <div className="px-4 pb-2">
-          <h2 className="mb-2 text-sm font-medium text-app-text-secondary">Порядок в сете</h2>
-          {reorderList}
-        </div>
-      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-24">{pickList}</div>
 
@@ -232,22 +263,12 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs, editingId
           data-setlist-builder-next
           disabled={!hasSelection}
           aria-disabled={!hasSelection}
-          onClick={() => setIsNameSheetOpen(true)}
+          onClick={handleNext}
           className="w-full max-w-sm rounded-full bg-app-primary px-6 py-3.5 text-base font-semibold text-app-text-inverse shadow-app-lg transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
           Далее →
         </button>
       </div>
-
-      <NameSetlistSheet
-        isOpen={isNameSheetOpen}
-        onClose={() => setIsNameSheetOpen(false)}
-        initialTitle={draft.title}
-        initialDate={draft.date}
-        songIds={draft.songIds}
-        editingId={editingId}
-        onSuccess={handleSuccess}
-      />
     </div>
   );
 };

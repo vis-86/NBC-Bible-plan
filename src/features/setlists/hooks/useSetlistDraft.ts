@@ -5,20 +5,23 @@ import { useCallback, useEffect, useState } from 'react';
 /** Черновик билдера сета в sessionStorage — переживает переход в песню и обратно. */
 export const SETLIST_DRAFT_STORAGE_KEY = 'setlists:draft';
 
+/** Шаг билдера: выбор песен → подтверждение (название, дата, порядок). */
+export type SetlistDraftStep = 'pick' | 'confirm';
+
 export interface SetlistDraft {
-  /** Порядок = порядок добавления (список песен в builder читается тапом, не drag). */
+  /** Порядок = порядок добавления по умолчанию; далее меняется drag-reorder на шаге `confirm`. */
   songIds: number[];
   title: string;
   date: string | null;
   /**
-   * `null` — черновик создания. Иначе — id редактируемого сета: страница редактирования
-   * сверяет это поле с своим `?id=`, чтобы решить, предзаполнять ли черновик заново
-   * из детали сета (открыт другой сет / впервые) или продолжить незавершённую правку.
+   * Текущий шаг билдера. Лежит в черновике, а не в `useState`: черновик переживает
+   * уход в песню и обратно, и шаг обязан вернуться тот же, иначе пользователь после
+   * возврата теряет заполненные название/дату из виду.
    */
-  editingId: string | null;
+  step: SetlistDraftStep;
 }
 
-const EMPTY_DRAFT: SetlistDraft = { songIds: [], title: '', date: null, editingId: null };
+const EMPTY_DRAFT: SetlistDraft = { songIds: [], title: '', date: null, step: 'pick' };
 
 function sanitize(raw: unknown): SetlistDraft {
   if (!raw || typeof raw !== 'object') return { ...EMPTY_DRAFT };
@@ -26,8 +29,9 @@ function sanitize(raw: unknown): SetlistDraft {
   const songIds = Array.isArray(obj.songIds) ? obj.songIds.filter((n): n is number => typeof n === 'number') : [];
   const title = typeof obj.title === 'string' ? obj.title : '';
   const date = typeof obj.date === 'string' ? obj.date : null;
-  const editingId = typeof obj.editingId === 'string' ? obj.editingId : null;
-  return { songIds, title, date, editingId };
+  // Шаг `confirm` без единой песни — тупик (нечего подтверждать), откатываем на выбор.
+  const step: SetlistDraftStep = obj.step === 'confirm' && songIds.length > 0 ? 'confirm' : 'pick';
+  return { songIds, title, date, step };
 }
 
 function readDraft(): SetlistDraft {
@@ -78,26 +82,52 @@ export function useSetlistDraft() {
     setDraftState((prev) => ({ ...prev, songIds: prev.songIds.filter((id) => id !== songId) }));
   }, []);
 
-  /** Меняет местами позиции `index` и `index + delta` (delta = ±1, кнопки «Вверх/Вниз»). */
-  const moveSong = useCallback((index: number, delta: 1 | -1) => {
+  const setTitle = useCallback((title: string) => setDraftState((prev) => ({ ...prev, title })), []);
+  const setDate = useCallback((date: string | null) => setDraftState((prev) => ({ ...prev, date })), []);
+  const setSongIds = useCallback((songIds: number[]) => setDraftState((prev) => ({ ...prev, songIds })), []);
+
+  /**
+   * Шаг `confirm` требует хотя бы одну песню — иначе экран подтверждения пустой.
+   * Возвращаем `pick` вместо молчаливого перехода в тупик.
+   */
+  const setStep = useCallback((step: SetlistDraftStep) => {
     setDraftState((prev) => {
-      const to = index + delta;
-      if (to < 0 || to >= prev.songIds.length) return prev;
-      const songIds = [...prev.songIds];
-      [songIds[index], songIds[to]] = [songIds[to], songIds[index]];
-      console.debug(`[SetlistBuilder] reorder ${index} → ${to}`);
+      if (step === 'confirm' && prev.songIds.length === 0) {
+        console.warn('[SetlistBuilder] переход на confirm без выбранных песен отклонён');
+        return prev;
+      }
+      console.debug(`[SetlistBuilder] step -> ${step}`);
+      return { ...prev, step };
+    });
+  }, []);
+
+  /**
+   * Полный новый порядок из drag-reorder (Framer Motion `Reorder`). Принимается
+   * ТОЛЬКО перестановка текущего состава: список в билдере отфильтрован по загруженному
+   * каталогу песен, поэтому нерезолвившийся id иначе молча исчез бы из черновика и уехал
+   * бы в PATCH усечённым составом.
+   */
+  const reorderSongs = useCallback((songIds: number[]) => {
+    setDraftState((prev) => {
+      const isPermutation =
+        songIds.length === prev.songIds.length && songIds.every((id) => prev.songIds.includes(id));
+      if (!isPermutation) {
+        console.warn('[SetlistBuilder] drag reorder отклонён: состав не совпадает с черновиком', {
+          draft: prev.songIds,
+          incoming: songIds,
+        });
+        return prev;
+      }
+      console.debug('[SetlistBuilder] drag reorder ->', songIds);
       return { ...prev, songIds };
     });
   }, []);
 
-  const setTitle = useCallback((title: string) => setDraftState((prev) => ({ ...prev, title })), []);
-  const setDate = useCallback((date: string | null) => setDraftState((prev) => ({ ...prev, date })), []);
-  const setSongIds = useCallback((songIds: number[]) => setDraftState((prev) => ({ ...prev, songIds })), []);
   const load = useCallback((next: Partial<SetlistDraft>) => setDraftState((prev) => ({ ...prev, ...next })), []);
   const clear = useCallback(() => {
     setDraftState({ ...EMPTY_DRAFT });
     clearSetlistDraft();
   }, []);
 
-  return { draft, toggleSong, removeSong, moveSong, setTitle, setDate, setSongIds, load, clear };
+  return { draft, toggleSong, removeSong, reorderSongs, setStep, setTitle, setDate, setSongIds, load, clear };
 }
