@@ -1,5 +1,6 @@
 import { apiClient } from './client';
 import { BibleReference, ReadingPlanDay, PlanItem } from '@/types';
+import type { AppRole } from '@/lib/app-roles';
 // Type-only import (стирается при компиляции) — доменные типы фичи songs.
 import type { SongListResponse, SongResponse } from '@/features/songs/types';
 
@@ -107,6 +108,16 @@ export const songsApi = {
   },
   getSong: async (id: string | number): Promise<SongResponse> => {
     return apiClient.get<SongResponse>(`/api/songs/${id}`);
+  },
+};
+
+export interface UserRoleResponse {
+  role: AppRole;
+}
+
+export const userApi = {
+  getRole: async (): Promise<UserRoleResponse> => {
+    return apiClient.get<UserRoleResponse>('/api/user/role');
   },
 };
 

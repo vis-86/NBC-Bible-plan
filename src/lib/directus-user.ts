@@ -1,6 +1,6 @@
 // @ts-nocheck - Directus SDK typing issue with custom schema
 import { getDirectusAdminClient } from '@/lib/directus';
-import { readItems, createItem, createUser, readUsers, updateUser, readRoles } from '@directus/sdk';
+import { readItems, createItem, createUser, readUser, readUsers, updateUser, readRoles } from '@directus/sdk';
 
 /**
  * Синтетический email-домен для псевдонимных веб-аккаунтов (без реальных ПД, ФЗ-152).
@@ -116,6 +116,21 @@ export interface TelegramUser {
 // findOrCreateUser удалён намеренно: mini-app больше НЕ создаёт аккаунты
 // (RESEARCH, Вариант 1). Привязка существующего аккаунта — через linkTelegramToUser
 // после проверки логина/пароля (см. /api/auth/telegram/link). Это исключает дубли.
+
+/**
+ * Имя роли пользователя (для резолва AppRole) — только админ-клиентом.
+ * Инвариант: `/users/me` под user-токеном не использовать, policy роли «Чтец» отдаёт только `id`.
+ * @returns имя роли или null, если пользователь/роль не найдены.
+ */
+export async function getUserRoleName(directusUserId: string): Promise<string | null> {
+  const adminClient = getDirectusAdminClient();
+  const user: { role?: { name?: string | null } | null } = await adminClient.request(
+    readUser(directusUserId, { fields: ['role.name'] })
+  );
+  const roleName = user?.role?.name;
+  debug('role lookup', directusUserId, '->', roleName ?? null);
+  return typeof roleName === 'string' ? roleName : null;
+}
 
 /**
  * Получает Directus User ID по Telegram ID

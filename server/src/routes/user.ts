@@ -3,6 +3,7 @@
  * Все роуты session-gated — 401 без сессии.
  */
 import { Hono } from 'hono';
+import { resolveAppRole } from '../../../src/lib/app-roles';
 import {
   getAppSettings,
   getReadingSettings,
@@ -11,10 +12,26 @@ import {
   saveReadingSettings,
   updateUserProgress,
 } from '../../../src/lib/directus-data';
+import { getUserRoleName } from '../../../src/lib/directus-user';
 import { logger } from '../logger';
 import { getSession } from '../session';
 
 export const userRoutes = new Hono();
+
+userRoutes.get('/role', async (c) => {
+  try {
+    const session = await getSession(c);
+    if (!session) return c.json({ error: 'Unauthorized' }, 401);
+
+    const directusRoleName = await getUserRoleName(session.directus_id);
+    const role = resolveAppRole(directusRoleName);
+    logger.debug(`[role] resolved ${session.directus_id} -> ${role}`);
+    return c.json({ role });
+  } catch (error) {
+    logger.error('Error resolving user role:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
 
 userRoutes.get('/app-settings', async (c) => {
   try {

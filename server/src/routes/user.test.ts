@@ -1,4 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const { adminRequestMock } = vi.hoisted(() => ({ adminRequestMock: vi.fn() }));
+
+vi.mock('../../../src/lib/directus', () => ({
+  getDirectusAdminClient: () => ({ request: adminRequestMock }),
+}));
+
 import { sealSession, SESSION_COOKIE_NAME } from '../../../src/lib/session-core';
 import { createApp } from '../app';
 
@@ -53,5 +60,43 @@ describe('chat/history — валидация без сессии', () => {
     const app = createApp();
     const res = await app.request('/app/api/chat/history');
     expect(res.status).toBe(401);
+  });
+});
+
+describe('GET /user/role', () => {
+  beforeEach(() => {
+    adminRequestMock.mockReset();
+  });
+
+  it('без сессии -> 401', async () => {
+    const app = createApp();
+    const res = await app.request('/app/api/user/role');
+    expect(res.status).toBe(401);
+  });
+
+  it('роль "Чтец" -> { role: "reader" }', async () => {
+    adminRequestMock.mockResolvedValueOnce({ role: { name: 'Чтец' } });
+    const cookie = await sessionCookie();
+    const app = createApp();
+    const res = await app.request('/app/api/user/role', { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ role: 'reader' });
+  });
+
+  it('роль "musician" -> { role: "musician" }', async () => {
+    adminRequestMock.mockResolvedValueOnce({ role: { name: 'musician' } });
+    const cookie = await sessionCookie();
+    const app = createApp();
+    const res = await app.request('/app/api/user/role', { headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ role: 'musician' });
+  });
+
+  it('ошибка Directus -> 500', async () => {
+    adminRequestMock.mockRejectedValueOnce(new Error('directus down'));
+    const cookie = await sessionCookie();
+    const app = createApp();
+    const res = await app.request('/app/api/user/role', { headers: { Cookie: cookie } });
+    expect(res.status).toBe(500);
   });
 });
