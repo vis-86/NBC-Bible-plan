@@ -27,7 +27,9 @@ npm run lint         # eslint
 npm run test         # vitest run (юнит: src/** + server/**)
 npx vitest run src/shared/offline/sync.test.ts        # один файл
 npx vitest run -t "имя теста"                          # один тест
-npm run e2e:offline  # Playwright офлайн-регрессия (сам собирает и поднимает static-serve)
+npm run e2e:offline  # Playwright: весь e2e/ (offline + layout). Серверы НЕ поднимает —
+                     # сначала вручную: npm run build → npm run bff:start & → npm run static:serve &
+                     # плюс .env.test (E2E_TEST_LOGIN/PASSWORD) — см. e2e/offline/README.md
 npm run static:serve # локальный аналог nginx: out/ + прокси на BFF (для ручной проверки прод-сборки)
 npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка bff/nginx ТАМ (--dry-run, --no-build)
 ```
@@ -38,7 +40,7 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
 ## Верификация (без этого изменение не готово)
 
 1. `npm run test` + `npm run lint` — всегда.
-2. Тронул offline/SW/кэширование/роутинг — обязателен production-контур: `npm run build` → просмотреть реальный сгенерированный `out/sw.js` → `npm run e2e:offline`. Dev-режим офлайн-баги НЕ воспроизводит.
+2. Тронул offline/SW/кэширование/роутинг — обязателен production-контур: `npm run build` → просмотреть реальный сгенерированный `out/sw.js` → поднять `bff:start` + `static:serve` → `npm run e2e:offline`. Dev-режим офлайн-баги НЕ воспроизводит.
 3. E2e-офлайн-ассерты: страница отдаёт контент **и** консоль чистая (без `Failed to fetch RSC payload`). `page.route` не перехватывает запросы, прошедшие через SW.
 4. «Баг только на проде» — СНАЧАЛА проверь свежесть задеплоенного бандла (timestamp `out/` vs коммит фичи, SW может отдавать stale precache), потом смотри исходники.
 5. На проде есть тест-аккаунт `claude-offline-test` для e2e/офлайн-проверок — не удалять. Smoke после деплоя — полный критический путь (создание аккаунта через invite + cleanup), а не «GET /login отдал 200».

@@ -235,15 +235,20 @@ test.describe('Раскладка песни — смена тональност
     expect(keyBefore, 'селектор тональности должен показывать действующую тональность').toBeTruthy();
 
     await page.locator('[data-song-key-picker-toggle]').click();
-    const options = page.locator('[data-song-key-picker-options] button');
-    await options.first().waitFor({ state: 'visible', timeout: 5_000 });
+    // Тональность меняется слайдером полутонов относительно исходной (`keyByOffset`):
+    // клавиатурой, а не `fill` — нужен нативный input-event, который слышит React.
+    const semitones = page.locator('[data-song-key-picker-semitone-slider]');
+    await semitones.waitFor({ state: 'visible', timeout: 5_000 });
+    await semitones.focus();
+    // Целый тон: сдвиг заведомо ненулевой и меняет ширину аккордов.
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
 
-    // Берём заведомо другую тональность, чтобы сдвиг был ненулевым.
-    const target = (await options.allTextContents()).find((label) => label.trim() !== keyBefore?.trim());
-    expect(target, 'в списке должна быть тональность, отличная от действующей').toBeTruthy();
-    await page.locator('[data-song-key-picker-options] button', { hasText: new RegExp(`^${(target as string).trim()}$`) }).first().click();
+    await expect(page.locator('[data-song-key-picker-value]')).not.toHaveText(keyBefore?.trim() as string);
 
-    await expect(page.locator('[data-song-key-picker-value]')).toHaveText((target as string).trim());
+    // Шторка перекрывает лист — меряем геометрию только после её закрытия.
+    await page.locator('[data-bottom-sheet-close-button]').click();
+    await expect(page.locator('[data-song-key-picker-panel]')).toHaveCount(0);
 
     const countAfter = await waitForStableSheets(page);
     const geo = await measureSheets(page);
@@ -263,6 +268,7 @@ test.describe('Раскладка песни — смена тональност
     expect(countBefore, 'листы должны быть посчитаны и до, и после').toBeGreaterThan(0);
 
     // Личная тональность остаётся у песни — убираем её, чтобы не влиять на другие тесты.
+    await page.locator('[data-song-key-picker-toggle]').click();
     await page.locator('[data-song-key-picker-reset]').click();
     await expect(page.locator('[data-song-key-picker-reset]')).toHaveCount(0);
   });

@@ -33,3 +33,14 @@ export function formatSetlistDate(dateStr: string | null | undefined): string | 
   const monthName = MONTH_GENITIVE[month - 1];
   return `${weekday}, ${day} ${monthName}`;
 }
+
+/**
+ * Отметка времени сохранённого черновика в «27 июля, 14:30» — для плашки восстановления.
+ * Здесь `Date` из epoch-мс (не разбор ISO-строки), так что UTC-капкана из `formatSetlistDate`
+ * нет: значение уже абсолютное, локальная зона применяется штатно.
+ */
+export function formatDraftSavedAt(timestamp: number): string {
+  const date = new Date(timestamp);
+  const time = `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  return `${date.getDate()} ${MONTH_GENITIVE[date.getMonth()]}, ${time}`;
+}

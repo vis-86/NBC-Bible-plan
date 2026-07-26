@@ -1,15 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { motion, useReducedMotion } from 'motion/react';
 import { SearchBar } from '@/shared/components/ui/SearchBar';
+import { PageHeader } from '@/shared/components/layout/PageHeader';
+import { useIsOnline } from '@/shared/hooks/useIsOnline';
 import { useSongSearch } from '@/features/songs/hooks/useSongSearch';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 import { useSetlistDraft } from '../hooks/useSetlistDraft';
 import { useSaveSetlist } from '../hooks/useSaveSetlist';
 import { nextSundayISO, defaultSetlistTitle } from '../lib/setlistDefaults';
+import { formatDraftSavedAt } from '../lib/formatSetlistDate';
 import { SetlistSongPickRow } from './SetlistSongPickRow';
 import { SelectedChipsRow } from './SelectedChipsRow';
 import { SetlistConfirmStep } from './SetlistConfirmStep';
@@ -32,7 +35,11 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
   const router = useRouter();
   const reduceMotion = useReducedMotion();
   const isWideLayout = useMediaQuery(SETLIST_WIDE_LAYOUT_QUERY);
-  const { draft, toggleSong, removeSong, reorderSongs, setStep, setTitle, setDate, clear } = useSetlistDraft();
+  // Запись сетов online-only (осознанное исключение из offline-first, см. docs/offline-pwa.md):
+  // в обоих layout'ах «Сохранить» блокируется офлайн, чтобы не ронять запрос в таймаут.
+  const isOnline = useIsOnline();
+  const { draft, restoredAt, dismissRestored, toggleSong, removeSong, reorderSongs, setStep, setTitle, setDate, clear } =
+    useSetlistDraft();
   const { create, submitting, error } = useSaveSetlist();
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'selected'>('all');
@@ -70,6 +77,20 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
     router.push('/dashboard/setlists');
   };
 
+  /**
+   * В широком layout шага «Далее» нет, поэтому дефолты (название + ближайшее воскресенье)
+   * проставляются один раз при входе — иначе поля пустые и «Сохранить» заблокирован.
+   * Ref, а не зависимость от `draft`: иначе очищенное вручную название сразу возвращалось бы.
+   */
+  const wideDefaultsApplied = useRef(false);
+  useEffect(() => {
+    if (!isWideLayout || wideDefaultsApplied.current) return;
+    wideDefaultsApplied.current = true;
+    const sunday = draft.date ?? nextSundayISO();
+    if (!draft.date) setDate(sunday);
+    if (draft.title.trim().length === 0) setTitle(defaultSetlistTitle(sunday));
+  }, [isWideLayout, draft.date, draft.title, setDate, setTitle]);
+
   /** Переход на шаг 2 заполняет пустые название/дату дефолтами (ближайшее воскресенье). */
   const handleNext = () => {
     if (!hasSelection) return;
@@ -79,12 +100,54 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
     setStep('confirm');
   };
 
+  /**
+   * Сброс восстановленного черновика. Ref дефолтов тоже сбрасываем: `clear()` обнуляет
+   * название и дату, и без этого широкий layout остался бы с пустыми полями и
+   * заблокированным «Сохранить» — эффект ниже перезаполнит их дефолтами заново.
+   */
+  const handleStartOver = () => {
+    clear();
+    wideDefaultsApplied.current = false;
+  };
+
   const handleSubmit = async () => {
     const id = await create({ title: draft.title.trim(), date: draft.date, songIds: draft.songIds });
     if (id === null) return; // Текст ошибки уже в `error`, черновик сохраняем для повтора.
     clear();
     router.replace(`/dashboard/setlist?id=${encodeURIComponent(id)}&created=1`);
   };
+
+  /**
+   * Черновик живёт до недели, поэтому подставлять прошлый состав молча нельзя —
+   * плашка объясняет, откуда взялись песни, и даёт выход одним тапом.
+   */
+  const restoredBanner =
+    restoredAt === null ? null : (
+      <div
+        role="status"
+        data-setlist-builder-restored
+        className="flex items-center gap-2 border-b border-app-border bg-app-surface-muted px-4 py-2 text-sm text-app-text-secondary"
+      >
+        <span className="min-w-0 flex-1 truncate">Восстановлен черновик от {formatDraftSavedAt(restoredAt)}</span>
+        <button
+          type="button"
+          data-setlist-builder-restored-reset
+          onClick={handleStartOver}
+          className="shrink-0 rounded-app-sm px-2 py-1 font-medium text-app-primary transition-transform active:scale-95"
+        >
+          Начать заново
+        </button>
+        <button
+          type="button"
+          data-setlist-builder-restored-dismiss
+          aria-label="Скрыть сообщение"
+          onClick={dismissRestored}
+          className="shrink-0 rounded-app-sm p-1 text-app-text-muted transition-transform active:scale-90"
+        >
+          <X size={16} />
+        </button>
+      </div>
+    );
 
   const pickList = (
     <div role="listbox" aria-multiselectable="true" data-setlist-builder-pick-list className="flex flex-col gap-2">
@@ -115,64 +178,76 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
   // выбранное и так постоянно на экране в правой колонке.
   if (isWideLayout) {
     return (
-      <div data-setlist-builder className="flex min-h-0 flex-1 gap-4 p-4">
-        <div className="flex min-h-0 w-2/3 flex-col gap-3">
-          <SearchBar onSearch={setQuery} placeholder="Поиск по песням" />
-          <div className="min-h-0 flex-1 overflow-y-auto">{pickList}</div>
-        </div>
-        <div className="flex min-h-0 w-1/3 flex-col gap-4 overflow-y-auto border-l border-app-border pl-4">
-          <div>
-            <label
-              htmlFor="setlist-title-input-desktop"
-              className="mb-1.5 block text-sm font-medium text-app-text-secondary"
-            >
-              Название сета
-            </label>
-            <input
-              id="setlist-title-input-desktop"
-              data-setlist-builder-title-input
-              type="text"
-              maxLength={100}
-              value={draft.title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Например, Воскресное утро"
-              className="w-full rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
-            />
+      <div data-setlist-builder className="flex min-h-0 flex-1 flex-col">
+        {/* Общая шапка «просмотра»: стрелка «назад» = отмена создания (с подтверждением). */}
+        <PageHeader title="Новый сет" backAriaLabel="Отменить создание сета" onBack={handleCancel} />
+        {restoredBanner}
+
+        <div className="flex min-h-0 flex-1 gap-4 p-4">
+          <div className="flex min-h-0 w-2/3 flex-col gap-3">
+            <SearchBar onSearch={setQuery} placeholder="Поиск по песням" />
+            <div className="min-h-0 flex-1 overflow-y-auto">{pickList}</div>
           </div>
-          <div>
-            <label
-              htmlFor="setlist-date-input-desktop"
-              className="mb-1.5 block text-sm font-medium text-app-text-secondary"
+          <div className="flex min-h-0 w-1/3 flex-col gap-4 overflow-y-auto border-l border-app-border pl-4">
+            <div>
+              <label
+                htmlFor="setlist-title-input-desktop"
+                className="mb-1.5 block text-sm font-medium text-app-text-secondary"
+              >
+                Название сета
+              </label>
+              <input
+                id="setlist-title-input-desktop"
+                data-setlist-builder-title-input
+                type="text"
+                maxLength={100}
+                value={draft.title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Например, Воскресное утро"
+                className="w-full rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="setlist-date-input-desktop"
+                className="mb-1.5 block text-sm font-medium text-app-text-secondary"
+              >
+                Дата
+              </label>
+              <input
+                id="setlist-date-input-desktop"
+                data-setlist-builder-date-input
+                type="date"
+                value={draft.date ?? ''}
+                onChange={(e) => setDate(e.target.value || null)}
+                className="w-full rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
+              />
+            </div>
+
+            <SetlistReorderList items={selectedItems} onReorder={reorderSongs} onRemove={removeSong} />
+
+            {!isOnline && (
+              <p role="alert" data-setlist-builder-offline-warning className="text-sm text-app-missed-text">
+                Нужен интернет, чтобы сохранить сет.
+              </p>
+            )}
+
+            {error && (
+              <p role="alert" className="text-sm text-app-missed-text">
+                {error}
+              </p>
+            )}
+
+            <button
+              type="button"
+              data-setlist-builder-submit-desktop
+              disabled={draft.title.trim().length === 0 || !hasSelection || submitting || !isOnline}
+              onClick={handleSubmit}
+              className="w-full rounded-app-md bg-app-primary px-4 py-2.5 text-sm font-semibold text-app-text-inverse disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Дата
-            </label>
-            <input
-              id="setlist-date-input-desktop"
-              data-setlist-builder-date-input
-              type="date"
-              value={draft.date ?? ''}
-              onChange={(e) => setDate(e.target.value || null)}
-              className="w-full rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
-            />
+              {submitting ? 'Сохранение…' : 'Сохранить'}
+            </button>
           </div>
-
-          <SetlistReorderList items={selectedItems} onReorder={reorderSongs} onRemove={removeSong} />
-
-          {error && (
-            <p role="alert" className="text-sm text-app-missed-text">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="button"
-            data-setlist-builder-submit-desktop
-            disabled={draft.title.trim().length === 0 || !hasSelection || submitting}
-            onClick={handleSubmit}
-            className="w-full rounded-app-md bg-app-primary px-4 py-2.5 text-sm font-semibold text-app-text-inverse disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {submitting ? 'Сохранение…' : 'Сохранить'}
-          </button>
         </div>
       </div>
     );
@@ -213,6 +288,8 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
           Выбрано: {draft.songIds.length}
         </span>
       </div>
+
+      {restoredBanner}
 
       <div className="sticky top-[57px] z-10 space-y-2 bg-app-surface px-4 py-2">
         <SearchBar onSearch={setQuery} placeholder="Поиск по песням" />

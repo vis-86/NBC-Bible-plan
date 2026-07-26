@@ -43,11 +43,13 @@ function pickRow(container: Element, title: string): HTMLElement {
 
 describe('SetlistBuilder', () => {
   beforeEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
     matchesWide = false;
   });
   afterEach(() => {
     vi.clearAllMocks();
+    // Спай на `navigator.onLine` — геттер прототипа: без restore он утечёт в соседние тесты.
+    vi.restoreAllMocks();
     vi.useRealTimers();
   });
 
@@ -83,9 +85,43 @@ describe('SetlistBuilder', () => {
     expect(fab.disabled).toBe(false);
   });
 
-  it('битый JSON в sessionStorage не роняет экран билдера', () => {
-    sessionStorage.setItem('setlists:draft', '{broken');
+  it('битый JSON в localStorage не роняет экран билдера', () => {
+    localStorage.setItem('setlists:draft', '{broken');
     expect(() => render(<SetlistBuilder songs={SONGS} />)).not.toThrow();
+  });
+
+  it('восстановленный черновик показывает плашку, «Начать заново» очищает выбор', () => {
+    localStorage.setItem(
+      'setlists:draft',
+      JSON.stringify({ songIds: [3], title: 'Вчерашний', date: null, step: 'pick', savedAt: Date.now() - 60_000 })
+    );
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    expect(container.querySelector('[data-setlist-builder-restored]')).toBeTruthy();
+    expect(pickRow(container, 'Аллилуйя').getAttribute('aria-selected')).toBe('true');
+
+    fireEvent.click(container.querySelector('[data-setlist-builder-restored-reset]') as HTMLElement);
+
+    expect(container.querySelector('[data-setlist-builder-restored]')).toBeNull();
+    expect(pickRow(container, 'Аллилуйя').getAttribute('aria-selected')).toBe('false');
+    expect(localStorage.getItem('setlists:draft')).toBeNull();
+  });
+
+  it('✕ на плашке скрывает её, но черновик остаётся', () => {
+    localStorage.setItem(
+      'setlists:draft',
+      JSON.stringify({ songIds: [3], title: '', date: null, step: 'pick', savedAt: Date.now() - 60_000 })
+    );
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+
+    fireEvent.click(container.querySelector('[data-setlist-builder-restored-dismiss]') as HTMLElement);
+
+    expect(container.querySelector('[data-setlist-builder-restored]')).toBeNull();
+    expect(pickRow(container, 'Аллилуйя').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('новый заход без черновика плашку не показывает', () => {
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    expect(container.querySelector('[data-setlist-builder-restored]')).toBeNull();
   });
 
   it('стрелок «Вверх»/«Вниз» больше нет — порядок задаётся только drag\'ом', () => {
@@ -148,12 +184,67 @@ describe('SetlistBuilder', () => {
     expect(selectedTab.disabled).toBe(false);
   });
 
-  it('широкий layout (≥768px): рендерит панель, не рендерит FAB/шапку с ✕', () => {
+  it('широкий layout (≥768px): рендерит панель и шапку со стрелкой «назад», не рендерит FAB «Далее»', () => {
     matchesWide = true;
     const { container } = render(<SetlistBuilder songs={SONGS} />);
     expect(container.querySelector('[data-setlist-builder-next]')).toBeNull();
-    expect(container.querySelector('[data-setlist-builder-cancel]')).toBeNull();
     expect(container.querySelector('[data-setlist-builder-submit-desktop]')).toBeTruthy();
+    expect(container.querySelector('[data-page-header-back]')).toBeTruthy();
+  });
+
+  it('широкий layout: стрелка «назад» без выбора уходит к списку сетов без подтверждения', () => {
+    matchesWide = true;
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    fireEvent.click(container.querySelector('[data-page-header-back]') as HTMLElement);
+
+    expect(pushMock).toHaveBeenCalledWith('/dashboard/setlists');
+  });
+
+  it('широкий layout: название и дата преднаполнены дефолтами без шага «Далее»', () => {
+    // 2026-07-27 — понедельник, ближайшее вс — 2026-08-02.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(2026, 6, 27, 12));
+    matchesWide = true;
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+
+    expect((container.querySelector('[data-setlist-builder-date-input]') as HTMLInputElement).value).toBe(
+      '2026-08-02'
+    );
+    expect((container.querySelector('[data-setlist-builder-title-input]') as HTMLInputElement).value).toBe(
+      'Вск. Служение 02.08.2026'
+    );
+  });
+
+  it('широкий layout: офлайн показывает предупреждение и блокирует «Сохранить»', () => {
+    matchesWide = true;
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    fireEvent.click(pickRow(container, 'Аллилуйя'));
+
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+    fireEvent(window, new Event('offline'));
+
+    expect(container.querySelector('[data-setlist-builder-offline-warning]')).toBeTruthy();
+    expect((container.querySelector('[data-setlist-builder-submit-desktop]') as HTMLButtonElement).disabled).toBe(
+      true
+    );
+
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    fireEvent(window, new Event('online'));
+
+    expect(container.querySelector('[data-setlist-builder-offline-warning]')).toBeNull();
+    expect((container.querySelector('[data-setlist-builder-submit-desktop]') as HTMLButtonElement).disabled).toBe(
+      false
+    );
+  });
+
+  it('широкий layout: очищенное вручную название не восстанавливается дефолтом', () => {
+    matchesWide = true;
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    const titleInput = container.querySelector('[data-setlist-builder-title-input]') as HTMLInputElement;
+
+    fireEvent.change(titleInput, { target: { value: '' } });
+
+    expect(titleInput.value).toBe('');
   });
 
   it('переключение ширины не теряет выбор (черновик общий для обоих режимов)', () => {
