@@ -4,6 +4,7 @@ import { StrictMode } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import {
   useSongViewSettings,
+  resolveSongViewMode,
   SONG_VIEW_SETTINGS_STORAGE_KEY,
   DEFAULT_SONG_VIEW_SETTINGS,
 } from './useSongViewSettings';
@@ -23,10 +24,10 @@ describe('useSongViewSettings', () => {
   it('читает сохранённые настройки из localStorage', () => {
     localStorage.setItem(
       SONG_VIEW_SETTINGS_STORAGE_KEY,
-      JSON.stringify({ mode: 'sheets', columns: 2, fontSize: 20, density: 'compact', showChords: false, showHeader: false })
+      JSON.stringify({ columns: 2, fontSize: 20, density: 'compact', showChords: false, showHeader: false })
     );
     const { result } = renderHook(() => useSongViewSettings());
-    expect(result.current[0]).toEqual({ mode: 'sheets', columns: 2, fontSize: 20, density: 'compact', showChords: false, showHeader: false });
+    expect(result.current[0]).toEqual({ columns: 2, fontSize: 20, density: 'compact', showChords: false, showHeader: false });
   });
 
   it.each([
@@ -42,7 +43,6 @@ describe('useSongViewSettings', () => {
     localStorage.setItem(LEGACY_KEY, '24');
     const { result } = renderHook(() => useSongViewSettings());
     expect(result.current[0].fontSize).toBe(24);
-    expect(result.current[0].mode).toBe('scroll');
     expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
     expect(JSON.parse(localStorage.getItem(SONG_VIEW_SETTINGS_STORAGE_KEY)!).fontSize).toBe(24);
   });
@@ -70,14 +70,21 @@ describe('useSongViewSettings', () => {
     const { result } = renderHook(() => useSongViewSettings());
 
     act(() => {
-      result.current[1]({ mode: 'paged', fontSize: 999 });
+      result.current[1]({ columns: 2, fontSize: 999 });
     });
 
-    expect(result.current[0].mode).toBe('paged');
+    expect(result.current[0].columns).toBe(2);
     expect(result.current[0].fontSize).toBe(32);
     const stored = JSON.parse(localStorage.getItem(SONG_VIEW_SETTINGS_STORAGE_KEY)!);
-    expect(stored.mode).toBe('paged');
+    expect(stored.columns).toBe(2);
     expect(stored.fontSize).toBe(32);
+  });
+
+  it('сохранённый со старой версии {"mode":"paged"} игнорируется, парсинг не падает', () => {
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ mode: 'paged', fontSize: 18 }));
+    const { result } = renderHook(() => useSongViewSettings());
+    expect(result.current[0]).not.toHaveProperty('mode');
+    expect(result.current[0].fontSize).toBe(18);
   });
 
   it('graceful fallback при недоступном localStorage', () => {
@@ -91,5 +98,16 @@ describe('useSongViewSettings', () => {
 
     getItemSpy.mockRestore();
     warnSpy.mockRestore();
+  });
+});
+
+describe('resolveSongViewMode', () => {
+  it.each([
+    [1, false, 'scroll'],
+    [1, true, 'scroll'],
+    [2, false, 'scroll'],
+    [2, true, 'sheets'],
+  ] as const)('columns=%s, isWideLayout=%s → %s', (columns, isWideLayout, expected) => {
+    expect(resolveSongViewMode(columns, isWideLayout)).toBe(expected);
   });
 });

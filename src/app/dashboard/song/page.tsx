@@ -7,7 +7,7 @@ import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { useSong } from '@/features/songs/hooks/useSong';
-import { useSongViewSettings, SONG_WIDE_LAYOUT_QUERY } from '@/features/songs/hooks/useSongViewSettings';
+import { useSongViewSettings, resolveSongViewMode, SONG_WIDE_LAYOUT_QUERY } from '@/features/songs/hooks/useSongViewSettings';
 import { SongView } from '@/features/songs/components/SongView';
 import { SongKeyPicker } from '@/features/songs/components/SongKeyPicker';
 import { SongViewSettings } from '@/features/songs/components/SongViewSettings';
@@ -62,7 +62,12 @@ function SongPageContent() {
   // (та же константа) — иначе сохранённый на планшете `sheets` включится на телефоне,
   // где контрола нет и выключить его нечем.
   const isWideLayout = useMediaQuery(SONG_WIDE_LAYOUT_QUERY);
-  const mode = isWideLayout ? viewSettings.mode : 'scroll';
+  const mode = resolveSongViewMode(viewSettings.columns, isWideLayout);
+  if (process.env.NODE_ENV !== 'production') {
+    // Связь «колонки → режим» неявная — при жалобе «включил 2 колонки, а листов нет»
+    // это первая строка, которую смотрят.
+    console.debug('[SongPage] view mode', { columns: viewSettings.columns, isWideLayout, mode });
+  }
   // Автоскрытие шапки меняет высоту вьюпорта — в постраничных режимах это
   // пересборка листов на каждый скролл, поэтому шапка там всегда видна.
   const headerHidden = mode === 'scroll' ? hidden : false;
@@ -91,11 +96,10 @@ function SongPageContent() {
 
   const pagerHint = usePagerHint();
 
-  // Свайп между песнями сета: работает всюду, кроме 'paged' — там горизонталь занята
-  // листанием страниц одной песни (§6 решения), и при открытой любой шторке страницы
+  // Свайп между песнями сета: не работает при открытой любой шторке страницы
   // (жест уже принадлежит ей).
   const swipeEnabled =
-    playback.inSetlist && mode !== 'paged' && !isViewSettingsOpen && !isKeyPickerOpen && !isSetlistSheetOpen;
+    playback.inSetlist && !isViewSettingsOpen && !isKeyPickerOpen && !isSetlistSheetOpen;
 
   const nextSongTitle = playback.nextId != null ? songs.find((s) => s.id === String(playback.nextId))?.title ?? '' : '';
   const prevSongTitle = playback.prevId != null ? songs.find((s) => s.id === String(playback.prevId))?.title ?? '' : '';
@@ -138,6 +142,7 @@ function SongPageContent() {
               title={song?.title ?? ''}
               onBack={handleBack}
               backAriaLabel="Назад к списку"
+              density="compact"
               right={
                 <div className="flex items-center gap-1">
                   {song && showKeyPicker && (
@@ -265,7 +270,7 @@ function SongPageContent() {
         )}
 
         {/* Нижняя таблетка навигации по сету — правый край отдан SongToolStack. */}
-        {playback.inSetlist && mode !== 'paged' && (
+        {playback.inSetlist && (
           <SetlistPagerDock
             index={playback.index}
             total={playback.total}

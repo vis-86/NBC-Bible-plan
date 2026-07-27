@@ -4,6 +4,7 @@ import React from 'react';
 import { ReadingSettings as ReadingSettingsType } from '@/features/reading/types';
 import { getSelfHostedTranslationOptions } from '@/lib/bible-translations';
 import { ChoiceGroup } from '@/shared/components/ui/ChoiceGroup';
+import { RangeSlider } from '@/shared/components/ui/RangeSlider';
 
 export interface ReadingSettingsFormProps {
   settings: ReadingSettingsType;
@@ -46,16 +47,12 @@ export function ReadingSettingsForm({
         <label className="mb-2 block text-sm font-medium text-app-text-secondary">
           Размер шрифта: {settings.font_size}px
         </label>
-        <input
-          type="range"
-          min="14"
-          max="28"
+        <RangeSlider
+          min={14}
+          max={28}
           value={settings.font_size}
           disabled={disabled}
-          onChange={(e) => {
-            onSettingsChange({ ...settings, font_size: parseInt(e.target.value, 10) });
-          }}
-          className="h-2 w-full cursor-pointer appearance-none rounded-app-sm bg-app-surface-muted accent-app-primary disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2"
+          onChange={(value) => onSettingsChange({ ...settings, font_size: value })}
         />
         <div className="mt-1 flex justify-between text-xs text-app-text-muted">
           <span>14px</span>
@@ -67,17 +64,13 @@ export function ReadingSettingsForm({
         <label className="mb-2 block text-sm font-medium text-app-text-secondary">
           Межстрочный интервал: {settings.line_height.toFixed(1)}
         </label>
-        <input
-          type="range"
-          min="1.2"
-          max="2.5"
-          step="0.1"
+        <RangeSlider
+          min={1.2}
+          max={2.5}
+          step={0.1}
           value={settings.line_height}
           disabled={disabled}
-          onChange={(e) => {
-            onSettingsChange({ ...settings, line_height: parseFloat(e.target.value) });
-          }}
-          className="h-2 w-full cursor-pointer appearance-none rounded-app-sm bg-app-surface-muted accent-app-primary disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2"
+          onChange={(value) => onSettingsChange({ ...settings, line_height: value })}
         />
         <div className="mt-1 flex justify-between text-xs text-app-text-muted">
           <span>1.2</span>

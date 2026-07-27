@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { BottomSheet } from '@/shared/components/ui/BottomSheet';
+import { RangeSlider } from '@/shared/components/ui/RangeSlider';
 import { cn } from '@/shared/utils/cn';
 import { keyByOffset, keyFromParts, semitonesBetween, splitKey, type KeyAccidental, type KeyBase, type SongKeySource } from '../lib/songKey';
 
@@ -185,14 +186,12 @@ export function SongKeyPicker({
 
           <div data-section="semitones">
             <label className="mb-2 block text-sm font-medium text-app-text-secondary">Полутона: {offset > 0 ? `+${offset}` : offset}</label>
-            <input
-              type="range"
+            <RangeSlider
               min={SEMITONE_MIN}
               max={SEMITONE_MAX}
               value={offset}
               data-song-key-picker-semitone-slider
-              onChange={(e) => selectOffset(parseInt(e.target.value, 10))}
-              className="h-2 w-full cursor-pointer appearance-none rounded-app-sm bg-app-surface-muted accent-app-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2"
+              onChange={selectOffset}
             />
             <div className="mt-1 flex justify-between text-xs text-app-text-muted">
               <span>{SEMITONE_MIN}</span>
@@ -212,14 +211,12 @@ export function SongKeyPicker({
                 'Каподастр'
               )}
             </label>
-            <input
-              type="range"
+            <RangeSlider
               min={0}
               max={CAPO_MAX}
               value={capo}
               data-song-key-picker-capo-slider
-              onChange={(e) => onCapoChange(parseInt(e.target.value, 10))}
-              className="h-2 w-full cursor-pointer appearance-none rounded-app-sm bg-app-surface-muted accent-app-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2"
+              onChange={onCapoChange}
             />
             <div className="mt-1 flex justify-between text-xs text-app-text-muted">
               {Array.from({ length: CAPO_MAX + 1 }, (_, fret) => (

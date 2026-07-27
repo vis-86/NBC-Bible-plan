@@ -13,10 +13,8 @@ import { appPath, login } from '../offline/helpers';
 
 const WIDE = { width: 1024, height: 768 };
 const NARROW = { width: 390, height: 844 };
-const COLUMN_GAP_PX = 32; // .cproColumn/.sheet-flow column-gap: 2rem
 
 interface Settings {
-  mode: 'scroll' | 'sheets' | 'paged';
   columns: 1 | 2;
   fontSize: number;
   density: 'comfortable' | 'compact';
@@ -25,7 +23,6 @@ interface Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  mode: 'scroll',
   columns: 1,
   fontSize: 17,
   density: 'comfortable',
@@ -130,98 +127,52 @@ test.afterAll(async () => {
 });
 
 test.describe('Раскладка песни — листы (sheets)', () => {
-  for (const columns of [1, 2] as const) {
-    for (const fontSize of [12, 18, 30]) {
-      test(`нет пустых листов и потерь секций: ${columns} кол. × ${fontSize}px`, async () => {
-        await openSong(page, songId, WIDE, { mode: 'sheets', columns, fontSize });
-        const count = await waitForStableSheets(page);
-        const geo = await measureSheets(page);
+  // Одноколоночных листов больше нет by design (resolveSongViewMode: sheets только при
+  // columns === 2 && isWideLayout) — параметризация по columns больше не нужна.
+  const columns = 2;
+  for (const fontSize of [12, 18, 30]) {
+    test(`нет пустых листов и потерь секций: ${columns} кол. × ${fontSize}px`, async () => {
+      await openSong(page, songId, WIDE, { columns, fontSize });
+      const count = await waitForStableSheets(page);
+      const geo = await measureSheets(page);
 
-        expect(geo.totalSections, 'песня должна иметь хотя бы одну секцию').toBeGreaterThan(0);
-        expect(geo.sheets).toHaveLength(count);
+      expect(geo.totalSections, 'песня должна иметь хотя бы одну секцию').toBeGreaterThan(0);
+      expect(geo.sheets).toHaveLength(count);
 
-        // 1. Ни одного пустого листа: на каждом листе видна хотя бы одна секция.
-        geo.sheets.forEach((sheet, i) => {
-          expect(sheet.visible.length, `лист ${i + 1}/${count} не должен быть пустым`).toBeGreaterThan(0);
-        });
-
-        // 2. Левый край содержимого одинаков на всех листах. Сравниваем ТОЛЬКО левую
-        // колонку: при 2 колонках и крупном шрифте лист может нести контент только в
-        // правой колонке (это не дрейф). Дрейф раскладки (translate на width, а не на
-        // pitch) сдвинул бы именно левый край — его и ловим.
-        const leftColOrigins = geo.sheets
-          .map((sheet) => {
-            const band = sheet.sheetWidth / columns; // ширина одной колонки листа
-            const leftCol = sheet.visible.map((v) => v.left).filter((l) => l >= -2 && l < band);
-            return leftCol.length ? Math.min(...leftCol) : null;
-          })
-          .filter((x): x is number => x !== null);
-        expect(leftColOrigins.length, 'хотя бы один лист должен иметь контент в левой колонке').toBeGreaterThan(0);
-        const spread = Math.max(...leftColOrigins) - Math.min(...leftColOrigins);
-        expect(spread, `левый край левой колонки должен совпадать на всех листах, разброс=${spread}`).toBeLessThanOrEqual(3);
-
-        // 3. Объединение секций по листам покрывает все секции песни (ничего не потеряно).
-        const seen = new Set<number>();
-        geo.sheets.forEach((sheet) => sheet.visible.forEach((v) => seen.add(v.idx)));
-        expect(seen.size, 'все секции песни должны быть видны хотя бы на одном листе').toBe(geo.totalSections);
-
-        // 4. Низ последнего листа не обрезан: последняя секция помещается в лист.
-        const last = geo.sheets[geo.sheets.length - 1];
-        const maxClipped = Math.max(...last.visible.map((v) => v.clippedBottom));
-        expect(maxClipped, 'содержимое последнего листа не должно уходить под нижний край').toBeLessThanOrEqual(2);
-
-        // 5. Горизонтального скролла нет.
-        expect(geo.docNoHScroll, 'страница не должна иметь горизонтального скролла').toBe(true);
+      // 1. Ни одного пустого листа: на каждом листе видна хотя бы одна секция.
+      geo.sheets.forEach((sheet, i) => {
+        expect(sheet.visible.length, `лист ${i + 1}/${count} не должен быть пустым`).toBeGreaterThan(0);
       });
-    }
+
+      // 2. Левый край содержимого одинаков на всех листах. Сравниваем ТОЛЬКО левую
+      // колонку: при 2 колонках и крупном шрифте лист может нести контент только в
+      // правой колонке (это не дрейф). Дрейф раскладки (translate на width, а не на
+      // pitch) сдвинул бы именно левый край — его и ловим.
+      const leftColOrigins = geo.sheets
+        .map((sheet) => {
+          const band = sheet.sheetWidth / columns; // ширина одной колонки листа
+          const leftCol = sheet.visible.map((v) => v.left).filter((l) => l >= -2 && l < band);
+          return leftCol.length ? Math.min(...leftCol) : null;
+        })
+        .filter((x): x is number => x !== null);
+      expect(leftColOrigins.length, 'хотя бы один лист должен иметь контент в левой колонке').toBeGreaterThan(0);
+      const spread = Math.max(...leftColOrigins) - Math.min(...leftColOrigins);
+      expect(spread, `левый край левой колонки должен совпадать на всех листах, разброс=${spread}`).toBeLessThanOrEqual(3);
+
+      // 3. Объединение секций по листам покрывает все секции песни (ничего не потеряно).
+      const seen = new Set<number>();
+      geo.sheets.forEach((sheet) => sheet.visible.forEach((v) => seen.add(v.idx)));
+      expect(seen.size, 'все секции песни должны быть видны хотя бы на одном листе').toBe(geo.totalSections);
+
+      // 4. Низ последнего листа не обрезан: последняя секция помещается в лист.
+      const last = geo.sheets[geo.sheets.length - 1];
+      const maxClipped = Math.max(...last.visible.map((v) => v.clippedBottom));
+      expect(maxClipped, 'содержимое последнего листа не должно уходить под нижний край').toBeLessThanOrEqual(2);
+
+      // 5. Горизонтального скролла нет.
+      expect(geo.docNoHScroll, 'страница не должна иметь горизонтального скролла').toBe(true);
+    });
   }
-});
-
-test.describe('Раскладка песни — постраничный режим (paged)', () => {
-  test('шаг листания = clientWidth + column-gap, без вертикального скролла', async () => {
-    await openSong(page, songId, WIDE, { mode: 'paged', columns: 2, fontSize: 18 });
-
-    const pager = page.locator('[data-song-view-pager]');
-    await pager.waitFor({ state: 'visible', timeout: 10_000 });
-
-    const flow = page.locator('[data-song-view-flow]');
-    const expectedPitch = await flow.evaluate((el) => {
-      const gap = parseFloat(getComputedStyle(el).columnGap);
-      return el.clientWidth + (Number.isFinite(gap) ? gap : 0);
-    });
-    // column-gap задан в CSS как 2rem — проверяем, что замер соответствует ожиданию.
-    expect(expectedPitch).toBeGreaterThan(COLUMN_GAP_PX);
-
-    expect(await flow.evaluate((el) => el.scrollLeft)).toBe(0);
-
-    await page.locator('[data-song-view-pager-next]').click();
-
-    // scroll-behavior: smooth — ждём, пока scrollLeft устаканится.
-    let prevLeft = -1;
-    await expect
-      .poll(
-        async () => {
-          const left = await flow.evaluate((el) => Math.round(el.scrollLeft));
-          const stable = left === prevLeft;
-          prevLeft = left;
-          return stable ? left : -1;
-        },
-        { timeout: 5_000, intervals: [150, 150, 200] },
-      )
-      .toBeGreaterThan(0);
-
-    const scrollLeft = await flow.evaluate((el) => el.scrollLeft);
-    expect(Math.abs(scrollLeft - expectedPitch), `шаг листания должен быть ${expectedPitch}px, получено ${scrollLeft}px`).toBeLessThanOrEqual(2);
-
-    await expect(page.locator('[data-song-view-pager-count]')).toContainText('2 /');
-
-    // Постраничный режим: страница = экран, вертикального скролла быть не должно.
-    const noVScroll = await page.evaluate(() => {
-      const scroller = document.querySelector('[data-song-view]')?.closest<HTMLElement>('.overflow-y-auto');
-      return scroller ? scroller.scrollHeight <= scroller.clientHeight + 2 : null;
-    });
-    expect(noVScroll, 'в paged не должно быть вертикального скролла').toBe(true);
-  });
 });
 
 test.describe('Раскладка песни — смена тональности (M4)', () => {
@@ -229,7 +180,7 @@ test.describe('Раскладка песни — смена тональност
   // Если сдвиг не входит в триггеры `useSheets`, листы остаются от прежней тональности:
   // на экране это пустой или обрезанный лист. jsdom этого не видит — только браузер.
   test('после смены тональности листы пересобираются, пустых нет', async () => {
-    await openSong(page, songId, WIDE, { mode: 'sheets', columns: 2, fontSize: 18 });
+    await openSong(page, songId, WIDE, { columns: 2, fontSize: 18 });
     const countBefore = await waitForStableSheets(page);
     const keyBefore = await page.locator('[data-song-key-picker-value]').textContent();
     expect(keyBefore, 'селектор тональности должен показывать действующую тональность').toBeTruthy();
@@ -275,9 +226,10 @@ test.describe('Раскладка песни — смена тональност
 });
 
 test.describe('Раскладка песни — без горизонтального скролла', () => {
-  test('узкий экран (390px): режим приведён к scroll, скролла по X нет', async () => {
-    // Даже сохранённый sheets обязан выключиться на телефоне (SONG_WIDE_LAYOUT_QUERY).
-    await openSong(page, songId, NARROW, { mode: 'sheets', columns: 2, fontSize: 18 });
+  test('узкий экран (390px): сохранённые 2 колонки дают scroll (resolveSongViewMode), скролла по X нет', async () => {
+    // Даже сохранённые 2 колонки обязаны свестись к scroll на телефоне
+    // (SONG_WIDE_LAYOUT_QUERY) — resolveSongViewMode требует ещё и isWideLayout.
+    await openSong(page, songId, NARROW, { columns: 2, fontSize: 18 });
 
     await expect(page.locator('[data-song-view]')).toHaveAttribute('data-mode', 'scroll');
     await expect(page.locator('[data-song-view-sheets]')).toHaveCount(0);
@@ -286,8 +238,8 @@ test.describe('Раскладка песни — без горизонтальн
     expect(noHScroll, 'на 390px не должно быть горизонтального скролла').toBe(true);
   });
 
-  test('планшет (1024px): режим scroll без горизонтального скролла', async () => {
-    await openSong(page, songId, WIDE, { mode: 'scroll', columns: 1, fontSize: 18 });
+  test('планшет (1024px): 1 колонка даёт scroll без горизонтального скролла', async () => {
+    await openSong(page, songId, WIDE, { columns: 1, fontSize: 18 });
 
     const noHScroll = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
     expect(noHScroll, 'на 1024px не должно быть горизонтального скролла').toBe(true);

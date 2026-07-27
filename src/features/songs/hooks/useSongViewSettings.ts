@@ -5,22 +5,21 @@ import { useCallback, useEffect, useState } from 'react';
 export const SONG_VIEW_SETTINGS_STORAGE_KEY = 'songs:view-settings';
 
 /**
- * Ниже этой ширины раскладочные настройки (`mode`, `columns`) не имеют смысла: вторая
- * колонка читаемой ширины не помещается, а листы/страницы на телефоне проигрывают
- * обычному скроллу. Панель настроек прячет эти контролы, а потребитель раскладки
- * обязан читать ту же константу — иначе сохранённый с планшета `mode: 'sheets'`
- * включится на телефоне без возможности его выключить.
+ * Ниже этой ширины раскладочные настройки (`columns`, производный `mode`) не имеют
+ * смысла: вторая колонка читаемой ширины не помещается, а листы на телефоне проигрывают
+ * обычному скроллу. Панель настроек прячет эти контролы, а `resolveSongViewMode` обязан
+ * получать ту же константу — иначе сохранённые с планшета `columns: 2` включат листы
+ * на телефоне без возможности их выключить.
  */
 export const SONG_WIDE_LAYOUT_QUERY = '(min-width: 640px)';
 /** Старый ключ (v1, только fontSize) — мигрируем из него один раз при первом чтении. */
 const LEGACY_FONT_SIZE_STORAGE_KEY = 'songs:font-size';
 
-export type SongViewMode = 'scroll' | 'sheets' | 'paged';
+export type SongViewMode = 'scroll' | 'sheets';
 export type SongViewDensity = 'comfortable' | 'compact';
 export type SongViewColumns = 1 | 2;
 
 export interface SongViewSettings {
-  mode: SongViewMode;
   columns: SongViewColumns;
   fontSize: number;
   density: SongViewDensity;
@@ -28,11 +27,10 @@ export interface SongViewSettings {
   showHeader: boolean;
 }
 
-const MIN_FONT_SIZE = 12;
-const MAX_FONT_SIZE = 32;
+export const MIN_FONT_SIZE = 12;
+export const MAX_FONT_SIZE = 32;
 
 export const DEFAULT_SONG_VIEW_SETTINGS: SongViewSettings = {
-  mode: 'scroll',
   columns: 1,
   fontSize: 17,
   density: 'comfortable',
@@ -40,8 +38,16 @@ export const DEFAULT_SONG_VIEW_SETTINGS: SongViewSettings = {
   showHeader: true,
 };
 
-const MODES: readonly SongViewMode[] = ['scroll', 'sheets', 'paged'];
 const DENSITIES: readonly SongViewDensity[] = ['comfortable', 'compact'];
+
+/**
+ * `mode` больше не персистится — второй источник истины расходился с `columns`
+ * (тот же класс бага, что дублирующийся ключ кэша). Единственное место, где режим
+ * выводится: и `page.tsx`, и тесты обязаны звать эту функцию, а не читать `mode` сами.
+ */
+export function resolveSongViewMode(columns: SongViewColumns, isWideLayout: boolean): SongViewMode {
+  return columns === 2 && isWideLayout ? 'sheets' : 'scroll';
+}
 
 let warnedStorageUnavailable = false;
 
@@ -57,13 +63,14 @@ function clampFontSize(value: number): number {
 
 function sanitize(raw: Partial<SongViewSettings> | null | undefined): SongViewSettings {
   const fontSize = typeof raw?.fontSize === 'number' && Number.isFinite(raw.fontSize) ? clampFontSize(raw.fontSize) : DEFAULT_SONG_VIEW_SETTINGS.fontSize;
-  const mode = raw?.mode && MODES.includes(raw.mode) ? raw.mode : DEFAULT_SONG_VIEW_SETTINGS.mode;
   const density = raw?.density && DENSITIES.includes(raw.density) ? raw.density : DEFAULT_SONG_VIEW_SETTINGS.density;
   const columns = raw?.columns === 2 ? 2 : DEFAULT_SONG_VIEW_SETTINGS.columns;
   const showChords = typeof raw?.showChords === 'boolean' ? raw.showChords : DEFAULT_SONG_VIEW_SETTINGS.showChords;
   const showHeader = typeof raw?.showHeader === 'boolean' ? raw.showHeader : DEFAULT_SONG_VIEW_SETTINGS.showHeader;
 
-  return { mode, columns, fontSize, density, showChords, showHeader };
+  // Старый JSON мог нести `mode` (до этого рефакторинга) — поле просто игнорируется:
+  // `Partial<SongViewSettings>` больше не объявляет его, а sanitize строит объект заново.
+  return { columns, fontSize, density, showChords, showHeader };
 }
 
 /** Читает legacy-ключ размера шрифта (миграция v1 → v2). Только чтение — см. `readSettings`. */

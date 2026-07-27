@@ -14,7 +14,6 @@ const NARROW = { width: 390, height: 640 }; // низкий вьюпорт → �
 const WIDE = { width: 1024, height: 768 };
 
 interface Settings {
-  mode: 'scroll' | 'sheets' | 'paged';
   columns: 1 | 2;
   fontSize: number;
   density: 'comfortable' | 'compact';
@@ -23,7 +22,6 @@ interface Settings {
 }
 
 const DEFAULT_SETTINGS: Settings = {
-  mode: 'scroll',
   columns: 1,
   fontSize: 17,
   density: 'comfortable',
@@ -206,13 +204,11 @@ test.describe('Автоскролл — режим scroll', () => {
   });
 });
 
-test.describe('Автоскролл — отсутствует в постраничных режимах', () => {
-  for (const mode of ['sheets', 'paged'] as const) {
-    test(`FAB отсутствует в DOM в режиме ${mode}`, async () => {
-      // Постраничные режимы существуют только на широком экране (SONG_WIDE_LAYOUT_QUERY).
-      await openSong(page, songId, WIDE, { mode, columns: 2, fontSize: 18 });
-      await expect(page.locator('[data-song-view]')).toHaveAttribute('data-mode', mode);
-      await expect(page.locator('[data-song-autoscroll]')).toHaveCount(0);
-    });
-  }
+test.describe('Автоскролл — отсутствует в режиме листов', () => {
+  test('columns: 2 на широком экране ⇒ FAB автоскролла скрыт', async () => {
+    // Режим sheets существует только на широком экране (SONG_WIDE_LAYOUT_QUERY).
+    await openSong(page, songId, WIDE, { columns: 2, fontSize: 18 });
+    await expect(page.locator('[data-song-view]')).toHaveAttribute('data-mode', 'sheets');
+    await expect(page.locator('[data-song-autoscroll]')).toHaveCount(0);
+  });
 });

@@ -18,12 +18,12 @@ vi.mock('@/features/songs/hooks/useSong', () => ({
   useSong: () => ({ song: { id: '2', title: 'Вторая', content: 'text', key: 'G' }, loading: false, error: null }),
 }));
 
-let viewMode: 'scroll' | 'paged' = 'scroll';
 vi.mock('@/features/songs/hooks/useSongViewSettings', () => ({
   useSongViewSettings: () => [
-    { fontSize: 16, showChords: true, density: 'normal', showHeader: true, get mode() { return viewMode; }, columns: 1 },
+    { fontSize: 16, showChords: true, density: 'normal', showHeader: true, columns: 1 },
     vi.fn(),
   ],
+  resolveSongViewMode: (columns: 1 | 2, isWideLayout: boolean) => (columns === 2 && isWideLayout ? 'sheets' : 'scroll'),
   SONG_WIDE_LAYOUT_QUERY: '(min-width: 640px)',
 }));
 
@@ -103,7 +103,6 @@ describe('SongPage — режим сета (T18/T19)', () => {
   afterEach(() => {
     vi.clearAllMocks();
     wideLayout = false;
-    viewMode = 'scroll';
     playbackState = { ...playbackState, prevId: 1, nextId: 3, inSetlist: true, index: 1 };
   });
 
@@ -127,15 +126,6 @@ describe('SongPage — режим сета (T18/T19)', () => {
     expect(goToMock).toHaveBeenCalledWith(3);
     expect(pauseMock).toHaveBeenCalled();
     expect(pushMock).not.toHaveBeenCalled();
-  });
-
-  it('mode="paged" (широкий layout) -> свайп-обработчик не навешен', () => {
-    wideLayout = true;
-    viewMode = 'paged';
-    const { container } = render(<SongPage />);
-    const swipePager = container.querySelector('[data-swipe-pager]') as HTMLElement;
-    fireSwipe(swipePager, 200, 80);
-    expect(goToMock).not.toHaveBeenCalled();
   });
 
   it('свайп влево в mode="scroll" переходит к следующей песне', () => {
