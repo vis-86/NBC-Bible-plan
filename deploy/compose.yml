@@ -84,6 +84,22 @@ services:
       REGISTER_CHURCH_CODE: ${REGISTER_CHURCH_CODE:-}
       REGISTER_OPEN_NO_CODE: ${REGISTER_OPEN_NO_CODE:-}
       NEXT_PUBLIC_DIRECTUS_AI_FLOW_ID: ${NEXT_PUBLIC_DIRECTUS_AI_FLOW_ID:-ai-service}
+    # Без healthcheck упавший на старте BFF выглядит как обычный crash-loop
+    # ("running" в docker compose ps), а наружу выходит только немой 502 от nginx —
+    # ровно так прошёл незамеченным деплой сетлистов. node:22-slim не содержит
+    # curl/wget, поэтому пинг делаем самим node (глобальный fetch, Node 22).
+    # Внимание: никаких `${...}` в строке — их съест интерполяция compose,
+    # поэтому порт и basePath склеиваются конкатенацией через process.env.
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:'+(process.env.BFF_PORT||3001)+(process.env.NEXT_PUBLIC_BASE_PATH||'/app')+'/api/health').then(r=>process.exit(r.status===204?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     networks: [internal]
 
   nginx:

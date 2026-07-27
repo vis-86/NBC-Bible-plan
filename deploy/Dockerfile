@@ -45,10 +45,13 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json yarn.lock tsconfig.json ./
 COPY server ./server
 # Runtime dependency closure of server/src (see .ai-factory/plans/feature-static-export-hono-bff.md T12):
-# src/lib, src/features/songs/services, src/types, src/shared/utils. No src/app, no src/components —
+# src/lib, src/features/*/services, src/types, src/shared/utils. No src/app, no src/components —
 # those are client-only and belong to the static export.
+# Инвариант проверяется тестом server/src/runtime-closure.test.ts: любой новый
+# `../../../src/...` импорт из server/src обязан быть покрыт COPY-строкой ниже.
 COPY src/lib ./src/lib
 COPY src/features/songs/services ./src/features/songs/services
+COPY src/features/setlists/services ./src/features/setlists/services
 COPY src/types ./src/types
 COPY src/shared/utils ./src/shared/utils
 # Self-hosted Bible text (src/lib/bible-data.ts reads from process.cwd()/data at runtime)

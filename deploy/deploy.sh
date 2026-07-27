@@ -135,6 +135,7 @@ tail -n 6 "$LOG"
 echo "  recreating containers ..."
 docker compose up -d $APP_SERVICE
 
+FAILED=0
 for svc in $APP_SERVICE; do
   CID=""
   for _ in $(seq 1 20); do
@@ -144,16 +145,44 @@ for svc in $APP_SERVICE; do
     sleep 2
   done
   echo "  $svc status: ${s:-unknown}"
+
+  # "running" ничего не значит для crash-loop: контейнер, падающий на старте,
+  # успевает побывать running между рестартами. Где есть healthcheck — ждём его
+  # вердикта, иначе деплой «успешен» при полностью мёртвом API (см. патч 2026-07-27).
+  h="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$CID" 2>/dev/null || true)"
+  if [ -n "$h" ]; then
+    for _ in $(seq 1 30); do
+      h="$(docker inspect -f '{{.State.Health.Status}}' "$CID" 2>/dev/null || true)"
+      [ "$h" != "starting" ] && break
+      sleep 2
+    done
+    echo "  $svc health: ${h:-unknown}"
+    [ "$h" = "healthy" ] || FAILED=1
+  fi
+
+  [ "${s:-}" = "running" ] || FAILED=1
+
   echo "  $svc recent logs:"
   docker logs "$CID" 2>&1 | tail -8
 done
+
+[ "$FAILED" = "0" ] || { echo "  ERROR: не все сервисы поднялись здоровыми (см. логи выше)" >&2; exit 1; }
 REMOTE
 
 # ---- 3. smoke check ---------------------------------------------------------
+# /login отдаёт nginx из статики и остаётся 200 даже при полностью мёртвом BFF,
+# поэтому сначала проверяем сам API через прокси — это ловит 502 на /api/*.
+log "Smoke check: GET $PUBLIC_URL/api/health"
+code="$(curl -s -o /dev/null -w '%{http_code}' "$PUBLIC_URL/api/health" || echo 000)"
+if [[ "$code" != "204" ]]; then
+  log "FAIL: /api/health returned HTTP $code (expected 204) — BFF недоступен, смотри 'docker compose logs bff'."
+  exit 1
+fi
+
 log "Smoke check: GET $PUBLIC_URL/login"
 code="$(curl -s -o /dev/null -w '%{http_code}' "$PUBLIC_URL/login" || echo 000)"
 if [[ "$code" == "200" ]]; then
-  log "Deploy OK — /login returned 200."
+  log "Deploy OK — /api/health 204, /login 200."
 else
   log "WARNING: /login returned HTTP $code — check the app logs on the server."
   exit 1
