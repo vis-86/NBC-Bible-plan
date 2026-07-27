@@ -43,4 +43,15 @@ describe('BottomSheet', () => {
     fireEvent.click(document.querySelector('[data-bottom-sheet-close-button]')!);
     expect(onClose).toHaveBeenCalledTimes(2);
   });
+
+  it('кнопка закрытия имеет тап-зону 44x44 (h-11 w-11)', () => {
+    render(
+      <BottomSheet isOpen onClose={vi.fn()} title="Заголовок">
+        <div>Контент</div>
+      </BottomSheet>
+    );
+    const closeButton = document.querySelector('[data-bottom-sheet-close-button]');
+    expect(closeButton?.className).toContain('h-11');
+    expect(closeButton?.className).toContain('w-11');
+  });
 });

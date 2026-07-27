@@ -147,7 +147,7 @@ const BottomSheetOpenContent: React.FC<
           {title && (
             <div
               data-bottom-sheet-header
-              className="sheet-header flex items-center justify-between border-b border-app-border px-6 py-2.5"
+              className="sheet-header flex items-center justify-between border-b border-app-border pl-6 pr-3 py-2.5"
               {...dragHandlers}
             >
               {typeof title === 'string' ? (
@@ -169,9 +169,9 @@ const BottomSheetOpenContent: React.FC<
                   e.stopPropagation();
                   onClose();
                 }}
-                className="p-1.5 text-app-text-muted transition-transform hover:text-app-text active:scale-90"
+                className="-mr-1 flex h-11 w-11 items-center justify-center rounded-full text-app-text-muted transition-transform hover:text-app-text active:scale-90"
               >
-                <X size={18} />
+                <X size={20} />
               </button>
             </div>
           )}

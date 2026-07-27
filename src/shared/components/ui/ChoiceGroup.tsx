@@ -1,5 +1,6 @@
 'use client';
 
+import type React from 'react';
 import { cn } from '@/shared/utils/cn';
 
 export interface ChoiceGroupProps<T extends string | number> {
@@ -13,6 +14,8 @@ export interface ChoiceGroupProps<T extends string | number> {
   disabled?: boolean;
   /** Дизейблит отдельные опции, когда остальные остаются доступными. */
   disabledOptions?: readonly T[];
+  /** Глиф слева от подписи (например, полоски-колонки). Рендерится с `aria-hidden`. */
+  iconFor?: (option: T) => React.ReactNode;
   className?: string;
 }
 
@@ -32,6 +35,7 @@ export function ChoiceGroup<T extends string | number>({
   columns,
   disabled = false,
   disabledOptions,
+  iconFor,
   className,
 }: ChoiceGroupProps<T>) {
   const columnsClass = columns === 3 ? 'grid-cols-3' : 'grid-cols-2';
@@ -48,10 +52,11 @@ export function ChoiceGroup<T extends string | number>({
             disabled={disabled || (disabledOptions?.includes(option) ?? false)}
             onClick={() => onChange(option)}
             className={cn(
-              'min-h-11 rounded-app-md border-2 px-4 py-2 transition-all disabled:cursor-not-allowed disabled:opacity-50',
+              'flex min-h-11 items-center justify-center gap-2 rounded-app-md border-2 px-4 py-2 transition-all disabled:cursor-not-allowed disabled:opacity-50',
               selected ? selectedChoice : idleChoice,
             )}
           >
+            {iconFor && <span aria-hidden="true">{iconFor(option)}</span>}
             {labelFor(option)}
           </button>
         );

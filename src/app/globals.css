@@ -507,3 +507,69 @@ select,
     animation: none;
   }
 }
+
+/* RangeSlider primitive: 6px visual track, 28px thumb, 44px tap zone (see RangeSlider.tsx) */
+.app-range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--app-surface-muted);
+}
+
+.app-range::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--app-surface-muted);
+}
+
+.app-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -11px; /* (28 - 6) / 2, WebKit does not center the thumb automatically */
+  border-radius: 9999px;
+  background: var(--app-surface);
+  border: 2px solid var(--app-primary);
+  box-shadow: var(--app-shadow-sm);
+  transition: transform 0.15s ease-out;
+}
+
+.app-range::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 9999px;
+  background: var(--app-surface);
+  border: 2px solid var(--app-primary);
+  box-shadow: var(--app-shadow-sm);
+  transition: transform 0.15s ease-out;
+}
+
+.app-range:active::-webkit-slider-thumb {
+  transform: scale(1.06);
+}
+
+.app-range:active::-moz-range-thumb {
+  transform: scale(1.06);
+}
+
+.app-range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
+}
+
+.app-range:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
+}
+
+.app-range:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-range::-webkit-slider-thumb,
+  .app-range::-moz-range-thumb {
+    transition: none;
+  }
+}
