@@ -51,7 +51,7 @@ bible-plan/
 │   │   │   └── contexts/             # PlanContext
 │   │   ├── reading/                  # Bible reader feature slice
 │   │   │   ├── components/           # ReadingView, ReadingHeader, BookPicker, ChapterPicker, etc.
-│   │   │   ├── hooks/                # useBibleText, useChapterNavigation, useReadingSettings
+│   │   │   ├── hooks/                # useBibleText (+ best-effort прогрев соседних глав), useChapterNavigation, useReadingSettings
 │   │   │   ├── types.ts              # Reading-specific types
 │   │   │   └── bible-text-cache.ts   # Client-side cache for bible text
 │   │   ├── songs/                    # Songs (ChordPro) feature slice
@@ -161,7 +161,10 @@ bible-plan/
 | `server/src/routes/setlists.ts` + `src/features/setlists/services/setlistsServer.ts` | CRUD сетлистов (Directus admin-client), `requireSetlistWrite` на мутирующих роутах |
 | `src/app/dashboard/setlists/page.tsx`, `.../setlist/page.tsx`, `.../setlist-edit/page.tsx` | Список / read-only просмотр / создание сета — все три в `APP_SHELL_ROUTES`. Карточка списка показывает состав и ведёт на первую песню сета (`/dashboard/song?id=&setlistId=`); `setlist-edit` — ТОЛЬКО создание (два шага: выбор песен → название/дата/порядок) |
 | `src/features/setlists/components/SetlistManageSheet.tsx` + `hooks/useSetlistEditor.ts` | Единственная точка правки состава (порядок/добавление/удаление сета) — шит из шапки просмотра песни («n/m») и со страницы сета. Экраны read-only; удаление песни и сета — через подтверждение |
-| `src/features/setlists/hooks/useSetlistPlayback.ts` | Навигация между песнями сета в просмотре песни (`/dashboard/song?id=&setlistId=`), свайп через `useHorizontalSwipe` |
+| `src/features/setlists/hooks/useSetlistPlayback.ts` | Навигация между песнями сета в просмотре песни (`/dashboard/song?id=&setlistId=`), обёрнута в `SwipePager` |
+| `src/shared/components/pager/SwipePager.tsx` + `PagerHint.tsx` | Общие примитивы горизонтального свайпа (drag-follow, edge-resistance) и подсказки «N из M» — переиспользуются в песне (`SetlistPagerDock`) и в ридере (свайп по главам) |
+| `src/features/setlists/components/SetlistPagerDock.tsx` | Нижняя таблетка `‹ N/M ›` навигации по сету в просмотре песни, скрывается вместе с шапкой |
+| `src/features/songs/components/SongToolStack.tsx` | Правый нижний край экрана песни — точка входа для инструментов (сейчас автоскролл, задел под карандаш заметок M10) |
 | `src/sw/sw.ts` + `scripts/build-sw.ts` | Build-time precache service worker (Serwist `injectManifest` → `out/sw.js`) |
 | `src/shared/hooks/useSwUpdate.ts` + `src/shared/components/ui/UpdateToast.tsx` | Update flow: `registration.waiting` → тост «Обновить» → `SKIP_WAITING` → reload |
 | `src/shared/hooks/useAutoHideOnScroll.ts` | Hide-on-scroll обёртка над `useScrollDirection` для не-ридер страниц (список/деталь песен) |

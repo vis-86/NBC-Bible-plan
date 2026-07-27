@@ -404,7 +404,7 @@ export interface SongToolStackProps {
 
 ### Фаза 4: Отделка
 
-- [ ] **Задача 12: reduced-motion, a11y и документация**
+- [x] **Задача 12: reduced-motion, a11y и документация**
 
   Файлы: `docs/design-system.md`, `docs/offline-pwa.md`, `AGENTS.md`, `.ai-factory/ROADMAP.md`.
 
