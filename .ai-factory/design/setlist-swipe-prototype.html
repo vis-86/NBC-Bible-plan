@@ -1,0 +1,764 @@
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Сетлисты · шапка и свайп — прототип</title>
+<style>
+  :root {
+    --bg: #FAFAF9; --surface: #fff; --surface-muted: #F5F5F4;
+    --text: #1c1917; --text-2: #57534e; --text-3: #78716c;
+    --primary: #4f46e5; --primary-muted: rgba(79,70,229,0.15);
+    --border: rgba(0,0,0,0.08);
+    --radius: 12px;
+    --page: #f0efed;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1917; --surface: #292524; --surface-muted: #3b3634;
+      --text: #e7e5e4; --text-2: #a8a29e; --text-3: #78716c;
+      --primary: #818cf8; --primary-muted: rgba(129,140,248,0.15);
+      --border: rgba(255,255,255,0.10); --page: #121110;
+    }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; background: var(--page); color: var(--text);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    padding: 24px 16px 64px;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  h2 { font-size: 17px; margin: 40px 0 4px; letter-spacing: -0.01em; }
+  .lede { color: var(--text-2); margin: 0 0 8px; max-width: 70ch; }
+  .note { color: var(--text-3); font-size: 13px; max-width: 74ch; }
+  .row { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; margin-top: 18px; }
+
+  /* ---------- phone frame ---------- */
+  .phone {
+    width: 375px; flex: 0 0 375px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 22px; overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0,0,0,.10);
+    display: flex; flex-direction: column; height: 560px; position: relative;
+  }
+  .phone.tight { height: 200px; }
+  .cap { font-size: 13px; font-weight: 600; margin: 0 0 8px; display: flex; gap: 8px; align-items: center; }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; letter-spacing: .02em; }
+  .badge.bad { background: #fee2e2; color: #b91c1c; }
+  .badge.ok { background: #dcfce7; color: #15803d; }
+  .badge.alt { background: var(--surface-muted); color: var(--text-2); }
+  @media (prefers-color-scheme: dark) {
+    .badge.bad { background: rgba(239,68,68,.18); color: #fca5a5; }
+    .badge.ok { background: rgba(34,197,94,.18); color: #86efac; }
+  }
+  .col { display: flex; flex-direction: column; }
+  .why { font-size: 13px; color: var(--text-2); max-width: 375px; margin: 10px 0 0; }
+  .why b { color: var(--text); font-weight: 600; }
+
+  /* ---------- app header ---------- */
+  .hdr { background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 12px; flex: 0 0 auto; }
+  .hdr-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .icon-btn {
+    width: 36px; height: 36px; flex: 0 0 36px; border: 0; background: transparent; color: var(--text-2);
+    border-radius: 9px; display: grid; place-items: center; cursor: pointer;
+  }
+  .icon-btn:active { transform: scale(.94); }
+  .icon-btn svg { width: 20px; height: 20px; }
+  .title { flex: 1 1 auto; min-width: 0; font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+  .hdr-actions { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+
+  /* chips */
+  .chip {
+    height: 34px; display: inline-flex; align-items: center; gap: 6px; padding: 0 11px;
+    border-radius: 9px; font-size: 14px; font-weight: 600; border: 0; cursor: pointer; white-space: nowrap;
+  }
+  .chip.key { background: var(--primary); color: #fff; }
+  .chip.key .src-dot { width: 6px; height: 6px; border-radius: 999px; background: #fff; opacity: .85; }
+  .chip.key .capo {
+    font-size: 11px; font-weight: 700; background: rgba(255,255,255,.22);
+    border-radius: 6px; padding: 1px 5px; letter-spacing: .01em;
+  }
+  .chip.set { background: var(--primary-muted); color: var(--primary); }
+  .chip.ghost { background: var(--surface-muted); color: var(--text-2); }
+
+  /* context strip (variant B) */
+  .strip { display: flex; align-items: center; gap: 8px; margin-top: 8px; overflow-x: auto; }
+  .strip::-webkit-scrollbar { display: none; }
+
+  /* ---------- content ---------- */
+  .body { flex: 1 1 auto; min-height: 0; overflow: hidden; position: relative; background: var(--bg); }
+  .track { position: absolute; inset: 0; padding: 16px; overflow-y: auto; will-change: transform; }
+  .song-sub { color: var(--text-3); font-size: 13px; margin: 0 0 14px; }
+  .lyr { font-size: 15px; line-height: 1.9; margin: 0 0 14px; }
+  .ch { color: var(--primary); font-weight: 700; font-size: 13px; }
+  .verse-n { color: var(--text-3); font-size: 11px; vertical-align: super; margin-right: 3px; }
+
+  /* ---------- floating pager (recommended) ---------- */
+  .float {
+    position: absolute; left: 0; right: 0; bottom: 14px; z-index: 5;
+    display: flex; align-items: center; justify-content: space-between; padding: 0 14px;
+    pointer-events: none;
+  }
+  .fab {
+    pointer-events: auto; width: 44px; height: 44px; border-radius: 999px; border: 0;
+    background: color-mix(in srgb, var(--surface) 88%, transparent); color: var(--text-2);
+    backdrop-filter: blur(10px); box-shadow: 0 4px 16px rgba(0,0,0,.12);
+    display: grid; place-items: center; cursor: pointer;
+  }
+  .fab:disabled { opacity: .22; }
+  .fab:active:not(:disabled) { transform: scale(.9); }
+  .fab svg { width: 24px; height: 24px; }
+  .pos-pill {
+    pointer-events: auto; height: 36px; padding: 0 14px; border-radius: 999px; border: 0;
+    background: color-mix(in srgb, var(--surface) 90%, transparent); backdrop-filter: blur(10px);
+    box-shadow: 0 4px 16px rgba(0,0,0,.12); color: var(--text-2);
+    font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 7px; cursor: pointer;
+  }
+  .pos-pill svg { width: 15px; height: 15px; }
+
+  /* ---------- compact pager pill (song screen) ---------- */
+  .float.center { justify-content: center; }
+  .pager-pill {
+    pointer-events: auto; display: inline-flex; align-items: center;
+    height: 44px; border-radius: 999px; overflow: hidden;
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
+    backdrop-filter: blur(12px); box-shadow: 0 4px 18px rgba(0,0,0,.14);
+  }
+  .pager-pill button { border: 0; background: transparent; color: var(--text-2); cursor: pointer; font: inherit; }
+  .pager-pill .arw { width: 44px; height: 44px; display: grid; place-items: center; }
+  .pager-pill .arw svg { width: 22px; height: 22px; }
+  .pager-pill .arw:disabled { opacity: .22; }
+  .pager-pill .mid {
+    display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; height: 44px;
+    font-size: 13px; font-weight: 600; color: var(--text);
+    border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+  }
+  .pager-pill .mid svg { width: 15px; height: 15px; color: var(--text-2); }
+
+  /* ---------- tool stack (right edge) ---------- */
+  .tools {
+    position: absolute; right: 14px; bottom: 14px; z-index: 6;
+    display: flex; flex-direction: column; gap: 10px; align-items: center;
+  }
+  .tool {
+    width: 48px; height: 48px; border-radius: 999px; border: 0; cursor: pointer;
+    background: color-mix(in srgb, var(--surface) 78%, transparent); backdrop-filter: blur(10px);
+    box-shadow: 0 4px 16px rgba(0,0,0,.12); color: var(--primary);
+    display: grid; place-items: center;
+  }
+  .tool svg { width: 22px; height: 22px; }
+  .tool.soon { color: var(--text-3); border: 1px dashed var(--border); }
+  .slotmap { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+  .slotmap .zone {
+    position: absolute; border: 1px dashed; border-radius: 12px; font-size: 10px; font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase; padding: 3px 6px; display: flex;
+    align-items: flex-start; justify-content: flex-start;
+  }
+  .zone.nav { border-color: rgba(79,70,229,.55); color: rgba(79,70,229,.9); }
+  .zone.tool { border-color: rgba(217,119,6,.6); color: rgba(217,119,6,.95); }
+  @media (prefers-color-scheme: dark) {
+    .zone.nav { border-color: rgba(129,140,248,.6); color: rgba(129,140,248,.95); }
+    .zone.tool { border-color: rgba(251,191,36,.55); color: rgba(251,191,36,.9); }
+  }
+
+  /* ---------- swipe hint (YouVersion-style) ---------- */
+  .hint {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%) scale(.9);
+    z-index: 20; pointer-events: none; opacity: 0;
+    background: rgba(28,25,23,.86); color: #fff; backdrop-filter: blur(8px);
+    padding: 12px 20px; border-radius: 16px; text-align: center;
+    transition: opacity .16s ease-out, transform .22s cubic-bezier(.2,.9,.3,1);
+    min-width: 132px;
+  }
+  .hint.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .hint .n { font-size: 22px; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .hint .lbl { font-size: 12px; opacity: .75; margin-top: 2px; white-space: nowrap; }
+  .hint .end { font-size: 12px; opacity: .8; margin-top: 4px; }
+
+  /* peek edge indicator during drag */
+  .peek {
+    position: absolute; top: 0; bottom: 0; width: 3px; z-index: 6; background: var(--primary);
+    opacity: 0; transition: opacity .12s;
+  }
+  .peek.l { left: 0; } .peek.r { right: 0; }
+
+  /* ---------- tablet section ---------- */
+  h3.sub { font-size: 15px; margin: 30px 0 0; }
+  .axis-note { margin-top: 16px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); }
+  table.modes { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.modes th, table.modes td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  table.modes th { color: var(--text-3); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  table.modes tr:last-child td { border-bottom: 0; }
+  table.modes .dim { color: var(--text-3); font-size: 11.5px; }
+  table.modes .yes { color: #15803d; font-weight: 700; }
+  table.modes .no { color: #b91c1c; font-weight: 700; }
+  @media (prefers-color-scheme: dark) { table.modes .yes { color: #86efac; } table.modes .no { color: #fca5a5; } }
+  .warn { margin-top: 18px; padding: 14px 16px; border-radius: 14px; background: var(--surface); border: 1px solid rgba(217,119,6,.45); }
+
+  .tabrow { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 16px; }
+  .tablet {
+    width: 560px; max-width: 100%; height: 400px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 18px; overflow: hidden;
+    box-shadow: 0 8px 30px rgba(0,0,0,.10); display: flex; flex-direction: column; position: relative;
+  }
+  .tablet .title { font-size: 18px; }
+  .track.onecol { padding: 18px 22px; }
+  .track.sheetstack { padding: 14px 16px; }
+  .sheetbox {
+    background: var(--surface); border-radius: 10px; padding: 14px 16px 20px; position: relative;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+  }
+  .sheetbox + .sheetbox { margin-top: 14px; border-top: 1px solid var(--border); }
+  .twocol { columns: 2; column-gap: 1.6rem; }
+  .twocol .lyr { break-inside: avoid; font-size: 13px; line-height: 1.75; }
+  .sheetnum { position: absolute; right: 14px; bottom: 4px; font-size: 10px; color: var(--text-3); }
+  .axis {
+    position: absolute; z-index: 7; pointer-events: none; font-size: 10px; font-weight: 700;
+    letter-spacing: .04em; padding: 3px 8px; border-radius: 999px;
+    background: var(--primary-muted); color: var(--primary);
+  }
+  .axis.v { top: 12px; right: 12px; }
+  .axis.h { top: 12px; left: 12px; }
+
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 0; }
+  .seg { display: inline-flex; background: var(--surface-muted); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button {
+    border: 0; background: transparent; color: var(--text-2); font: inherit; font-size: 13px; font-weight: 600;
+    padding: 6px 12px; border-radius: 8px; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  ul.pts { margin: 8px 0 0; padding-left: 18px; color: var(--text-2); font-size: 13px; max-width: 74ch; }
+  ul.pts li { margin-bottom: 5px; }
+  code { background: var(--surface-muted); padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+  hr { border: 0; border-top: 1px solid var(--border); margin: 34px 0 0; }
+</style>
+
+<div class="wrap">
+<h1>Сетлисты: шапка на мобильном + общий свайп-пейджер</h1>
+<p class="lede">Прототип для обсуждения. Свайп живой — тяните контент мышью/пальцем влево-вправо в блоке 2.</p>
+
+<h2>1. Шапка песни в режиме сета</h2>
+<p class="note">Проблема: в строке живут back + заголовок + ‹ + «2/5» + › + тональность(источник + капо) + настройки ≈ 350&nbsp;px хрома на 375&nbsp;px экрана. Заголовку не остаётся ничего.</p>
+
+<div class="row">
+
+  <div class="col">
+    <p class="cap">A. Сейчас <span class="badge bad">как есть</span></p>
+    <div class="phone tight">
+      <div class="hdr">
+        <div class="hdr-row">
+          <button class="icon-btn" aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+          <h1 class="title">Великий Бог</h1>
+          <div class="hdr-actions">
+            <button class="icon-btn" aria-label="Пред."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <button class="chip set">2 / 5</button>
+            <button class="icon-btn" aria-label="След."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>
+            <button class="chip key">A♭ <span style="opacity:.8">(моя)</span> <span style="opacity:.5">|</span> <span style="opacity:.9">капо 3</span></button>
+            <button class="icon-btn" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6 1.65 1.65 0 0 0 10 3.09V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.14.3.4.53.71.62"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div class="body"><div class="track"><p class="song-sub">Заголовок съеден, чипы уезжают за край.</p></div></div>
+    </div>
+    <p class="why"><b>Диагноз:</b> 7 интерактивных элементов в одной строке. Нарушены <code>overflow-menu</code>, <code>content-priority</code>, <code>truncation-strategy</code>.</p>
+  </div>
+
+  <div class="col">
+    <p class="cap">B. Контекст-строка <span class="badge alt">вариант</span></p>
+    <div class="phone tight">
+      <div class="hdr">
+        <div class="hdr-row">
+          <button class="icon-btn" aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+          <h1 class="title">Великий Бог, когда на мир смотрю я</h1>
+          <div class="hdr-actions">
+            <button class="icon-btn" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82 2 2 0 1 1-2.83 2.83 1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0 1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33 2 2 0 1 1-2.83-2.83A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4 1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82 2 2 0 1 1 2.83-2.83A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0 1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33 2 2 0 1 1 2.83 2.83A1.65 1.65 0 0 0 19.4 9"/></svg></button>
+          </div>
+        </div>
+        <div class="strip">
+          <button class="chip set"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> Вечернее · 2 / 5</button>
+          <button class="chip key"><span class="src-dot"></span> A♭ <span class="capo">капо 3</span></button>
+        </div>
+      </div>
+      <div class="body"><div class="track"><p class="song-sub">Заголовок целиком, чипы дышат.</p></div></div>
+    </div>
+    <p class="why"><b>Плюс:</b> видно название сета. <b>Минус:</b> шапка +44&nbsp;px — на 5.4″ это ощутимо, а автоскрытие по скроллу теперь прячет вдвое больше.</p>
+  </div>
+
+  <div class="col">
+    <p class="cap">C. Чистая шапка + сет внизу <span class="badge ok">рекомендую</span></p>
+    <div class="phone tight">
+      <div class="hdr">
+        <div class="hdr-row">
+          <button class="icon-btn" aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+          <h1 class="title">Великий Бог, когда на мир смотрю я</h1>
+          <div class="hdr-actions">
+            <button class="chip key"><span class="src-dot"></span> A♭ <span class="capo">3</span></button>
+            <button class="icon-btn" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82 2 2 0 1 1-2.83 2.83 1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0 1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33 2 2 0 1 1-2.83-2.83A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4 1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82 2 2 0 1 1 2.83-2.83A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0 1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33 2 2 0 1 1 2.83 2.83A1.65 1.65 0 0 0 19.4 9"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="track"><p class="song-sub">Позиция в сете и листание переехали вниз — туда, где уже живёт навигация ридера.</p></div>
+        <div class="float center">
+          <div class="pager-pill">
+            <button class="arw" aria-label="Предыдущая песня"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <button class="mid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> 2 / 5</button>
+            <button class="arw" aria-label="Следующая песня"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+        <div class="tools">
+          <button class="tool soon" aria-label="Заметки (скоро)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></button>
+          <button class="tool" aria-label="Автоскролл"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <p class="why"><b>Идея:</b> шапка = «что я читаю» + «как это звучит». Пейджинг уезжает вниз — но не на края: правый край на песне уже занят автоскроллом, и туда же встанет карандаш. Поэтому пейджер собран в одну центральную «таблетку» <code>‹ · 2/5 · ›</code>, а правый край отдан вертикальному стеку инструментов.</p>
+  </div>
+</div>
+
+<ul class="pts">
+  <li><b>Тональность сжата:</b> <code>A♭ (моя) | капо 3</code> → <code>• A♭ ⌈3⌉</code>. Точка = «моя тональность» (полные подписи — внутри шторки «Транспонирование», <code>progressive-disclosure</code>). Экономия ≈ 85&nbsp;px.</li>
+  <li><b>Из шапки убраны ‹ ›</b> — их роль берут свайп + нижние круглые кнопки. Требование «жест не должен быть единственным способом» (<code>gesture-alternative</code>) выполняется нижним слоем, а не шапкой.</li>
+  <li><b>Правило шапки:</b> back + заголовок + максимум 2 действия. Заголовку гарантируется ≥&nbsp;50&nbsp;% ширины.</li>
+  <li><b>Название сета</b> не теряется: оно в шторке по тапу на «2&nbsp;/&nbsp;5» (там же порядок/состав) — вход в неё остаётся ровно один, как сейчас.</li>
+</ul>
+
+<hr>
+
+<h2>1b. Бюджет нижней зоны на песне</h2>
+<p class="note">Внизу уже живёт автоскролл (<code>bottom-4 right-4</code>), скоро добавится карандаш заметок. Это меняет раскладку дока: широкий split <code>‹ … ›</code> из ридера садится «›» ровно на кнопку автоскролла.</p>
+
+<div class="row">
+  <div class="col">
+    <p class="cap">Разметка слотов <span class="badge alt">песня</span></p>
+    <div class="phone tight" style="height:300px">
+      <div class="body">
+        <div class="track" style="padding-top:26px"><p class="song-sub">Правый край — вертикальный стек инструментов, он растёт вверх. Центр — пейджер. Левый край свободен под будущее.</p></div>
+        <div class="slotmap">
+          <div class="zone tool" style="right:8px; bottom:8px; width:66px; height:170px">инструменты ↑</div>
+          <div class="zone nav" style="left:96px; right:86px; bottom:8px; height:56px">пейджер</div>
+        </div>
+        <div class="float center">
+          <div class="pager-pill">
+            <button class="arw" aria-label="Пред."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <button class="mid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> 2 / 5</button>
+            <button class="arw" aria-label="След."><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+        <div class="tools">
+          <button class="tool soon" aria-label="Заметки (скоро)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></button>
+          <button class="tool" aria-label="Автоскролл"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col" style="flex:1 1 380px; min-width:320px">
+    <ul class="pts" style="margin-top:30px">
+      <li><b>Считаем в пикселях (375&nbsp;px):</b> стек справа — 48&nbsp;px + 14&nbsp;px поля = занято до x&nbsp;=&nbsp;313. Таблетка пейджера ≈ 165&nbsp;px по центру → занимает 105…270. Зазор 43&nbsp;px. Третий инструмент растит стек <b>вверх</b>, а не вширь — горизонтальный бюджет не трогает.</li>
+      <li><b>Кнопки скорости автоскролла</b> (80×80, <code>right-3 top-1/2</code>) живут по правому краю <i>по центру</i> — с нижней зоной не пересекаются, но с ними пересечётся будущая палитра карандаша. Стоит договориться заранее: <b>активный инструмент забирает правый край целиком</b>, остальные слоты в это время скрыты.</li>
+      <li><b>Автоскрытие:</b> док прячется той же логикой, что и шапка (<code>useAutoHideOnScroll</code> / <code>ChromeVisibility</code>). Во время игры автоскролла лист должен быть чистым — иначе три плавающих слоя поверх аккордов.</li>
+      <li><b>В ридере оставляем split.</b> Там инструментов нет, края свободны, а правая кнопка — это ✓ «завершить день», полноценный CTA, которому нужен размер. Общими остаются логика пейджера, свайп и подсказка; отличается только раскладка дока (проп <code>layout: 'split' | 'compact'</code>).</li>
+      <li><b>Заметки карандашом ↔ свайп — будущий конфликт.</b> В режиме рисования горизонтальный жест принадлежит холсту. Значит у пейджера нужен выключатель с первого дня: <code>&lt;SwipePager enabled&gt;</code>, и <code>enabled=false</code> при активном инструменте рисования. Дешевле заложить сейчас, чем вырезать потом.</li>
+    </ul>
+  </div>
+</div>
+
+<hr>
+
+<h2>2. Общий свайп-пейджер с подсказкой «2 из 5»</h2>
+<p class="note">Тяните контент влево/вправо. Подсказка появляется <b>в начале жеста</b> (как в YouVersion) и гаснет через ~1&nbsp;с после отпускания. Один и тот же механизм переключается между «песни сета» и «главы дня плана».</p>
+
+<div class="controls">
+  <div class="seg" id="modeSeg">
+    <button aria-pressed="true" data-mode="songs">Песни сета</button>
+    <button aria-pressed="false" data-mode="chapters">Главы дня плана</button>
+  </div>
+  <div class="seg" id="hintSeg">
+    <button aria-pressed="true" data-hint="drag">Подсказка с начала жеста</button>
+    <button aria-pressed="false" data-hint="commit">Только после перехода</button>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col">
+    <div class="phone" id="demo">
+      <div class="hdr">
+        <div class="hdr-row">
+          <button class="icon-btn" aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+          <h1 class="title" id="dTitle">—</h1>
+          <div class="hdr-actions" id="dActions"></div>
+        </div>
+      </div>
+      <div class="body" id="dBody">
+        <div class="peek l" id="peekL"></div>
+        <div class="peek r" id="peekR"></div>
+        <div class="track" id="dTrack"></div>
+        <div class="hint" id="dHint"><div class="n" id="hintN">2 из 5</div><div class="lbl" id="hintL">—</div></div>
+        <!-- ридер: split — края свободны, справа CTA «завершить день» -->
+        <div class="float" id="dSplit">
+          <button class="fab" data-prev aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button class="pos-pill" data-pos></button>
+          <button class="fab" data-next aria-label="Вперёд"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 18l6-6-6-6"/></svg></button>
+        </div>
+        <!-- песня: compact — правый край отдан инструментам -->
+        <div class="float center" id="dCompact">
+          <div class="pager-pill">
+            <button class="arw" data-prev aria-label="Предыдущая песня"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <button class="mid" data-pos></button>
+            <button class="arw" data-next aria-label="Следующая песня"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+        <div class="tools" id="dTools">
+          <button class="tool soon" aria-label="Заметки (скоро)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></button>
+          <button class="tool" aria-label="Автоскролл"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col" style="flex:1 1 380px; min-width:320px">
+    <p class="cap">Что здесь заложено</p>
+    <ul class="pts">
+      <li><b>Палец ведёт контент</b> (<code>gesture-feedback</code>): страница едет за пальцем, у краёв — резиновое сопротивление ×0.35, значит «дальше некуда» ощущается, а не только читается.</li>
+      <li><b>Подсказка — это состояние, а не тост.</b> Появляется на старте жеста, живёт всё время перетаскивания, гаснет через 900&nbsp;мс после отпускания. Переключатель выше сравнивает с вариантом «показывать только после перехода».</li>
+      <li><b>Край экрана не трогаем:</b> 24&nbsp;px слева/справа отданы системному back-свайпу (<code>system-gestures</code>) — это уже в <code>resolveSwipeDirection</code>.</li>
+      <li><b>Порог и диагональ:</b> переход только если |dx|&nbsp;&gt;&nbsp;60&nbsp;px и |dx|&nbsp;&gt;&nbsp;1.5·|dy| — вертикальный скролл текста не ловится как листание.</li>
+      <li><b>На границе</b> — подсказка говорит «последняя», перехода нет, контент отпружинивает.</li>
+      <li><b>prefers-reduced-motion:</b> без слайда, только смена контента + подсказка.</li>
+      <li><b>Одна механика на два экрана.</b> Отличается только источник: <code>items</code> сета ↔ <code>day.items</code> плана (и главы книги вне плана). Подпись под цифрой берётся из источника: имя песни / «Псалтирь 80».</li>
+    </ul>
+    <p class="cap" style="margin-top:22px">Что предлагаю вынести в общий код</p>
+    <ul class="pts">
+      <li><code>usePager({items, index})</code> → <code>{index, total, prev, next, go, label}</code> — то, что сейчас частично делает <code>useSetlistPlayback</code> и <code>useChapterNavigation</code>.</li>
+      <li><code>&lt;SwipePager&gt;</code> — обёртка контента: drag-follow, порог, резинка, коммит, <code>reduced-motion</code>. Поверх существующего <code>resolveSwipeDirection</code>.</li>
+      <li><code>&lt;PagerHint&gt;</code> — «N из M» + подпись + состояние границы.</li>
+      <li><code>&lt;PagerDock layout="split|compact"&gt;</code> — нижний слой ‹ · «N / M» · ›. <code>split</code> = ридер (переименованный <code>FloatingChapterNav</code> с ✓ «завершить день»), <code>compact</code> = песня (одна таблетка по центру, правый край отдан инструментам).</li>
+      <li>Правый край песни — <code>&lt;ToolStack&gt;</code>: сейчас автоскролл, дальше карандаш. Стек растёт вверх; активный инструмент забирает край целиком и гасит <code>SwipePager</code>.</li>
+    </ul>
+  </div>
+</div>
+
+<hr>
+
+<h2>3. Планшет: одна ось — одно значение</h2>
+<p class="lede">Правило, к которому сходимся: <b>вертикаль = продвижение внутри песни, горизонталь = переход между песнями сета</b>. Везде, без исключений — и на телефоне, и на планшете.</p>
+
+<div class="axis-note">
+  <p class="cap" style="margin-bottom:10px">Но сейчас в проекте три режима, и один из них ломает это правило</p>
+  <table class="modes">
+    <tr><th>Режим</th><th>Как устроены страницы</th><th>Чем заняты оси</th><th>Совместим с правилом</th></tr>
+    <tr>
+      <td><code>scroll</code><br><span class="dim">1 колонка</span></td>
+      <td>Один поток, обычный скролл</td>
+      <td>Вертикаль — скролл текста<br>Горизонталь — свободна</td>
+      <td class="yes">да</td>
+    </tr>
+    <tr>
+      <td><code>sheets</code><br><span class="dim">листы стопкой</span></td>
+      <td><code>.sheet + .sheet { margin-top }</code> — листы идут <b>вниз</b>, скроллом</td>
+      <td>Вертикаль — листы<br>Горизонталь — свободна</td>
+      <td class="yes">да</td>
+    </tr>
+    <tr>
+      <td><code>paged</code><br><span class="dim">постранично</span></td>
+      <td><code>flow.scrollLeft += pitch</code> — страницы лежат <b>вбок</b></td>
+      <td>Вертикаль — не используется<br>Горизонталь — <b>страницы</b></td>
+      <td class="no">нет — конфликт</td>
+    </tr>
+  </table>
+  <p class="note" style="margin-top:10px"><b>Терминология.</b> «Постранично вниз», как ты это называешь, в коде носит имя <code>sheets</code>. А режим, который в коде зовётся <code>paged</code>, — это другое: там страницы уезжают <b>вбок</b> (<code>scrollLeft</code>), и переключают их тапом по левой/правой трети листа. Дальше в тексте используются кодовые имена, чтобы не разъезжаться.</p>
+</div>
+
+<p class="cap" style="margin-top:26px">Твоя схема ложится без переделок</p>
+<ul class="pts">
+  <li><b>1 колонка → <code>scroll</code></b>, <b>2 колонки → <code>sheets</code></b>. Обе раскладки оставляют горизонталь свободной ⇒ свайп между песнями работает в обеих одинаково, никакого предиката по режиму.</li>
+  <li>Нижний док <code>‹ · N/M · ›</code> одинаковый на всех ширинах: у <code>sheets</code> своего пейджера внизу нет, конфликта нет.</li>
+  <li>Значит и <b>шапка одна</b> на телефон и планшет — вариант C без широкой раскладки. Моё предыдущее предложение «в постраничных режимах вернуть ‹ N/M › в шапку» снимается.</li>
+</ul>
+
+<div class="warn">
+  <p class="cap" style="margin:0 0 6px">Остаётся один выпадающий режим — кодовый <code>paged</code></p>
+  <p class="note" style="margin:0 0 8px">Он единственный, кто претендует на горизонталь: страницы там лежат вбок. Пока он в настройках, правило «горизонталь = песни» имеет исключение. Три варианта:</p>
+  <ul class="pts" style="margin-top:0">
+    <li><b>Оставить и выключить в нём свайп</b> — правило с одной сноской, ноль риска, ничего не ломаем.</li>
+    <li><b>Убрать из настроек</b> — правило без исключений, минус один режим для сопровождения. Но: в <code>usePagedFlow</code> висит <code>nextPageDelta(event.key)</code> — это <b>ножная педаль-листалка</b> (педали эмулируют клавиши). В <code>sheets</code> её нет. Убрав <code>paged</code>, теряем перелистывание педалью, пока не сделаем его для <code>sheets</code> — отдельная задача, не «просто удалить».</li>
+    <li><b>Убрать <code>paged</code> и перенести педаль в <code>sheets</code></b> — правило чистое и педаль жива, но это +1 задача в план.</li>
+  </ul>
+  <p class="note" style="margin:8px 0 0"><b>Вопрос:</b> ты играешь с педалью-листалкой? От этого зависит, какой из трёх вариантов дешевле.</p>
+</div>
+
+<h3 class="sub">Как это выглядит на планшете</h3>
+
+<div class="tabrow">
+  <div>
+    <p class="cap">1 колонка → <code>scroll</code> <span class="badge alt">768 px</span></p>
+    <div class="tablet">
+      <div class="hdr">
+        <div class="hdr-row">
+          <button class="icon-btn" aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+          <h1 class="title">Великий Бог, когда на мир смотрю я</h1>
+          <div class="hdr-actions">
+            <button class="chip key"><span class="src-dot"></span> A♭ <span class="capo">3</span></button>
+            <button class="icon-btn" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82 2 2 0 1 1-2.83 2.83 1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0 1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33 2 2 0 1 1-2.83-2.83A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4 1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82 2 2 0 1 1 2.83-2.83A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0 1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33 2 2 0 1 1 2.83 2.83A1.65 1.65 0 0 0 19.4 9"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="track onecol">
+          <p class="lyr"><span class="ch">A♭</span>&nbsp;&nbsp;&nbsp;<span class="ch">E♭/G</span><br>Господь Всесильный, когда я взираю<br><span class="ch">Fm</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="ch">D♭</span><br>На мир, что создан Тобой,</p>
+          <p class="lyr"><span class="ch">A♭</span>&nbsp;&nbsp;&nbsp;<span class="ch">E♭</span><br>На звёзды в небе, на гром, что грохочет,<br><span class="ch">D♭</span>&nbsp;&nbsp;<span class="ch">A♭</span><br>И слышу голос Твой.</p>
+          <p class="lyr" style="color:var(--text-2)"><b>Припев</b><br>Тогда поёт душа моя, Господь, Тебе: как Ты велик!</p>
+        </div>
+        <div class="axis v" title="вертикаль — скролл текста">↕ текст</div>
+        <div class="axis h" title="горизонталь — песни сета">↔ песни сета</div>
+        <div class="float center">
+          <div class="pager-pill">
+            <button class="arw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <button class="mid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> 2 / 5</button>
+            <button class="arw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+        <div class="tools">
+          <button class="tool soon" aria-label="Заметки (скоро)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></button>
+          <button class="tool" aria-label="Автоскролл"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <p class="cap">2 колонки → <code>sheets</code> <span class="badge ok">рекомендую как дефолт планшета</span></p>
+    <div class="tablet">
+      <div class="hdr">
+        <div class="hdr-row">
+          <button class="icon-btn" aria-label="Назад"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+          <h1 class="title">Великий Бог, когда на мир смотрю я</h1>
+          <div class="hdr-actions">
+            <button class="chip key"><span class="src-dot"></span> A♭ <span class="capo">3</span></button>
+            <button class="icon-btn" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82 2 2 0 1 1-2.83 2.83 1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0 1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33 2 2 0 1 1-2.83-2.83A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4 1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82 2 2 0 1 1 2.83-2.83A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0 1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33 2 2 0 1 1 2.83 2.83A1.65 1.65 0 0 0 19.4 9"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div class="body">
+        <div class="track sheetstack">
+          <div class="sheetbox">
+            <div class="twocol">
+              <p class="lyr"><span class="ch">A♭</span> <span class="ch">E♭/G</span><br>Господь Всесильный, когда я взираю<br><span class="ch">Fm</span> <span class="ch">D♭</span><br>На мир, что создан Тобой,</p>
+              <p class="lyr"><span class="ch">A♭</span> <span class="ch">E♭</span><br>На звёзды в небе, на гром,<br>что грохочет, и слышу голос Твой.</p>
+            </div>
+            <span class="sheetnum">1 / 2</span>
+          </div>
+          <div class="sheetbox">
+            <div class="twocol">
+              <p class="lyr" style="color:var(--text-2)"><b>Припев</b><br>Тогда поёт душа моя,<br>Господь, Тебе: как Ты велик!</p>
+              <p class="lyr">Когда смотрю я в чащу тёмных сосен,<br>где птицы весело поют.</p>
+            </div>
+            <span class="sheetnum">2 / 2</span>
+          </div>
+        </div>
+        <div class="axis v" title="вертикаль — листы">↕ листы песни</div>
+        <div class="axis h" title="горизонталь — песни сета">↔ песни сета</div>
+        <div class="float center">
+          <div class="pager-pill">
+            <button class="arw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M15 18l-6-6 6-6"/></svg></button>
+            <button class="mid"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg> 2 / 5</button>
+            <button class="arw"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 18l6-6-6-6"/></svg></button>
+          </div>
+        </div>
+        <div class="tools">
+          <button class="tool soon" aria-label="Заметки (скоро)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg></button>
+          <button class="tool" aria-label="Автоскролл"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M8 5v14l11-7z"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<ul class="pts">
+  <li><b>Шапка на планшете не меняется</b> — вариант C работает как есть. Переполнения тут нет и не было: при 768 px после back, чипа и настроек заголовку остаётся ~560 px. Отдельная широкая раскладка шапки не нужна.</li>
+  <li><b>Док и стек инструментов</b> тоже одинаковые. У <code>sheets</code> внизу своего пейджера нет — конфликта, из-за которого я предлагал возвращать <code>‹ N/M ›</code> в шапку, не возникает. Это предложение снимается: раскладка одна на все ширины.</li>
+  <li><b>Номер листа</b> <code>.sheet-num</code> живёт в правом нижнем углу каждого листа и накладывается на стек инструментов. Мелочь, но чинить придётся: сдвинуть номер влево или перенести его в левый угол листа.</li>
+</ul>
+
+<hr>
+<h2>4. Открытые вопросы к тебе</h2>
+<ul class="pts">
+  <li>Вариант <b>C</b> (сет уезжает вниз) или <b>B</b> (контекст-строка в шапке)?</li>
+  <li>В ридере <code>PagerDock</code> уже есть — добавляем ли туда счётчик «2 / 5» посередине, или в Библии оставляем только ‹ › как сейчас?</li>
+  <li>Карандаш заметок: он инструмент <b>песни</b> или и Библии тоже? От этого зависит, живёт <code>ToolStack</code> в <code>features/songs</code> или уезжает в <code>shared</code>.</li>
+  <li>Свайп в ридере: листать <b>по главам дня плана</b> (как ‹ › сейчас) или <b>по главам книги</b> вне плана — или и то и то, по контексту (предлагаю по контексту, как уже работает <code>useChapterNavigation</code>)?</li>
+  <li>Подсказка: с начала жеста (YouVersion) или только по факту перехода — сравни переключателем выше.</li>
+</ul>
+</div>
+
+<script>
+(function () {
+  var SONGS = [
+    { t: 'Свят, свят, свят', sub: 'Reginald Heber', key: 'G',  capo: 0, body: 'chords' },
+    { t: 'Великий Бог, когда на мир смотрю я', sub: 'Carl Boberg', key: 'A♭', capo: 3, body: 'chords' },
+    { t: 'Твоя любовь', sub: 'NBC Worship', key: 'D', capo: 2, body: 'chords' },
+    { t: '血 Тобою искуплен', sub: '—', key: 'E', capo: 0, body: 'chords' },
+    { t: 'Аллилуйя', sub: 'Общинное', key: 'C', capo: 0, body: 'chords' }
+  ];
+  var CHAPTERS = [
+    { t: 'Псалтирь 78', sub: 'План на сегодня · 1 из 3', body: 'bible' },
+    { t: 'Псалтирь 79', sub: 'План на сегодня · 2 из 3', body: 'bible' },
+    { t: 'Псалтирь 80', sub: 'План на сегодня · 3 из 3', body: 'bible' }
+  ];
+
+  var mode = 'songs', hintMode = 'drag', index = 1;
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  var track = document.getElementById('dTrack'),
+      body  = document.getElementById('dBody'),
+      hint  = document.getElementById('dHint'),
+      hintN = document.getElementById('hintN'),
+      hintL = document.getElementById('hintL'),
+      title = document.getElementById('dTitle'),
+      acts  = document.getElementById('dActions'),
+      split = document.getElementById('dSplit'),
+      compact = document.getElementById('dCompact'),
+      tools = document.getElementById('dTools'),
+      peekL = document.getElementById('peekL'),
+      peekR = document.getElementById('peekR');
+
+  function all(sel) { return [].slice.call(document.querySelectorAll('#demo ' + sel)); }
+
+  function list() { return mode === 'songs' ? SONGS : CHAPTERS; }
+
+  var GEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82 2 2 0 1 1-2.83 2.83 1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0 1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33 2 2 0 1 1-2.83-2.83A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4 1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82 2 2 0 1 1 2.83-2.83A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0 1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33 2 2 0 1 1 2.83 2.83A1.65 1.65 0 0 0 19.4 9"/></svg>';
+  var NOTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+  var BOOK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>';
+
+  var CHORD_BODY =
+    '<p class="lyr"><span class="ch">A♭</span>&nbsp;&nbsp;&nbsp;<span class="ch">E♭/G</span><br>Господь Всесильный, когда я взираю<br>' +
+    '<span class="ch">Fm</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="ch">D♭</span><br>На мир, что создан Тобой,</p>' +
+    '<p class="lyr"><span class="ch">A♭</span>&nbsp;&nbsp;&nbsp;<span class="ch">E♭</span><br>На звёзды в небе, на гром, что грохочет,<br>' +
+    '<span class="ch">D♭</span>&nbsp;&nbsp;<span class="ch">A♭</span><br>И слышу голос Твой.</p>' +
+    '<p class="lyr" style="color:var(--text-2)"><b>Припев</b><br>Тогда поёт душа моя,<br>Господь, Тебе: как Ты велик!<br>Тогда поёт душа моя,<br>Господь, Тебе: как Ты велик!</p>' +
+    '<p class="lyr">Когда смотрю я в чащу тёмных сосен,<br>Где птицы весело поют,<br>Где горный ключ струится по долине<br>И ветры песнь свою ведут.</p>';
+
+  var BIBLE_BODY =
+    '<p class="lyr"><span class="verse-n">1</span> Начальнику хора. На Гефском орудии. Псалом Асафа. <span class="verse-n">2</span> Радостно пойте Богу, твердыне нашей; восклицайте Богу Иакова;</p>' +
+    '<p class="lyr"><span class="verse-n">3</span> возьмите псалом, дайте тимпан, сладкозвучные гусли с псалтирью; <span class="verse-n">4</span> трубите в новомесячие трубою, в определённое время, в день праздника нашего;</p>' +
+    '<p class="lyr"><span class="verse-n">5</span> ибо это закон для Израиля, устав от Бога Иаковлева. <span class="verse-n">6</span> Он установил это во свидетельство для Иосифа, когда он вышел из земли Египетской.</p>' +
+    '<p class="lyr"><span class="verse-n">7</span> «Я снял с рамен его тяжести, и руки его освободились от корзин. <span class="verse-n">8</span> В бедствии ты призвал Меня, и Я избавил тебя.»</p>';
+
+  function render() {
+    var it = list()[index];
+    title.textContent = it.t;
+    acts.innerHTML = (mode === 'songs'
+      ? '<button class="chip key"><span class="src-dot"></span> ' + it.key + (it.capo ? ' <span class="capo">' + it.capo + '</span>' : '') + '</button>'
+      : '') + '<button class="icon-btn" aria-label="Настройки">' + GEAR + '</button>';
+    track.innerHTML = '<p class="song-sub">' + it.sub + '</p>' + (it.body === 'bible' ? BIBLE_BODY : CHORD_BODY);
+    track.scrollTop = 0;
+
+    var isSong = mode === 'songs';
+    // Песня: правый край занят инструментами (автоскролл + будущий карандаш) —
+    // пейджер собирается в одну центральную «таблетку».
+    // Ридер: инструментов нет, края свободны — остаётся привычный split (и ✓ «завершить день»).
+    split.style.display = isSong ? 'none' : 'flex';
+    compact.style.display = isSong ? 'flex' : 'none';
+    tools.style.display = isSong ? 'flex' : 'none';
+
+    all('[data-pos]').forEach(function (el) {
+      el.innerHTML = (isSong ? NOTE : BOOK) + ' ' + (index + 1) + ' / ' + list().length;
+    });
+    all('[data-prev]').forEach(function (b) { b.disabled = index === 0; });
+    all('[data-next]').forEach(function (b) { b.disabled = index === list().length - 1; });
+  }
+
+  var hideTimer = null;
+  function showHint(nextIndex, atEdge) {
+    var total = list().length;
+    var i = Math.max(0, Math.min(total - 1, nextIndex));
+    hintN.textContent = (i + 1) + ' из ' + total;
+    hintL.textContent = atEdge
+      ? (nextIndex < 0 ? 'Это первая' : 'Это последняя')
+      : list()[i].t;
+    hint.classList.add('show');
+    if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+  }
+  function scheduleHide(ms) {
+    if (hideTimer) clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () { hint.classList.remove('show'); }, ms);
+  }
+
+  function commit(dir) {
+    var target = index + dir;
+    if (target < 0 || target >= list().length) return false;
+    index = target;
+    render();
+    return true;
+  }
+
+  // ---- drag ----
+  var startX = 0, startY = 0, dragging = false, decided = false, dx = 0;
+  var EDGE = 24, THRESHOLD = 60, RATIO = 1.5;
+
+  body.addEventListener('pointerdown', function (e) {
+    if (e.target.closest('.fab, .pos-pill, button')) return;
+    var rect = body.getBoundingClientRect();
+    var localX = e.clientX - rect.left;
+    if (localX <= EDGE || localX >= rect.width - EDGE) return; // системный back-свайп
+    startX = e.clientX; startY = e.clientY; dragging = true; decided = false; dx = 0;
+    track.style.transition = 'none';
+  });
+
+  window.addEventListener('pointermove', function (e) {
+    if (!dragging) return;
+    dx = e.clientX - startX;
+    var dy = e.clientY - startY;
+    if (!decided) {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+      if (Math.abs(dx) <= RATIO * Math.abs(dy)) { dragging = false; track.style.transition = ''; track.style.transform = ''; return; }
+      decided = true;
+      if (hintMode === 'drag') showHint(index + (dx < 0 ? 1 : -1), false);
+    }
+    var dirIdx = index + (dx < 0 ? 1 : -1);
+    var atEdge = dirIdx < 0 || dirIdx >= list().length;
+    var shift = atEdge ? dx * 0.35 : dx;               // резинка у краёв
+    if (!reduce) track.style.transform = 'translateX(' + shift + 'px)';
+    if (hintMode === 'drag') showHint(dirIdx, atEdge);
+    peekL.style.opacity = (!atEdge && dx > 20) ? '1' : '0';
+    peekR.style.opacity = (!atEdge && dx < -20) ? '1' : '0';
+  });
+
+  window.addEventListener('pointerup', function (e) {
+    if (!dragging) return;
+    dragging = false;
+    peekL.style.opacity = '0'; peekR.style.opacity = '0';
+    track.style.transition = 'transform .24s cubic-bezier(.2,.9,.3,1)';
+    track.style.transform = '';
+    if (!decided) { return; }
+    var dy = e.clientY - startY;
+    var passed = Math.abs(dx) > THRESHOLD && Math.abs(dx) > RATIO * Math.abs(dy);
+    var dir = dx < 0 ? 1 : -1;
+    if (passed && commit(dir)) {
+      showHint(index, false);
+      scheduleHide(900);
+    } else {
+      // Жест не дошёл до порога или упёрся в край: показываем ТЕКУЩУЮ позицию,
+      // а не ту, куда не перешли — иначе подсказка врёт о состоянии экрана.
+      var edge = (index + dir) < 0 || (index + dir) >= list().length;
+      showHint(edge ? index + dir : index, edge);
+      scheduleHide(700);
+    }
+  });
+
+  all('[data-prev]').forEach(function (b) { b.addEventListener('click', function () { if (commit(-1)) { showHint(index, false); scheduleHide(900); } }); });
+  all('[data-next]').forEach(function (b) { b.addEventListener('click', function () { if (commit(1)) { showHint(index, false); scheduleHide(900); } }); });
+  all('[data-pos]').forEach(function (b) { b.addEventListener('click', function () { showHint(index, false); scheduleHide(1200); }); });
+
+  document.getElementById('modeSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    [].forEach.call(this.children, function (c) { c.setAttribute('aria-pressed', String(c === b)); });
+    mode = b.dataset.mode; index = mode === 'songs' ? 1 : 2; render();
+  });
+  document.getElementById('hintSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('button'); if (!b) return;
+    [].forEach.call(this.children, function (c) { c.setAttribute('aria-pressed', String(c === b)); });
+    hintMode = b.dataset.hint;
+  });
+
+  render();
+})();
+</script>
