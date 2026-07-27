@@ -28,7 +28,6 @@ import type { SetlistItem } from '@/features/setlists/types';
 import { cn } from '@/shared/utils/cn';
 
 const HINT_HOLD_COMMIT_MS = 900;
-const HINT_HOLD_REJECT_MS = 700;
 
 /**
  * Единый клиентский маршрут детали песни (approach C): id живёт в search-параметре,
@@ -187,20 +186,24 @@ function SongPageContent() {
             navigateToSetlistSong(playback.nextId);
             pagerHint.showAndHide(playback.index + 1, nextSongTitle, false, HINT_HOLD_COMMIT_MS);
           }}
+          // Во время жеста задаём только СОДЕРЖИМОЕ подсказки: показывает её прогресс
+          // жеста. Отпустили, не дойдя до края, — прогресс гаснет вместе с возвратом
+          // страницы, ничего больше не происходит.
           onDragChange={(state) => {
-            if (!state.active) {
-              if (state.direction === 'next') {
-                pagerHint.showAndHide(playback.index + 1, nextSongTitle, state.atEdge, HINT_HOLD_REJECT_MS);
-              } else if (state.direction === 'prev') {
-                pagerHint.showAndHide(playback.index - 1, prevSongTitle, state.atEdge, HINT_HOLD_REJECT_MS);
-              } else {
-                pagerHint.hide();
-              }
-              return;
-            }
-            if (state.direction === 'next') pagerHint.show(playback.index + 1, nextSongTitle, state.atEdge);
-            else if (state.direction === 'prev') pagerHint.show(playback.index - 1, prevSongTitle, state.atEdge);
+            if (!state.active) return;
+            if (state.direction === 'next') pagerHint.track(playback.index + 1, nextSongTitle, state.atEdge);
+            else if (state.direction === 'prev') pagerHint.track(playback.index - 1, prevSongTitle, state.atEdge);
           }}
+          overlay={
+            <PagerHint
+              visible={pagerHint.state.visible}
+              dragging={pagerHint.state.dragging}
+              index={pagerHint.state.index}
+              total={playback.total}
+              label={pagerHint.state.label}
+              atEdge={pagerHint.state.atEdge}
+            />
+          }
           className="relative min-h-0 flex-1 overflow-hidden"
         >
           {/* В постраничных режимах боковое поле целиком отдано корню песни
@@ -245,14 +248,6 @@ function SongPageContent() {
               />
             )}
           </div>
-
-          <PagerHint
-            visible={pagerHint.state.visible}
-            index={pagerHint.state.index}
-            total={playback.total}
-            label={pagerHint.state.label}
-            atEdge={pagerHint.state.atEdge}
-          />
         </SwipePager>
 
         {/* Правый нижний край — единая точка входа для инструментов песни (сейчас

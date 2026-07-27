@@ -27,7 +27,6 @@ import { SwipePager } from '@/shared/components/pager/SwipePager';
 import { PagerHint, usePagerHint } from '@/shared/components/pager/PagerHint';
 
 const HINT_HOLD_COMMIT_MS = 900;
-const HINT_HOLD_REJECT_MS = 700;
 
 interface ReadingViewProps {
   reading: BibleReference | null;
@@ -294,21 +293,24 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
               }
             : undefined
         }
+        // Во время жеста задаём только СОДЕРЖИМОЕ подсказки: показывает её прогресс
+        // жеста. Отпустили, не дойдя до края, — прогресс гаснет вместе с возвратом
+        // главы, перехода не происходит.
         onDragChange={(state) => {
-          if (!state.active) {
-            if (state.direction) {
-              const target = computeSwipeTarget(state.direction);
-              pagerHint.showAndHide(target.index, target.label, target.atEdge, HINT_HOLD_REJECT_MS);
-            } else {
-              pagerHint.hide();
-            }
-            return;
-          }
-          if (state.direction) {
-            const target = computeSwipeTarget(state.direction);
-            pagerHint.show(target.index, target.label, target.atEdge);
-          }
+          if (!state.active || !state.direction) return;
+          const target = computeSwipeTarget(state.direction);
+          pagerHint.track(target.index, target.label, target.atEdge);
         }}
+        overlay={
+          <PagerHint
+            visible={pagerHint.state.visible}
+            dragging={pagerHint.state.dragging}
+            index={pagerHint.state.index}
+            total={swipeTotal}
+            label={pagerHint.state.label}
+            atEdge={pagerHint.state.atEdge}
+          />
+        }
         className="relative flex-1 overflow-hidden"
       >
         <div
@@ -330,14 +332,6 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
             />
           </div>
         </div>
-
-        <PagerHint
-          visible={pagerHint.state.visible}
-          index={pagerHint.state.index}
-          total={swipeTotal}
-          label={pagerHint.state.label}
-          atEdge={pagerHint.state.atEdge}
-        />
       </SwipePager>
 
       {/* Вне плана (day=null) кнопки скрыты, пока текст главы не загружен —
