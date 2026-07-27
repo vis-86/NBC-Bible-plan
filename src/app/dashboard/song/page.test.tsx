@@ -95,6 +95,7 @@ import SongPage from './page';
 
 function fireSwipe(el: Element, startX: number, endX: number, y = 100) {
   fireEvent.pointerDown(el, { clientX: startX, clientY: y });
+  fireEvent.pointerMove(el, { clientX: endX, clientY: y });
   fireEvent.pointerUp(el, { clientX: endX, clientY: y });
 }
 
@@ -109,8 +110,8 @@ describe('SongPage — режим сета (T18/T19)', () => {
   it('кнопки ‹ › disabled на границах сета', () => {
     playbackState.prevId = null;
     const { container } = render(<SongPage />);
-    const prevBtn = container.querySelector('[data-song-page-setlist-prev]') as HTMLButtonElement;
-    const nextBtn = container.querySelector('[data-song-page-setlist-next]') as HTMLButtonElement;
+    const prevBtn = container.querySelector('[data-setlist-pager-dock-prev]') as HTMLButtonElement;
+    const nextBtn = container.querySelector('[data-setlist-pager-dock-next]') as HTMLButtonElement;
     expect(prevBtn.disabled).toBe(true);
     expect(nextBtn.disabled).toBe(false);
   });
@@ -122,7 +123,7 @@ describe('SongPage — режим сета (T18/T19)', () => {
 
   it('переход к следующей песне вызывает goTo (router.replace) и ставит автоскролл на паузу', () => {
     const { container } = render(<SongPage />);
-    fireEvent.click(container.querySelector('[data-song-page-setlist-next]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-setlist-pager-dock-next]') as HTMLElement);
     expect(goToMock).toHaveBeenCalledWith(3);
     expect(pauseMock).toHaveBeenCalled();
     expect(pushMock).not.toHaveBeenCalled();
@@ -132,21 +133,29 @@ describe('SongPage — режим сета (T18/T19)', () => {
     wideLayout = true;
     viewMode = 'paged';
     const { container } = render(<SongPage />);
-    const scrollArea = container.querySelector('[data-song-page]')?.querySelector('.overflow-y-auto') as HTMLElement;
-    fireSwipe(scrollArea, 200, 80);
+    const swipePager = container.querySelector('[data-swipe-pager]') as HTMLElement;
+    fireSwipe(swipePager, 200, 80);
     expect(goToMock).not.toHaveBeenCalled();
   });
 
   it('свайп влево в mode="scroll" переходит к следующей песне', () => {
     const { container } = render(<SongPage />);
-    const scrollArea = container.querySelector('[data-song-page]')?.querySelector('.overflow-y-auto') as HTMLElement;
-    fireSwipe(scrollArea, 200, 80);
+    const swipePager = container.querySelector('[data-swipe-pager]') as HTMLElement;
+    fireSwipe(swipePager, 200, 80);
     expect(goToMock).toHaveBeenCalledWith(3);
+  });
+
+  it('свайп влево на последней песне сета (canNext=false, onEnd не задан) -> router.replace не вызван', () => {
+    playbackState.nextId = null;
+    const { container } = render(<SongPage />);
+    const swipePager = container.querySelector('[data-swipe-pager]') as HTMLElement;
+    fireSwipe(swipePager, 200, 80);
+    expect(goToMock).not.toHaveBeenCalled();
   });
 
   it('тап по строке в шторке сета переходит к песне и закрывает шторку', () => {
     const { container, getByText } = render(<SongPage />);
-    fireEvent.click(container.querySelector('[data-song-page-setlist-counter]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-setlist-pager-dock-counter]') as HTMLElement);
     const row = getByText('Первая').closest('[data-setlist-view-item]') as HTMLElement;
     fireEvent.click(row);
     expect(goToMock).toHaveBeenCalledWith(1);
@@ -155,14 +164,14 @@ describe('SongPage — режим сета (T18/T19)', () => {
 
   it('шторка сета — точка правки: в ней есть добавление и удаление сета', () => {
     const { container } = render(<SongPage />);
-    fireEvent.click(container.querySelector('[data-song-page-setlist-counter]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-setlist-pager-dock-counter]') as HTMLElement);
     expect(container.querySelector('[data-setlist-manage-sheet-add]')).toBeTruthy();
     expect(container.querySelector('[data-setlist-manage-sheet-delete]')).toBeTruthy();
   });
 
   it('текущая песня в шторке помечена aria-current', () => {
     const { container } = render(<SongPage />);
-    fireEvent.click(container.querySelector('[data-song-page-setlist-counter]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-setlist-pager-dock-counter]') as HTMLElement);
     const current = container.querySelector('[aria-current="true"]');
     expect(current?.textContent).toContain('Вторая');
   });
@@ -170,7 +179,7 @@ describe('SongPage — режим сета (T18/T19)', () => {
   it('при открытой шторке сета FAB автоскролла скрыт', () => {
     const { container, queryByText } = render(<SongPage />);
     expect(container.querySelector('[data-song-autoscroll-fab]')).toBeTruthy();
-    fireEvent.click(container.querySelector('[data-song-page-setlist-counter]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-setlist-pager-dock-counter]') as HTMLElement);
     expect(container.querySelector('[data-song-autoscroll-fab]')).toBeNull();
     void queryByText;
   });

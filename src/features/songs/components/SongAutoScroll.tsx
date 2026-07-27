@@ -69,7 +69,11 @@ export function SongAutoScroll({ playing, step, canScroll, onToggle, onSetStep }
   );
 
   return (
-    <div data-song-autoscroll className="pointer-events-none absolute inset-0 z-10">
+    // fixed, а не absolute: компонент рендерится внутри SongToolStack (правка §6),
+    // который сам position:absolute — вложенный absolute-потомок лёг бы окном
+    // на маленький бокс стека, а не на весь экран. fixed игнорирует позиционированных
+    // предков (кроме transform/filter, которых тут нет) и всегда считает от вьюпорта.
+    <div data-song-autoscroll className="pointer-events-none fixed inset-0 z-10 flex items-end justify-end p-4 pb-safe">
       {/* Кнопки скорости — только во время проигрывания (§8). Справа по центру,
           полупрозрачные; проявляются при нажатии. Вверх = медленнее, вниз = быстрее. */}
       {playing && (
@@ -106,23 +110,21 @@ export function SongAutoScroll({ playing, step, canScroll, onToggle, onSetStep }
         </div>
       )}
 
-      {/* Play/pause — компактный круглый FAB внизу справа: матовый (backdrop-blur),
-          иконка — primary. */}
-      <div className="pointer-events-auto absolute bottom-4 right-4 pb-safe">
-        <button
-          type="button"
-          data-song-autoscroll-toggle
-          aria-label={playing ? 'Пауза автоскролла' : 'Запустить автоскролл'}
-          aria-pressed={playing}
-          onClick={onToggle}
-          className={cn(
-            'flex h-12 w-12 items-center justify-center rounded-full bg-app-surface-elevated/70 text-app-primary shadow-app-card backdrop-blur-md',
-            TAP_TARGET,
-          )}
-        >
-          {playing ? <Pause size={22} /> : <Play size={22} />}
-        </button>
-      </div>
+      {/* Play/pause — компактный круглый FAB: матовый (backdrop-blur), иконка — primary.
+          Позиционирование — flex-выравнивание родителя (§6: SongToolStack), не собственный absolute. */}
+      <button
+        type="button"
+        data-song-autoscroll-toggle
+        aria-label={playing ? 'Пауза автоскролла' : 'Запустить автоскролл'}
+        aria-pressed={playing}
+        onClick={onToggle}
+        className={cn(
+          'pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-app-surface-elevated/70 text-app-primary shadow-app-card backdrop-blur-md',
+          TAP_TARGET,
+        )}
+      >
+        {playing ? <Pause size={22} /> : <Play size={22} />}
+      </button>
     </div>
   );
 }

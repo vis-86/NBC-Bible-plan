@@ -243,7 +243,7 @@ export interface SongToolStackProps {
 
 **Читать перед стартом:** `src/app/dashboard/song/page.tsx`, `src/app/dashboard/song/page.test.tsx`, `src/features/songs/components/SongKeyPicker.tsx` (строки 100–135), `src/features/songs/components/SongAutoScroll.tsx` (строки 70–128), `src/features/setlists/hooks/useSetlistPlayback.ts`.
 
-- [ ] **Задача 4: Компактный чип тональности**
+- [x] **Задача 4: Компактный чип тональности**
 
   Файл: `src/features/songs/components/SongKeyPicker.tsx`, триггер-кнопка (строки ~108–133).
 
@@ -261,7 +261,7 @@ export interface SongToolStackProps {
 
   LOGGING: не требуется — изменение чисто презентационное.
 
-- [ ] **Задача 5: `SetlistPagerDock` — нижняя таблетка `‹ · N/M · ›`**
+- [x] **Задача 5: `SetlistPagerDock` — нижняя таблетка `‹ · N/M · ›`**
 
   Новый файл: `src/features/setlists/components/SetlistPagerDock.tsx`. Контракт — см. `SetlistPagerDockProps`.
 
@@ -278,7 +278,7 @@ export interface SongToolStackProps {
 
   LOGGING: `console.debug('[SetlistPagerDock] nav', { direction, index, total })`.
 
-- [ ] **Задача 6: `SongToolStack` — правый край под инструменты**
+- [x] **Задача 6: `SongToolStack` — правый край под инструменты**
 
   Новый файл: `src/features/songs/components/SongToolStack.tsx`. Правка: `src/features/songs/components/SongAutoScroll.tsx` (строки 109–125).
 
@@ -296,7 +296,7 @@ export interface SongToolStackProps {
 
   LOGGING: `console.debug('[SongToolStack] render', { slots })`.
 
-- [ ] **Задача 7: Сборка страницы песни**
+- [x] **Задача 7: Сборка страницы песни**
 
   Файл: `src/app/dashboard/song/page.tsx`.
 
@@ -321,7 +321,7 @@ export interface SongToolStackProps {
 
   LOGGING: сохранить существующий `[useSetlistPlayback]` debug; добавить `console.debug('[SongPage] swipe nav', { from, to })` в `navigateToSetlistSong`.
 
-- [ ] **Задача 8: Тесты страницы песни + offline-e2e**
+- [x] **Задача 8: Тесты страницы песни + offline-e2e**
 
   Файлы: `src/app/dashboard/song/page.test.tsx`, `e2e/offline/setlists-offline.spec.ts`.
 

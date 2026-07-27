@@ -105,7 +105,7 @@ test.describe('Сетлисты — офлайн (T15)', () => {
     await expect(page.locator('[data-setlist-view]')).toBeVisible();
     await page.goto(appPath(`/dashboard/song?id=${songIds[0]}&setlistId=${setlistId}`));
     await expect(page.locator('[data-song-page]')).toBeVisible();
-    await expect(page.locator('[data-song-page-setlist-next]')).toBeVisible();
+    await expect(page.locator('[data-setlist-pager-dock-next]')).toBeVisible();
     await page.close();
 
     const rscErrors: string[] = [];
@@ -121,12 +121,12 @@ test.describe('Сетлисты — офлайн (T15)', () => {
     await expect(offlinePage.locator('[data-song-page]')).toBeVisible();
     await expect(offlinePage.getByText('Нет соединения')).not.toBeVisible();
 
-    const counterBefore = await offlinePage.locator('[data-song-page-setlist-counter]').textContent();
+    const counterBefore = await offlinePage.locator('[data-setlist-pager-dock-counter]').textContent();
     expect(counterBefore?.trim()).toBe('1 / 2');
 
-    await offlinePage.locator('[data-song-page-setlist-next]').click();
+    await offlinePage.locator('[data-setlist-pager-dock-next]').click();
     await expect(offlinePage).toHaveURL(new RegExp(`id=${songIds[1]}`));
-    await expect(offlinePage.locator('[data-song-page-setlist-counter]')).toHaveText('2 / 2');
+    await expect(offlinePage.locator('[data-setlist-pager-dock-counter]')).toHaveText('2 / 2');
 
     expect(rscErrors, 'RSC-пейлоад запрашивался по сети вместо precache').toEqual([]);
 

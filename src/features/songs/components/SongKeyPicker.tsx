@@ -113,22 +113,20 @@ export function SongKeyPicker({
         data-song-key-picker-toggle
         aria-haspopup="dialog"
         aria-expanded={isOpen}
-        aria-label="Тональность"
+        aria-label={`Тональность ${value}${sourceLabel ? `, ${sourceLabel}` : ''}${capo > 0 ? `, каподастр ${capo}` : ''}`}
         onClick={open}
         // Габариты выровнены с кнопкой настроек справа (иконка + p-2 ≈ h-9): фиксированная
         // высота и min-width держат шапку однородной вне зависимости от длины тональности.
         className="inline-flex h-9 min-w-11 items-center justify-center gap-1.5 rounded-app-sm bg-app-primary px-3 text-sm font-medium text-app-text-inverse transition-colors duration-150 hover:bg-app-primary-hover active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary focus-visible:ring-offset-2"
       >
+        {sourceLabel && (
+          <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-app-text-inverse/80" data-song-key-picker-source-dot />
+        )}
         <span data-song-key-picker-value>{value}</span>
-        {sourceLabel && <span className="text-sm opacity-80">({sourceLabel})</span>}
         {capo > 0 && (
-          <>
-            {/* Внутренний разделитель: капо — отдельная величина от тональности. */}
-            <span aria-hidden className="h-4 w-px bg-app-text-inverse/40" />
-            <span className="text-sm opacity-90" data-song-key-picker-capo-badge>
-              капо {capo}
-            </span>
-          </>
+          <span className="text-sm opacity-90" data-song-key-picker-capo-badge>
+            {capo}
+          </span>
         )}
       </button>
 

@@ -326,7 +326,7 @@ code.chord {
 }
 .sheet-num {
   position: absolute;
-  right: 1rem;
+  left: 1rem;
   bottom: 0.125rem;
   font-family: var(--font-sans);
   font-size: 0.7rem;

@@ -2,7 +2,7 @@
 
 import { Suspense, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Settings, ChevronLeft, ChevronRight, ListMusic } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
@@ -12,17 +12,23 @@ import { SongView } from '@/features/songs/components/SongView';
 import { SongKeyPicker } from '@/features/songs/components/SongKeyPicker';
 import { SongViewSettings } from '@/features/songs/components/SongViewSettings';
 import { SongAutoScroll } from '@/features/songs/components/SongAutoScroll';
+import { SongToolStack } from '@/features/songs/components/SongToolStack';
 import { useSongKey } from '@/features/songs/hooks/useSongKey';
 import { useAutoScroll } from '@/features/songs/hooks/useAutoScroll';
 import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
-import { useHorizontalSwipe } from '@/shared/hooks/useHorizontalSwipe';
+import { SwipePager } from '@/shared/components/pager/SwipePager';
+import { PagerHint, usePagerHint } from '@/shared/components/pager/PagerHint';
 import { useSetlistPlayback } from '@/features/setlists/hooks/useSetlistPlayback';
 import { SetlistManageSheet } from '@/features/setlists/components/SetlistManageSheet';
+import { SetlistPagerDock } from '@/features/setlists/components/SetlistPagerDock';
 import { useAppRole } from '@/shared/hooks/useAppRole';
 import { useSongs } from '@/features/songs/hooks/useSongs';
 import type { SetlistItem } from '@/features/setlists/types';
 import { cn } from '@/shared/utils/cn';
+
+const HINT_HOLD_COMMIT_MS = 900;
+const HINT_HOLD_REJECT_MS = 700;
 
 /**
  * Единый клиентский маршрут детали песни (approach C): id живёт в search-параметре,
@@ -77,23 +83,23 @@ function SongPageContent() {
   // per-song подхватится своя, но продолжать ехать по новой песне — неверно),
   // и router.replace (не push — иначе back после N свайпов прогонит N песен).
   const navigateToSetlistSong = (songId: number) => {
+    console.debug('[SongPage] swipe nav', { from: id, to: songId });
     ignoreNextScroll();
     if (contentRef.current) contentRef.current.scrollTop = 0;
     autoscroll.pause();
     playback.goTo(songId);
   };
 
-  // Свайп между песнями активен только в mode='scroll' — 'paged' уже занял горизонталь
-  // листанием страниц одной песни (usePagedFlow), конфликтовать с ним нельзя.
-  const swipeHandlers = useHorizontalSwipe({
-    enabled: playback.inSetlist && mode === 'scroll',
-    onSwipeLeft: () => {
-      if (playback.nextId != null) navigateToSetlistSong(playback.nextId);
-    },
-    onSwipeRight: () => {
-      if (playback.prevId != null) navigateToSetlistSong(playback.prevId);
-    },
-  });
+  const pagerHint = usePagerHint();
+
+  // Свайп между песнями сета: работает всюду, кроме 'paged' — там горизонталь занята
+  // листанием страниц одной песни (§6 решения), и при открытой любой шторке страницы
+  // (жест уже принадлежит ей).
+  const swipeEnabled =
+    playback.inSetlist && mode !== 'paged' && !isViewSettingsOpen && !isKeyPickerOpen && !isSetlistSheetOpen;
+
+  const nextSongTitle = playback.nextId != null ? songs.find((s) => s.id === String(playback.nextId))?.title ?? '' : '';
+  const prevSongTitle = playback.prevId != null ? songs.find((s) => s.id === String(playback.prevId))?.title ?? '' : '';
 
   const handleBack = () =>
     playback.inSetlist ? router.push('/dashboard/setlists') : router.push('/dashboard/songs');
@@ -135,42 +141,6 @@ function SongPageContent() {
               backAriaLabel="Назад к списку"
               right={
                 <div className="flex items-center gap-1">
-                  {playback.inSetlist && (
-                    <>
-                      <button
-                        type="button"
-                        data-song-page-setlist-prev
-                        aria-label="Предыдущая песня сета"
-                        disabled={playback.prevId == null}
-                        onClick={() => playback.prevId != null && navigateToSetlistSong(playback.prevId)}
-                        className="rounded-app-sm p-2 text-app-text-secondary transition-transform duration-150 hover:bg-app-surface-muted active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <ChevronLeft size={20} />
-                      </button>
-                      <button
-                        type="button"
-                        data-song-page-setlist-counter
-                        aria-label={`Песня ${playback.index + 1} из ${playback.total}, открыть список сета`}
-                        onClick={() => setIsSetlistSheetOpen(true)}
-                        // Акцентная плашка, а не текст: это вход в единственное место
-                        // управления сетом (список песен, порядок, добавление, удаление).
-                        className="flex items-center gap-1 rounded-full bg-app-primary-muted px-2.5 py-1.5 text-sm font-semibold text-app-primary transition-transform duration-150 active:scale-95"
-                      >
-                        <ListMusic size={16} aria-hidden />
-                        {playback.index + 1} / {playback.total}
-                      </button>
-                      <button
-                        type="button"
-                        data-song-page-setlist-next
-                        aria-label="Следующая песня сета"
-                        disabled={playback.nextId == null}
-                        onClick={() => playback.nextId != null && navigateToSetlistSong(playback.nextId)}
-                        className="rounded-app-sm p-2 text-app-text-secondary transition-transform duration-150 hover:bg-app-surface-muted active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-                      >
-                        <ChevronRight size={20} />
-                      </button>
-                    </>
-                  )}
                   {song && showKeyPicker && (
                     <SongKeyPicker
                       value={songKeyState.effectiveKey as string}
@@ -200,62 +170,116 @@ function SongPageContent() {
           </div>
         </div>
 
-        {/* В постраничных режимах боковое поле целиком отдано корню песни
-            (`px-4` в SongView): подложка листа тянется до края оболочки, а поле
-            остаётся внутри листа — текст не впритык к его краю. */}
-        <div
-          ref={contentRef}
-          className={cn('min-h-0 flex-1 overflow-y-auto', mode === 'scroll' ? 'px-4 py-4' : 'py-2')}
-          {...swipeHandlers}
+        {/* Свайп между песнями сета — обёртка вокруг скролл-контейнера, не сам контейнер:
+            SwipePager капчурит pointer-события и сдвигает контент трансформом во время
+            жеста, а вертикальный скролл остаётся на внутреннем div (contentRef). */}
+        <SwipePager
+          enabled={swipeEnabled}
+          canPrev={playback.prevId != null}
+          canNext={playback.nextId != null}
+          onPrev={() => {
+            if (playback.prevId == null) return;
+            navigateToSetlistSong(playback.prevId);
+            pagerHint.showAndHide(playback.index - 1, prevSongTitle, false, HINT_HOLD_COMMIT_MS);
+          }}
+          onNext={() => {
+            if (playback.nextId == null) return;
+            navigateToSetlistSong(playback.nextId);
+            pagerHint.showAndHide(playback.index + 1, nextSongTitle, false, HINT_HOLD_COMMIT_MS);
+          }}
+          onDragChange={(state) => {
+            if (!state.active) {
+              if (state.direction === 'next') {
+                pagerHint.showAndHide(playback.index + 1, nextSongTitle, state.atEdge, HINT_HOLD_REJECT_MS);
+              } else if (state.direction === 'prev') {
+                pagerHint.showAndHide(playback.index - 1, prevSongTitle, state.atEdge, HINT_HOLD_REJECT_MS);
+              } else {
+                pagerHint.hide();
+              }
+              return;
+            }
+            if (state.direction === 'next') pagerHint.show(playback.index + 1, nextSongTitle, state.atEdge);
+            else if (state.direction === 'prev') pagerHint.show(playback.index - 1, prevSongTitle, state.atEdge);
+          }}
+          className="relative min-h-0 flex-1 overflow-hidden"
         >
-          {!id ? (
-            <ErrorMessage title="Песня не найдена" message="Не указан идентификатор песни." onRetry={handleBack} retryLabel="К списку" />
-          ) : error ? (
-            <ErrorMessage title="Песня не найдена" message={error} onRetry={handleBack} retryLabel="К списку" />
-          ) : loading || !song ? (
-            <div data-song-page-loading className="animate-pulse space-y-3" aria-hidden>
-              <div className="h-7 w-2/3 rounded bg-app-surface-muted" />
-              <div className="h-4 w-1/2 rounded bg-app-surface-muted" />
-              <div className="mt-6 h-4 w-full rounded bg-app-surface-muted" />
-              <div className="h-4 w-11/12 rounded bg-app-surface-muted" />
-              <div className="h-4 w-10/12 rounded bg-app-surface-muted" />
-            </div>
-          ) : (
-            <SongView
-              // title не прокидываем: он уже показан в PageHeader сверху (без дубля).
-              content={song.content}
-              subtitle={song.subtitle}
-              // songKey — тональность ФОРМ на листе (при капо ≠ звучащей): она задаёт спеллинг
-              // диезов/бемолей, обязанный совпадать с реально напечатанными аккордами.
-              songKey={songKeyState.shapeKey ?? songKeyState.effectiveKey ?? song.key}
-              // metaKey — ЗВУЧАЩАЯ тональность для плашки key·tempo.
-              metaKey={songKeyState.effectiveKey ?? song.key}
-              // renderSemitones уже учитывает капо (semitones − capo).
-              semitones={songKeyState.renderSemitones}
-              tempo={song.tempo}
-              fontSize={viewSettings.fontSize}
-              hideChords={!viewSettings.showChords}
-              density={viewSettings.density}
-              showHeader={viewSettings.showHeader}
-              mode={mode}
-              columns={viewSettings.columns}
-              viewportRef={contentRef}
-            />
-          )}
-        </div>
+          {/* В постраничных режимах боковое поле целиком отдано корню песни
+              (`px-4` в SongView): подложка листа тянется до края оболочки, а поле
+              остаётся внутри листа — текст не впритык к его краю. */}
+          <div
+            ref={contentRef}
+            className={cn('h-full min-h-0 overflow-y-auto', mode === 'scroll' ? 'px-4 py-4' : 'py-2')}
+          >
+            {!id ? (
+              <ErrorMessage title="Песня не найдена" message="Не указан идентификатор песни." onRetry={handleBack} retryLabel="К списку" />
+            ) : error ? (
+              <ErrorMessage title="Песня не найдена" message={error} onRetry={handleBack} retryLabel="К списку" />
+            ) : loading || !song ? (
+              <div data-song-page-loading className="animate-pulse space-y-3" aria-hidden>
+                <div className="h-7 w-2/3 rounded bg-app-surface-muted" />
+                <div className="h-4 w-1/2 rounded bg-app-surface-muted" />
+                <div className="mt-6 h-4 w-full rounded bg-app-surface-muted" />
+                <div className="h-4 w-11/12 rounded bg-app-surface-muted" />
+                <div className="h-4 w-10/12 rounded bg-app-surface-muted" />
+              </div>
+            ) : (
+              <SongView
+                // title не прокидываем: он уже показан в PageHeader сверху (без дубля).
+                content={song.content}
+                subtitle={song.subtitle}
+                // songKey — тональность ФОРМ на листе (при капо ≠ звучащей): она задаёт спеллинг
+                // диезов/бемолей, обязанный совпадать с реально напечатанными аккордами.
+                songKey={songKeyState.shapeKey ?? songKeyState.effectiveKey ?? song.key}
+                // metaKey — ЗВУЧАЩАЯ тональность для плашки key·tempo.
+                metaKey={songKeyState.effectiveKey ?? song.key}
+                // renderSemitones уже учитывает капо (semitones − capo).
+                semitones={songKeyState.renderSemitones}
+                tempo={song.tempo}
+                fontSize={viewSettings.fontSize}
+                hideChords={!viewSettings.showChords}
+                density={viewSettings.density}
+                showHeader={viewSettings.showHeader}
+                mode={mode}
+                columns={viewSettings.columns}
+                viewportRef={contentRef}
+              />
+            )}
+          </div>
 
-        {/* FAB автоскролла — сиблинг скролл-контейнера (не внутри него): слушатель паузы
-            висит на контейнере, а тап по FAB внутри всплыл бы в touchstart → пауза на play.
-            Только в scroll при загруженной песне; на showChords не гейтим (§4.5).
-            Прячем при любой открытой нижней шторке на странице песни (настройки ИЛИ
-            транспонирование), иначе контрол перекрывает лист. */}
+          <PagerHint
+            visible={pagerHint.state.visible}
+            index={pagerHint.state.index}
+            total={playback.total}
+            label={pagerHint.state.label}
+            atEdge={pagerHint.state.atEdge}
+          />
+        </SwipePager>
+
+        {/* Правый нижний край — единая точка входа для инструментов песни (сейчас
+            автоскролл). Прячем при любой открытой нижней шторке — иначе перекрывает лист. */}
         {mode === 'scroll' && song && !isViewSettingsOpen && !isKeyPickerOpen && !isSetlistSheetOpen && (
-          <SongAutoScroll
-            playing={autoscroll.playing}
-            step={autoscroll.step}
-            canScroll={autoscroll.canScroll}
-            onToggle={autoscroll.toggle}
-            onSetStep={autoscroll.setStep}
+          <SongToolStack hidden={headerHidden}>
+            <SongAutoScroll
+              playing={autoscroll.playing}
+              step={autoscroll.step}
+              canScroll={autoscroll.canScroll}
+              onToggle={autoscroll.toggle}
+              onSetStep={autoscroll.setStep}
+            />
+          </SongToolStack>
+        )}
+
+        {/* Нижняя таблетка навигации по сету — правый край отдан SongToolStack. */}
+        {playback.inSetlist && mode !== 'paged' && (
+          <SetlistPagerDock
+            index={playback.index}
+            total={playback.total}
+            canPrev={playback.prevId != null}
+            canNext={playback.nextId != null}
+            onPrev={() => playback.prevId != null && navigateToSetlistSong(playback.prevId)}
+            onNext={() => playback.nextId != null && navigateToSetlistSong(playback.nextId)}
+            onOpenSetlist={() => setIsSetlistSheetOpen(true)}
+            hidden={headerHidden}
           />
         )}
       </div>

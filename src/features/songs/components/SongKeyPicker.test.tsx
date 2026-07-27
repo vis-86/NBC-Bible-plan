@@ -28,19 +28,22 @@ function renderPicker(props: Partial<React.ComponentProps<typeof SongKeyPicker>>
 }
 
 describe('SongKeyPicker — триггер', () => {
-  it('показывает действующую тональность и подпись источника', () => {
-    const personal = renderPicker({ value: 'Ab', source: 'personal' });
-    expect(personal.container.querySelector('[data-song-key-picker-value]')?.textContent).toBe('Ab');
-    expect(personal.container.querySelector('[data-song-key-picker-toggle]')?.textContent).toContain('моя');
-    personal.unmount();
-
-    const byDefault = renderPicker({ value: 'A', source: 'default' });
-    expect(byDefault.container.querySelector('[data-song-key-picker-toggle]')?.textContent).toContain('по умолчанию');
+  it('компактный триггер: точка источника + значение + бейдж капо, ширина ≤ 80px', () => {
+    const picker = renderPicker({ value: 'Ab', source: 'personal', capo: 3 });
+    const toggle = picker.container.querySelector('[data-song-key-picker-toggle]') as HTMLElement;
+    expect(picker.container.querySelector('[data-song-key-picker-value]')?.textContent).toBe('Ab');
+    expect(picker.container.querySelector('[data-song-key-picker-source-dot]')).not.toBeNull();
+    expect(picker.container.querySelector('[data-song-key-picker-capo-badge]')?.textContent).toBe('3');
+    expect(toggle.getAttribute('aria-label')).toContain('моя');
+    expect(toggle.getAttribute('aria-label')).toContain('каподастр 3');
   });
 
-  it('для исходной тональности подписи источника нет', () => {
-    const { container } = renderPicker({ value: 'G', source: 'original' });
-    expect(container.querySelector('[data-song-key-picker-toggle]')?.textContent).toBe('G');
+  it('для исходной тональности точки источника и бейджа капо нет', () => {
+    const { container } = renderPicker({ value: 'G', source: 'original', capo: 0 });
+    const toggle = container.querySelector('[data-song-key-picker-toggle]') as HTMLElement;
+    expect(container.querySelector('[data-song-key-picker-source-dot]')).toBeNull();
+    expect(container.querySelector('[data-song-key-picker-capo-badge]')).toBeNull();
+    expect(toggle.getAttribute('aria-label')).toBe('Тональность G');
   });
 
   it('панель раскрывается по кнопке', () => {
