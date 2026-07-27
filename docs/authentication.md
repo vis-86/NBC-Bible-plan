@@ -119,6 +119,10 @@ Trade-off: per-user Directus permissions на API-слое не применяю
 refresh-пути). Реальный гейт мутирующих роутов сетлистов — `requireSetlistWrite`
 (BFF middleware); Directus-права — второй рубеж, не защита (см. `CLAUDE.md`).
 
+Права: `reader` — только чтение; `musician` — создание/редактирование/удаление сетлистов;
+`musician_editor` — то же плюс создание и редактирование песен (`canEditSongs`; фича правки
+песен ещё не реализована, гейт заведён заранее).
+
 ## PWA
 
 Установка вне Telegram: манифест — статический `public/manifest.webmanifest`,

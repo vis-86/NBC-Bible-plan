@@ -2,8 +2,9 @@
  * Роли приложения (M2). Приходят отдельным запросом (`GET /api/user/role`),
  * не кладутся в iron-session cookie — см. `CLAUDE.md` (кэш в cookie требует refresh-пути).
  *
- * `musician_editor` пока не даёт прав в коде (M9 — задел на будущее),
- * `canEditSongs` заводится, но нигде не вызывается в этом этапе.
+ * Правила: `musician` — CRUD сетлистов; `musician_editor` — то же плюс создание и
+ * редактирование песен. Гейт песен (`canEditSongs`) пока нигде не вызывается: сама
+ * фича правки песен — M9, в коде её ещё нет (BFF по песням только GET).
  */
 
 export type AppRole = 'reader' | 'musician' | 'musician_editor';

@@ -70,8 +70,10 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
 
 ## Роли доступа (сетлисты)
 
-- Роли: `reader` (дефолт), `musician` (CRUD сетлистов), `musician_editor` (задел под M9,
-  прав в коде пока не даёт). Маппинг Directus-роль → `AppRole` — `src/lib/app-roles.ts`.
+- Роли: `reader` (дефолт), `musician` (CRUD сетлистов), `musician_editor` (CRUD сетлистов
+  + создание и редактирование песен). Обе музыкантские роли проходят `canManageSetlists`;
+  `canEditSongs` — только `musician_editor` и пока нигде не вызывается: фича правки песен
+  (M9) ещё не реализована. Маппинг Directus-роль → `AppRole` — `src/lib/app-roles.ts`.
 - **Реальный гейт — BFF, не Directus.** Приложение ходит в Directus админ-токеном через
   BFF, поэтому Directus-права — второй рубеж, а не защита. Каждый мутирующий роут
   сетлистов обязан пройти через `requireSetlistWrite` (`server/src/middleware/requireRole.ts`).

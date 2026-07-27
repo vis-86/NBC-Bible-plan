@@ -85,23 +85,21 @@
 
 Не изобретать требования. Дойдя до такого этапа — сформулировать вопросы и остановиться.
 
-- **M2 — роли доступа.** В коде нет ничего (`app_roles`/`requireRole` не существуют).
-  В проде две Directus-роли: «Чтец» и «Administrator». Решение Игоря от 2026-07-25: создавать
-  и править сетлисты может только роль `musician_editor`.
-  Открыто: как роль попадает в сессию (отдельная Directus-роль ↔ policy или поле профиля),
-  кто назначает, как гейтить BFF-роуты, нужны ли роли помимо `musician_editor`.
-  **Учесть:** права Directus — второй рубеж, а не контур контроля доступа: приложение ходит
-  в Directus админ-клиентом через BFF, реальный гейт обязан быть в BFF-роутах.
+- **M2 — роли доступа. ✅ готово** (план `feature-setlists.md`, T1–T3). Итог: `AppRole` =
+  `reader` / `musician` / `musician_editor` (`src/lib/app-roles.ts`), роль приходит из
+  `GET /api/user/role`. Права: `musician` — CRUD сетлистов; `musician_editor` — то же
+  **плюс** создание и редактирование песен (`canEditSongs`, ждёт M9). Реальный гейт — BFF
+  (`requireSetlistWrite`), Directus-права — второй рубеж: приложение ходит админ-клиентом.
 - **M6 — обобщение outbox.** `OutboxRecord` (`src/shared/offline/db.ts`) жёстко под прогресс
   чтения (`op: 'single'|'batch'`, `dayIds`, `count`). Форма обобщения — архитектурное решение.
   Тронет офлайн-контур ⇒ полный production-контур верификации обязателен.
-- **M7 — сетлисты.** Прод-Directus на 2026-07-25: коллекции `setlists`/`setlist_items`/
-  `song_user_state` есть (uuid PK, FK на `songs` = integer, поле `user_id`). В policy `custom`:
-  `setlists`/`setlist_items` — только `read`; `song_user_state` — CRUD своих записей
-  (`user_id = $CURRENT_USER`), настроено полностью. Запись в сетлисты — только `musician_editor`
-  (роли нет) ⇒ блокируется M2. Права на запись выдаёт Игорь вручную.
-- **M9 — редактирование песен.** BFF только GET. Нужно: кто редактирует (M2), что именно
-  редактируется, конфликты. Запись — через outbox (M6), не прямым POST.
+- **M7 — сетлисты. ✅ готово** (план `feature-setlists.md`). Слайс `features/setlists`,
+  BFF-роуты `/api/setlists*` под `requireSetlistWrite`, запись — online-only (осознанное
+  исключение из offline-first), чтение — read-through + IDB. `song_user_state` пока не
+  подключён — это M6.
+- **M9 — редактирование песен.** BFF по песням только GET. Кто редактирует — решено:
+  `musician_editor` (`canEditSongs` уже есть, пока не вызывается). Открыто: что именно
+  редактируется и как разруливаются конфликты. Запись — через outbox (M6), не прямым POST.
 
 ---
 
