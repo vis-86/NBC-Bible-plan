@@ -87,7 +87,7 @@ bible-plan/
 │   │   │   ├── animations/           # Shared animation components
 │   │   │   ├── bible/                # Bible-specific UI components
 │   │   │   ├── skeletons/            # Loading skeleton components
-│   │   │   └── ui/                   # Generic UI primitives (shadcn/ui) + UpdateToast.tsx, SearchBar.tsx
+│   │   │   └── ui/                   # Generic UI primitives (shadcn/ui) + UpdateToast.tsx, SearchBar.tsx, RangeSlider.tsx (44px tap zone, 28px thumb)
 │   │   ├── config/
 │   │   │   └── design-tokens.ts      # TS design token constants (maps to CSS vars)
 │   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast), useAutoHideOnScroll (hide-on-scroll обёртка над useScrollDirection), useAppRole, useIsOnline, useHorizontalSwipe

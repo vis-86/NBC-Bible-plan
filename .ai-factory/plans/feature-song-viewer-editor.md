@@ -24,14 +24,18 @@
   `--section-gap`, `--col-count`); inline-`font-size` и проп `fontSize` в цепочке нет.
   «Только текст» — атрибут `data-chords="off"` + `.chord{display:none}`.
 - `useSongViewSettings` — один JSON-ключ `songs:view-settings`
-  (`mode`/`columns`/`fontSize`/`density`/`showChords`/`showHeader`), клампы, миграция со
-  старого `songs:font-size`, устойчивость к битому JSON. Панель — `SongViewSettings`.
-  Раскладочные контролы рендерятся только при `SONG_WIDE_LAYOUT_QUERY` (≥640px), и на узком
-  экране режим принудительно приводится к `scroll`.
-- Один multicol-поток (`SongBlock.tsx` удалён), режимы `sheets` (листы вниз) и `paged`
-  (горизонтальные страницы, клавиши/педали/тап по третям, индикатор «N / M»).
-  Чистые функции — `lib/sheets.ts` (`pitch`, `sheetCount`, `sheetPageHeight`, `nextPageDelta`),
-  измерения — `hooks/useSheets.ts` / `hooks/usePagedFlow.ts`.
+  (`columns`/`fontSize`/`density`/`showChords`/`showHeader`), клампы, миграция со
+  старого `songs:font-size`, устойчивость к битому JSON. Панель — `SongViewSettings`
+  (редизайн 2026-07-28, план `feature-song-settings-ux.md`: три смысловые группы вместо
+  плоского списка). Раскладочные контролы рендерятся только при `SONG_WIDE_LAYOUT_QUERY`
+  (≥640px). `mode` **не хранится** — с 2026-07-28 выводится чистой функцией
+  `resolveSongViewMode(columns, isWideLayout)`, второго источника истины нет.
+- Один multicol-поток (`SongBlock.tsx` удалён), режим `sheets` (листы вниз, индикатор
+  «N / M»). Постраничный режим `paged` (горизонтальные страницы, клавиши/педали/тап по
+  третям) удалён целиком 2026-07-28 (план `feature-song-settings-ux.md`, T3/T4) — после
+  того как `mode` стал производным от `columns`, у него не осталось точки входа.
+  Чистые функции — `lib/sheets.ts` (`pitch`, `sheetCount`, `sheetPageHeight`),
+  измерения — `hooks/useSheets.ts`.
 - Оболочка дашборда расширена до 48rem (`--app-shell-max-w`, класс `.app-shell-width`).
 - E2E-регрессия раскладки — `e2e/layout/song-layout.spec.ts` (9 тестов, один логин на спек:
   прод rate-limit 10 попыток / 15 мин на IP).
@@ -48,7 +52,7 @@
 3. **Типографику аккордов не трогать** без явной задачи: `tokenizeChord` в `ChordRenderer.tsx`
    и `chordSign*` в `songs.css` прошли ручную проверку на реальном корпусе (спека §3.4).
 4. **Дефолт `mode` — `scroll`** на любом устройстве; авто-выбора по ширине нет.
-   В `sheets`/`paged` авто-скрытие шапки отключено (смена высоты вьюпорта пересобирает листы).
+   В `sheets` авто-скрытие шапки отключено (смена высоты вьюпорта пересобирает листы).
 
 ## Персист пользовательских данных (сквозной вопрос M4/M5/M10)
 
@@ -75,7 +79,7 @@
   в `songsServer.ts` пока не запрашивается. Пустой `default_key` ⇒ действует `song_key`.
   → детальный план: `.ai-factory/plans/feature-song-transpose.md`
 - **M5 — автоскролл.** Спека §8 целиком, §4.5 (живёт только в режиме `scroll`, в
-  `sheets`/`paged` кнопка скрыта), §11 (`prefers-reduced-motion`). Скорость — на песню.
+  `sheets` кнопка скрыта), §11 (`prefers-reduced-motion`). Скорость — на песню.
 - **M8 — печать и PDF.** Спека §9 целиком, §4.6 (разрывы). `@media print` в проекте нет вовсе.
 - **M10 — рукописные пометки.** Спека §6 (единственное место с зумом; штрихи привязаны к
   якорю `sectionIndex`/`lineIndex`, не к экранным координатам), §7. `perfect-freehand` не
