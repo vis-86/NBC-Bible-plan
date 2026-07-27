@@ -346,7 +346,7 @@ export interface SongToolStackProps {
 
 **Читать перед стартом:** `src/features/reading/components/ReadingView.tsx`, `src/features/reading/hooks/useChapterNavigation.ts`, `src/features/reading/hooks/useBibleText.ts`, `src/features/reading/components/FloatingChapterNav.tsx`.
 
-- [ ] **Задача 9: Свайп между главами**
+- [x] **Задача 9: Свайп между главами**
 
   Файл: `src/features/reading/components/ReadingView.tsx`.
 
@@ -368,7 +368,7 @@ export interface SongToolStackProps {
 
   LOGGING: `console.debug('[ReadingView] swipe nav', { from, to, planMode })`.
 
-- [ ] **Задача 10: Прогрев соседней главы**
+- [x] **Задача 10: Прогрев соседней главы**
 
   Файл: `src/features/reading/hooks/useBibleText.ts` (добавить эффект) или новый `src/features/reading/hooks/usePrefetchChapter.ts` рядом.
 
@@ -385,7 +385,7 @@ export interface SongToolStackProps {
 
   LOGGING: `console.debug('[useBibleText] prefetch', { book, chapter, skipped })`.
 
-- [ ] **Задача 11: Тесты ридера**
+- [x] **Задача 11: Тесты ридера**
 
   Файлы: `src/features/reading/components/ReadingView.test.tsx` (новый), `src/features/reading/hooks/useBibleText.test.ts` (дополнение).
 

@@ -6,6 +6,7 @@ import { BibleReference, ReadingPlanDay, PlanItem } from '@/types';
 import { getReferenceInfo } from '@/lib/ai';
 import { isAIEnabled } from '@/shared/utils/constants';
 import { parseReadingItem } from '@/shared/utils/bible';
+import { BIBLE_STRUCTURE } from '@/lib/constants';
 import { useTheme } from '@/components/ThemeProvider';
 import { useReadingSettings } from '../hooks/useReadingSettings';
 import { useBibleText } from '../hooks/useBibleText';
@@ -22,6 +23,11 @@ import { useStatusBarColor } from '@/shared/hooks/useStatusBarColor';
 import { useScrollDirection } from '@/shared/hooks/useScrollDirection';
 import { useChromeVisibility } from '@/shared/components/layout/ChromeVisibility';
 import { shouldShowCompletionOnCheck } from '../completionDecision';
+import { SwipePager } from '@/shared/components/pager/SwipePager';
+import { PagerHint, usePagerHint } from '@/shared/components/pager/PagerHint';
+
+const HINT_HOLD_COMMIT_MS = 900;
+const HINT_HOLD_REJECT_MS = 700;
 
 interface ReadingViewProps {
   reading: BibleReference | null;
@@ -98,6 +104,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
 
   const { setChromeHidden } = useChromeVisibility();
   const { hidden: scrollHidden, setHidden: setScrollHidden, ignoreNextScroll } = useScrollDirection(contentRef);
+  const pagerHint = usePagerHint();
 
   useEffect(() => {
     console.debug('[ReadingView] chrome', { hidden: scrollHidden });
@@ -215,6 +222,39 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     }
   };
 
+  // Свайп между главами: в плане листает day.items, вне плана — главы книги
+  // (решение 4). index/label считаем сами — они нужны и для PagerHint во
+  // время жеста, и для лога коммита; SwipeDragState.atEdge не годится здесь,
+  // т.к. для последней главы дня onEnd задан и SwipePager его atEdge=false.
+  const dayItems = day?.items ?? [];
+  const swipeCurrentIndex = day
+    ? dayItems.findIndex(item => item.item === currentItemEffective?.item)
+    : currentChapter - 1;
+  const swipeBookInfo = BIBLE_STRUCTURE.find(b => b.name === (currentReadingState?.book || reading.book));
+  const swipeTotal = day ? dayItems.length : (swipeBookInfo?.chapters ?? currentChapter);
+
+  const swipeTargetLabel = (targetIndex: number): string => {
+    if (day) {
+      const item = dayItems[targetIndex];
+      if (!item) return '';
+      const parsed = parseReadingItem(item.readText);
+      return parsed ? `${parsed.book} ${parsed.chapter}` : '';
+    }
+    const book = currentReadingState?.book || reading.book;
+    return `${book} ${targetIndex + 1}`;
+  };
+
+  const computeSwipeTarget = (direction: 'prev' | 'next') => {
+    const targetIndex = direction === 'next' ? swipeCurrentIndex + 1 : swipeCurrentIndex - 1;
+    return {
+      index: targetIndex,
+      label: swipeTargetLabel(targetIndex),
+      atEdge: targetIndex < 0 || targetIndex >= swipeTotal,
+    };
+  };
+
+  const swipeEnabled = !showBookPicker && !showChapterPicker && !showSettings && !showCompletionModal;
+
   return (
     <div className={`flex flex-col h-full ${themeClasses[displayTheme] || themeClasses.light} relative`}>
       <ReadingHeader
@@ -230,22 +270,75 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
         onBookPickerClick={() => setShowBookPicker(true)}
       />
 
-      <div className={`flex-1 overflow-y-auto w-full ${themeClasses[displayTheme] || themeClasses.light}`} ref={contentRef}>
-        <div className="max-w-xl mx-auto px-6 py-8 pb-[calc(var(--dock-nav-h)+env(safe-area-inset-bottom)+96px)]">
-          <ReadingContent
-            text={text}
-            loading={loading}
-            settings={settings}
-            displayTheme={displayTheme}
-            contextInfo={contextInfo}
-            infoLoading={infoLoading}
-            onContextClose={() => setContextInfo(null)}
-            day={day || null}
-            currentItem={currentItemEffective}
-            onChapterRead={onChapterRead}
-          />
+      <SwipePager
+        enabled={swipeEnabled}
+        canPrev={canGoPrev()}
+        canNext={canGoNext()}
+        onPrev={() => {
+          const target = computeSwipeTarget('prev');
+          console.debug('[ReadingView] swipe nav', { from: swipeCurrentIndex, to: target.index, planMode: !!day });
+          handlePrevChapter();
+          pagerHint.showAndHide(target.index, target.label, target.atEdge, HINT_HOLD_COMMIT_MS);
+        }}
+        onNext={() => {
+          const target = computeSwipeTarget('next');
+          console.debug('[ReadingView] swipe nav', { from: swipeCurrentIndex, to: target.index, planMode: !!day });
+          (day ? handleFloatingNext : handleNextChapter)();
+          pagerHint.showAndHide(target.index, target.label, target.atEdge, HINT_HOLD_COMMIT_MS);
+        }}
+        onEnd={
+          day
+            ? () => {
+                console.debug('[ReadingView] swipe nav', { from: swipeCurrentIndex, to: 'end', planMode: true });
+                handleFloatingNext();
+              }
+            : undefined
+        }
+        onDragChange={(state) => {
+          if (!state.active) {
+            if (state.direction) {
+              const target = computeSwipeTarget(state.direction);
+              pagerHint.showAndHide(target.index, target.label, target.atEdge, HINT_HOLD_REJECT_MS);
+            } else {
+              pagerHint.hide();
+            }
+            return;
+          }
+          if (state.direction) {
+            const target = computeSwipeTarget(state.direction);
+            pagerHint.show(target.index, target.label, target.atEdge);
+          }
+        }}
+        className="relative flex-1 overflow-hidden"
+      >
+        <div
+          className={`h-full overflow-y-auto w-full ${themeClasses[displayTheme] || themeClasses.light}`}
+          ref={contentRef}
+        >
+          <div className="max-w-xl mx-auto px-6 py-8 pb-[calc(var(--dock-nav-h)+env(safe-area-inset-bottom)+96px)]">
+            <ReadingContent
+              text={text}
+              loading={loading}
+              settings={settings}
+              displayTheme={displayTheme}
+              contextInfo={contextInfo}
+              infoLoading={infoLoading}
+              onContextClose={() => setContextInfo(null)}
+              day={day || null}
+              currentItem={currentItemEffective}
+              onChapterRead={onChapterRead}
+            />
+          </div>
         </div>
-      </div>
+
+        <PagerHint
+          visible={pagerHint.state.visible}
+          index={pagerHint.state.index}
+          total={swipeTotal}
+          label={pagerHint.state.label}
+          atEdge={pagerHint.state.atEdge}
+        />
+      </SwipePager>
 
       {/* Вне плана (day=null) кнопки скрыты, пока текст главы не загружен —
           паритет со старым запасным футером (рендерился только при !loading). */}

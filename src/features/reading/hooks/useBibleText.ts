@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BibleReference } from '@/types';
 import { bibleApi } from '@/shared/services/api/endpoints';
+import { BIBLE_STRUCTURE } from '@/lib/constants';
 import { getCachedText, setCachedText, getPersistedText, persistText } from '../bible-text-cache';
 import { OfflineNoDataError, isDefinitelyOffline, raceNetwork } from '@/shared/offline/networkHealth';
 import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout } from '@/shared/offline/networkTimeout';
@@ -8,6 +9,42 @@ import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout } from '@/shared/offline/n
 const DEBUG = (process.env.NEXT_PUBLIC_LOG_LEVEL ?? process.env.LOG_LEVEL ?? 'debug') === 'debug';
 function debug(...args: unknown[]) {
   if (DEBUG) console.debug('[useBibleText]', ...args);
+}
+
+/** Соседние главы КНИГИ (без учёта плана — свайп внутри дня может уводить в другую
+ * книгу, но у этого хука нет доступа к day.items; прогрев best-effort по границам книги). */
+function neighborChapters(book: string, chapter: number): number[] {
+  const bookInfo = BIBLE_STRUCTURE.find(b => b.name === book);
+  const maxChapters = bookInfo?.chapters ?? chapter;
+  const neighbors: number[] = [];
+  if (chapter > 1) neighbors.push(chapter - 1);
+  if (chapter < maxChapters) neighbors.push(chapter + 1);
+  return neighbors;
+}
+
+/**
+ * Прогрев одной соседней главы. Best-effort: ошибка/таймаут проглатываются,
+ * никогда не влияет на текущий экран. Не ретраится — раз не получилось, ждём
+ * следующего свайпа (см. НЕ делай в задаче 10).
+ */
+function prefetchChapter(book: string, chapter: number, translationId: string): void {
+  if (getCachedText(book, chapter, translationId) !== undefined) {
+    debug('prefetch', { book, chapter, skipped: 'cached' });
+    return;
+  }
+  if (isDefinitelyOffline()) {
+    debug('prefetch', { book, chapter, skipped: 'offline' });
+    return;
+  }
+  debug('prefetch', { book, chapter, skipped: false });
+  const run = async () => {
+    const response = await raceNetwork(bibleApi.getText(book, chapter), DEFAULT_NETWORK_TIMEOUT_MS);
+    const resultText = response.text || '';
+    const resolvedTranslationId = response.translation ?? translationId;
+    setCachedText(book, chapter, resolvedTranslationId, resultText);
+    void persistText(resolvedTranslationId, book, chapter, resultText);
+  };
+  run().catch(() => {});
 }
 
 /**
@@ -110,6 +147,16 @@ export function useBibleText(reference: BibleReference | null, translationId: st
       cancelled = true;
     };
   }, [reference?.book, reference?.chapter, translationId]);
+
+  // Прогрев соседних глав после успешной загрузки текущей — делает переход по
+  // свайпу мгновенным. Гейт по `text`, а не только `!loading`: `loading`
+  // инициализируется `false` и на первом рендере ещё не отражает реальный статус.
+  useEffect(() => {
+    if (!reference || loading || error || !text) return;
+    neighborChapters(reference.book, reference.chapter).forEach(chapter =>
+      prefetchChapter(reference.book, chapter, translationId)
+    );
+  }, [reference?.book, reference?.chapter, translationId, loading, error, text]);
 
   return { text, loading, error };
 }
