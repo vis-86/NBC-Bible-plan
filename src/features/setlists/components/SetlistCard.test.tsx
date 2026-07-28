@@ -48,6 +48,45 @@ describe('SetlistCard', () => {
     expect(pushMock).toHaveBeenLastCalledWith('/dashboard/song?id=70&setlistId=s1');
   });
 
+  it('без обработчиков меню действий не рендерится (роль «Чтец»)', () => {
+    const { container } = render(<SetlistCard setlist={SETLIST} />);
+    expect(container.querySelector('[data-setlist-card-actions]')).toBeNull();
+    expect(container.querySelector('[data-action-menu-trigger]')).toBeNull();
+  });
+
+  it('многоточие раскрывает меню; «Изменить»/«Удалить» зовут свой обработчик и НЕ открывают сет', () => {
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+    const { container } = render(<SetlistCard setlist={SETLIST} onEdit={onEdit} onDelete={onDelete} />);
+
+    // До клика по многоточию пунктов меню в DOM нет.
+    expect(document.querySelector('[data-action-menu]')).toBeNull();
+
+    fireEvent.click(container.querySelector('[data-action-menu-trigger]') as HTMLElement);
+    fireEvent.click(document.querySelector('[data-action-menu-item="edit"]') as HTMLElement);
+    expect(onEdit).toHaveBeenCalledWith(SETLIST);
+
+    fireEvent.click(container.querySelector('[data-action-menu-trigger]') as HTMLElement);
+    fireEvent.click(document.querySelector('[data-action-menu-item="delete"]') as HTMLElement);
+    expect(onDelete).toHaveBeenCalledWith(SETLIST);
+
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it('только onEdit → в меню один пункт «Изменить»', () => {
+    const { container } = render(<SetlistCard setlist={SETLIST} onEdit={vi.fn()} />);
+    fireEvent.click(container.querySelector('[data-action-menu-trigger]') as HTMLElement);
+
+    expect(document.querySelectorAll('[data-action-menu-item]')).toHaveLength(1);
+    expect(document.querySelector('[data-action-menu-item="delete"]')).toBeNull();
+  });
+
+  it('меню действий — сосед шапки, а не вложенная кнопка', () => {
+    const { container } = render(<SetlistCard setlist={SETLIST} onEdit={vi.fn()} onDelete={vi.fn()} />);
+    const header = container.querySelector('[data-setlist-card-header]') as HTMLElement;
+    expect(header.querySelector('button')).toBeNull();
+  });
+
   it('пустой сет: открывать нечего — ведём на страницу сета', () => {
     const { container } = render(<SetlistCard setlist={{ ...SETLIST, items: [] }} />);
     expect(container.querySelector('[data-setlist-card-empty]')).toBeTruthy();

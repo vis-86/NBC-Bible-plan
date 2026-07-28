@@ -29,6 +29,12 @@ interface SetlistManageSheetProps {
   onOpenSong?: (songId: number) => void;
   /** Сет удалён целиком — экран решает, куда уходить. */
   onDeleted: () => void;
+  /**
+   * `'delete'` — шит открывается сразу в подтверждении удаления (корзина на карточке
+   * списка). Читается один раз при монтировании: вызывающий монтирует шит под выбранный
+   * сет, поэтому смена значения на живом шите смысла не имеет.
+   */
+  initialAction?: 'edit' | 'delete';
 }
 
 /**
@@ -51,11 +57,12 @@ export const SetlistManageSheet: React.FC<SetlistManageSheetProps> = ({
   currentSongId,
   onOpenSong,
   onDeleted,
+  initialAction = 'edit',
 }) => {
   const isOnline = useIsOnline();
   const [mode, setMode] = useState<'list' | 'add'>('list');
   const [confirmRemove, setConfirmRemove] = useState<SetlistItem | null>(null);
-  const [confirmDeleteSetlist, setConfirmDeleteSetlist] = useState(false);
+  const [confirmDeleteSetlist, setConfirmDeleteSetlist] = useState(initialAction === 'delete');
 
   const editor = useSetlistEditor({ setlistId, items, onItemsChange, songs, onDeleted });
   const isEditable = canManageSetlists && isOnline;

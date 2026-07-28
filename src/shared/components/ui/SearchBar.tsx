@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 
 interface SearchBarProps {
@@ -14,6 +14,7 @@ interface SearchBarProps {
 /** Строка поиска с debounce (200мс) и кнопкой очистки. */
 export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, placeholder = 'Поиск песни…', initialValue = '' }) => {
   const [text, setText] = useState(initialValue);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => onSearch(text), 200);
@@ -28,6 +29,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, placeholder = '�
         aria-hidden
       />
       <input
+        ref={inputRef}
         data-song-search-input
         type="search"
         inputMode="search"
@@ -41,7 +43,12 @@ export const SearchBar: React.FC<SearchBarProps> = ({ onSearch, placeholder = '�
         <button
           type="button"
           data-song-search-clear
-          onClick={() => setText('')}
+          onClick={() => {
+            setText('');
+            // Синхронно, прямо в обработчике клика: отложенный focus() (эффект, таймер)
+            // iOS уже не считает жестом пользователя и клавиатуру не поднимает.
+            inputRef.current?.focus();
+          }}
           aria-label="Очистить поиск"
           className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-app-text-muted transition-colors hover:text-app-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary rounded-r-app-md"
         >

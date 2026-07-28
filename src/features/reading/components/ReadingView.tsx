@@ -24,7 +24,7 @@ import { useScrollDirection } from '@/shared/hooks/useScrollDirection';
 import { useChromeVisibility } from '@/shared/components/layout/ChromeVisibility';
 import { shouldShowCompletionOnCheck } from '../completionDecision';
 import { SwipePager } from '@/shared/components/pager/SwipePager';
-import { PagerHint, usePagerHint } from '@/shared/components/pager/PagerHint';
+import { PagerHint, usePagerHint, type PagerHintTarget } from '@/shared/components/pager/PagerHint';
 
 const HINT_HOLD_COMMIT_MS = 900;
 
@@ -243,8 +243,17 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
     return `${book} ${targetIndex + 1}`;
   };
 
-  const computeSwipeTarget = (direction: 'prev' | 'next') => {
+  const computeSwipeTarget = (direction: 'prev' | 'next'): PagerHintTarget => {
     const targetIndex = direction === 'next' ? swipeCurrentIndex + 1 : swipeCurrentIndex - 1;
+    /**
+     * Свайп вперёд за последнюю главу дня — не край, а завершение дня: в режиме плана
+     * жест коммитится через `onEnd` ниже. Условие — наличие `day`, а не значение индекса:
+     * вне плана `onEnd` не задан, и «Завершить» обещало бы действие, которого нет.
+     * Назад с первой главы край настоящий в обоих режимах.
+     */
+    if (day && direction === 'next' && targetIndex >= swipeTotal) {
+      return { index: targetIndex, label: '', atEdge: false, action: 'end' };
+    }
     return {
       index: targetIndex,
       label: swipeTargetLabel(targetIndex),
@@ -277,13 +286,13 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
           const target = computeSwipeTarget('prev');
           console.debug('[ReadingView] swipe nav', { from: swipeCurrentIndex, to: target.index, planMode: !!day });
           handlePrevChapter();
-          pagerHint.showAndHide(target.index, target.label, target.atEdge, HINT_HOLD_COMMIT_MS);
+          pagerHint.showAndHide(target, HINT_HOLD_COMMIT_MS);
         }}
         onNext={() => {
           const target = computeSwipeTarget('next');
           console.debug('[ReadingView] swipe nav', { from: swipeCurrentIndex, to: target.index, planMode: !!day });
           (day ? handleFloatingNext : handleNextChapter)();
-          pagerHint.showAndHide(target.index, target.label, target.atEdge, HINT_HOLD_COMMIT_MS);
+          pagerHint.showAndHide(target, HINT_HOLD_COMMIT_MS);
         }}
         onEnd={
           day
@@ -299,7 +308,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
         onDragChange={(state) => {
           if (!state.active || !state.direction) return;
           const target = computeSwipeTarget(state.direction);
-          pagerHint.track(target.index, target.label, target.atEdge);
+          pagerHint.track(target);
         }}
         overlay={
           <PagerHint
@@ -309,6 +318,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
             total={swipeTotal}
             label={pagerHint.state.label}
             atEdge={pagerHint.state.atEdge}
+            action={pagerHint.state.action}
           />
         }
         className="relative flex-1 overflow-hidden"

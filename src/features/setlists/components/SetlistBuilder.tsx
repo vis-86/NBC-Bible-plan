@@ -101,6 +101,17 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
   };
 
   /**
+   * Опустевший состав на шаге подтверждения — тупик: подтверждать нечего, а рендер
+   * этого шага пропущен (условие ниже). Возвращаем на выбор песен, чтобы шаг не остался
+   * в сохранённом черновике и не воспроизвёл тупик после перезагрузки.
+   */
+  useEffect(() => {
+    if (draft.step !== 'confirm' || hasSelection) return;
+    console.debug('[SetlistBuilder] состав опустел на шаге confirm — возврат на pick');
+    setStep('pick');
+  }, [draft.step, hasSelection, setStep]);
+
+  /**
    * Сброс восстановленного черновика. Ref дефолтов тоже сбрасываем: `clear()` обнуляет
    * название и дату, и без этого широкий layout остался бы с пустыми полями и
    * заблокированным «Сохранить» — эффект ниже перезаполнит их дефолтами заново.
@@ -188,7 +199,7 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
             <SearchBar onSearch={setQuery} placeholder="Поиск по песням" />
             <div className="min-h-0 flex-1 overflow-y-auto">{pickList}</div>
           </div>
-          <div className="flex min-h-0 w-1/3 flex-col gap-4 overflow-y-auto border-l border-app-border pl-4">
+          <div className="flex min-h-0 w-1/3 min-w-0 flex-col gap-4 overflow-y-auto border-l border-app-border pl-4">
             <div>
               <label
                 htmlFor="setlist-title-input-desktop"
@@ -207,20 +218,22 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
                 className="w-full rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <label
                 htmlFor="setlist-date-input-desktop"
                 className="mb-1.5 block text-sm font-medium text-app-text-secondary"
               >
                 Дата
               </label>
+              {/* См. `SetlistConfirmStep`: `min-w-0 max-w-full appearance-none` — против
+                  min-content ширины нативного календарного виджета в WebKit. */}
               <input
                 id="setlist-date-input-desktop"
                 data-setlist-builder-date-input
                 type="date"
                 value={draft.date ?? ''}
                 onChange={(e) => setDate(e.target.value || null)}
-                className="w-full rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
+                className="w-full min-w-0 max-w-full appearance-none rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
               />
             </div>
 
@@ -253,7 +266,7 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
     );
   }
 
-  if (draft.step === 'confirm') {
+  if (draft.step === 'confirm' && hasSelection) {
     return (
       <SetlistConfirmStep
         title={draft.title}
@@ -261,11 +274,13 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
         items={selectedItems}
         submitting={submitting}
         error={error}
+        banner={restoredBanner}
         onTitleChange={setTitle}
         onDateChange={setDate}
         onReorder={reorderSongs}
         onRemove={removeSong}
         onBack={() => setStep('pick')}
+        onCancel={handleCancel}
         onSubmit={handleSubmit}
       />
     );

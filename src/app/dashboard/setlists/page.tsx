@@ -1,12 +1,15 @@
 'use client';
 
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { useSetlists } from '@/features/setlists/hooks/useSetlists';
 import { SetlistsList } from '@/features/setlists/components/SetlistsList';
+import { SetlistManageHost } from '@/features/setlists/components/SetlistManageHost';
 import { useAppRole } from '@/shared/hooks/useAppRole';
+import type { SetlistSummary, SetlistSummaryItem } from '@/features/setlists/types';
 
 function todayISO(): string {
   const now = new Date();
@@ -21,13 +24,37 @@ function SetlistsPageContent() {
   const { setlists, loading, error } = useSetlists();
   const { canManageSetlists } = useAppRole();
 
+  /**
+   * Локальная копия списка: правки из шита применяются оптимистично. Module-кэш
+   * `useSetlists` инвалидируется внутри мутаций (`resetSetlistsCache`), но текущий
+   * рендер он не обновляет — без копии карточка показывала бы старый состав.
+   */
+  const [localSetlists, setLocalSetlists] = useState<SetlistSummary[]>(setlists);
+  /** Выбранный для правки сет + с чего открыть шит. `null` — шит (и каталог песен) не смонтирован. */
+  const [managed, setManaged] = useState<{ setlist: SetlistSummary; action: 'edit' | 'delete' } | null>(null);
+
+  useEffect(() => {
+    const syncFromServer = () => setLocalSetlists(setlists);
+    syncFromServer();
+  }, [setlists]);
+
+  const handleItemsChange = useCallback((setlistId: string, items: SetlistSummaryItem[]) => {
+    setLocalSetlists((prev) => prev.map((s) => (s.id === setlistId ? { ...s, items } : s)));
+  }, []);
+
+  const handleDeleted = useCallback((setlistId: string) => {
+    console.warn(`[SetlistsPage] сет ${setlistId} удалён — убираем из списка`);
+    setLocalSetlists((prev) => prev.filter((s) => s.id !== setlistId));
+    setManaged(null);
+  }, []);
+
   return (
     <div data-setlists-page className="flex min-h-0 flex-1 flex-col">
       <PageHeader
         variant="page"
         title="Сетлисты"
         right={
-          canManageSetlists && setlists.length > 0 ? (
+          canManageSetlists && localSetlists.length > 0 ? (
             <button
               type="button"
               data-setlists-create-button-header
@@ -43,16 +70,35 @@ function SetlistsPageContent() {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-6">
         {error ? (
           <ErrorMessage message={error} />
-        ) : loading && setlists.length === 0 ? (
+        ) : loading && localSetlists.length === 0 ? (
           <ul data-setlists-loading className="flex flex-col gap-2" aria-hidden>
             {Array.from({ length: 4 }).map((_, i) => (
               <li key={i} className="h-[72px] animate-pulse rounded-xl border border-app-border bg-app-surface-muted" />
             ))}
           </ul>
         ) : (
-          <SetlistsList setlists={setlists} todayISO={todayISO()} canManageSetlists={canManageSetlists} />
+          <SetlistsList
+            setlists={localSetlists}
+            todayISO={todayISO()}
+            canManageSetlists={canManageSetlists}
+            onEdit={canManageSetlists ? (setlist) => setManaged({ setlist, action: 'edit' }) : undefined}
+            onDelete={canManageSetlists ? (setlist) => setManaged({ setlist, action: 'delete' }) : undefined}
+          />
         )}
       </div>
+
+      {/* Каталог песен грузится лениво — хост монтируется только под выбранный сет. */}
+      {managed && (
+        <SetlistManageHost
+          key={`${managed.setlist.id}:${managed.action}`}
+          setlist={managed.setlist}
+          initialAction={managed.action}
+          canManageSetlists={canManageSetlists}
+          onClose={() => setManaged(null)}
+          onItemsChange={handleItemsChange}
+          onDeleted={handleDeleted}
+        />
+      )}
     </div>
   );
 }

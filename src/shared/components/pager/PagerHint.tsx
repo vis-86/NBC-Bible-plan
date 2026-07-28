@@ -1,8 +1,26 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Check } from 'lucide-react';
 
-export interface PagerHintProps {
+/**
+ * Куда ведёт текущий жест. Отдельный тип, потому что край краю рознь: «идти некуда»
+ * (`atEdge`) и «дальше терминальное действие» (`action: 'end'`) — разные исходы, и
+ * решает это вызывающий экран, а не пейджер (`SwipePager.atEdge` считает `onEnd`
+ * отсутствием края).
+ */
+export interface PagerHintTarget {
+  /** 0-based индекс позиции, которую показываем. */
+  index: number;
+  /** Подпись под цифрой. Пустая строка ⇒ строка подписи не рендерится вовсе. */
+  label: string;
+  /** Идти некуда: без `action` подсказка не показывается вовсе (мёртвый край). */
+  atEdge: boolean;
+  /** Терминальное действие вместо перехода: `'end'` → ✓ «Завершить». */
+  action?: 'end';
+}
+
+export interface PagerHintProps extends PagerHintTarget {
   /**
    * «Держать полностью видимой» — вспышка после перехода. Во время жеста false:
    * непрозрачность берётся из `--swipe-progress` (SwipePager), то есть подсказка
@@ -14,21 +32,13 @@ export interface PagerHintProps {
    * выключены (иначе подсказка отстаёт от пальца на длительность transition).
    */
   dragging?: boolean;
-  /** 0-based индекс позиции, которую показываем. */
-  index: number;
   total: number;
-  /** Подпись под цифрой. Пустая строка ⇒ строка подписи не рендерится вовсе. */
-  label: string;
-  atEdge: boolean;
 }
 
-export interface PagerHintState {
+export interface PagerHintState extends PagerHintTarget {
   visible: boolean;
   /** Содержимое обновляется жестом — видимостью управляет `--swipe-progress`. */
   dragging: boolean;
-  index: number;
-  label: string;
-  atEdge: boolean;
 }
 
 export interface UsePagerHintApi {
@@ -38,12 +48,16 @@ export interface UsePagerHintApi {
    * или нет, решает прогресс жеста (`--swipe-progress`). Держать `visible` во время
    * drag'а нельзя — подсказка вспыхивала бы на первых же 8px и не таяла при возврате.
    */
-  track: (index: number, label: string, atEdge: boolean) => void;
+  track: (target: PagerHintTarget) => void;
   /** Показать и погасить через ms — вспышка после состоявшегося перехода. */
-  showAndHide: (index: number, label: string, atEdge: boolean, ms: number) => void;
+  showAndHide: (target: PagerHintTarget, ms: number) => void;
 }
 
 const INITIAL_STATE: PagerHintState = { visible: false, dragging: false, index: 0, label: '', atEdge: false };
+
+function sameTarget(a: PagerHintTarget, b: PagerHintTarget): boolean {
+  return a.index === b.index && a.label === b.label && a.atEdge === b.atEdge && a.action === b.action;
+}
 
 export function usePagerHint(): UsePagerHintApi {
   const [state, setState] = useState<PagerHintState>(INITIAL_STATE);
@@ -56,18 +70,18 @@ export function usePagerHint(): UsePagerHintApi {
     }
   };
 
-  const track = useCallback((index: number, label: string, atEdge: boolean) => {
+  const track = useCallback((target: PagerHintTarget) => {
     clearTimer();
     setState((prev) =>
-      prev.dragging && !prev.visible && prev.index === index && prev.label === label && prev.atEdge === atEdge
+      prev.dragging && !prev.visible && sameTarget(prev, target)
         ? prev
-        : { visible: false, dragging: true, index, label, atEdge },
+        : { ...target, visible: false, dragging: true },
     );
   }, []);
 
-  const showAndHide = useCallback((index: number, label: string, atEdge: boolean, ms: number) => {
+  const showAndHide = useCallback((target: PagerHintTarget, ms: number) => {
     clearTimer();
-    setState({ visible: true, dragging: false, index, label, atEdge });
+    setState({ ...target, visible: true, dragging: false });
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       setState((prev) => ({ ...prev, visible: false }));
@@ -84,14 +98,19 @@ function prefersReducedMotion(): boolean {
   return typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
 }
 
-export function PagerHint({ visible, dragging = false, index, total, label, atEdge }: PagerHintProps) {
-  const edgeLabel = index < 0 ? 'Это первая' : 'Это последняя';
-  const displayLabel = atEdge ? edgeLabel : label;
+export function PagerHint({ visible, dragging = false, index, total, label, atEdge, action }: PagerHintProps) {
   const reducedMotion = prefersReducedMotion();
+  /**
+   * Мёртвый край — идти некуда и терминального действия нет: подсказки нет вовсе.
+   * Обещать «Это последняя» бессмысленно, а обещать переход — вредно.
+   */
+  const isDeadEdge = atEdge && !action;
 
   useEffect(() => {
-    if (visible) console.debug('[PagerHint] show', { index, total, atEdge });
-  }, [visible, index, total, atEdge]);
+    if (visible) console.debug('[PagerHint] show', { index, total, atEdge, action });
+  }, [visible, index, total, atEdge, action]);
+
+  if (isDeadEdge) return null;
 
   return (
     <div
@@ -114,14 +133,24 @@ export function PagerHint({ visible, dragging = false, index, total, label, atEd
         transitionDuration: dragging ? '0ms' : reducedMotion ? '160ms' : '160ms, 220ms',
       }}
     >
-      <div data-pager-hint-position className="text-2xl font-semibold tabular-nums">
-        {index + 1} из {total}
-      </div>
-      {displayLabel !== '' ? (
-        <div data-pager-hint-label className="mt-0.5 text-sm text-white/80">
-          {displayLabel}
+      {action === 'end' ? (
+        // Терминальное действие: считать «N из M» нечего — свайп не листает, а завершает.
+        <div data-pager-hint-action className="flex flex-col items-center gap-1">
+          <Check size={28} aria-hidden />
+          <div className="text-sm text-white/80">Завершить</div>
         </div>
-      ) : null}
+      ) : (
+        <>
+          <div data-pager-hint-position className="text-2xl font-semibold tabular-nums">
+            {index + 1} из {total}
+          </div>
+          {label !== '' ? (
+            <div data-pager-hint-label className="mt-0.5 text-sm text-white/80">
+              {label}
+            </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 }

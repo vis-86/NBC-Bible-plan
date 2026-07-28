@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, X } from 'lucide-react';
 import { useIsOnline } from '@/shared/hooks/useIsOnline';
 import { SetlistReorderList, type ReorderableSong } from './SetlistReorderList';
 
@@ -11,11 +11,19 @@ interface SetlistConfirmStepProps {
   items: ReorderableSong[];
   submitting: boolean;
   error: string | null;
+  /**
+   * Плашка восстановленного черновика билдера. Шаг `confirm` рендерится вместо всего
+   * билдера, поэтому без явного проброса восстановленный черновик открывался бы без
+   * «Начать заново» — и создать новый сет было бы нечем.
+   */
+  banner?: React.ReactNode;
   onTitleChange: (title: string) => void;
   onDateChange: (date: string | null) => void;
   onReorder: (songIds: number[]) => void;
   onRemove: (songId: number) => void;
   onBack: () => void;
+  /** Выход из билдера целиком (с подтверждением) — второй выход помимо «назад к выбору». */
+  onCancel: () => void;
   onSubmit: () => void;
 }
 
@@ -29,11 +37,13 @@ export const SetlistConfirmStep: React.FC<SetlistConfirmStepProps> = ({
   items,
   submitting,
   error,
+  banner,
   onTitleChange,
   onDateChange,
   onReorder,
   onRemove,
   onBack,
+  onCancel,
   onSubmit,
 }) => {
   const isOnline = useIsOnline();
@@ -53,9 +63,20 @@ export const SetlistConfirmStep: React.FC<SetlistConfirmStepProps> = ({
           <ChevronLeft size={20} />
         </button>
         <h1 className="flex-1 truncate text-center font-semibold text-app-text">Новый сет</h1>
-        {/* Балансир под ширину кнопки «Назад», чтобы заголовок стоял по центру. */}
-        <span className="w-9 shrink-0" aria-hidden />
+        {/* Место балансира занимает выход из билдера: «назад» ведёт только на шаг выбора,
+            и без этой кнопки восстановленный черновик со `step='confirm'` был бы тупиком. */}
+        <button
+          type="button"
+          data-setlist-confirm-cancel
+          aria-label="Отменить создание сета"
+          onClick={onCancel}
+          className="shrink-0 rounded-app-sm p-2 text-app-text-secondary transition-transform active:scale-90"
+        >
+          <X size={20} />
+        </button>
       </div>
+
+      {banner}
 
       <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 pt-4 pb-28">
         <div>
@@ -74,17 +95,19 @@ export const SetlistConfirmStep: React.FC<SetlistConfirmStepProps> = ({
           />
         </div>
 
-        <div>
+        <div className="min-w-0">
           <label htmlFor="setlist-date-input" className="mb-1.5 block text-sm font-medium text-app-text-secondary">
             Дата
           </label>
+          {/* WebKit не сжимает `input[type=date]` до контейнера по одному `w-full`:
+              нативный календарный виджет задаёт min-content ширину. */}
           <input
             id="setlist-date-input"
             data-setlist-builder-date-input
             type="date"
             value={date ?? ''}
             onChange={(e) => onDateChange(e.target.value || null)}
-            className="w-full rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
+            className="w-full min-w-0 max-w-full appearance-none rounded-app-md border border-app-border bg-app-surface px-3 py-2.5 text-app-text outline-none transition-colors focus:border-app-primary"
           />
         </div>
 

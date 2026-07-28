@@ -20,7 +20,7 @@ describe('SongAutoScroll', () => {
 
   it('панель скорости рендерится порталом в body, а не внутри стека', () => {
     const { container } = render(
-      <SongToolStack hidden={false}>
+      <SongToolStack>
         <SongAutoScroll {...props} playing />
       </SongToolStack>,
     );
@@ -33,7 +33,7 @@ describe('SongAutoScroll', () => {
 
   it('FAB остаётся внутри стека (позицию задаёт стек, не собственный оверлей)', () => {
     const { container } = render(
-      <SongToolStack hidden={false}>
+      <SongToolStack>
         <SongAutoScroll {...props} playing={false} />
       </SongToolStack>,
     );

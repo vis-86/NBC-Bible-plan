@@ -44,6 +44,27 @@ describe('SetlistsList', () => {
     expect(container.querySelectorAll('[data-setlist-card]')).toHaveLength(3);
   });
 
+  it('onEdit/onDelete прокидываются во все секции, включая архив', () => {
+    const onEdit = vi.fn();
+    const setlists = [
+      makeSetlist({ id: 'past', date: '2020-01-01' }),
+      makeSetlist({ id: 'future', date: '2030-01-01' }),
+      makeSetlist({ id: 'undated', date: null }),
+    ];
+    const { container } = render(
+      <SetlistsList
+        setlists={setlists}
+        todayISO={TODAY}
+        canManageSetlists={true}
+        onEdit={onEdit}
+        onDelete={vi.fn()}
+      />
+    );
+
+    expect(container.querySelectorAll('[data-setlist-card-actions]')).toHaveLength(3);
+    expect(container.querySelectorAll('[data-action-menu-trigger]')).toHaveLength(3);
+  });
+
   it('архив не рендерится, если прошедших сетов нет', () => {
     const setlists = [makeSetlist({ id: 'future', date: '2030-01-01' })];
     const { container } = render(<SetlistsList setlists={setlists} todayISO={TODAY} canManageSetlists={false} />);

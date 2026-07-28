@@ -294,6 +294,21 @@ select,
   touch-action: manipulation;
 }
 
+/*
+ * Скроллбар скрыт глобально: приложение — PWA с мобильным поведением на всех ширинах,
+ * и полоса прокрутки на десктопе выбивается из мобильной раскладки. Прокрутка сама
+ * (колесо, тачпад, клавиатура) не затрагивается — исчезает только визуальная полоса.
+ * Локальные `.no-scrollbar` / `.hide-scrollbar` ниже остаются легаси.
+ */
+html {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none;
+}
+
 /* Hide scrollbar for Chrome, Safari and Opera */
 .no-scrollbar::-webkit-scrollbar,
 .hide-scrollbar::-webkit-scrollbar {

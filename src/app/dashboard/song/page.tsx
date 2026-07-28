@@ -184,20 +184,30 @@ function SongPageContent() {
           onPrev={() => {
             if (playback.prevId == null) return;
             navigateToSetlistSong(playback.prevId);
-            pagerHint.showAndHide(playback.index - 1, prevSongTitle, false, HINT_HOLD_COMMIT_MS);
+            pagerHint.showAndHide(
+              { index: playback.index - 1, label: prevSongTitle, atEdge: false },
+              HINT_HOLD_COMMIT_MS,
+            );
           }}
           onNext={() => {
             if (playback.nextId == null) return;
             navigateToSetlistSong(playback.nextId);
-            pagerHint.showAndHide(playback.index + 1, nextSongTitle, false, HINT_HOLD_COMMIT_MS);
+            pagerHint.showAndHide(
+              { index: playback.index + 1, label: nextSongTitle, atEdge: false },
+              HINT_HOLD_COMMIT_MS,
+            );
           }}
           // Во время жеста задаём только СОДЕРЖИМОЕ подсказки: показывает её прогресс
           // жеста. Отпустили, не дойдя до края, — прогресс гаснет вместе с возвратом
           // страницы, ничего больше не происходит.
           onDragChange={(state) => {
             if (!state.active) return;
-            if (state.direction === 'next') pagerHint.track(playback.index + 1, nextSongTitle, state.atEdge);
-            else if (state.direction === 'prev') pagerHint.track(playback.index - 1, prevSongTitle, state.atEdge);
+            // В сете терминального действия нет: край здесь всегда мёртвый (`onEnd`
+            // не задан), и подсказка на нём не показывается вовсе.
+            if (state.direction === 'next')
+              pagerHint.track({ index: playback.index + 1, label: nextSongTitle, atEdge: state.atEdge });
+            else if (state.direction === 'prev')
+              pagerHint.track({ index: playback.index - 1, label: prevSongTitle, atEdge: state.atEdge });
           }}
           overlay={
             <PagerHint
@@ -207,6 +217,7 @@ function SongPageContent() {
               total={playback.total}
               label={pagerHint.state.label}
               atEdge={pagerHint.state.atEdge}
+              action={pagerHint.state.action}
             />
           }
           className="relative min-h-0 flex-1 overflow-hidden"
@@ -258,7 +269,7 @@ function SongPageContent() {
         {/* Правый нижний край — единая точка входа для инструментов песни (сейчас
             автоскролл). Прячем при любой открытой нижней шторке — иначе перекрывает лист. */}
         {mode === 'scroll' && song && !isViewSettingsOpen && !isKeyPickerOpen && !isSetlistSheetOpen && (
-          <SongToolStack hidden={headerHidden}>
+          <SongToolStack>
             <SongAutoScroll
               playing={autoscroll.playing}
               step={autoscroll.step}

@@ -14,9 +14,25 @@ describe('PagerHint', () => {
     expect(getByText('Тестовая песня')).toBeTruthy();
   });
 
-  it('atEdge → «Это последняя»', () => {
-    const { getByText } = render(<PagerHint visible index={4} total={5} label="Не важно" atEdge />);
-    expect(getByText('Это последняя')).toBeTruthy();
+  // Мёртвый край: идти некуда и терминального действия нет — подсказки быть не должно.
+  it('atEdge без action → подсказка не рендерится', () => {
+    const { container } = render(<PagerHint visible index={5} total={5} label="Не важно" atEdge />);
+    expect(container.querySelector('[data-pager-hint]')).toBeNull();
+  });
+
+  it("action='end' → галочка и «Завершить» вместо «N из M»", () => {
+    const { container, getByText } = render(
+      <PagerHint visible index={4} total={4} label="" atEdge={false} action="end" />,
+    );
+    expect(container.querySelector('[data-pager-hint-action]')).toBeTruthy();
+    expect(getByText('Завершить')).toBeTruthy();
+    expect(container.querySelector('[data-pager-hint-position]')).toBeNull();
+  });
+
+  // Край, у которого есть терминальное действие, — не мёртвый: подсказку показываем.
+  it("atEdge вместе с action='end' всё равно рендерит подсказку", () => {
+    const { container } = render(<PagerHint visible index={4} total={4} label="" atEdge action="end" />);
+    expect(container.querySelector('[data-pager-hint-action]')).toBeTruthy();
   });
 
   // Регрессия «хинт уезжал влево-вверх на половину своего размера»: Tailwind v4

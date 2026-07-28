@@ -161,6 +161,47 @@ describe('SetlistBuilder', () => {
     expect(pickRow(container, 'Аллилуйя').getAttribute('aria-selected')).toBe('true');
   });
 
+  it('восстановленный черновик со step=confirm показывает плашку и «Начать заново»', () => {
+    localStorage.setItem(
+      'setlists:draft',
+      JSON.stringify({ songIds: [3], title: 'Вчерашний', date: null, step: 'confirm', savedAt: Date.now() - 60_000 })
+    );
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    expect(container.querySelector('[data-setlist-confirm-step]')).toBeTruthy();
+    expect(container.querySelector('[data-setlist-builder-restored]')).toBeTruthy();
+
+    fireEvent.click(container.querySelector('[data-setlist-builder-restored-reset]') as HTMLElement);
+
+    // Сброс опустошает состав ⇒ шаг подтверждения сменяется выбором песен.
+    expect(container.querySelector('[data-setlist-confirm-step]')).toBeNull();
+    expect(pickRow(container, 'Аллилуйя').getAttribute('aria-selected')).toBe('false');
+  });
+
+  it('✕ на шаге подтверждения выходит из билдера с подтверждением', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    fireEvent.click(pickRow(container, 'Аллилуйя'));
+    fireEvent.click(container.querySelector('[data-setlist-builder-next]') as HTMLElement);
+
+    fireEvent.click(container.querySelector('[data-setlist-confirm-cancel]') as HTMLElement);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(pushMock).toHaveBeenCalledWith('/dashboard/setlists');
+    expect(localStorage.getItem('setlists:draft')).toBeNull();
+  });
+
+  it('удаление последней песни на шаге подтверждения возвращает к выбору', () => {
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+    fireEvent.click(pickRow(container, 'Аллилуйя'));
+    fireEvent.click(container.querySelector('[data-setlist-builder-next]') as HTMLElement);
+    expect(container.querySelector('[data-setlist-confirm-step]')).toBeTruthy();
+
+    fireEvent.click(container.querySelector('[data-setlist-builder-item-remove]') as HTMLElement);
+
+    expect(container.querySelector('[data-setlist-confirm-step]')).toBeNull();
+    expect(container.querySelector('[data-setlist-builder-pick-list]')).toBeTruthy();
+  });
+
   it('сегмент «Выбранные» сворачивает список до выбранного, не сбрасывая запрос', () => {
     const { container } = render(<SetlistBuilder songs={SONGS} />);
     expect(container.querySelectorAll('[data-setlist-builder-pick-row]')).toHaveLength(3);

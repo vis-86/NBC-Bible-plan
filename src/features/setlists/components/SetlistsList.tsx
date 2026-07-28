@@ -11,9 +11,20 @@ interface SetlistsListProps {
   /** ISO `YYYY-MM-DD`, инжектируется вызывающим — упрощает тесты (не завязано на `Date.now()`). */
   todayISO: string;
   canManageSetlists: boolean;
+  /** Карандаш на карточке. Не задан — кнопки правки нет (роль без прав или офлайн-экран). */
+  onEdit?: (setlist: SetlistSummary) => void;
+  /** Корзина на карточке. */
+  onDelete?: (setlist: SetlistSummary) => void;
 }
 
-function SetlistGroup({ title, items }: { title?: string; items: SetlistSummary[] }) {
+interface SetlistGroupProps {
+  title?: string;
+  items: SetlistSummary[];
+  onEdit?: (setlist: SetlistSummary) => void;
+  onDelete?: (setlist: SetlistSummary) => void;
+}
+
+function SetlistGroup({ title, items, onEdit, onDelete }: SetlistGroupProps) {
   const reduceMotion = useReducedMotion();
   if (items.length === 0) return null;
 
@@ -28,7 +39,7 @@ function SetlistGroup({ title, items }: { title?: string; items: SetlistSummary[
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2, delay: reduceMotion ? 0 : Math.min(i * 0.015, 0.3) }}
           >
-            <SetlistCard setlist={setlist} />
+            <SetlistCard setlist={setlist} onEdit={onEdit} onDelete={onDelete} />
           </motion.li>
         ))}
       </ul>
@@ -37,7 +48,13 @@ function SetlistGroup({ title, items }: { title?: string; items: SetlistSummary[
 }
 
 /** Список сетов, разбитый на «Ближайшие»/«Без даты»/«Архив» (см. `partitionSetlists`). */
-export const SetlistsList: React.FC<SetlistsListProps> = ({ setlists, todayISO, canManageSetlists }) => {
+export const SetlistsList: React.FC<SetlistsListProps> = ({
+  setlists,
+  todayISO,
+  canManageSetlists,
+  onEdit,
+  onDelete,
+}) => {
   const router = useRouter();
   const { upcoming, undated, past } = partitionSetlists(setlists, todayISO);
 
@@ -65,8 +82,8 @@ export const SetlistsList: React.FC<SetlistsListProps> = ({ setlists, todayISO, 
 
   return (
     <div className="flex flex-col gap-6">
-      <SetlistGroup title="Ближайшие" items={upcoming} />
-      <SetlistGroup title="Без даты" items={undated} />
+      <SetlistGroup title="Ближайшие" items={upcoming} onEdit={onEdit} onDelete={onDelete} />
+      <SetlistGroup title="Без даты" items={undated} onEdit={onEdit} onDelete={onDelete} />
 
       {past.length > 0 && (
         <details data-setlist-archive className="group">
@@ -77,7 +94,7 @@ export const SetlistsList: React.FC<SetlistsListProps> = ({ setlists, todayISO, 
             </span>
           </summary>
           <div className="mt-2">
-            <SetlistGroup items={past} />
+            <SetlistGroup items={past} onEdit={onEdit} onDelete={onDelete} />
           </div>
         </details>
       )}

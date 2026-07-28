@@ -128,7 +128,7 @@ describe('ReadingView — свайп между главами (Task 9)', () => 
     expect(container.querySelector('[data-completion-modal-open]')).toBeTruthy();
   });
 
-  it('вне плана на главе 1 свайп вправо не переходит и показывает подсказку «Это первая»', () => {
+  it('на главе 1 свайп вправо — мёртвый край: ни перехода, ни подсказки', () => {
     const onNavigateChapter = vi.fn();
     const { container } = renderReadingView({
       reading: { book: 'Бытие', chapter: 1 },
@@ -140,6 +140,35 @@ describe('ReadingView — свайп между главами (Task 9)', () => 
     fireSwipe(pager, 80, 200);
 
     expect(onNavigateChapter).not.toHaveBeenCalled();
-    expect(screen.getByText('Это первая')).toBeInTheDocument();
+    expect(container.querySelector('[data-pager-hint]')).toBeNull();
+  });
+
+  it('в плане свайп за последнюю главу дня обещает «Завершить», а не край', () => {
+    const items: PlanItem[] = [
+      { id: 1, dayNumber: 1, dateStr: '2026-01-01', readText: 'Бытие 1', item: 1, completed: true },
+      { id: 2, dayNumber: 1, dateStr: '2026-01-01', readText: 'Бытие 2', item: 2, completed: false },
+    ];
+    const day: ReadingPlanDay = {
+      id: 1,
+      dateStr: '2026-01-01',
+      items,
+      readings: [],
+      completed: false,
+      readCount: 1,
+      totalItems: 2,
+    };
+    const { container } = renderReadingView({
+      reading: { book: 'Бытие', chapter: 2 },
+      day,
+      currentItem: items[1],
+    });
+
+    const pager = container.querySelector('[data-swipe-pager]') as HTMLElement;
+    // Только тянем влево, не отпуская: подсказка обязана появиться ДО коммита.
+    fireEvent.pointerDown(pager, { clientX: 200, clientY: 100 });
+    fireEvent.pointerMove(pager, { clientX: 120, clientY: 100 });
+
+    expect(container.querySelector('[data-pager-hint-action]')).toBeTruthy();
+    expect(screen.getByText('Завершить')).toBeInTheDocument();
   });
 });

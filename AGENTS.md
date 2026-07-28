@@ -62,7 +62,7 @@ bible-plan/
 │   │   ├── setlists/                 # Setlists feature slice (M7)
 │   │   │   ├── components/           # SetlistsList, SetlistCard, SetlistView, SetlistBuilder, SetlistConfirmStep,
 │   │   │   │                         # SelectedChipsRow, SetlistSongPickRow, SetlistReorderList, SetlistItemRow,
-│   │   │   │                         # AddSongsSheet, SetlistManageSheet
+│   │   │   │                         # AddSongsSheet, SetlistManageSheet, SetlistManageHost
 │   │   │   ├── hooks/                # useSetlists, useSetlist, useSetlistDraft, useSaveSetlist, useSetlistPlayback
 │   │   │   ├── lib/                  # offlineSetlists (read-through + cache keys), archive (partitionSetlists), formatSetlistDate, setlistDefaults
 │   │   │   ├── services/setlistsServer.ts # Directus admin-client access (used only by server/src/routes/setlists.ts)
@@ -87,7 +87,7 @@ bible-plan/
 │   │   │   ├── animations/           # Shared animation components
 │   │   │   ├── bible/                # Bible-specific UI components
 │   │   │   ├── skeletons/            # Loading skeleton components
-│   │   │   └── ui/                   # Generic UI primitives (shadcn/ui) + UpdateToast.tsx, SearchBar.tsx, RangeSlider.tsx (44px tap zone, 28px thumb)
+│   │   │   └── ui/                   # Generic UI primitives (shadcn/ui) + UpdateToast.tsx, SearchBar.tsx, RangeSlider.tsx (44px tap zone, 28px thumb), ActionMenu.tsx (kebab-меню действий, портал в body)
 │   │   ├── config/
 │   │   │   └── design-tokens.ts      # TS design token constants (maps to CSS vars)
 │   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast), useAutoHideOnScroll (hide-on-scroll обёртка над useScrollDirection), useAppRole, useIsOnline, useHorizontalSwipe
@@ -160,11 +160,12 @@ bible-plan/
 | `src/lib/app-roles.ts` + `src/shared/hooks/useAppRole.ts` | `AppRole` (reader/musician/musician_editor), `GET /api/user/role` — гейт кнопок сетлистов (реальный гейт — BFF `requireSetlistWrite`, см. `CLAUDE.md`) |
 | `server/src/routes/setlists.ts` + `src/features/setlists/services/setlistsServer.ts` | CRUD сетлистов (Directus admin-client), `requireSetlistWrite` на мутирующих роутах |
 | `src/app/dashboard/setlists/page.tsx`, `.../setlist/page.tsx`, `.../setlist-edit/page.tsx` | Список / read-only просмотр / создание сета — все три в `APP_SHELL_ROUTES`. Карточка списка показывает состав и ведёт на первую песню сета (`/dashboard/song?id=&setlistId=`); `setlist-edit` — ТОЛЬКО создание (два шага: выбор песен → название/дата/порядок) |
-| `src/features/setlists/components/SetlistManageSheet.tsx` + `hooks/useSetlistEditor.ts` | Единственная точка правки состава (порядок/добавление/удаление сета) — шит из шапки просмотра песни («n/m») и со страницы сета. Экраны read-only; удаление песни и сета — через подтверждение |
+| `src/features/setlists/components/SetlistManageSheet.tsx` + `hooks/useSetlistEditor.ts` | Единственная точка правки состава (порядок/добавление/удаление сета) — шит из шапки просмотра песни («n/m»), со страницы сета и с карточки списка (kebab-меню «Изменить»/«Удалить» → `initialAction`). Экраны read-only; удаление песни и сета — через подтверждение |
+| `src/features/setlists/components/SetlistManageHost.tsx` | Обёртка шита для списка сетов: монтируется только под выбранный сет, `useSongs()` живёт внутри — каталог песен не грузится при обычном заходе на экран списка. Маппит `SetlistSummaryItem` → `SetlistItem` (синтетические `id`/`sort`) |
 | `src/features/setlists/hooks/useSetlistPlayback.ts` | Навигация между песнями сета в просмотре песни (`/dashboard/song?id=&setlistId=`), обёрнута в `SwipePager` |
-| `src/shared/components/pager/SwipePager.tsx` + `PagerHint.tsx` | Общие примитивы горизонтального свайпа (drag-follow, edge-resistance) и подсказки «N из M» — переиспользуются в песне (`SetlistPagerDock`) и в ридере (свайп по главам) |
+| `src/shared/components/pager/SwipePager.tsx` + `PagerHint.tsx` | Общие примитивы горизонтального свайпа (drag-follow, edge-resistance) и подсказки «N из M» — переиспользуются в песне (`SetlistPagerDock`) и в ридере (свайп по главам). Цель жеста описывается объектом `PagerHintTarget { index, label, atEdge, action? }`: `action:'end'` → ✓ «Завершить», мёртвый край (`atEdge` без `action`) → подсказки нет |
 | `src/features/setlists/components/SetlistPagerDock.tsx` | Нижняя таблетка `‹ N/M ›` навигации по сету в просмотре песни, скрывается вместе с шапкой |
-| `src/features/songs/components/SongToolStack.tsx` | Правый нижний край экрана песни — точка входа для инструментов (сейчас автоскролл, задел под карандаш заметок M10) |
+| `src/features/songs/components/SongToolStack.tsx` | Правый нижний край экрана песни — точка входа для инструментов (сейчас автоскролл, задел под карандаш заметок M10). Вместе с шапкой НЕ скрывается: прячут только открытые шторки |
 | `src/sw/sw.ts` + `scripts/build-sw.ts` | Build-time precache service worker (Serwist `injectManifest` → `out/sw.js`) |
 | `src/shared/hooks/useSwUpdate.ts` + `src/shared/components/ui/UpdateToast.tsx` | Update flow: `registration.waiting` → тост «Обновить» → `SKIP_WAITING` → reload |
 | `src/shared/hooks/useAutoHideOnScroll.ts` | Hide-on-scroll обёртка над `useScrollDirection` для не-ридер страниц (список/деталь песен) |
