@@ -69,6 +69,7 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
   }, [filter, results, draft.songIds]);
 
   const handleCancel = () => {
+    console.debug('[FIX] SetlistBuilder: выход из создания сета', { selected: draft.songIds.length });
     if (hasSelection) {
       const confirmed = window.confirm('Отменить создание сета? Выбранные песни будут потеряны.');
       if (!confirmed) return;
@@ -288,25 +289,24 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
 
   return (
     <div data-setlist-builder className="flex min-h-0 flex-1 flex-col">
-      <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-app-border bg-app-surface px-4 py-3">
-        <button
-          type="button"
-          data-setlist-builder-cancel
-          aria-label="Отменить"
-          onClick={handleCancel}
-          className="rounded-app-sm p-2 text-app-text-secondary transition-transform active:scale-90"
-        >
-          <X size={20} />
-        </button>
-        <h1 className="flex-1 truncate text-center font-semibold text-app-text">Новый сет</h1>
-        <span aria-live="polite" data-setlist-builder-count className="shrink-0 text-sm text-app-text-secondary">
-          Выбрано: {draft.songIds.length}
-        </span>
-      </div>
+      {/* Та же шапка, что в широком layout и на шаге подтверждения: только PageHeader
+          резервирует бровь (`pt-safe-*`), поэтому на iPhone выход остаётся доступен. */}
+      <PageHeader
+        title="Новый сет"
+        backAriaLabel="Отменить создание сета"
+        onBack={handleCancel}
+        right={
+          <span aria-live="polite" data-setlist-builder-count className="text-sm text-app-text-secondary">
+            Выбрано: {draft.songIds.length}
+          </span>
+        }
+      />
 
       {restoredBanner}
 
-      <div className="sticky top-[57px] z-10 space-y-2 bg-app-surface px-4 py-2">
+      {/* Не sticky: скроллится только список ниже, а прежний `top-[57px]` был
+          завязан на высоту рукописной шапки и с бровью давал перекрытие. */}
+      <div className="space-y-2 bg-app-surface px-4 py-2">
         <SearchBar onSearch={setQuery} placeholder="Поиск по песням" />
         {/* На большом каталоге выбранное теряется из виду при скролле — этот
             переключатель сворачивает список до выбранного, не сбрасывая запрос. */}

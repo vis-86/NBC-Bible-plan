@@ -1,6 +1,7 @@
 'use client';
 
-import { ChevronLeft, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { useIsOnline } from '@/shared/hooks/useIsOnline';
 import { SetlistReorderList, type ReorderableSong } from './SetlistReorderList';
 
@@ -52,29 +53,26 @@ export const SetlistConfirmStep: React.FC<SetlistConfirmStepProps> = ({
 
   return (
     <div data-setlist-confirm-step className="flex min-h-0 flex-1 flex-col">
-      <div className="sticky top-0 z-10 flex items-center gap-2 border-b border-app-border bg-app-surface px-4 py-3">
-        <button
-          type="button"
-          data-setlist-confirm-back
-          aria-label="Назад к выбору песен"
-          onClick={onBack}
-          className="rounded-app-sm p-2 text-app-text-secondary transition-transform active:scale-90"
-        >
-          <ChevronLeft size={20} />
-        </button>
-        <h1 className="flex-1 truncate text-center font-semibold text-app-text">Новый сет</h1>
-        {/* Место балансира занимает выход из билдера: «назад» ведёт только на шаг выбора,
-            и без этой кнопки восстановленный черновик со `step='confirm'` был бы тупиком. */}
-        <button
-          type="button"
-          data-setlist-confirm-cancel
-          aria-label="Отменить создание сета"
-          onClick={onCancel}
-          className="shrink-0 rounded-app-sm p-2 text-app-text-secondary transition-transform active:scale-90"
-        >
-          <X size={20} />
-        </button>
-      </div>
+      {/* Общая шапка: только она резервирует бровь (`pt-safe-*`). Своя вёрстка шапки
+          на iPhone уезжала под статус-бар — кнопки выхода были недоступны. */}
+      <PageHeader
+        title="Новый сет"
+        backAriaLabel="Назад к выбору песен"
+        onBack={onBack}
+        right={
+          // «Назад» ведёт только на шаг выбора; без отдельного выхода восстановленный
+          // черновик со `step='confirm'` был бы тупиком.
+          <button
+            type="button"
+            data-setlist-confirm-cancel
+            aria-label="Отменить создание сета"
+            onClick={onCancel}
+            className="rounded-app-sm p-2 text-app-text-secondary transition-transform active:scale-90"
+          >
+            <X size={20} />
+          </button>
+        }
+      />
 
       {banner}
 

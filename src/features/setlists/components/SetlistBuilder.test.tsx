@@ -124,6 +124,28 @@ describe('SetlistBuilder', () => {
     expect(container.querySelector('[data-setlist-builder-restored]')).toBeNull();
   });
 
+  // Регрессия: рукописная шапка не резервировала бровь (`pt-safe-*` есть только
+  // у PageHeader) — на iPhone она уезжала под статус-бар и выход был недоступен.
+  it('оба шага используют общую шапку PageHeader с кнопкой выхода', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { container } = render(<SetlistBuilder songs={SONGS} />);
+
+    const pickHeader = container.querySelector('[data-page-header]');
+    expect(pickHeader).toBeTruthy();
+    expect(screen.getByText('Выбрано: 0')).toBeTruthy();
+
+    fireEvent.click(pickRow(container, 'Аллилуйя'));
+    fireEvent.click(container.querySelector('[data-setlist-builder-next]') as HTMLElement);
+    expect(container.querySelector('[data-setlist-confirm-step] [data-page-header]')).toBeTruthy();
+
+    // Возврат на шаг выбора и выход через «назад» шапки — путь, которого не было на iPhone.
+    fireEvent.click(container.querySelector('[data-setlist-confirm-step] [data-page-header-back]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-page-header-back]') as HTMLElement);
+
+    expect(confirmSpy).toHaveBeenCalled();
+    expect(pushMock).toHaveBeenCalledWith('/dashboard/setlists');
+  });
+
   it('стрелок «Вверх»/«Вниз» больше нет — порядок задаётся только drag\'ом', () => {
     const { container } = render(<SetlistBuilder songs={SONGS} />);
     fireEvent.click(pickRow(container, 'Аллилуйя'));
@@ -155,7 +177,7 @@ describe('SetlistBuilder', () => {
     const { container } = render(<SetlistBuilder songs={SONGS} />);
     fireEvent.click(pickRow(container, 'Аллилуйя'));
     fireEvent.click(container.querySelector('[data-setlist-builder-next]') as HTMLElement);
-    fireEvent.click(container.querySelector('[data-setlist-confirm-back]') as HTMLElement);
+    fireEvent.click(container.querySelector('[data-setlist-confirm-step] [data-page-header-back]') as HTMLElement);
 
     expect(screen.getByText('Выбрано: 1')).toBeTruthy();
     expect(pickRow(container, 'Аллилуйя').getAttribute('aria-selected')).toBe('true');
