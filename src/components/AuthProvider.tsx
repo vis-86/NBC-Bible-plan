@@ -20,6 +20,12 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   logout: () => Promise<void>;
+  /**
+   * Перечитать сессию с сервера. Нужен после мутаций профиля: обновляет и контекст,
+   * и офлайн-копию (`setLastKnownUser` внутри `checkSession`) одним вызовом.
+   * Типизированная замена глобальному `window.refreshAuth`.
+   */
+  refreshAuth: () => Promise<void>;
 }
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -50,6 +56,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     // редиректит на /login раньше, чем этот checkSession успевает отработать
     // (router.push после логина не ждёт refreshAuth() — гонка).
     setLoading(true);
+    console.debug('[AuthProvider] session check requested');
     try {
       // Race с таймаутом: реальный «офлайн» (сеть есть, интернета нет) вешает fetch на
       // минуты, а не роняет его — без таймаута authLoading никогда не снимался и
@@ -147,7 +154,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout }}>
+    <AuthContext.Provider value={{ user, loading, logout, refreshAuth: checkSession }}>
       {children}
     </AuthContext.Provider>
   );

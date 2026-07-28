@@ -100,3 +100,70 @@ describe('GET /user/role', () => {
     expect(res.status).toBe(500);
   });
 });
+
+describe('POST /user/profile', () => {
+  beforeEach(() => {
+    adminRequestMock.mockReset();
+  });
+
+  async function post(body: unknown, cookie?: string) {
+    const app = createApp();
+    return app.request('/app/api/user/profile', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(cookie ? { Cookie: cookie } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it('без сессии -> 401', async () => {
+    const res = await post({ display_name: 'Игорь' });
+    expect(res.status).toBe(401);
+    expect(adminRequestMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['пустая строка', ''],
+    ['только пробелы', '   '],
+    ['длиннее 60 символов', 'я'.repeat(61)],
+  ])('%s -> 400', async (_label, displayName) => {
+    const cookie = await sessionCookie();
+    const res = await post({ display_name: displayName }, cookie);
+    expect(res.status).toBe(400);
+    expect(adminRequestMock).not.toHaveBeenCalled();
+  });
+
+  it('display_name не строка -> 400', async () => {
+    const cookie = await sessionCookie();
+    const res = await post({ display_name: 42 }, cookie);
+    expect(res.status).toBe(400);
+    expect(adminRequestMock).not.toHaveBeenCalled();
+  });
+
+  it('валидное имя -> 200, Directus обновлён, cookie пере-запечатан', async () => {
+    adminRequestMock.mockResolvedValueOnce({});
+    const cookie = await sessionCookie();
+    const res = await post({ display_name: '  Игорь Васильев  ' }, cookie);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      success: true,
+      user: { directus_id: 'user-1', first_name: 'Игорь Васильев' },
+    });
+
+    // Значение обрезано по краям и ушло в Directus именно как first_name.
+    expect(adminRequestMock).toHaveBeenCalledTimes(1);
+    const setCookie = res.headers.get('Set-Cookie');
+    expect(setCookie).toContain(`${SESSION_COOKIE_NAME}=`);
+  });
+
+  it('ошибка Directus -> 500, cookie не трогаем', async () => {
+    adminRequestMock.mockRejectedValueOnce(new Error('directus down'));
+    const cookie = await sessionCookie();
+    const res = await post({ display_name: 'Игорь' }, cookie);
+    expect(res.status).toBe(500);
+    expect(res.headers.get('Set-Cookie')).toBeNull();
+  });
+});

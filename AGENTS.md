@@ -74,6 +74,8 @@ bible-plan/
 │   │   └── offline/                  # Offline data settings UI
 │   │       ├── components/           # OfflineDataSection
 │   │       └── hooks/                # useOfflineData
+│   │   └── profile/                  # Профиль пользователя (секция настроек)
+│   │       └── components/           # ProfileSection (логин read-only + инлайн-правка имени)
 │   ├── sw/
 │   │   └── sw.ts                     # Build-time SW (esbuild + @serwist/build injectManifest → out/sw.js)
 │   ├── components/
@@ -147,8 +149,9 @@ bible-plan/
 |------|---------|
 | `src/app/layout.tsx` | Root layout — fonts, theme, global providers |
 | `src/app/dashboard/page.tsx` | Main app page — renders PlanView |
-| `src/app/dashboard/layout.tsx` (`DashboardAuthGate`) | Client auth guard — redirects unauthenticated users (replaces `src/middleware.ts`, removed T6, incompatible with `output: 'export'`) |
-| `src/components/AuthProvider.tsx` | Session state — `checkSession()`/`refreshAuth()` MUST `setLoading(true)` on every call, not just initial mount, or `DashboardAuthGate` can redirect on stale state during client-side post-login navigation (race fixed in T13) |
+| `src/app/dashboard/layout.tsx` (`DashboardAuthGate`) | Client auth guard — redirects unauthenticated users (replaces `src/middleware.ts`, removed T6, incompatible with `output: 'export'`). Гейт рендера — по `!user`, НЕ по `loading \|\| !user`: `refreshAuth()` поднимает `loading` на уже залогиненном пользователе, и вариант с `loading \|\|` размонтирует весь дашборд на время фоновой перепроверки (теряются подтверждения, фокус, открытые шторки). Редирект по-прежнему ждёт `!loading` |
+| `src/components/AuthProvider.tsx` | Session state — `checkSession()`/`refreshAuth()` MUST `setLoading(true)` on every call, not just initial mount, or `DashboardAuthGate` can redirect on stale state during client-side post-login navigation (race fixed in T13). `refreshAuth` отдаётся через контекст (не `window.refreshAuth`) и освежает и контекст, и `lastKnownUser` |
+| `src/features/profile/components/ProfileSection.tsx` + `server/src/routes/user.ts` (`POST /profile`) | Профиль в настройках: логин read-only (`emailToLogin` из `src/lib/local-email.ts`), имя правится инлайн по карандашу. Запись online-only (осознанное исключение из offline-first), чтение офлайн — из `lastKnownUser`. Роут пере-запечатывает cookie сразу: `first_name` в сессии — кэш |
 | `server/src/routes/auth.ts` | Login/logout/session/register/telegram/telegram-link routes (Hono, was `src/app/api/auth/*/route.ts`) |
 | `src/lib/register-access.ts` | `isRegistrationOpen()` / `verifyChurchCode()` — контроль доступа к регистрации |
 | `src/features/plan/components/PlanView.tsx` | Core plan UI — week view, day selection |

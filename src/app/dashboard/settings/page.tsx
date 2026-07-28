@@ -9,6 +9,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import type { AppThemePreference } from '@/shared/services/api/endpoints';
 import { DashboardReadingSettingsSection } from '@/features/reading/components/DashboardReadingSettingsSection';
 import { OfflineDataSection } from '@/features/offline/components/OfflineDataSection';
+import { ProfileSection } from '@/features/profile/components/ProfileSection';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { Button } from '@/shared/components/ui/Button';
 
@@ -29,7 +30,11 @@ export default function SettingsPage() {
     await logout();
   };
 
-  if (authLoading) {
+  // `authLoading && !user`, а не просто `authLoading`: `refreshAuth()` (после смены
+  // имени в профиле) поднимает тот же флаг, и безусловный лоадер размонтировал бы
+  // всё содержимое настроек — вместе с подтверждением «Имя обновлено» и возвратом
+  // фокуса на карандаш. Пока пользователь известен, гасить экран незачем.
+  if (authLoading && !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-app-bg">
         <div className="text-app-text-muted">Загрузка...</div>
@@ -47,6 +52,8 @@ export default function SettingsPage() {
       <div className="flex min-h-0 flex-1 flex-col">
         <PageHeader variant="page" title="Настройки" />
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain bg-app-bg px-4 py-6">
+          <ProfileSection className="mb-8" />
+
           <section className="space-y-3">
             <h2 className="text-sm font-medium text-app-text-secondary">
               Тема интерфейса

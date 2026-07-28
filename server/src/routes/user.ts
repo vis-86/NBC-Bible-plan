@@ -12,11 +12,64 @@ import {
   saveReadingSettings,
   updateUserProgress,
 } from '../../../src/lib/directus-data';
-import { getUserRoleName } from '../../../src/lib/directus-user';
+import { getUserRoleName, updateUserDisplayName } from '../../../src/lib/directus-user';
 import { logger } from '../logger';
-import { getSession } from '../session';
+import { createSession, getSession } from '../session';
 
 export const userRoutes = new Hono();
+
+/** Границы отображаемого имени. 60 — с запасом под длинное «Имя Фамилия». */
+const DISPLAY_NAME_MAX = 60;
+
+/**
+ * POST /profile — смена отображаемого имени (Directus `first_name`).
+ *
+ * Online-only по решению 2026-07-28: осознанное исключение из offline-first
+ * (outbox заточен под прогресс, его обобщение — M6). Чтение профиля офлайн
+ * работает через `lastKnownUser` в IDB.
+ */
+userRoutes.post('/profile', async (c) => {
+  try {
+    const session = await getSession(c);
+    if (!session) return c.json({ error: 'Unauthorized' }, 401);
+
+    let body: unknown;
+    try {
+      body = await c.req.json();
+    } catch {
+      return c.json({ error: 'Тело запроса не является JSON' }, 400);
+    }
+
+    const raw = (body as { display_name?: unknown } | null)?.display_name;
+    if (typeof raw !== 'string') {
+      return c.json({ error: 'Поле display_name обязательно' }, 400);
+    }
+
+    const displayName = raw.trim();
+    if (displayName.length === 0) {
+      return c.json({ error: 'Имя не может быть пустым' }, 400);
+    }
+    if (displayName.length > DISPLAY_NAME_MAX) {
+      return c.json({ error: `Имя длиннее ${DISPLAY_NAME_MAX} символов` }, 400);
+    }
+
+    logger.debug('[user.profile] update', { userId: session.directus_id, len: displayName.length });
+    await updateUserDisplayName(session.directus_id, displayName);
+
+    // Пере-запечатываем cookie сразу: `first_name` в iron-session — это кэш, и без
+    // re-seal он остаётся протухшим до следующего GET /auth/session.
+    await createSession(c, { ...session, first_name: displayName });
+    logger.debug('[user.profile] updated + session re-sealed', { userId: session.directus_id });
+
+    return c.json({
+      success: true,
+      user: { directus_id: session.directus_id, first_name: displayName },
+    });
+  } catch (error) {
+    logger.error('Error updating profile:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
 
 userRoutes.get('/role', async (c) => {
   try {

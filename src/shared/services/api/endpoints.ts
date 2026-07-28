@@ -121,9 +121,25 @@ export interface UserRoleResponse {
   role: AppRole;
 }
 
+export interface UpdateProfileResponse {
+  success: true;
+  user: { directus_id: string; first_name: string };
+}
+
 export const userApi = {
   getRole: async (): Promise<UserRoleResponse> => {
     return apiClient.get<UserRoleResponse>('/api/user/role');
+  },
+  /**
+   * Смена отображаемого имени. Online-only (см. `docs/offline-pwa.md`): read-through
+   * здесь неприменим — это запись, а не чтение. Ошибка приходит как `ApiClientError`
+   * с серверным текстом в теле; вызывающий обязан показать его пользователю.
+   */
+  updateProfile: async (displayName: string): Promise<UpdateProfileResponse> => {
+    console.debug('[userApi.updateProfile] request', { len: displayName.length });
+    return apiClient.post<UpdateProfileResponse>('/api/user/profile', {
+      display_name: displayName,
+    });
   },
 };
 

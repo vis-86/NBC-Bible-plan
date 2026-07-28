@@ -2,13 +2,11 @@
 import { getDirectusAdminClient } from '@/lib/directus';
 import { readItems, createItem, createUser, readUser, readUsers, updateUser, readRoles } from '@directus/sdk';
 
-/**
- * Синтетический email-домен для псевдонимных веб-аккаунтов (без реальных ПД, ФЗ-152).
- * Должен быть с реальным TLD: Directus валидирует формат email и отклоняет
- * single-label домены вроде `@local` ("Value has to be a valid email address").
- * `local.baptistnn.ru` — поддомен своего домена без MX: формат валиден, почта не доставляется.
- */
-export const LOCAL_EMAIL_DOMAIN = 'local.baptistnn.ru';
+// Хелперы логин↔email живут в `local-email.ts` (модуль без directus-зависимостей —
+// его можно импортировать из клиентских компонентов). Здесь — ре-экспорт для
+// совместимости существующих импортов.
+export { LOCAL_EMAIL_DOMAIN, loginToEmail, emailToLogin } from '@/lib/local-email';
+import { loginToEmail } from '@/lib/local-email';
 
 const DEBUG = (process.env.LOG_LEVEL ?? 'debug') === 'debug';
 function debug(...args: unknown[]) {
@@ -19,11 +17,6 @@ function debug(...args: unknown[]) {
 async function getReaderRoleId(adminClient: ReturnType<typeof getDirectusAdminClient>): Promise<string | null> {
   const roles = await adminClient.request(readRoles({ filter: { name: { _eq: 'Чтец' } }, limit: 1 }));
   return roles.length > 0 ? roles[0].id : null;
-}
-
-/** Преобразует логин-handle в синтетический email `{login}@local.baptistnn.ru`. */
-export function loginToEmail(login: string): string {
-  return login.includes('@') ? login : `${login.toLowerCase()}@${LOCAL_EMAIL_DOMAIN}`;
 }
 
 export class LoginTakenError extends Error {
@@ -74,6 +67,16 @@ export async function setUserPassword(userId: string, password: string): Promise
   const adminClient = getDirectusAdminClient();
   await adminClient.request(updateUser(userId, { password }));
   debug('password set for user', userId);
+}
+
+/**
+ * Обновляет отображаемое имя (Directus `first_name`) через admin API.
+ * Значение в логи не пишем — только длину (ФЗ-152).
+ */
+export async function updateUserDisplayName(userId: string, displayName: string): Promise<void> {
+  const adminClient = getDirectusAdminClient();
+  await adminClient.request(updateUser(userId, { first_name: displayName }));
+  debug('display name updated for user', userId, 'len', displayName.length);
 }
 
 /** Создаёт mapping tg_id → directus_user. Бросает, если tg_id уже привязан к другому юзеру. */
