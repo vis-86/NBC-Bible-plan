@@ -2,7 +2,8 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { __resetDBConnection, getDB } from '@/shared/offline/db';
-import { OfflineNoDataError, resetNetworkSuspicionForTests } from '@/shared/offline/networkHealth';
+import { OfflineNoDataError, reportNetworkTimeout, resetNetworkSuspicionForTests } from '@/shared/offline/networkHealth';
+import { DEFAULT_NETWORK_TIMEOUT_MS, NetworkTimeoutError } from '@/shared/offline/networkTimeout';
 import { getApiCache, persistApiCache } from '@/shared/offline/readThrough';
 import type { Setlist, SetlistSummary } from '../types';
 
@@ -15,7 +16,14 @@ vi.mock('@/shared/services/api/endpoints', () => ({
   setlistsApi: { getSetlists: getSetlistsMock, getSetlist: getSetlistMock },
 }));
 
-import { readSetlistsThrough, readSetlistThrough, SETLISTS_LIST_CACHE_KEY, setlistCacheKey } from './offlineSetlists';
+import {
+  PULL_REFRESH_TIMEOUT_MS,
+  readSetlistsThrough,
+  readSetlistThrough,
+  refreshSetlistsFromNetwork,
+  SETLISTS_LIST_CACHE_KEY,
+  setlistCacheKey,
+} from './offlineSetlists';
 
 const SUMMARY: SetlistSummary = { id: 'set-1', title: 'Воскресное', date: '2026-08-02', items: [{ songId: 1, title: 'Песня' }] };
 const DETAIL: Setlist = {
@@ -100,5 +108,55 @@ describe('offlineSetlists', () => {
     const err = new TypeError('Failed to fetch');
     getSetlistMock.mockRejectedValueOnce(err);
     await expect(readSetlistThrough('set-2')).rejects.toBe(err);
+  });
+
+  describe('refreshSetlistsFromNetwork', () => {
+    it('успех -> список из сети, apiCache перезаписан в форме readThrough', async () => {
+      await persistApiCache(SETLISTS_LIST_CACHE_KEY, { setlists: [] });
+      getSetlistsMock.mockResolvedValueOnce({ setlists: [SUMMARY] });
+
+      const result = await refreshSetlistsFromNetwork();
+      expect(result).toEqual([SUMMARY]);
+      // Ключ — импортированная константа, форма — полный ответ, как у readThrough.
+      expect(await getApiCache(SETLISTS_LIST_CACHE_KEY)).toEqual({ setlists: [SUMMARY] });
+    });
+
+    it('navigator.onLine=false -> в сеть не ходим вовсе, промис реджектится', async () => {
+      vi.stubGlobal('navigator', { onLine: false });
+      getSetlistsMock.mockImplementationOnce(() => new Promise(() => {}));
+
+      await expect(refreshSetlistsFromNetwork()).rejects.toThrow('Нет сети');
+      expect(getSetlistsMock).not.toHaveBeenCalled();
+    });
+
+    it('обходит circuit breaker: разомкнутая цепь не превращает refresh в no-op', async () => {
+      // Свежий таймаут размыкает цепь — readThrough в этом состоянии отдал бы кеш
+      // мгновенно, а ручное обновление обязано реально сходить в сеть.
+      reportNetworkTimeout();
+      getSetlistsMock.mockResolvedValueOnce({ setlists: [SUMMARY] });
+
+      const result = await refreshSetlistsFromNetwork();
+      expect(getSetlistsMock).toHaveBeenCalledTimes(1);
+      expect(result).toEqual([SUMMARY]);
+    });
+
+    it('ошибка сети -> проброшена, старая запись в apiCache не затёрта', async () => {
+      await persistApiCache(SETLISTS_LIST_CACHE_KEY, { setlists: [SUMMARY] });
+      const err = new TypeError('Failed to fetch');
+      getSetlistsMock.mockRejectedValueOnce(err);
+
+      await expect(refreshSetlistsFromNetwork()).rejects.toBe(err);
+      expect(await getApiCache(SETLISTS_LIST_CACHE_KEY)).toEqual({ setlists: [SUMMARY] });
+    });
+
+    it('зависшая сеть -> реджект по таймауту, тест не висит', async () => {
+      getSetlistsMock.mockImplementationOnce(() => new Promise(() => {}));
+
+      await expect(refreshSetlistsFromNetwork(20)).rejects.toBeInstanceOf(NetworkTimeoutError);
+    });
+
+    it('дефолтный таймаут длиннее сетевого дефолта — жест инициирован пользователем', () => {
+      expect(PULL_REFRESH_TIMEOUT_MS).toBeGreaterThan(DEFAULT_NETWORK_TIMEOUT_MS);
+    });
   });
 });
