@@ -89,10 +89,10 @@ bible-plan/
 │   │   │   ├── animations/           # Shared animation components
 │   │   │   ├── bible/                # Bible-specific UI components
 │   │   │   ├── skeletons/            # Loading skeleton components
-│   │   │   └── ui/                   # Generic UI primitives (shadcn/ui) + UpdateToast.tsx, SearchBar.tsx, RangeSlider.tsx (44px tap zone, 28px thumb), ActionMenu.tsx (kebab-меню действий, портал в body)
+│   │   │   └── ui/                   # Generic UI primitives (shadcn/ui) + UpdateToast.tsx, SearchBar.tsx, RangeSlider.tsx (44px tap zone, 28px thumb), ActionMenu.tsx (kebab-меню действий, портал в body), PullToRefresh.tsx + PullToRefreshIndicator.tsx (жест «потянуть вниз → обновить»)
 │   │   ├── config/
 │   │   │   └── design-tokens.ts      # TS design token constants (maps to CSS vars)
-│   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast), useAutoHideOnScroll (hide-on-scroll обёртка над useScrollDirection), useAppRole, useIsOnline, useHorizontalSwipe
+│   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast), useAutoHideOnScroll (hide-on-scroll обёртка над useScrollDirection), useAppRole, useIsOnline, useHorizontalSwipe, usePullToRefresh
 │   │   ├── offline/                  # IndexedDB layer (idb), read-through, write-ahead outbox, sync, downloadManager, autoDownload (T11), chunkGuard, networkTimeout
 │   │   ├── services/
 │   │   │   └── api/
@@ -165,6 +165,7 @@ bible-plan/
 | `src/app/dashboard/setlists/page.tsx`, `.../setlist/page.tsx`, `.../setlist-edit/page.tsx` | Список / read-only просмотр / создание сета — все три в `APP_SHELL_ROUTES`. Карточка списка показывает состав и ведёт на первую песню сета (`/dashboard/song?id=&setlistId=`); `setlist-edit` — ТОЛЬКО создание (два шага: выбор песен → название/дата/порядок) |
 | `src/features/setlists/components/SetlistManageSheet.tsx` + `hooks/useSetlistEditor.ts` | Единственная точка правки состава (порядок/добавление/удаление сета) — шит из шапки просмотра песни («n/m»), со страницы сета и с карточки списка (kebab-меню «Изменить»/«Удалить» → `initialAction`). Экраны read-only; удаление песни и сета — через подтверждение |
 | `src/features/setlists/components/SetlistManageHost.tsx` | Обёртка шита для списка сетов: монтируется только под выбранный сет, `useSongs()` живёт внутри — каталог песен не грузится при обычном заходе на экран списка. Маппит `SetlistSummaryItem` → `SetlistItem` (синтетические `id`/`sort`) |
+| `src/shared/components/ui/PullToRefresh.tsx` + `src/shared/hooks/usePullToRefresh.ts` | Общий жест «потянуть вниз → обновить» (фазы `idle/pulling/armed/refreshing`, прогресс CSS-переменными `--ptr-pull`/`--ptr-progress`, подавление ghost-click). Подключён на экране сетлистов; сетевой путь — `refreshSetlistsFromNetwork()`, идёт мимо circuit breaker осознанно (см. `docs/offline-pwa.md`) |
 | `src/features/setlists/hooks/useSetlistPlayback.ts` | Навигация между песнями сета в просмотре песни (`/dashboard/song?id=&setlistId=`), обёрнута в `SwipePager` |
 | `src/shared/components/pager/SwipePager.tsx` + `PagerHint.tsx` | Общие примитивы горизонтального свайпа (drag-follow, edge-resistance) и подсказки «N из M» — переиспользуются в песне (`SetlistPagerDock`) и в ридере (свайп по главам). Цель жеста описывается объектом `PagerHintTarget { index, label, atEdge, action? }`: `action:'end'` → ✓ «Завершить», мёртвый край (`atEdge` без `action`) → подсказки нет |
 | `src/features/setlists/components/SetlistPagerDock.tsx` | Нижняя таблетка `‹ N/M ›` навигации по сету в просмотре песни, скрывается вместе с шапкой |
