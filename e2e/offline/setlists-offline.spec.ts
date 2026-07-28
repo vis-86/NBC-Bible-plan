@@ -133,4 +133,45 @@ test.describe('Сетлисты — офлайн (T15)', () => {
     await context.setOffline(false);
     await context.close();
   });
+
+  test('pull-to-refresh офлайн: список остаётся, спиннер не залипает, консоль чистая', async ({ browser }) => {
+    const context = await browser.newContext({ storageState });
+    const page = await context.newPage();
+    await waitForServiceWorkerReady(page);
+    await page.goto(appPath('/dashboard/setlists'));
+    await expect(page.locator('[data-setlists-page]')).toBeVisible();
+
+    const rscErrors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.text().includes('Failed to fetch RSC payload')) rscErrors.push(msg.text());
+    });
+
+    // page.route не перехватывает запросы, прошедшие через SW — офлайн только контекстом.
+    await context.setOffline(true);
+
+    const container = page.locator('[data-pull-to-refresh]');
+    await expect(container).toBeVisible();
+    const box = (await container.boundingBox())!;
+    const startX = box.x + box.width / 2;
+    const startY = box.y + 20;
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    // Серия шагов обязательна: ось жеста решается порогом 8px, одним движением не читается.
+    for (const dy of [10, 60, 140, 220, 260]) {
+      await page.mouse.move(startX, startY + dy);
+    }
+    await page.mouse.up();
+
+    await expect(page.getByText('Нет сети')).toBeVisible();
+    // Список никуда не делся — неудачное обновление не подменяет данные ошибкой.
+    await expect(page.locator('[data-setlists-page]')).toBeVisible();
+    // Спиннер не залип: фаза вернулась в idle.
+    await expect(container).toHaveAttribute('data-pull-to-refresh-phase', 'idle');
+
+    expect(rscErrors, 'RSC-пейлоад запрашивался по сети вместо precache').toEqual([]);
+
+    await context.setOffline(false);
+    await context.close();
+  });
 });

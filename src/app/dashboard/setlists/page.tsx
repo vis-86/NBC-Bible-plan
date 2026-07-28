@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
+import { PullToRefresh } from '@/shared/components/ui/PullToRefresh';
 import { useSetlists } from '@/features/setlists/hooks/useSetlists';
 import { SetlistsList } from '@/features/setlists/components/SetlistsList';
 import { SetlistManageHost } from '@/features/setlists/components/SetlistManageHost';
@@ -21,7 +22,7 @@ function todayISO(): string {
 
 function SetlistsPageContent() {
   const router = useRouter();
-  const { setlists, loading, error } = useSetlists();
+  const { setlists, loading, error, refresh, refreshError } = useSetlists();
   const { canManageSetlists } = useAppRole();
 
   /**
@@ -41,6 +42,11 @@ function SetlistsPageContent() {
   const handleItemsChange = useCallback((setlistId: string, items: SetlistSummaryItem[]) => {
     setLocalSetlists((prev) => prev.map((s) => (s.id === setlistId ? { ...s, items } : s)));
   }, []);
+
+  const handlePullToRefresh = useCallback(() => {
+    console.debug('[SetlistsPage] pull-to-refresh → refresh()');
+    return refresh();
+  }, [refresh]);
 
   const handleDeleted = useCallback((setlistId: string) => {
     console.warn(`[SetlistsPage] сет ${setlistId} удалён — убираем из списка`);
@@ -67,7 +73,16 @@ function SetlistsPageContent() {
         }
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-6">
+      <PullToRefresh
+        onRefresh={handlePullToRefresh}
+        className="px-4 pt-3 pb-6"
+      >
+        {/* Данные на экране валидны — неудачное обновление не подменяет список ошибкой. */}
+        {refreshError && (
+          <p data-setlists-refresh-error className="pb-2 text-center text-sm text-app-text-muted">
+            {refreshError}
+          </p>
+        )}
         {error ? (
           <ErrorMessage message={error} />
         ) : loading && localSetlists.length === 0 ? (
@@ -85,7 +100,7 @@ function SetlistsPageContent() {
             onDelete={canManageSetlists ? (setlist) => setManaged({ setlist, action: 'delete' }) : undefined}
           />
         )}
-      </div>
+      </PullToRefresh>
 
       {/* Каталог песен грузится лениво — хост монтируется только под выбранный сет. */}
       {managed && (
