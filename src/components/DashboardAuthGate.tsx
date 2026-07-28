@@ -24,7 +24,12 @@ export default function DashboardAuthGate({ children }: { children: React.ReactN
     router.replace(`/login?redirect=${encodeURIComponent(target)}`);
   }, [loading, user, pathname, searchParams, router]);
 
-  if (loading || !user) {
+  // Гейт по `!user`, а НЕ по `loading || !user`: `refreshAuth()` (например после смены
+  // имени в профиле) поднимает `loading` на уже залогиненном пользователе, и вариант
+  // с `loading ||` размонтировал бы весь дашборд на время фоновой перепроверки —
+  // вместе с состоянием экранов (подтверждение «Имя обновлено», фокус, открытые шторки).
+  // Пока `user` известен, показываем контент; редирект по-прежнему ждёт `!loading`.
+  if (!user) {
     return <FullScreenLoader label="Проверяем сессию…" />;
   }
 

@@ -54,6 +54,20 @@ describe('DashboardAuthGate', () => {
     expect(replaceMock).not.toHaveBeenCalled();
   });
 
+  it('фоновая перепроверка (loading + user) -> children остаются смонтированы', () => {
+    // `refreshAuth()` после смены имени в профиле поднимает `loading` на уже
+    // залогиненном пользователе. Гейт по `loading || !user` размонтировал бы весь
+    // дашборд и стёр состояние экрана (подтверждение «Имя обновлено», фокус).
+    useAuthMock.mockReturnValue({ user: { directus_id: '1', first_name: 'Т' }, loading: true });
+    render(
+      <DashboardAuthGate>
+        <div>protected content</div>
+      </DashboardAuthGate>
+    );
+    expect(screen.getByText('protected content')).toBeInTheDocument();
+    expect(replaceMock).not.toHaveBeenCalled();
+  });
+
   it('last-known-user (офлайн-фолбэк из AuthProvider) -> рендерит children', () => {
     // AuthProvider уже отдаёт last-known-user через `user` при сетевой ошибке —
     // гейт не различает "server-confirmed" и "last-known", просто доверяет user.
