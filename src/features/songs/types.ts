@@ -44,3 +44,43 @@ export interface SongListResponse {
 export interface SongResponse {
   song: Song;
 }
+
+/** Инструменты рукописных пометок (M10, §6). */
+export type SongInkTool = 'pen' | 'highlighter' | 'arrow' | 'text';
+
+/**
+ * Одна рукописная пометка поверх листа песни.
+ *
+ * Геометрия привязана к СТРОКЕ, а не к странице: при смене размера шрифта или числа
+ * колонок штрих едет вместе со своей строкой. Осознанные ограничения этой модели
+ * (штрих не масштабируется вместе с текстом; индексы ломаются при правке песни)
+ * описаны в `docs/song-viewer-spec.md` §6.
+ */
+export interface SongStroke {
+  /** Стабильный id — нужен undo/ластику/перетаскиванию заметок. */
+  id: string;
+  /** `arrow` — прямой отрезок с наконечником: ровно две точки (начало, остриё). */
+  tool: SongInkTool;
+  /** Якорь: индексы секции и строки в распарсенной песне (§6). */
+  anchor: { section: number; line: number };
+  /** px относительно bounding box строки-якоря. Для `text` — одна точка. */
+  points: Array<[x: number, y: number, pressure: number]>;
+  color: string;
+  width: number;
+  /** Только для `tool === 'text'`. */
+  text?: string;
+  /** Только для `tool === 'text'`: пометка на поле вдоль колонки (`writing-mode: vertical-rl`). */
+  vertical?: boolean;
+}
+
+/** Личные пометки к одной песне. */
+export interface SongAnnotations {
+  strokes: SongStroke[];
+  /** LWW-метка (ms): побеждает запись с большим значением. */
+  updatedAt: number;
+}
+
+/** Ответ `GET /api/songs/:id/state`. */
+export interface SongStateResponse {
+  annotations: SongAnnotations;
+}

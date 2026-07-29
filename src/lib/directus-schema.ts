@@ -79,6 +79,32 @@ export interface DirectusSchema {
     date_created?: string;
     date_updated?: string;
   };
+  /**
+   * Личное состояние песни у пользователя (M10 + §10.3): рабочая тональность,
+   * скорость автоскролла и рукописные пометки. Строго личная запись —
+   * `user_id` берётся ТОЛЬКО из iron-session, никогда из тела запроса.
+   *
+   * Уникальность пары `(user_id, song)` держится детерминированным `id`
+   * (UUIDv5, см. `src/features/songs/services/songStateServer.ts`), а не составным
+   * индексом: Directus REST не умеет составные индексы.
+   */
+  song_user_state: {
+    /** UUIDv5 от `"{user_id}:{song}"` — дубликат невозможен по построению. */
+    id: string;
+    user_id: string;
+    song: number;
+    /** Рабочая тональность музыканта (уровень 3, §10.1). */
+    key?: string | null;
+    /** Рукописные пометки: `SongAnnotations['strokes']`. */
+    strokes?: unknown[] | null;
+    scroll_speed?: number | null;
+    /**
+     * LWW-метка. Пишет ПРИЛОЖЕНИЕ (время правки на устройстве), а не Directus:
+     * серверная метка сломала бы LWW — отложенный replay старой офлайн-правки
+     * получил бы свежее время и затёр более новую правку с другого устройства.
+     */
+    updated_at?: string | null;
+  };
   auth_invites: {
     id: number;
     /** секрет ссылки (unique) */

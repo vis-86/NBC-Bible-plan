@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>M10 — режим рисования поверх песни (прототип)</title>
+<style>
+  :root, [data-theme="light"] {
+    --app-bg:#FAFAF9; --app-surface:#fff; --app-surface-elevated:#f8f7f5; --app-surface-muted:#F5F5F4;
+    --app-text:#1c1917; --app-text-secondary:#57534e; --app-text-muted:#78716c; --app-text-inverse:#fff;
+    --app-primary:#4f46e5; --app-primary-hover:#4338ca; --app-primary-light:#eef2ff;
+    --app-accent:#dc2626; --app-success:#10b981;
+    --app-border:rgba(0,0,0,.06); --app-border-strong:rgba(0,0,0,.12);
+    --app-shadow-sm:0 1px 2px rgba(15,23,42,.04),0 1px 1px rgba(15,23,42,.03);
+    --app-shadow-md:0 8px 24px rgba(15,23,42,.06),0 2px 6px rgba(15,23,42,.04);
+    --app-radius-sm:8px; --app-radius-md:12px; --app-radius-lg:16px; --app-radius-xl:24px;
+    --scrim:rgba(28,25,23,.28);
+  }
+  [data-theme="dark"] {
+    --app-bg:#1c1917; --app-surface:#292524; --app-surface-elevated:#312e2b; --app-surface-muted:#3b3634;
+    --app-text:#e7e5e4; --app-text-secondary:#a8a29e; --app-text-muted:#78716c; --app-text-inverse:#1c1917;
+    --app-primary:#818cf8; --app-primary-hover:#6366f1; --app-primary-light:rgba(79,70,229,.15);
+    --app-accent:#f87171; --app-success:#34d399;
+    --app-border:rgba(255,255,255,.08); --app-border-strong:rgba(255,255,255,.16);
+    --scrim:rgba(0,0,0,.5);
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; margin:0; }
+  body {
+    background:var(--app-bg); color:var(--app-text);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+
+  /* ── Панель прототипа (в проде её нет) ─────────────────────────── */
+  .lab { flex:0 0 auto; background:var(--app-surface); border-bottom:1px solid var(--app-border); }
+  .lab-head { display:flex; align-items:center; gap:8px; padding:8px 12px; }
+  .lab-head b { font-size:13px; letter-spacing:.02em; }
+  .lab-head span { font-size:12px; color:var(--app-text-muted); }
+  .lab-toggle { margin-left:auto; font-size:12px; padding:5px 10px; border-radius:var(--app-radius-sm);
+    border:1px solid var(--app-border-strong); background:transparent; color:var(--app-text); cursor:pointer; }
+  .lab-body { display:none; padding:0 12px 12px; gap:14px; flex-wrap:wrap; }
+  .lab.open .lab-body { display:flex; }
+  .lab-group { display:flex; flex-direction:column; gap:5px; min-width:150px; }
+  .lab-group > label { font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--app-text-muted); }
+  .seg { display:flex; background:var(--app-surface-muted); border-radius:var(--app-radius-sm); padding:2px; }
+  .seg button { flex:1; border:0; background:transparent; color:var(--app-text-secondary); font-size:12px;
+    padding:6px 9px; border-radius:6px; cursor:pointer; white-space:nowrap; }
+  .seg button[aria-pressed="true"] { background:var(--app-surface); color:var(--app-text); box-shadow:var(--app-shadow-sm); }
+  .chk { display:flex; align-items:flex-start; gap:8px; font-size:12.5px; color:var(--app-text-secondary); cursor:pointer; max-width:290px; }
+  .chk input { margin:3px 0 0; flex:0 0 auto; }
+  .chk b { color:var(--app-text); font-weight:600; }
+  .chk i { display:block; font-style:normal; color:var(--app-text-muted); font-size:11.5px; line-height:1.35; }
+
+  /* ── Экран песни ───────────────────────────────────────────────── */
+  .screen { flex:1 1 auto; min-height:0; position:relative; display:flex; flex-direction:column; }
+  .pageHeader { flex:0 0 auto; display:flex; align-items:center; gap:10px; padding:10px 14px;
+    border-bottom:1px solid var(--app-border); background:var(--app-bg); }
+  .pageHeader .back { width:32px; height:32px; border-radius:var(--app-radius-sm); border:0;
+    background:var(--app-surface-muted); color:var(--app-text); cursor:pointer; font-size:16px; }
+  .pageHeader .ttl { font-weight:600; font-size:15px; }
+  .pageHeader .sub { font-size:12px; color:var(--app-text-muted); }
+
+  .viewport { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:16px; }
+  .viewport.frozen { overflow:hidden; }
+  /* Обёртка держит layout-размер увеличенного листа: transform его не меняет,
+     и без неё зумленную страницу некуда прокручивать. */
+  .stageWrap { position:relative; }
+  .stage { position:relative; transform-origin:0 0; }
+
+  /* ── Лист песни (упрощённая копия SongView) ────────────────────── */
+  .song { --lyric-size:18px; --line-height:1.5; --col-count:1; --section-gap:1rem; }
+  .song-header { margin-bottom:14px; }
+  .song-title { font-size:1.25em; font-weight:700; margin:0; }
+  .song-meta { font-size:.8em; color:var(--app-text-muted); }
+  .cproColumn { font-size:var(--lyric-size); white-space:pre-wrap; columns:var(--col-count); column-gap:2rem; max-width:520px; }
+  .cproSongSection { display:block; break-inside:avoid; margin-bottom:var(--section-gap); }
+  .cproComment { display:block; font-size:.75em; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--app-text-secondary); line-height:2; }
+  .cproSongLine { display:block; line-height:var(--line-height); padding-top:1.1em; }
+  .cproSongLine.lyricsOnly { padding-top:.2em; }
+  .chordWrapper { display:inline-block; position:relative; vertical-align:bottom; }
+  .chord { position:absolute; top:-1.15em; left:0; font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:.85em; font-weight:700; color:var(--app-primary); white-space:nowrap; }
+
+  /* ── Слой рисования ────────────────────────────────────────────── */
+  .ink { position:absolute; inset:0; pointer-events:none; }
+  .ink canvas { position:absolute; inset:0; width:100%; height:100%; }
+  /* Один палец рисует, два — прокручивают и зумят (арбитраж в JS). */
+  .screen[data-drawing="1"] .ink { pointer-events:auto; touch-action:none; }
+  /* Только стилус: прокрутку пальцем отдаём браузеру, слой ловит лишь перо. */
+  .screen[data-drawing="1"][data-penonly="1"] .ink { touch-action:pan-y; }
+  .textNote { position:absolute; font-size:13px; font-weight:600; padding:2px 5px;
+    background:color-mix(in srgb, var(--app-surface) 88%, transparent);
+    border-radius:6px; border:1px dashed currentColor; white-space:nowrap; pointer-events:none;
+    touch-action:none; }
+  /* Двигать и выделять заметки можно только текстовым инструментом — иначе они
+     перехватывали бы штрихи пера и попадания ластика. */
+  .screen[data-drawing="1"][data-tool="text"] .textNote { pointer-events:auto; cursor:grab; }
+  .textNote.vertical { writing-mode:vertical-rl; }
+  .textNote.selected { border-style:solid; box-shadow:0 0 0 2px var(--app-primary); }
+  .noteBar { position:absolute; z-index:41; display:flex; gap:2px; padding:3px;
+    border-radius:999px; background:var(--app-surface); box-shadow:var(--app-shadow-md);
+    border:1px solid var(--app-border); }
+  .noteBar button { width:30px; height:30px; border:0; border-radius:50%; background:transparent;
+    color:var(--app-text-secondary); font-size:14px; cursor:pointer; }
+  .textInput { position:absolute; font:600 13px/1.2 inherit; padding:3px 6px; border-radius:6px;
+    border:1px solid var(--app-primary); background:var(--app-surface); color:var(--app-text); z-index:40; }
+
+  /* ── Индикатор режима ──────────────────────────────────────────── */
+  .modeBar { position:absolute; left:50%; top:10px; transform:translateX(-50%); z-index:30;
+    display:none; align-items:center; gap:10px; padding:6px 8px 6px 14px; border-radius:999px;
+    background:var(--app-surface); box-shadow:var(--app-shadow-md); border:1px solid var(--app-border);
+    font-size:12.5px; font-weight:600; white-space:nowrap; }
+  .screen[data-drawing="1"] .modeBar { display:flex; }
+  .modeBar .dot { width:8px; height:8px; border-radius:50%; background:var(--app-accent); }
+  .modeBar button { border:0; border-radius:999px; padding:5px 12px; font-size:12.5px; font-weight:600; cursor:pointer; }
+  .modeBar .ghost { background:transparent; color:var(--app-text-muted); }
+  .modeBar .solid { background:var(--app-primary); color:#fff; }
+
+  /* ── SongToolStack: правый нижний угол ─────────────────────────── */
+  .toolStack { position:absolute; right:14px; bottom:14px; z-index:35;
+    display:flex; flex-direction:column-reverse; align-items:center; gap:10px; }
+  .fab { width:48px; height:48px; border-radius:50%; border:0; cursor:pointer;
+    background:var(--app-surface); color:var(--app-text); box-shadow:var(--app-shadow-md);
+    display:grid; place-items:center; font-size:19px; }
+  .fab.active { background:var(--app-primary); color:#fff; }
+  .fab.muted { opacity:.5; }
+
+  /* Раскрытая панель инструментов — активный инструмент забирает правый край целиком */
+  .toolRail { display:none; flex-direction:column-reverse; align-items:center; gap:8px;
+    padding:8px; border-radius:var(--app-radius-xl); background:var(--app-surface);
+    box-shadow:var(--app-shadow-md); border:1px solid var(--app-border); }
+  .screen[data-drawing="1"] .toolRail { display:flex; }
+  .screen[data-drawing="1"] .autoscrollFab { display:none; }
+  .tool { width:42px; height:42px; border-radius:50%; border:0; background:transparent;
+    color:var(--app-text-secondary); cursor:pointer; display:grid; place-items:center; font-size:17px; }
+  .tool[aria-pressed="true"] { background:var(--app-primary-light); color:var(--app-primary); }
+  .tool:disabled { opacity:.35; cursor:default; }
+  .rail-sep { width:22px; height:1px; background:var(--app-border-strong); }
+  .swatch { width:42px; height:42px; border-radius:50%; border:2px solid var(--app-border-strong);
+    cursor:pointer; padding:0; }
+
+  /* Палитра / толщина */
+  .popover { position:absolute; right:76px; bottom:14px; z-index:36; display:none;
+    padding:12px; border-radius:var(--app-radius-lg); background:var(--app-surface);
+    box-shadow:var(--app-shadow-md); border:1px solid var(--app-border); width:216px; }
+  .popover.open { display:block; }
+  .popover h4 { margin:0 0 8px; font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--app-text-muted); }
+  .colors { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .colors button { aspect-ratio:1; border-radius:50%; border:2px solid transparent; cursor:pointer; }
+  .colors button[aria-pressed="true"] { border-color:var(--app-text); }
+  .popover input[type=range] { width:100%; margin-top:6px; }
+  .widthPreview { height:26px; display:grid; place-items:center; margin-top:4px; }
+  .widthPreview span { display:block; border-radius:999px; background:var(--app-text); }
+
+  .hint { position:absolute; left:50%; bottom:18px; transform:translateX(-50%); z-index:34;
+    font-size:12px; padding:7px 14px; border-radius:999px; background:var(--scrim); color:#fff;
+    opacity:0; transition:opacity .18s; pointer-events:none; white-space:nowrap; max-width:88vw; }
+  .hint.show { opacity:1; }
+
+  @media (max-width:520px) { .lab-body { flex-direction:column; } }
+</style>
+</head>
+<body>
+
+<!-- ══ Панель прототипа: только для обсуждения, в приложении её нет ══ -->
+<div class="lab open" id="lab">
+  <div class="lab-head">
+    <b>M10 · прототип режима рисования</b>
+    <span id="labCount">штрихов: 0</span>
+    <button class="lab-toggle" id="labToggle">свернуть</button>
+  </div>
+  <div class="lab-body">
+    <div class="lab-group">
+      <label>Размер шрифта / колонки</label>
+      <div class="seg" id="segFont">
+        <button data-v="15">15</button><button data-v="18" aria-pressed="true">18</button>
+        <button data-v="22">22</button><button data-v="26">26</button>
+      </div>
+      <div class="seg" id="segCols">
+        <button data-v="1" aria-pressed="true">1 колонка</button><button data-v="2">2 колонки</button>
+      </div>
+      <i style="font-size:11.5px;color:var(--app-text-muted);font-style:normal">
+        Порисуй, потом смени — так видно, что делает якорь.
+      </i>
+    </div>
+
+    <div class="lab-group">
+      <label>Якорь штриха</label>
+      <div class="seg" id="segAnchor">
+        <button data-v="line" aria-pressed="true">К строке (§6)</button>
+        <button data-v="screen">К экрану</button>
+      </div>
+      <i style="font-size:11.5px;color:var(--app-text-muted);font-style:normal">
+        «К строке» — точки в px от bbox строки-якоря. «К экрану» — как было бы без якоря.
+      </i>
+    </div>
+
+    <div class="lab-group">
+      <label>Поведение ввода</label>
+      <label class="chk"><input type="checkbox" id="optPenOnly">
+        <span><b>Только стилус</b><i>Палец скроллит и зумит, рисует лишь pointerType==='pen'. Web-аналог forScore «prevent finger drawing».</i></span></label>
+      <label class="chk"><input type="checkbox" id="optInstant">
+        <span><b>Instant annotation</b><i>Стилус коснулся листа — режим включился сам; пауза 4 с — сохранился и вышел.</i></span></label>
+      <label class="chk"><input type="checkbox" id="optSim">
+        <span><b>Мышь = стилус</b><i>Симуляция для десктопа: мышь считается пером, чтобы проверить два пункта выше без планшета.</i></span></label>
+    </div>
+
+    <div class="lab-group">
+      <label>Тема</label>
+      <div class="seg" id="segTheme">
+        <button data-v="light" aria-pressed="true">Светлая</button><button data-v="dark">Тёмная</button>
+      </div>
+      <label style="margin-top:6px">Зум (только в режиме рисования, §6)</label>
+      <input type="range" id="zoom" min="100" max="250" value="100" step="5" disabled>
+    </div>
+  </div>
+</div>
+
+<!-- ══ Экран песни ══════════════════════════════════════════════════ -->
+<div class="screen" id="screen" data-drawing="0" data-penonly="0">
+  <div class="pageHeader">
+    <button class="back">‹</button>
+    <div>
+      <div class="ttl">Великий Бог</div>
+      <div class="sub">G · 72 bpm · 2/5</div>
+    </div>
+  </div>
+
+  <div class="modeBar" id="modeBar">
+    <span class="dot"></span><span id="modeLabel">Режим пометок</span>
+    <button class="ghost" id="zoomChip" title="Сбросить зум" hidden>×1.0</button>
+    <button class="ghost" id="btnCancel">Отменить</button>
+    <button class="solid" id="btnDone">Готово</button>
+  </div>
+
+  <div class="viewport" id="viewport">
+   <div class="stageWrap" id="stageWrap">
+    <div class="stage" id="stage">
+      <article class="song" id="song">
+        <header class="song-header">
+          <h1 class="song-title">Великий Бог</h1>
+          <div class="song-meta">G · 72</div>
+        </header>
+        <div class="cproColumn" id="flow"></div>
+      </article>
+      <div class="ink" id="ink"><canvas id="canvas"></canvas></div>
+    </div>
+   </div>
+  </div>
+
+  <!-- Правый нижний угол — тот самый SongToolStack -->
+  <div class="toolStack">
+    <button class="fab autoscrollFab" title="Автоскролл (M5)">▶</button>
+    <button class="fab" id="fabPencil" title="Пометки">✎</button>
+    <div class="toolRail" id="toolRail">
+      <button class="tool" id="tCancel" title="Выйти без сохранения">✕</button>
+      <div class="rail-sep"></div>
+      <button class="tool" id="tClear" title="Очистить всё">🗑</button>
+      <button class="tool" id="tUndo" title="Отменить">↶</button>
+      <div class="rail-sep"></div>
+      <button class="tool" data-tool="eraser" title="Ластик">◇</button>
+      <button class="tool" data-tool="text" title="Текстовая заметка">T</button>
+      <button class="tool" data-tool="arrow" title="Стрелка">↗</button>
+      <button class="tool" data-tool="highlighter" title="Маркер">▬</button>
+      <button class="tool" data-tool="pen" aria-pressed="true" title="Перо">✒</button>
+      <div class="rail-sep"></div>
+      <button class="swatch" id="swatch" title="Цвет и толщина"></button>
+    </div>
+  </div>
+
+  <div class="popover" id="popover">
+    <h4>Цвет</h4>
+    <div class="colors" id="colors"></div>
+    <h4 style="margin-top:12px">Толщина</h4>
+    <input type="range" id="width" min="2" max="18" value="4" step="1">
+    <div class="widthPreview"><span id="widthPreview"></span></div>
+  </div>
+
+  <div class="hint" id="hint"></div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ═══ Песня (упрощённый ChordPro) ═══════════════════════════════════ */
+const SONG = [
+  { comment: 'Куплет 1', lines: [
+    [['G','О Гос'],[null,'подь, мой '],['D','Бог']],
+    [[null,'Когда '],['Em','смотрю на '],['C','мир, что Ты соз'],['G','дал']],
+    [['G','На звёзды, '],['C','гром и '],['D','высь']],
+    [[null,'На всё, что '],['Em','сотворила '],['C','власть Твоя']],
+  ]},
+  { comment: 'Припев', lines: [
+    [[null,'Тогда поёт '],['C','душа моя, Гос'],['G','подь Тебе']],
+    [['D','Как Ты вели'],['G','к, как Ты вели'],['D','к!']],
+    [[null,'Тогда поёт '],['C','душа моя, Гос'],['G','подь Тебе']],
+    [['D','Как Ты вели'],['C','к, как Ты вели'],['G','к!']],
+  ]},
+  { comment: 'Куплет 2', lines: [
+    [[null,'Когда '],['Em','иду среди '],['C','лесов']],
+    [[null,'И слышу '],['G','пение '],['D','птиц в тиши']],
+    [['G','Когда с '],['C','высоких '],['D','гор']],
+    [[null,'Взгляну на '],['Em','ширь долин и '],['C','рек']],
+  ]},
+  { comment: 'Бридж', lines: [
+    [['Am','Когда Гос'],['C','подь придёт, тру'],['G','ба зо'],['D','вёт']],
+    [['Am','Как склонюсь '],['C','я в смиренье '],['G','пред Ним']],
+  ]},
+];
+
+const flow = document.getElementById('flow');
+function renderSong() {
+  flow.innerHTML = '';
+  SONG.forEach((section, si) => {
+    const sec = document.createElement('span');
+    sec.className = 'cproSongSection';
+    if (section.comment) {
+      const c = document.createElement('span');
+      c.className = 'cproComment'; c.textContent = section.comment;
+      sec.appendChild(c);
+    }
+    section.lines.forEach((line, li) => {
+      const el = document.createElement('span');
+      el.className = 'cproSongLine';
+      // Якорь штриха: те самые data-атрибуты, которых сейчас в LineRenderer нет.
+      el.dataset.songLineSection = si;
+      el.dataset.songLineIndex = li;
+      let hasChord = false;
+      line.forEach(([chord, text]) => {
+        if (chord) {
+          hasChord = true;
+          const w = document.createElement('span'); w.className = 'chordWrapper';
+          const c = document.createElement('span'); c.className = 'chord'; c.textContent = chord;
+          w.appendChild(c); w.appendChild(document.createTextNode(text));
+          el.appendChild(w);
+        } else {
+          el.appendChild(document.createTextNode(text));
+        }
+      });
+      if (!hasChord) el.classList.add('lyricsOnly');
+      sec.appendChild(el);
+    });
+    flow.appendChild(sec);
+  });
+}
+renderSong();
+
+/* ═══ Состояние ═════════════════════════════════════════════════════ */
+const COLORS = ['#dc2626','#ea580c','#ca8a04','#16a34a','#0891b2','#4f46e5','#9333ea','#1c1917'];
+const state = {
+  drawing: false,
+  tool: 'pen',
+  color: COLORS[0],
+  width: 4,
+  anchorMode: 'line',      // 'line' | 'screen'
+  penOnly: false,
+  instant: false,
+  simulatePen: false,
+  zoom: 1,
+  strokes: [],             // сохранённые (закоммиченные)
+  draft: [],               // правки текущего сеанса рисования
+  undoStack: [],
+};
+
+const screen = document.getElementById('screen');
+const viewport = document.getElementById('viewport');
+const stage = document.getElementById('stage');
+const ink = document.getElementById('ink');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+/* ═══ Геометрия якоря ═══════════════════════════════════════════════
+   Штрих хранится как { anchor:{s,l}, points:[[x,y,p]] }, где x/y — px
+   относительно bounding box строки-якоря. При рендере абсолютная позиция
+   берётся от актуального положения строки — поэтому смена размера шрифта
+   и числа колонок уводит штрих ВМЕСТЕ со строкой, а не оставляет его
+   висеть на прежнем месте экрана.                                     */
+
+function lineEl(anchor) {
+  return flow.querySelector(
+    `[data-song-line-section="${anchor.s}"][data-song-line-index="${anchor.l}"]`
+  );
+}
+
+/** Прямоугольник элемента в системе координат холста, с поправкой на зум. */
+function rectInStage(el) {
+  const a = el.getBoundingClientRect();
+  const b = stage.getBoundingClientRect();
+  const z = state.zoom;
+  return { x:(a.left-b.left)/z, y:(a.top-b.top)/z, w:a.width/z, h:a.height/z };
+}
+
+/** Ближайшая к точке строка — к ней и привяжется штрих. */
+function nearestLine(pt) {
+  let best = null, bestD = Infinity;
+  for (const el of flow.querySelectorAll('.cproSongLine')) {
+    const r = rectInStage(el);
+    const cx = Math.max(r.x, Math.min(pt.x, r.x + r.w));
+    const cy = Math.max(r.y, Math.min(pt.y, r.y + r.h));
+    const d = (pt.x-cx)**2 + (pt.y-cy)**2;
+    if (d < bestD) { bestD = d; best = el; }
+  }
+  return best;
+}
+
+/** Абсолютная (в системе холста) позиция точки штриха. */
+function absPoints(stroke) {
+  if (stroke.anchorMode === 'screen') return stroke.points;
+  const el = lineEl(stroke.anchor);
+  if (!el) return null;                       // строка исчезла — штрих не рисуем
+  const r = rectInStage(el);
+  return stroke.points.map(p => [p[0] + r.x, p[1] + r.y, p[2]]);
+}
+
+/* ═══ Рендер штриха ═════════════════════════════════════════════════
+   Упрощённый perfect-freehand: радиус точки зависит от давления стилуса
+   (перо) либо постоянен (маркер). Вся геометрия кладётся в ОДИН Path2D
+   и заливается одним fill() — поэтому у полупрозрачного маркера
+   самопересечения не темнеют.                                        */
+
+/**
+ * ОДИН замкнутый контур: левая сторона вперёд + правая назад + круглые концы.
+ *
+ * Наивный вариант «полигон на сегмент + кружок на стыке» выглядит очевиднее, но
+ * при заливке nonzero субпути с противоположным обходом взаимно гасятся, и штрих
+ * рендерится пунктиром. Поэтому геометрия собирается единым контуром — так же,
+ * как это делает perfect-freehand.
+ */
+function strokePath(pts, tool, width) {
+  const path = new Path2D();
+  const base = width / 2;
+  const radius = (p) => tool === 'highlighter'
+    ? base * 2.2                                    // маркер: постоянная толщина
+    : base * (0.45 + 0.55 * (p == null ? 0.5 : p)); // перо: тоньше при слабом нажиме
+
+  // Сглаживание дрожания руки скользящим средним по трём точкам.
+  const src = pts.length < 3 ? pts : pts.map((p, i, a) => {
+    if (i === 0 || i === a.length - 1) return p;
+    return [(a[i-1][0]+p[0]+a[i+1][0])/3, (a[i-1][1]+p[1]+a[i+1][1])/3, p[2]];
+  });
+
+  // Выбрасываем точки ближе 1px — они дают нулевое направление и рвут нормали.
+  const q = [src[0]];
+  for (const p of src.slice(1)) {
+    const last = q[q.length-1];
+    if (Math.hypot(p[0]-last[0], p[1]-last[1]) >= 1) q.push(p);
+  }
+
+  if (q.length < 2) {
+    path.arc(q[0][0], q[0][1], radius(q[0][2]), 0, Math.PI*2);
+    return path;
+  }
+
+  // Нормаль в точке — усреднение нормалей соседних сегментов.
+  const norm = [];
+  for (let i = 0; i < q.length; i++) {
+    const a = q[Math.max(i-1, 0)], b = q[Math.min(i+1, q.length-1)];
+    const dx = b[0]-a[0], dy = b[1]-a[1], len = Math.hypot(dx,dy) || 1;
+    norm.push([-dy/len, dx/len]);
+  }
+
+  const angleOf = (n) => Math.atan2(n[1], n[0]);
+  const left = q.map((p,i) => [p[0]+norm[i][0]*radius(p[2]), p[1]+norm[i][1]*radius(p[2])]);
+  const right = q.map((p,i) => [p[0]-norm[i][0]*radius(p[2]), p[1]-norm[i][1]*radius(p[2])]);
+
+  path.moveTo(left[0][0], left[0][1]);
+  for (const p of left.slice(1)) path.lineTo(p[0], p[1]);
+  // Круглый конец: полуоборот вокруг последней точки.
+  const last = q[q.length-1];
+  path.arc(last[0], last[1], radius(last[2]), angleOf(norm[norm.length-1]), angleOf(norm[norm.length-1]) + Math.PI);
+  for (let i = right.length - 2; i >= 0; i--) path.lineTo(right[i][0], right[i][1]);
+  // Круглое начало.
+  path.arc(q[0][0], q[0][1], radius(q[0][2]), angleOf(norm[0]) + Math.PI, angleOf(norm[0]) + 2*Math.PI);
+  path.closePath();
+  return path;
+}
+
+/**
+ * Стрелка: прямой отрезок с наконечником, ОДИН замкнутый полигон.
+ *
+ * Собирать её из «прямоугольник + треугольник» двумя субпутями нельзя по той же
+ * причине, что и штрих: в месте стыка nonzero-заливка их гасит.
+ */
+function arrowPath(pts, width) {
+  const [x0, y0] = pts[0], [x1, y1] = pts[pts.length - 1];
+  const w = Math.max(width, 2);
+  const dx = x1 - x0, dy = y1 - y0;
+  const len = Math.hypot(dx, dy) || 1;
+  const ux = dx / len, uy = dy / len;          // направление
+  const nx = -uy, ny = ux;                     // нормаль
+
+  // Наконечник не длиннее половины стрелки — иначе короткая стрелка вырождается в клин.
+  const headLen = Math.min(w * 3.2, len * 0.5);
+  const headW = w * 2.6;
+  const tx = x1 - ux * headLen, ty = y1 - uy * headLen;
+
+  const path = new Path2D();
+  path.moveTo(x0 + nx * w / 2, y0 + ny * w / 2);
+  path.lineTo(tx + nx * w / 2, ty + ny * w / 2);
+  path.lineTo(tx + nx * headW, ty + ny * headW);
+  path.lineTo(x1, y1);                          // остриё
+  path.lineTo(tx - nx * headW, ty - ny * headW);
+  path.lineTo(tx - nx * w / 2, ty - ny * w / 2);
+  path.lineTo(x0 - nx * w / 2, y0 - ny * w / 2);
+  path.closePath();
+  return path;
+}
+
+function drawStroke(s) {
+  const pts = absPoints(s);
+  if (!pts || !pts.length) return;
+  if (s.tool === 'arrow') {
+    if (pts.length < 2) return;
+    ctx.save();
+    ctx.fillStyle = s.color;
+    ctx.fill(arrowPath(pts, s.width));
+    ctx.restore();
+    return;
+  }
+  ctx.save();
+  if (s.tool === 'highlighter') {
+    ctx.globalAlpha = 0.35;
+    ctx.globalCompositeOperation = 'multiply';
+  }
+  ctx.fillStyle = s.color;
+  ctx.fill(strokePath(pts, s.tool, s.width));
+  ctx.restore();
+}
+
+let rafId = 0;
+function scheduleRender() {
+  if (rafId) return;
+  rafId = requestAnimationFrame(() => { rafId = 0; render(); });
+}
+
+function render() {
+  sizeCanvas();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.save();
+  ctx.scale(dpr, dpr);
+  for (const s of visibleStrokes()) drawStroke(s);
+  if (live) drawStroke(live);
+  ctx.restore();
+  renderTextNotes();
+  document.getElementById('labCount').textContent =
+    'штрихов: ' + visibleStrokes().filter(s => s.tool !== 'text').length;
+}
+
+/** Что показываем: в режиме рисования — черновик, иначе — сохранённое. */
+function visibleStrokes() { return state.drawing ? state.draft : state.strokes; }
+
+let dpr = 1;
+function sizeCanvas() {
+  dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const w = stage.clientWidth, h = stage.clientHeight;
+  if (canvas.width !== Math.round(w*dpr) || canvas.height !== Math.round(h*dpr)) {
+    canvas.width = Math.round(w*dpr); canvas.height = Math.round(h*dpr);
+  }
+}
+
+/* Текстовые заметки — отдельный DOM-слой, не canvas (иначе не выделить, не подвинуть
+   и не повернуть). Именно поэтому они и живут в DOM, а не в геометрии штриха. */
+let selectedNote = null;
+/** Заметка, текст которой правят прямо сейчас — вместо неё на листе стоит поле ввода. */
+let editingNote = null;
+
+/**
+ * Снимок для undo ПЕРЕД правкой существующего штриха.
+ *
+ * Просто `slice()` тут не работает: массив копируется, а объекты в нём остаются те же,
+ * и последующая мутация (поворот, перетаскивание, смена текста) меняет заодно и «старое»
+ * состояние в стеке — undo визуально ничего не откатывает.
+ */
+function snapshotBefore(target) {
+  state.undoStack.push(state.draft.map(x =>
+    x === target ? { ...x, points: x.points.map(p => [...p]) } : x));
+}
+
+function renderTextNotes() {
+  ink.querySelectorAll('.textNote, .noteBar').forEach(n => n.remove());
+  if (selectedNote && !visibleStrokes().includes(selectedNote)) selectedNote = null;
+
+  for (const s of visibleStrokes()) {
+    if (s.tool !== 'text' || s === editingNote) continue;
+    const pts = absPoints(s);
+    if (!pts) continue;
+    const el = document.createElement('div');
+    el.className = 'textNote' + (s.vertical ? ' vertical' : '') + (s === selectedNote ? ' selected' : '');
+    el.textContent = s.text;
+    el.style.left = pts[0][0] + 'px';
+    el.style.top  = pts[0][1] + 'px';
+    el.style.color = s.color;
+    el.addEventListener('pointerdown', ev => startNoteDrag(ev, s, el));
+    ink.appendChild(el);
+
+    if (s === selectedNote) ink.appendChild(noteBar(s, el, pts[0]));
+  }
+}
+
+/** Панелька выделенной заметки: повернуть / удалить. */
+function noteBar(s, el, at) {
+  const bar = document.createElement('div');
+  bar.className = 'noteBar';
+  bar.style.left = at[0] + 'px';
+  bar.style.top = (at[1] - 40) + 'px';
+  const add = (label, title, fn) => {
+    const b = document.createElement('button');
+    b.textContent = label; b.title = title;
+    b.addEventListener('pointerdown', ev => ev.stopPropagation());
+    b.onclick = () => { snapshotBefore(s); fn(); bumpIdle(); scheduleRender(); };
+    bar.appendChild(b);
+  };
+  add(s.vertical ? '⇥' : '⇩', s.vertical ? 'Сделать горизонтальной' : 'Сделать вертикальной',
+      () => { s.vertical = !s.vertical; });
+  // Правка — отдельной кнопкой, а не двойным тапом: тап и перетаскивание уже заняты,
+  // а третий жест поверх них никто не найдёт.
+  add('✎', 'Изменить текст', () => { startNoteEdit(s); });
+  // Удаление держим последним: разрушающее действие не ставим между безопасными.
+  add('🗑', 'Удалить заметку', () => {
+    state.draft = state.draft.filter(x => x !== s);
+    selectedNote = null;
+  });
+  return bar;
+}
+
+/**
+ * Перетаскивание заметки. Во время жеста двигаем точку в системе ТЕКУЩЕГО якоря,
+ * а на отпускании перепривязываем к ближайшей строке — иначе заметка, утащенная
+ * к другому куплету, продолжила бы ездить за исходной строкой.
+ */
+function startNoteDrag(ev, s, el) {
+  if (state.tool !== 'text') return;
+  ev.stopPropagation();
+  const startX = ev.clientX, startY = ev.clientY;
+  const from = [s.points[0][0], s.points[0][1]];
+  let moved = false;
+  // Захват — не обязательное условие жеста: если он не удался, тащить всё равно можно.
+  // Без try/catch исключение убивало бы весь жест, включая навешивание обработчиков ниже.
+  try { el.setPointerCapture(ev.pointerId); } catch {}
+  el.style.cursor = 'grabbing';
+
+  const onNoteMove = (e) => {
+    const dx = (e.clientX - startX) / state.zoom, dy = (e.clientY - startY) / state.zoom;
+    if (!moved && Math.hypot(dx, dy) > 3) { moved = true; snapshotBefore(s); }
+    if (!moved) return;
+    s.points[0] = [from[0] + dx, from[1] + dy, 1];
+    scheduleRender();
+  };
+  const onNoteUp = (e) => {
+    window.removeEventListener('pointermove', onNoteMove);
+    window.removeEventListener('pointerup', onNoteUp);
+    window.removeEventListener('pointercancel', onNoteUp);
+    try { el.releasePointerCapture(e.pointerId); } catch {}
+    if (moved) reanchorNote(s);
+    else selectedNote = selectedNote === s ? null : s;   // тап без движения = выделить
+    bumpIdle();
+    scheduleRender();
+  };
+  // Слушаем window, а не сам элемент: renderTextNotes пересоздаёт заметки на каждом
+  // кадре, и обработчики, висящие на элементе, умирают после первого же движения.
+  window.addEventListener('pointermove', onNoteMove);
+  window.addEventListener('pointerup', onNoteUp);
+  window.addEventListener('pointercancel', onNoteUp);
+}
+
+function reanchorNote(s) {
+  if (s.anchorMode !== 'line') return;
+  const abs = absPoints(s);
+  if (!abs) return;
+  const el = nearestLine({ x: abs[0][0], y: abs[0][1] });
+  if (!el) return;
+  const r = rectInStage(el);
+  s.anchor = { s: +el.dataset.songLineSection, l: +el.dataset.songLineIndex };
+  s.points[0] = [abs[0][0] - r.x, abs[0][1] - r.y, 1];
+}
+
+/* ═══ Ввод ══════════════════════════════════════════════════════════ */
+let live = null;         // штрих, который рисуется прямо сейчас
+let activePointer = null;
+/** Все указатели на слое — по ним и решаем «рисуем» vs «прокручиваем». */
+const pointers = new Map();
+let gesture = null;      // { dist, cx, cy } — активный двухпальцевый жест
+
+function isPen(e) { return e.pointerType === 'pen' || (state.simulatePen && e.pointerType === 'mouse'); }
+
+function stagePoint(e) {
+  const b = stage.getBoundingClientRect();
+  return { x:(e.clientX-b.left)/state.zoom, y:(e.clientY-b.top)/state.zoom };
+}
+
+function onDown(e) {
+  if (!state.drawing) return;
+  // Поле ввода заметки лежит ВНУТРИ слоя: без этой проверки тап по нему снова попадал
+  // сюда, открывал второе поле, а первое теряло фокус и отбрасывалось пустым —
+  // заметку было невозможно набрать.
+  if (e.target.closest && e.target.closest('.textInput')) return;
+  if (state.penOnly && !isPen(e)) return;     // палец в pen-only режиме скроллит (touch-action)
+
+  pointers.set(e.pointerId, e);
+
+  // Второй палец = навигация, а не рисование: отменяем начатый штрих и уходим в жест.
+  if (pointers.size >= 2 && !isPen(e)) {
+    cancelLive();
+    startGesture();
+    return;
+  }
+  if (activePointer !== null) return;
+
+  const pt = stagePoint(e);
+
+  if (state.tool === 'text') { openTextInput(pt); return; }
+
+  if (state.tool === 'eraser') {
+    activePointer = e.pointerId;
+    // try/catch обязателен: неудачный захват иначе уносит с собой и само стирание.
+    try { ink.setPointerCapture(e.pointerId); } catch {}
+    eraseAt(pt);
+    return;
+  }
+
+  const el = nearestLine(pt);
+  const r = el ? rectInStage(el) : { x:0, y:0 };
+  live = {
+    tool: state.tool, color: state.color, width: state.width,
+    anchorMode: state.anchorMode,
+    anchor: el ? { s:+el.dataset.songLineSection, l:+el.dataset.songLineIndex } : null,
+    points: [[ pt.x - (state.anchorMode==='line' ? r.x : 0),
+               pt.y - (state.anchorMode==='line' ? r.y : 0),
+               e.pressure || 0.5 ]],
+  };
+  activePointer = e.pointerId;
+  try { ink.setPointerCapture(e.pointerId); } catch {}
+  bumpIdle();
+  scheduleRender();
+}
+
+function onMove(e) {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, e);
+  if (gesture) { updateGesture(); return; }
+  if (activePointer !== e.pointerId) return;
+  const pt = stagePoint(e);
+  if (state.tool === 'eraser') { eraseAt(pt); return; }
+  if (!live) return;
+
+  // getCoalescedEvents — точки, которые браузер склеил в одно событие.
+  // Без них быстрый штрих получается угловатым. Пустой список возможен
+  // (синтетические события, часть движков) — тогда берём само событие,
+  // иначе штрих молча теряет все точки кроме первой.
+  const coalesced = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+  const events = coalesced.length ? coalesced : [e];
+  const el = live.anchor ? lineEl(live.anchor) : null;
+  const r = el && live.anchorMode === 'line' ? rectInStage(el) : { x:0, y:0 };
+  for (const ev of events) {
+    const p = stagePoint(ev);
+    const point = [p.x - r.x, p.y - r.y, ev.pressure || 0.5];
+    // У стрелки ровно две точки: начало зафиксировано, конец тянется за пальцем.
+    if (live.tool === 'arrow') live.points[1] = point;
+    else live.points.push(point);
+  }
+  bumpIdle();
+  scheduleRender();
+}
+
+function onUp(e) {
+  pointers.delete(e.pointerId);
+  if (gesture && pointers.size < 2) gesture = null;
+  if (activePointer !== e.pointerId) return;
+  activePointer = null;
+  try { ink.releasePointerCapture(e.pointerId); } catch {}
+  if (live) {
+    // Тап без протяжки — это не стрелка: иначе на листе копятся невидимые записи.
+    if (live.tool === 'arrow' && live.points.length < 2) live = null;
+  }
+  if (live) {
+    state.undoStack.push(state.draft.slice());
+    state.draft.push(live);
+    live = null;
+  }
+  bumpIdle();
+  scheduleRender();
+}
+
+/** Штрих, начатый первым пальцем, не должен остаться на листе, если это был жест. */
+function cancelLive() {
+  if (!live) return;
+  live = null;
+  if (activePointer !== null) {
+    try { ink.releasePointerCapture(activePointer); } catch {}
+    activePointer = null;
+  }
+  scheduleRender();
+}
+
+function centroid() {
+  const list = [...pointers.values()];
+  const cx = list.reduce((s,p) => s+p.clientX, 0) / list.length;
+  const cy = list.reduce((s,p) => s+p.clientY, 0) / list.length;
+  const dist = list.length < 2 ? 0
+    : Math.hypot(list[0].clientX-list[1].clientX, list[0].clientY-list[1].clientY);
+  return { cx, cy, dist };
+}
+
+function startGesture() { gesture = centroid(); showHint('Два пальца — прокрутка и зум'); }
+
+/**
+ * Два пальца прокручивают лист и зумят. Без этого до второго куплета в режиме
+ * пометок не добраться: нативный скролл в это время выключен.
+ */
+function updateGesture() {
+  if (pointers.size < 2) return;
+  const now = centroid();
+  viewport.scrollTop -= (now.cy - gesture.cy);
+  viewport.scrollLeft -= (now.cx - gesture.cx);
+  if (gesture.dist > 0 && now.dist > 0) {
+    setZoom(Math.min(2.5, Math.max(1, state.zoom * (now.dist / gesture.dist))));
+    zoomInput.value = Math.round(state.zoom * 100);
+  }
+  gesture = now;
+  bumpIdle();
+  scheduleRender();
+}
+
+ink.addEventListener('pointerdown', onDown);
+ink.addEventListener('pointermove', onMove);
+ink.addEventListener('pointerup', onUp);
+ink.addEventListener('pointercancel', onUp);
+// Десктоп: колесо прокручивает замороженный лист, Ctrl+колесо (и пинч на трекпаде) зумит.
+ink.addEventListener('wheel', e => {
+  if (!state.drawing) return;
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey) {
+    setZoom(Math.min(2.5, Math.max(1, state.zoom * (1 - e.deltaY / 300))));
+    zoomInput.value = Math.round(state.zoom * 100);
+  } else {
+    viewport.scrollTop += e.deltaY;
+  }
+  bumpIdle();
+  scheduleRender();
+}, { passive:false });
+
+/* Ластик: удаляем ШТРИХ ЦЕЛИКОМ по hit-test, не стираем пиксели —
+   так дешевле и предсказуемее (то же решение в chordpro-app). */
+/** Расстояние от точки до ОТРЕЗКА, а не до его концов. */
+function distToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2-x1, dy = y2-y1;
+  const len2 = dx*dx + dy*dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px-x1)*dx + (py-y1)*dy) / len2));
+  return Math.hypot(px - (x1 + t*dx), py - (y1 + t*dy));
+}
+
+function eraseAt(pt) {
+  const hit = [...state.draft].reverse().find(s => {
+    const pts = absPoints(s);
+    if (!pts) return false;
+    const tol = Math.max(s.width, 12);
+    if (pts.length === 1) return Math.hypot(pts[0][0]-pt.x, pts[0][1]-pt.y) < tol;
+    // По отрезкам, а не по точкам: у стрелки точек всего две, и середина древка
+    // иначе не стирается вовсе.
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (distToSegment(pt.x, pt.y, pts[i][0], pts[i][1], pts[i+1][0], pts[i+1][1]) < tol) return true;
+    }
+    return false;
+  });
+  if (!hit) return;
+  state.undoStack.push(state.draft.slice());
+  state.draft = state.draft.filter(s => s !== hit);
+  scheduleRender();
+}
+
+/* Текстовая заметка */
+/** Правка существующей заметки: поле ввода встаёт ровно туда, где стояла заметка. */
+function startNoteEdit(s) {
+  const abs = absPoints(s);
+  if (!abs) return;
+  editingNote = s;
+  selectedNote = null;
+  render();                                   // убрать заметку до появления поля
+  openTextInput({ x: abs[0][0], y: abs[0][1] }, s);
+}
+
+function openTextInput(pt, existing) {
+  // Второй тап при открытом поле — это «закончил вводить», а не «начал новую заметку».
+  // Коммитим напрямую, а не через blur(): если фокус по какой-то причине не встал
+  // (iOS отдаёт его не всегда), blur не сработает и набранная заметка пропадёт молча.
+  const opened = ink.querySelector('.textInput');
+  if (opened) { opened.commitNote(); return; }
+
+  const input = document.createElement('input');
+  input.className = 'textInput';
+  input.placeholder = 'заметка…';
+  input.value = existing ? existing.text : '';
+  input.style.left = pt.x + 'px';
+  input.style.top = pt.y + 'px';
+  input.style.color = existing ? existing.color : state.color;
+  ink.appendChild(input);
+  input.focus();
+  input.select();
+  const commit = () => {
+    if (!input.isConnected) return;          // защита от двойного коммита (blur + явный вызов)
+    const text = input.value.trim();
+    input.remove();
+
+    // Правка существующей: меняем текст на месте, якорь и положение не трогаем.
+    // Пустой текст = удаление — иначе на листе осталась бы пустая рамка.
+    if (existing) {
+      snapshotBefore(existing);
+      if (text) existing.text = text;
+      else state.draft = state.draft.filter(x => x !== existing);
+      editingNote = null;
+      scheduleRender();
+      return;
+    }
+
+    if (!text) return;
+    const el = nearestLine(pt);
+    const r = el ? rectInStage(el) : { x:0, y:0 };
+    state.undoStack.push(state.draft.slice());
+    state.draft.push({
+      tool:'text', text, color:state.color, width:0,
+      anchorMode: state.anchorMode,
+      anchor: el ? { s:+el.dataset.songLineSection, l:+el.dataset.songLineIndex } : null,
+      points: [[ pt.x - (state.anchorMode==='line' ? r.x : 0),
+                 pt.y - (state.anchorMode==='line' ? r.y : 0), 1 ]],
+    });
+    scheduleRender();
+  };
+  input.commitNote = commit;
+  input.addEventListener('blur', commit);
+  // Пока набирают заметку, instant annotation не должен закрыть режим по таймауту.
+  input.addEventListener('input', bumpIdle);
+  input.addEventListener('keydown', ev => {
+    if (ev.key === 'Enter') input.blur();
+    if (ev.key === 'Escape') { input.value=''; input.blur(); }
+  });
+}
+
+/* ═══ Вход/выход из режима ══════════════════════════════════════════ */
+function enterDrawing(reason) {
+  if (state.drawing) return;
+  state.drawing = true;
+  state.draft = state.strokes.slice();
+  state.undoStack = [];
+  screen.dataset.drawing = '1';
+  screen.dataset.tool = state.tool;
+  syncFreeze();
+  document.getElementById('fabPencil').classList.add('active');
+  document.getElementById('zoom').disabled = false;
+  showHint(reason === 'instant'
+    ? 'Instant annotation: стилус коснулся листа — режим включился сам'
+    : state.penOnly
+      ? 'Рисует только перо, палец прокручивает лист как обычно'
+      : 'Один палец рисует, два — прокручивают и зумят');
+  bumpIdle();
+  scheduleRender();
+}
+
+function exitDrawing(save) {
+  if (!state.drawing) return;
+  // Недонабранная заметка не должна пропасть от нажатия «Готово».
+  const opened = ink.querySelector('.textInput');
+  if (opened) opened.commitNote();
+  if (save) state.strokes = state.draft.slice();
+  state.draft = [];
+  state.drawing = false;
+  live = null;
+  pointers.clear();
+  gesture = null;
+  selectedNote = null;
+  editingNote = null;
+  screen.dataset.drawing = '0';
+  viewport.classList.remove('frozen');
+  document.getElementById('fabPencil').classList.remove('active');
+  setZoom(1);                                 // зум не персистится (§6)
+  document.getElementById('zoom').disabled = true;
+  document.getElementById('zoom').value = 100;
+  document.getElementById('popover').classList.remove('open');
+  clearIdle();
+  showHint(save ? 'Пометки сохранены' : 'Изменения отброшены');
+  scheduleRender();
+}
+
+/* Instant annotation: авто-выход по паузе */
+let idleTimer = 0;
+const IDLE_MS = 4000;
+function bumpIdle() {
+  clearIdle();
+  if (!state.instant || !state.drawing) return;
+  idleTimer = setTimeout(() => {
+    exitDrawing(true);
+    showHint('Пауза 4 с — пометки сохранены, режим закрылся');
+  }, IDLE_MS);
+}
+function clearIdle() { if (idleTimer) { clearTimeout(idleTimer); idleTimer = 0; } }
+
+/* Стилус коснулся листа вне режима — включаем режим (instant annotation) */
+viewport.addEventListener('pointerdown', e => {
+  if (state.drawing || !state.instant) return;
+  if (!isPen(e)) return;
+  enterDrawing('instant');
+  // Пробрасываем это же касание в слой рисования, чтобы не терять первый штрих.
+  requestAnimationFrame(() => onDown(e));
+}, true);
+
+/* ═══ Панель инструментов ═══════════════════════════════════════════ */
+document.getElementById('fabPencil').onclick = () =>
+  state.drawing ? exitDrawing(true) : enterDrawing('tap');
+document.getElementById('btnDone').onclick = () => exitDrawing(true);
+document.getElementById('btnCancel').onclick = () => {
+  if (state.draft.length !== state.strokes.length &&
+      !confirm('Выйти без сохранения? Несохранённые пометки пропадут.')) return;
+  exitDrawing(false);
+};
+document.getElementById('tCancel').onclick = () => document.getElementById('btnCancel').click();
+
+document.querySelectorAll('.tool[data-tool]').forEach(btn => {
+  btn.onclick = () => {
+    state.tool = btn.dataset.tool;
+    screen.dataset.tool = state.tool;      // от него зависит, ловят ли заметки указатель
+    if (state.tool !== 'text') selectedNote = null;
+    scheduleRender();
+    document.querySelectorAll('.tool[data-tool]').forEach(b =>
+      b.setAttribute('aria-pressed', String(b === btn)));
+    document.getElementById('modeLabel').textContent = {
+      pen:'Перо', highlighter:'Маркер', arrow:'Стрелка', eraser:'Ластик', text:'Заметка',
+    }[state.tool];
+    bumpIdle();
+  };
+});
+
+document.getElementById('tUndo').onclick = () => {
+  const prev = state.undoStack.pop();
+  if (!prev) { showHint('Отменять нечего'); return; }
+  state.draft = prev;
+  bumpIdle(); scheduleRender();
+};
+document.getElementById('tClear').onclick = () => {
+  if (!state.draft.length) return;
+  if (!confirm('Очистить все пометки этой песни?')) return;
+  state.undoStack.push(state.draft.slice());
+  state.draft = [];
+  bumpIdle(); scheduleRender();
+};
+
+/* Палитра и толщина */
+const swatch = document.getElementById('swatch');
+const popover = document.getElementById('popover');
+const colorsBox = document.getElementById('colors');
+COLORS.forEach(c => {
+  const b = document.createElement('button');
+  b.style.background = c;
+  b.setAttribute('aria-pressed', String(c === state.color));
+  b.onclick = () => {
+    state.color = c;
+    [...colorsBox.children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    syncSwatch(); bumpIdle();
+  };
+  colorsBox.appendChild(b);
+});
+swatch.onclick = () => { popover.classList.toggle('open'); bumpIdle(); };
+const widthInput = document.getElementById('width');
+widthInput.oninput = () => { state.width = +widthInput.value; syncSwatch(); bumpIdle(); };
+function syncSwatch() {
+  swatch.style.background = state.color;
+  const p = document.getElementById('widthPreview');
+  p.style.width = '80%'; p.style.height = state.width + 'px'; p.style.background = state.color;
+}
+syncSwatch();
+
+/* ═══ Лаборатория ═══════════════════════════════════════════════════ */
+function segment(id, apply) {
+  const box = document.getElementById(id);
+  box.querySelectorAll('button').forEach(b => {
+    b.onclick = () => {
+      box.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+      apply(b.dataset.v);
+    };
+  });
+}
+const song = document.getElementById('song');
+segment('segFont',  v => { song.style.setProperty('--lyric-size', v + 'px'); scheduleRender(); });
+segment('segCols',  v => { song.style.setProperty('--col-count', v); scheduleRender(); });
+segment('segAnchor',v => { state.anchorMode = v;
+  showHint(v === 'line'
+    ? 'Якорь к строке: штрих поедет вместе со своей строкой'
+    : 'Якорь к экрану: штрих останется на месте, текст уедет из-под него');
+});
+segment('segTheme', v => { document.documentElement.dataset.theme = v; scheduleRender(); });
+
+/**
+ * Заморозка нативного скролла нужна ТОЛЬКО когда палец рисует. В режиме «только стилус»
+ * палец ничего не рисует — и лист обязан прокручиваться штатно, иначе до второго куплета
+ * в режиме пометок не добраться.
+ */
+function syncFreeze() {
+  viewport.classList.toggle('frozen', state.drawing && !state.penOnly);
+}
+
+document.getElementById('optPenOnly').onchange = e => {
+  state.penOnly = e.target.checked;
+  screen.dataset.penonly = state.penOnly ? '1' : '0';
+  syncFreeze();
+  showHint(state.penOnly
+    ? 'Только стилус: палец прокручивает лист как обычно, рисует лишь перо'
+    : 'Один палец рисует, два — прокручивают и зумят');
+};
+document.getElementById('optInstant').onchange = e => { state.instant = e.target.checked; bumpIdle(); };
+document.getElementById('optSim').onchange = e => { state.simulatePen = e.target.checked; };
+
+const zoomInput = document.getElementById('zoom');
+zoomInput.oninput = () => setZoom(+zoomInput.value / 100);
+/**
+ * Зум живёт только в этом слое и не персистится (§6).
+ *
+ * `transform: scale()` НЕ меняет layout-размер элемента — обёртке приходится явно
+ * задавать размер увеличенного листа, иначе диапазон прокрутки остаётся прежним
+ * и правый с нижним краем зумленной страницы недостижимы.
+ */
+function setZoom(z) {
+  state.zoom = z;
+  stage.style.transform = z === 1 ? '' : `scale(${z})`;
+  const wrap = document.getElementById('stageWrap');
+  if (z === 1) {
+    wrap.style.width = wrap.style.height = '';
+  } else {
+    wrap.style.width = stage.offsetWidth * z + 'px';
+    wrap.style.height = stage.offsetHeight * z + 'px';
+  }
+  const chip = document.getElementById('zoomChip');
+  chip.hidden = z === 1;
+  chip.textContent = '×' + z.toFixed(1);
+  scheduleRender();
+}
+
+document.getElementById('labToggle').onclick = e => {
+  const lab = document.getElementById('lab');
+  lab.classList.toggle('open');
+  e.target.textContent = lab.classList.contains('open') ? 'свернуть' : 'настройки';
+  scheduleRender();
+};
+
+let hintTimer = 0;
+function showHint(text) {
+  const h = document.getElementById('hint');
+  h.textContent = text; h.classList.add('show');
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => h.classList.remove('show'), 2600);
+}
+
+/* Пересчёт при любом изменении раскладки — именно здесь якорь и работает */
+new ResizeObserver(scheduleRender).observe(flow);
+window.addEventListener('resize', scheduleRender);
+viewport.addEventListener('scroll', () => { if (state.drawing) scheduleRender(); });
+
+render();
+showHint('Нажми ✎ в правом нижнем углу — там же, где живёт FAB автоскролла');
+})();
+</script>
+</body>
+</html>
