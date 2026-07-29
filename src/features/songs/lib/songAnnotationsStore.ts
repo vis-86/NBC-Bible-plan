@@ -12,7 +12,6 @@ import { isDefinitelyOffline, OfflineNoDataError, raceNetwork } from '@/shared/o
 import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout } from '@/shared/offline/networkTimeout';
 import { enqueueSongAnnotations } from '@/shared/offline/outbox';
 import { apiClient } from '@/shared/services/api/client';
-import { getApiPath } from '@/shared/utils/api';
 import type { SongAnnotations, SongStroke } from '../types';
 
 const DEBUG = (process.env.NEXT_PUBLIC_LOG_LEVEL ?? process.env.LOG_LEVEL ?? 'debug') === 'debug';
@@ -72,7 +71,9 @@ export async function persistAnnotations(songId: string | number, annotations: S
 /** Сетевое чтение пометок. Отдельная функция — её же зовёт прогрев в downloadManager. */
 export function fetchAnnotations(songId: string | number): Promise<SongAnnotations> {
   return apiClient
-    .get<{ annotations: SongAnnotations }>(getApiPath(`/api/songs/${songId}/state`))
+    // basePath добавляет сам apiClient — обёртка в getApiPath давала `/app/app/api/...`
+    // и вечный 404, неотличимый от «пометок ещё нет» (поймано офлайн-e2e T15).
+    .get<{ annotations: SongAnnotations }>(`/api/songs/${songId}/state`)
     .then((res) => res.annotations ?? EMPTY_SONG_ANNOTATIONS);
 }
 
@@ -83,13 +84,25 @@ export function fetchAnnotations(songId: string | number): Promise<SongAnnotatio
  *
  * Пометок нет нигде ⇒ пустой набор, а не ошибка: «ещё не рисовал» — нормальное
  * состояние, и падать на нём экран песни не должен.
+ *
+ * Ответ сети применяется по LWW, а не безусловно: правка, нарисованная офлайн, лежит
+ * в outbox, и открытая до replay песня получила бы с сервера СТАРОЕ состояние — оно
+ * затёрло бы свежую локальную запись и стёрло пометки с экрана до следующего захода.
  */
 export async function readAnnotations(
   songId: string | number,
   fetcher: () => Promise<SongAnnotations> = () => fetchAnnotations(songId),
   timeoutMs: number = DEFAULT_NETWORK_TIMEOUT_MS
 ): Promise<SongAnnotations> {
-  const network = fetcher().then((annotations) => {
+  const network = fetcher().then(async (annotations) => {
+    const cached = await getCachedAnnotations(songId);
+    if (cached && cached.updatedAt > annotations.updatedAt) {
+      debug('network state is older than local — keeping local', songId, {
+        network: annotations.updatedAt,
+        local: cached.updatedAt,
+      });
+      return cached;
+    }
     void persistAnnotations(songId, annotations);
     return annotations;
   });

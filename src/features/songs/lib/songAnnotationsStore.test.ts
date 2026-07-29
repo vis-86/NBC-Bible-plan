@@ -7,8 +7,10 @@ vi.mock('@/shared/offline/outbox', () => ({ enqueueSongAnnotations: enqueueMock 
 
 import { __deleteDB, __resetDBConnection } from '@/shared/offline/db';
 import { resetNetworkSuspicionForTests } from '@/shared/offline/networkHealth';
+import { getApiPath } from '@/shared/utils/api';
 import {
   EMPTY_SONG_ANNOTATIONS,
+  fetchAnnotations,
   getCachedAnnotations,
   persistAnnotations,
   readAnnotations,
@@ -50,11 +52,40 @@ describe('ключ стора', () => {
   });
 });
 
+describe('fetchAnnotations', () => {
+  /**
+   * Остальные тесты подставляют свой fetcher и адрес запроса не видят — а именно там
+   * и жил баг: `apiClient` сам добавляет basePath, и обёртка в `getApiPath` давала
+   * `/app/app/api/...`. 404 при этом неотличим от «пометок ещё нет», поэтому чтение
+   * молча возвращало пустой набор на всех устройствах (поймано офлайн-e2e T15).
+   */
+  it('ходит по адресу с ОДНИМ basePath', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(JSON.stringify({ annotations: { strokes: [], updatedAt: 0 } })));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchAnnotations(7);
+
+    expect(fetchMock).toHaveBeenCalledWith(getApiPath('/api/songs/7/state'), expect.anything());
+    vi.unstubAllGlobals();
+  });
+});
+
 describe('readAnnotations', () => {
   it('успех сети кладёт пометки в IDB', async () => {
     const result = await readAnnotations(1, async () => ({ strokes: [stroke], updatedAt: 7 }));
     expect(result.strokes).toEqual([stroke]);
     expect(await getCachedAnnotations(1)).toMatchObject({ updatedAt: 7 });
+  });
+
+  it('сеть отдала состояние СТАРШЕ локального — локальное побеждает и не затирается', async () => {
+    // Ровно ситуация «нарисовал офлайн → открыл песню онлайн до того, как outbox
+    // доехал»: без LWW ответ сервера стирал бы свежие пометки с экрана и из IDB.
+    await persistAnnotations(1, { strokes: [stroke], updatedAt: 500 });
+    const result = await readAnnotations(1, async () => ({ strokes: [], updatedAt: 100 }));
+    expect(result).toEqual({ strokes: [stroke], updatedAt: 500 });
+    expect(await getCachedAnnotations(1)).toEqual({ strokes: [stroke], updatedAt: 500 });
   });
 
   it('fetcher падает, а запись уже в IDB — отдаём её', async () => {
