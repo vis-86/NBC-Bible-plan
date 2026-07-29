@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Settings } from 'lucide-react';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
@@ -13,6 +13,11 @@ import { SongKeyPicker } from '@/features/songs/components/SongKeyPicker';
 import { SongViewSettings } from '@/features/songs/components/SongViewSettings';
 import { SongAutoScroll } from '@/features/songs/components/SongAutoScroll';
 import { SongToolStack } from '@/features/songs/components/SongToolStack';
+import { SongInkButton } from '@/features/songs/components/SongInkButton';
+import { SongInkToolbar } from '@/features/songs/components/SongInkToolbar';
+import { useSongInk } from '@/features/songs/hooks/useSongInk';
+import { useInkStage } from '@/features/songs/hooks/useInkStage';
+import { useSongAnnotations } from '@/features/songs/hooks/useSongAnnotations';
 import { useSongKey } from '@/features/songs/hooks/useSongKey';
 import { useAutoScroll } from '@/features/songs/hooks/useAutoScroll';
 import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
@@ -43,6 +48,7 @@ function SongPageContent() {
 
   const { song, loading, error } = useSong(id);
   const contentRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
   const { hidden, ignoreNextScroll } = useAutoHideOnScroll(contentRef, song?.id);
   const [viewSettings, setViewSettings] = useSongViewSettings();
   const [isViewSettingsOpen, setIsViewSettingsOpen] = useState(false);
@@ -82,6 +88,25 @@ function SongPageContent() {
     onBeforeProgrammaticScroll: ignoreNextScroll,
   });
 
+  // Зеркало автоскролла: `useSongInk` объявляется ниже и не может замкнуть его напрямую
+  // без пересоздания колбэка на каждый рендер.
+  const autoscrollRef = useRef<{ pause: () => void } | null>(null);
+  useEffect(() => {
+    autoscrollRef.current = { pause: autoscroll.pause };
+  });
+
+  // Рукописные пометки (M10). Чтение — read-through + IDB, запись — через outbox.
+  const annotations = useSongAnnotations(id);
+  const ink = useSongInk({
+    initialStrokes: annotations.strokes,
+    onSave: annotations.save,
+    instantAnnotation: viewSettings.inkInstant,
+    // Ехать под пером бессмысленно — вход в режим (в т.ч. instant) гасит автоскролл.
+    onEnter: () => autoscrollRef.current?.pause(),
+  });
+  const stage = useInkStage({ viewportRef: contentRef, stageRef, active: ink.active });
+
+
   // Переход к соседней песне сета: сброс scrollTop (компонент не размонтируется —
   // без сброса новая песня открылась бы с середины), пауза автоскролла (скорость
   // per-song подхватится своя, но продолжать ехать по новой песне — неверно),
@@ -98,8 +123,10 @@ function SongPageContent() {
 
   // Свайп между песнями сета: не работает при открытой любой шторке страницы
   // (жест уже принадлежит ей).
+  // SwipePager обязан быть отключён в режиме рисования — иначе горизонтальный штрих
+  // пролистывает песню сета.
   const swipeEnabled =
-    playback.inSetlist && !isViewSettingsOpen && !isKeyPickerOpen && !isSetlistSheetOpen;
+    playback.inSetlist && !ink.active && !isViewSettingsOpen && !isKeyPickerOpen && !isSetlistSheetOpen;
 
   const nextSongTitle = playback.nextId != null ? songs.find((s) => s.id === String(playback.nextId))?.title ?? '' : '';
   const prevSongTitle = playback.prevId != null ? songs.find((s) => s.id === String(playback.prevId))?.title ?? '' : '';
@@ -227,7 +254,16 @@ function SongPageContent() {
               остаётся внутри листа — текст не впритык к его краю. */}
           <div
             ref={contentRef}
-            className={cn('h-full min-h-0 overflow-y-auto', mode === 'scroll' ? 'px-4 py-4' : 'py-2')}
+            data-song-page-viewport
+            className={cn(
+              'h-full min-h-0',
+              // В режиме рисования палец рисует, поэтому нативный скролл выключен и
+              // лист двигают двумя пальцами. При «только стилусом» палец скроллит
+              // штатно — заморозка там не нужна и только мешала бы.
+              ink.active && !viewSettings.inkPenOnly ? 'overflow-hidden' : 'overflow-y-auto',
+              mode === 'scroll' ? 'px-4 py-4' : 'py-2'
+            )}
+            style={ink.active && viewSettings.inkPenOnly ? { touchAction: 'pan-y' } : undefined}
           >
             {!id ? (
               <ErrorMessage title="Песня не найдена" message="Не указан идентификатор песни." onRetry={handleBack} retryLabel="К списку" />
@@ -242,6 +278,11 @@ function SongPageContent() {
                 <div className="h-4 w-10/12 rounded bg-app-surface-muted" />
               </div>
             ) : (
+              // Обёртка несёт РАЗМЕР под масштаб: `transform: scale()` не меняет
+              // layout-размер, и без этого правый с нижним краем увеличенного листа
+              // недостижимы — диапазон прокрутки не растёт.
+              <div data-song-page-stage-size style={stage.wrapperStyle}>
+              <div ref={stageRef} data-song-page-stage style={stage.stageStyle}>
               <SongView
                 // title не прокидываем: он уже показан в PageHeader сверху (без дубля).
                 content={song.content}
@@ -261,15 +302,24 @@ function SongPageContent() {
                 mode={mode}
                 columns={viewSettings.columns}
                 viewportRef={contentRef}
+                ink={ink}
+                inkPenOnly={viewSettings.inkPenOnly}
+                inkInstant={viewSettings.inkInstant}
+                onInkGesture={stage.applyGesture}
               />
+              </div>
+              </div>
             )}
           </div>
         </SwipePager>
 
         {/* Правый нижний край — единая точка входа для инструментов песни (сейчас
             автоскролл). Прячем при любой открытой нижней шторке — иначе перекрывает лист. */}
-        {mode === 'scroll' && song && !isViewSettingsOpen && !isKeyPickerOpen && !isSetlistSheetOpen && (
+        {/* Активный инструмент забирает правый край целиком: при открытой панели
+            пометок стек инструментов скрыт (контракт SongToolStack). */}
+        {song && !ink.active && !isViewSettingsOpen && !isKeyPickerOpen && !isSetlistSheetOpen && (
           <SongToolStack>
+            {mode === 'scroll' && (
             <SongAutoScroll
               playing={autoscroll.playing}
               step={autoscroll.step}
@@ -277,11 +327,33 @@ function SongPageContent() {
               onToggle={autoscroll.toggle}
               onSetStep={autoscroll.setStep}
             />
+            )}
+            <SongInkButton onClick={ink.enter} hasAnnotations={ink.strokes.length > 0} />
           </SongToolStack>
         )}
 
+        {ink.active && (
+          <SongInkToolbar
+            tool={ink.tool}
+            color={ink.color}
+            width={ink.width}
+            canUndo={ink.canUndo}
+            dirty={ink.dirty}
+            hasStrokes={ink.strokes.length > 0}
+            zoom={stage.zoom}
+            onResetZoom={stage.reset}
+            onToolChange={ink.setTool}
+            onColorChange={ink.setColor}
+            onWidthChange={ink.setWidth}
+            onUndo={ink.undo}
+            onClearAll={ink.clearAll}
+            onDone={() => ink.exit(true)}
+            onCancel={() => ink.exit(false)}
+          />
+        )}
+
         {/* Нижняя таблетка навигации по сету — правый край отдан SongToolStack. */}
-        {playback.inSetlist && (
+        {playback.inSetlist && !ink.active && (
           <SetlistPagerDock
             index={playback.index}
             total={playback.total}

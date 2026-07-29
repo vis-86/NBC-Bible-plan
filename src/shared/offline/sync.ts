@@ -1,4 +1,5 @@
 import { getPendingOutbox, attemptSend, removeOutboxRecord } from './outbox';
+import { isProgressOutboxRecord } from './db';
 import { raceNetwork } from './networkHealth';
 import { getApiPath } from '@/shared/utils/api';
 
@@ -60,6 +61,9 @@ export async function replayOutbox(): Promise<void> {
 
     const winnerIdByDay = new Map<number, string>();
     for (const record of pending) {
+      // Не-прогрессные записи в dedup по дням не участвуют — у пометок ключ свой
+      // (детерминированный id на песню), и вторая запись их вытесняет ещё в очереди.
+      if (!isProgressOutboxRecord(record)) continue;
       for (const dayId of record.dayIds) {
         winnerIdByDay.set(dayId, record.id); // later record in ascending-ts order overwrites
       }
@@ -67,7 +71,7 @@ export async function replayOutbox(): Promise<void> {
     const relevantIds = new Set(winnerIdByDay.values());
 
     for (const record of pending) {
-      if (!relevantIds.has(record.id)) {
+      if (isProgressOutboxRecord(record) && !relevantIds.has(record.id)) {
         debug('dropping fully superseded record', record.id, record.dayIds);
         await removeOutboxRecord(record.id);
         continue;

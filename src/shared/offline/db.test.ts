@@ -15,7 +15,7 @@ describe('offline/db getDB', () => {
   it('создаёт все ожидаемые object stores при первом открытии', async () => {
     const db = await getDB();
     expect(Array.from(db.objectStoreNames).sort()).toEqual(
-      ['apiCache', 'bibleChapters', 'manifest', 'meta', 'outbox', 'songs'].sort()
+      ['apiCache', 'bibleChapters', 'manifest', 'meta', 'outbox', 'songState', 'songs'].sort()
     );
   });
 

@@ -333,6 +333,12 @@ code.chord {
   color: var(--app-text-muted);
   pointer-events: none;
 }
+/* Обёртка «окна» листа: несёт сдвиг и ширину, внутри — сам поток и слой пометок.
+   Слой нельзя класть внутрь multicol-элемента: абсолютный потомок там фрагментируется. */
+.sheet-flow-host {
+  position: relative;
+  will-change: transform;
+}
 .sheet-flow {
   columns: var(--col-count, 1);
   column-gap: 2rem;
@@ -340,5 +346,4 @@ code.chord {
   height: var(--page-h, 60vh);
   white-space: pre-wrap;
   box-sizing: border-box;
-  will-change: transform;
 }

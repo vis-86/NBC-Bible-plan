@@ -27,7 +27,22 @@ describe('useSongViewSettings', () => {
       JSON.stringify({ columns: 2, fontSize: 20, density: 'compact', showChords: false, showHeader: false })
     );
     const { result } = renderHook(() => useSongViewSettings());
-    expect(result.current[0]).toEqual({ columns: 2, fontSize: 20, density: 'compact', showChords: false, showHeader: false });
+    // Полей режима пометок в старом JSON нет — они добираются дефолтами (M10).
+    expect(result.current[0]).toEqual({
+      columns: 2,
+      fontSize: 20,
+      density: 'compact',
+      showChords: false,
+      showHeader: false,
+      inkPenOnly: false,
+      inkInstant: false,
+    });
+  });
+
+  it('читает сохранённые тумблеры режима пометок', () => {
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ inkPenOnly: true, inkInstant: true }));
+    const { result } = renderHook(() => useSongViewSettings());
+    expect(result.current[0]).toMatchObject({ inkPenOnly: true, inkInstant: true });
   });
 
   it.each([

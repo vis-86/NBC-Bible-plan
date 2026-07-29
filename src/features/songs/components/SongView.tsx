@@ -8,6 +8,9 @@ import { transposeLine } from '../lib/transpose';
 import { useSheets } from '../hooks/useSheets';
 import { PAGE_PADDING, SHEET_PADDING_TOP } from '../lib/sheets';
 import ChordProHtmlColumn, { type HtmlSection } from './render/ChordProHtmlColumn';
+import { SongInkLayer } from './SongInkLayer';
+import type { SongInkSession } from '../hooks/useSongInk';
+import type { InkGesture } from '../hooks/useInkInput';
 import './render/songs.css';
 
 interface SongViewProps {
@@ -47,6 +50,17 @@ interface SongViewProps {
   columns?: 1 | 2;
   /** Скролл-контейнер страницы — из его высоты берётся высота листа (§4.2). */
   viewportRef?: RefObject<HTMLElement | null>;
+  /**
+   * Режим рукописных пометок (M10). Не задан ⇒ слой не монтируется вовсе и лист
+   * рендерится ровно как раньше.
+   */
+  ink?: SongInkSession;
+  /** «Только стилус» — прокидывается в слой пометок. */
+  inkPenOnly?: boolean;
+  /** Instant annotation — прокидывается в слой пометок. */
+  inkInstant?: boolean;
+  /** Двухпальцевый жест из слоя пометок: прокруткой и зумом владеет страница. */
+  onInkGesture?: (gesture: InkGesture) => void;
 }
 
 /**
@@ -72,6 +86,10 @@ export const SongView: React.FC<SongViewProps> = ({
   mode = 'scroll',
   columns = 1,
   viewportRef,
+  ink,
+  inkPenOnly = false,
+  inkInstant = false,
+  onInkGesture,
 }) => {
   const sections = useMemo<HtmlSection[]>(
     () =>
@@ -110,6 +128,40 @@ export const SongView: React.FC<SongViewProps> = ({
   // Плашка показывает ЗВУЧАЩУЮ тональность (metaKey), а не форму (songKey): при капо это
   // разные значения, а видеть пользователь должен то, в чём песня звучит.
   const meta = [metaKey ?? songKey, tempo].filter(Boolean).join(' · ');
+
+  // Та же подпись, что пересобирает листы: строки переехали ⇒ bbox пометок пересчитать.
+  const inkLayoutSignature = `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${semitones}|${fontSize ?? 0}`;
+
+  /**
+   * Обёртка потока: со слоем пометок или без него. Обёртка есть ВСЕГДА — включение
+   * режима не должно менять DOM-структуру и пересобирать листы.
+   *
+   * Это ФУНКЦИЯ, а не компонент: объявленный в теле рендера компонент — новый тип на
+   * каждый рендер, и canvas размонтировался бы на каждом движении пера.
+   */
+  const renderInkHost = (
+    className: string | undefined,
+    style: React.CSSProperties | undefined,
+    children: React.ReactNode,
+  ) =>
+    ink ? (
+      <SongInkLayer
+        ink={ink}
+        penOnly={inkPenOnly}
+        instantAnnotation={inkInstant}
+        onGesture={onInkGesture}
+        layoutSignature={inkLayoutSignature}
+        className={className}
+        style={style}
+      >
+        {children}
+      </SongInkLayer>
+    ) : (
+      <div className={cn('relative', className)} style={style}>
+        {children}
+      </div>
+    );
+
   const rootStyle = {
     ...(fontSize ? { '--lyric-size': `${fontSize}px` } : null),
     '--col-count': effectiveColumns,
@@ -148,24 +200,32 @@ export const SongView: React.FC<SongViewProps> = ({
         data-song-view-measure
         aria-hidden={mode === 'sheets' ? true : undefined}
       >
-        <div ref={sourceRef} className="cproColumn" data-song-view-flow>
-          <ChordProHtmlColumn sections={sections} />
-        </div>
+        {renderInkHost(
+          undefined,
+          undefined,
+          <div ref={sourceRef} className="cproColumn" data-song-view-flow>
+            <ChordProHtmlColumn sections={sections} />
+          </div>,
+        )}
       </div>
 
       {mode === 'sheets' && (
         <div className="sheets" data-song-view-sheets style={sheets.width ? { width: `${sheets.width}px` } : undefined}>
           {Array.from({ length: sheets.count }, (_, index) => (
             <div key={index} className="sheet" data-song-view-sheet style={{ paddingTop: SHEET_PADDING_TOP }}>
-              <div
-                className="sheet-flow"
-                style={{
+              {/* Сдвиг «окна» живёт на обёртке, а не на самом потоке: слой пометок —
+                  сосед потока внутри неё и обязан ехать вместе с ним (внутрь multicol
+                  его класть нельзя — абсолютный потомок фрагментируется по колонкам). */}
+              {renderInkHost(
+                'sheet-flow-host',
+                {
                   width: sheets.width ? `${sheets.width}px` : undefined,
                   transform: `translateX(-${index * sheets.pitch}px)`,
-                }}
-              >
-                <ChordProHtmlColumn sections={sections} />
-              </div>
+                },
+                <div className="sheet-flow" style={{ width: sheets.width ? `${sheets.width}px` : undefined }}>
+                  <ChordProHtmlColumn sections={sections} />
+                </div>,
+              )}
               <span className="sheet-num" data-song-view-sheet-number>
                 {index + 1} / {sheets.count}
               </span>

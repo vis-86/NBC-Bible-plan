@@ -25,6 +25,17 @@ export interface SongViewSettings {
   density: SongViewDensity;
   showChords: boolean;
   showHeader: boolean;
+  /**
+   * «Только стилус» (M10, §7): рисует лишь `pointerType === 'pen'`, палец прокручивает
+   * и зумит даже внутри режима пометок. Системного palm rejection в браузере нет —
+   * это единственный доступный способ отсечь ладонь.
+   */
+  inkPenOnly: boolean;
+  /**
+   * Instant annotation (M10, §7): касание пером вне режима включает режим, пауза
+   * сохраняет и выходит. Убирает два тапа на каждую пометку — на репетиции их десятки.
+   */
+  inkInstant: boolean;
 }
 
 export const MIN_FONT_SIZE = 12;
@@ -36,6 +47,8 @@ export const DEFAULT_SONG_VIEW_SETTINGS: SongViewSettings = {
   density: 'comfortable',
   showChords: true,
   showHeader: true,
+  inkPenOnly: false,
+  inkInstant: false,
 };
 
 const DENSITIES: readonly SongViewDensity[] = ['comfortable', 'compact'];
@@ -67,10 +80,12 @@ function sanitize(raw: Partial<SongViewSettings> | null | undefined): SongViewSe
   const columns = raw?.columns === 2 ? 2 : DEFAULT_SONG_VIEW_SETTINGS.columns;
   const showChords = typeof raw?.showChords === 'boolean' ? raw.showChords : DEFAULT_SONG_VIEW_SETTINGS.showChords;
   const showHeader = typeof raw?.showHeader === 'boolean' ? raw.showHeader : DEFAULT_SONG_VIEW_SETTINGS.showHeader;
+  const inkPenOnly = typeof raw?.inkPenOnly === 'boolean' ? raw.inkPenOnly : DEFAULT_SONG_VIEW_SETTINGS.inkPenOnly;
+  const inkInstant = typeof raw?.inkInstant === 'boolean' ? raw.inkInstant : DEFAULT_SONG_VIEW_SETTINGS.inkInstant;
 
   // Старый JSON мог нести `mode` (до этого рефакторинга) — поле просто игнорируется:
   // `Partial<SongViewSettings>` больше не объявляет его, а sanitize строит объект заново.
-  return { columns, fontSize, density, showChords, showHeader };
+  return { columns, fontSize, density, showChords, showHeader, inkPenOnly, inkInstant };
 }
 
 /** Читает legacy-ключ размера шрифта (миграция v1 → v2). Только чтение — см. `readSettings`. */

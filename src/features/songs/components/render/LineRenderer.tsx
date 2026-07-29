@@ -7,9 +7,15 @@
 import React, { useMemo } from 'react';
 import { ChordRenderer } from './ChordRenderer';
 import { hasLetters, parseLine, splitIntoWords } from '../../lib/lineParser';
+import { songLineAnchorProps } from '../../lib/inkAnchor';
 
 interface LineRendererProps {
   line: string;
+  /**
+   * Якорь для слоя рукописных пометок (§6). Не задан ⇒ строка не якорная
+   * (например, при рендере вне листа песни) и атрибуты не проставляются.
+   */
+  anchor?: { section: number; line: number };
 }
 
 /**
@@ -129,7 +135,7 @@ const renderWord = (word: string, isChordsOnly: boolean, key: number): { element
   };
 };
 
-export const LineRenderer: React.FC<LineRendererProps> = ({ line }) => {
+export const LineRenderer: React.FC<LineRendererProps> = ({ line, anchor }) => {
   const { isChordsOnly } = useMemo(() => parseLine(line), [line]);
   const className = `cproSongLine${isChordsOnly ? ' chordsOnly' : ''}`;
 
@@ -189,7 +195,11 @@ export const LineRenderer: React.FC<LineRendererProps> = ({ line }) => {
     return result;
   }, [line, isChordsOnly]);
 
-  return <span className={className}>{segments}</span>;
+  return (
+    <span className={className} {...(anchor ? songLineAnchorProps(anchor.section, anchor.line) : null)}>
+      {segments}
+    </span>
+  );
 };
 
 export default LineRenderer;

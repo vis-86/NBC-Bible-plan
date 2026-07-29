@@ -10,7 +10,11 @@ import { raceWithTimeout } from './networkTimeout';
  */
 
 const DB_NAME = 'bible-plan-offline';
-const DB_VERSION = 1;
+/**
+ * 1 → 2 (M10): добавлен стор `songState`. Миграция ТОЛЬКО добавляет стор — снос
+ * существующих стёр бы у пользователей скачанные Писание и песни.
+ */
+const DB_VERSION = 2;
 
 /**
  * WebKit (iOS PWA) иногда вечно виснет на `indexedDB.open()` после холодного старта —
@@ -51,7 +55,13 @@ export interface ApiCacheRecord {
 }
 
 /** Мутация прогресса, ожидающая подтверждения сервера (write-ahead outbox, Task 25). */
-export interface OutboxRecord {
+export interface ProgressOutboxRecord {
+  /**
+   * ОТСУТСТВУЕТ у записей, созданных до M10 — а они прямо сейчас лежат в IDB у
+   * пользователей. Запись без `kind` обязана читаться как `'progress'`, иначе
+   * апдейт молча потеряет неотправленный прогресс.
+   */
+  kind?: 'progress';
   id: string;
   op: 'single' | 'batch';
   dayIds: number[];
@@ -59,6 +69,36 @@ export interface OutboxRecord {
   completedItems?: number[];
   completed?: boolean;
   ts: number;
+}
+
+/**
+ * Рукописные пометки к песне, ожидающие отправки (M10).
+ *
+ * Payload описан структурно, а не типом фичи: `shared/offline` — дженерик-слой,
+ * импорт из `features/songs` развернул бы зависимость вверх по FSD.
+ */
+export interface SongAnnotationsOutboxRecord {
+  kind: 'songAnnotations';
+  id: string;
+  songId: number;
+  payload: { strokes: unknown[]; updatedAt: number };
+  ts: number;
+}
+
+export type OutboxRecord = ProgressOutboxRecord | SongAnnotationsOutboxRecord;
+
+/** Записи без `kind` — это прогресс (см. комментарий к `ProgressOutboxRecord.kind`). */
+export function isProgressOutboxRecord(record: OutboxRecord): record is ProgressOutboxRecord {
+  return record.kind === undefined || record.kind === 'progress';
+}
+
+/** Личные пометки песни в IDB (стор `songState`, M10). */
+export interface SongStateRecord {
+  /** Числовой id песни строкой — тот же ключ, что у стора `songs`. */
+  songId: string;
+  strokes: unknown[];
+  /** LWW-метка устройства (ms). */
+  updatedAt: number;
 }
 
 /** Произвольные единичные значения: last-known-user, версия схемы и т.п. */
@@ -101,6 +141,10 @@ interface OfflineDBSchema extends DBSchema {
   manifest: {
     key: string;
     value: ManifestRecord;
+  };
+  songState: {
+    key: string;
+    value: SongStateRecord;
   };
 }
 
@@ -145,6 +189,9 @@ export function getDB(): Promise<OfflineDB> {
         }
         if (!db.objectStoreNames.contains('manifest')) {
           db.createObjectStore('manifest', { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains('songState')) {
+          db.createObjectStore('songState', { keyPath: 'songId' });
         }
       },
       blocked() {

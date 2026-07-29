@@ -1,5 +1,6 @@
-import { getDB, type OutboxRecord } from './db';
+import { getDB, isProgressOutboxRecord, type OutboxRecord } from './db';
 import { graphqlClient, progressMutations } from '@/shared/services/api/graphql';
+import { getApiPath } from '@/shared/utils/api';
 
 /**
  * Write-ahead outbox для мутаций прогресса (Task 25, .ai-factory/plans/feature-offline-pwa.md).
@@ -43,6 +44,7 @@ export async function enqueueSingleProgress(
   completedItems?: number[]
 ): Promise<void> {
   const record: OutboxRecord = {
+    kind: 'progress',
     id: newId(),
     op: 'single',
     dayIds: [dayId],
@@ -56,11 +58,32 @@ export async function enqueueSingleProgress(
 /** Батч-мутация (`toggleCompleteMany` → `updateProgressBatch`, PlanContext.tsx:362). */
 export async function enqueueBatchProgress(dayIds: number[], completed: boolean): Promise<void> {
   const record: OutboxRecord = {
+    kind: 'progress',
     id: newId(),
     op: 'batch',
     dayIds,
     count: null,
     completed,
+    ts: monotonicTs(),
+  };
+  await writeAndReplay(record);
+}
+
+/**
+ * Рукописные пометки песни (M10). Запись всегда идёт через очередь, как и прогресс:
+ * ветвление online/offline здесь было бы вторым источником истины.
+ */
+export async function enqueueSongAnnotations(
+  songId: number,
+  payload: { strokes: unknown[]; updatedAt: number }
+): Promise<void> {
+  const record: OutboxRecord = {
+    kind: 'songAnnotations',
+    // id ДЕТЕРМИНИРОВАННЫЙ: новая правка тех же пометок заменяет предыдущую запись
+    // в очереди, а не копит их — отправлять промежуточные состояния бессмысленно.
+    id: `songAnnotations:${songId}`,
+    songId,
+    payload,
     ts: monotonicTs(),
   };
   await writeAndReplay(record);
@@ -87,6 +110,20 @@ async function writeAndReplay(record: OutboxRecord): Promise<void> {
 /** Пытается отправить запись на сервер. true — подтверждено, false — оставить в очереди. */
 export async function attemptSend(record: OutboxRecord): Promise<boolean> {
   try {
+    if (!isProgressOutboxRecord(record)) {
+      const res = await fetch(getApiPath(`/api/songs/${record.songId}/state`), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record.payload),
+      });
+      // 4xx повторять бессмысленно (битое тело, чужая песня) — иначе запись висит
+      // в очереди вечно и на каждом триггере синка бьётся о ту же ошибку.
+      if (!res.ok && res.status >= 400 && res.status < 500) {
+        debug('song annotations rejected permanently, dropping', record.id, res.status);
+        return true;
+      }
+      return res.ok;
+    }
     if (record.op === 'single') {
       const dayId = record.dayIds[0];
       await graphqlClient.mutate(progressMutations.updateProgress(dayId, record.count, record.completedItems));
@@ -135,6 +172,7 @@ export async function getPendingOutboxOverlay(): Promise<Map<number, ProgressOve
   const overlay = new Map<number, ProgressOverlayEntry>();
 
   for (const record of records) {
+    if (!isProgressOutboxRecord(record)) continue;
     if (record.op === 'single') {
       const dayId = record.dayIds[0];
       overlay.set(dayId, {

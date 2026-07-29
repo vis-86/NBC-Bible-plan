@@ -1,5 +1,6 @@
 import { getDB, type ManifestRecord } from './db';
 import { SONGS_LIST_CACHE_KEY, persistApiCache } from './readThrough';
+import { readAnnotations } from '@/features/songs/lib/songAnnotationsStore';
 import { getPendingOutbox } from './outbox';
 import { replayOutbox } from './sync';
 import { getApiPath } from '@/shared/utils/api';
@@ -156,6 +157,10 @@ export async function downloadSongs(onProgress?: (done: number, total: number) =
   for (const summary of list.songs) {
     const full = await songsApi.getSong(summary.id);
     await db.put('songs', { id: full.song.id, data: full.song, updatedAt: now });
+    // Личные пометки греются ТЕМ ЖЕ вызовом, которым их читает экран песни
+    // (`readAnnotations` пишет в IDB после успешной сети) — иначе «скачал песни»
+    // даёт офлайн лист без пометок. Сбой пометок не роняет загрузку каталога.
+    await readAnnotations(full.song.id).catch(() => undefined);
     done++;
     onProgress?.(done, list.songs.length);
   }
@@ -256,6 +261,7 @@ export async function clearAllOfflineData(options?: { force?: boolean }): Promis
     db.clear('songs'),
     db.clear('apiCache'),
     db.clear('manifest'),
+    db.clear('songState'),
   ]);
 
   debug('offline data cleared', { pendingOutboxCount: pending.length });

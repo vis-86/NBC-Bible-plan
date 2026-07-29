@@ -26,12 +26,13 @@ const CommentRenderer: React.FC<{ comment: string; commentType?: 'normal' | 'ita
 /**
  * Компонент для рендеринга секции песни
  */
-const SectionRenderer: React.FC<{ section: HtmlSection }> = ({ section }) => {
+const SectionRenderer: React.FC<{ section: HtmlSection; sectionIndex: number }> = ({ section, sectionIndex }) => {
   return (
     <span className="cproSongSection">
       {section.comment && <CommentRenderer comment={section.comment} commentType={section.commentType} />}
       {section.lines.map((line, idx) => (
-        <LineRenderer key={idx} line={line} />
+        // Якорь пометок — пара (индекс секции, индекс строки внутри секции), §6.
+        <LineRenderer key={idx} line={line} anchor={{ section: sectionIndex, line: idx }} />
       ))}
     </span>
   );
@@ -41,7 +42,7 @@ export const ChordProHtmlColumn: React.FC<Props> = ({ sections }) => {
   return (
     <>
       {sections.map((section, i) => (
-        <SectionRenderer key={i} section={section} />
+        <SectionRenderer key={i} section={section} sectionIndex={i} />
       ))}
     </>
   );

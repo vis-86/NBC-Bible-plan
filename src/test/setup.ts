@@ -2,6 +2,17 @@
 // безопасно для node-тестов (DOM нужен только при их использовании, под jsdom).
 import '@testing-library/jest-dom/vitest';
 
+// jsdom не реализует ResizeObserver, а измеряющие компоненты (слой пометок, зум листа)
+// без него падают на маунте. Заглушка ничего не наблюдает: размеры в jsdom всё равно
+// нулевые, а сами вычисления покрыты юнит-тестами геометрии.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+}
+
 // Глобальные env-моки для всех тестов.
 process.env.SESSION_SECRET ||= 'test-session-secret-minimum-32-characters!!';
 process.env.INVITE_ADMIN_SECRET ||= 'test-invite-admin-secret';
