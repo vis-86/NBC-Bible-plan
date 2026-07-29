@@ -44,7 +44,8 @@ export const SetlistBuilder: React.FC<SetlistBuilderProps> = ({ songs }) => {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | 'selected'>('all');
 
-  const results = useSongSearch(songs, query);
+  // Порядок (название → текст) приходит из хука; здесь нужен только сам список песен.
+  const results = useSongSearch(songs, query).map((hit) => hit.song);
   const songById = useMemo(() => new Map(songs.map((s) => [Number(s.id), s])), [songs]);
 
   /**

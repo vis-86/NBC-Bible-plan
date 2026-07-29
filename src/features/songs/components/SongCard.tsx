@@ -5,10 +5,12 @@ import type { SongSummary } from '../types';
 
 interface SongCardProps {
   song: SongSummary;
+  /** Кусок текста песни — показывается, когда песня найдена по содержимому, а не названию. */
+  snippet?: string;
 }
 
-/** Карточка песни в списке: заголовок + подзаголовок + чип тональности. */
-export const SongCard: React.FC<SongCardProps> = ({ song }) => {
+/** Карточка песни в списке: заголовок + подзаголовок + чип тональности (+ сниппет при поиске по тексту). */
+export const SongCard: React.FC<SongCardProps> = ({ song, snippet }) => {
   const router = useRouter();
 
   return (
@@ -26,6 +28,11 @@ export const SongCard: React.FC<SongCardProps> = ({ song }) => {
         {song.subtitle && (
           <p data-song-card-subtitle className="truncate text-sm text-app-text-secondary">
             {song.subtitle}
+          </p>
+        )}
+        {snippet && (
+          <p data-song-card-snippet className="truncate text-sm text-app-text-muted">
+            {snippet}
           </p>
         )}
       </div>

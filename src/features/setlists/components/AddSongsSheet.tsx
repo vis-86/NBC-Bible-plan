@@ -39,7 +39,8 @@ export const AddSongsSheet: React.FC<AddSongsSheetProps> = ({
     if (isOpen) resetOnOpen();
   }, [isOpen]);
 
-  const results = useSongSearch(songs, query);
+  // Порядок (название → текст) приходит из хука; здесь нужен только сам список песен.
+  const results = useSongSearch(songs, query).map((hit) => hit.song);
   const existing = useMemo(() => new Set(existingSongIds), [existingSongIds]);
 
   const toggle = (songId: number) => {

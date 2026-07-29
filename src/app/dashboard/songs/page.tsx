@@ -84,7 +84,7 @@ function SongsPageContent() {
             ))}
           </ul>
         ) : (
-          <SongList songs={results} />
+          <SongList hits={results} />
         )}
       </div>
     </div>
