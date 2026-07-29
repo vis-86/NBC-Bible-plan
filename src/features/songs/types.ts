@@ -33,7 +33,17 @@ export interface Song {
  * `defaultKey` здесь отсутствует по типу: списку тональность не нужна, и лишние поля
  * утяжеляют `songs:list`, который целиком уходит в офлайн-кэш.
  */
-export type SongSummary = Omit<Song, 'content' | 'defaultKey'>;
+export type SongSummary = Omit<Song, 'content' | 'defaultKey'> & {
+  /**
+   * Текст песни без разметки ChordPro — для поиска по содержимому и сниппета в выдаче.
+   * Сырой `content` в список не кладём: он вдвое тяжелее и списку не нужен.
+   *
+   * Опционально намеренно: у пользователей с установленной PWA в IDB лежит кэш
+   * `songs:list`, записанный версией без этого поля. Поиск по тексту для таких песен
+   * молча не работает до первого онлайн-обновления списка — падать нельзя.
+   */
+  plainText?: string;
+};
 
 /** Ответ `GET /api/songs` — список кратких карточек. */
 export interface SongListResponse {
