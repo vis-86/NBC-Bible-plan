@@ -18,6 +18,9 @@ export function SongInkButton({ onClick, hasAnnotations }: SongInkButtonProps) {
     <button
       type="button"
       data-song-ink-open
+      // Якорь для e2e: «пометки доехали до этого устройства» видно по кнопке, а не
+      // по пикселям canvas.
+      data-song-ink-open-has-annotations={hasAnnotations ? '' : undefined}
       aria-label={hasAnnotations ? 'Пометки на песне' : 'Рисовать пометки'}
       title={hasAnnotations ? 'Пометки на песне' : 'Рисовать пометки'}
       onClick={onClick}
