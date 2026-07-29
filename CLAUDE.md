@@ -14,7 +14,7 @@ Next.js 16 — **static export** (`output: 'export'`): серверного ра
 - Весь API — **Hono BFF** в `server/` (отдельный процесс, порт 3001, запуск через `tsx` без сборки). Роуты: `server/src/routes/*`. Auth-гард — клиентский `DashboardAuthGate` в `src/app/dashboard/layout.tsx`.
 - Клиентские URL строятся ТОЛЬКО через `getApiPath()` из `@/shared/utils/api` (basePath `/app`).
 - Directus с клиента — только через прокси `{basePath}/api/directus/*` (`server/src/routes/directus-proxy.ts`). `DIRECTUS_ADMIN_TOKEN` — server-only.
-- FSD: импорты строго вниз `app → features → shared`; между фичами не импортировать; доменный код (read-through, типы) живёт в `features/<name>`, в `shared/offline` — только дженерики.
+- FSD: импорты строго вниз `app → features → shared`; между фичами не импортировать; доменный код (read-through, типы) живёт в `features/<name>`, в `shared/offline` — только дженерики. **Единственное исключение — `shared/offline/downloadManager.ts`**: оркестратор прогрева обязан звать фиче-локальные слои теми же вызовами, что и экраны (иначе рассинхрон писателя и читателя), обоснование и отвергнутые альтернативы — в шапке файла. Новые упоминания `features/*` в `shared/` — только там.
 - `src/lib/` — логика, общая для клиента И `server/` (session-core, directus-*, invite, register-access).
 
 ## Команды

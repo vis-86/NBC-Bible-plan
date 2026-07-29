@@ -55,10 +55,14 @@ bible-plan/
 │   │   │   ├── types.ts              # Reading-specific types
 │   │   │   └── bible-text-cache.ts   # Client-side cache for bible text
 │   │   ├── songs/                    # Songs (ChordPro) feature slice
-│   │   │   ├── components/           # SongList, SongCard, SongView, SongKeyPicker, render/*
-│   │   │   ├── hooks/                # useSongs, useSong, useSongSearch, useScrollRestore, useSongViewSettings, useSongKey
-│   │   │   ├── lib/                  # ChordPro parser, offlineSongs (read-through), markers/transpose/songKey (§10), personalKeyStore
-│   │   │   └── types.ts              # Song-specific types
+│   │   │   ├── components/           # SongList, SongCard, SongView, SongKeyPicker, render/*,
+│   │   │   │                         # SongToolStack, SongInkLayer/Toolbar/TextNote/Button (M10)
+│   │   │   ├── hooks/                # useSongs, useSong, useSongSearch, useScrollRestore, useSongViewSettings, useSongKey,
+│   │   │   │                         # useSongInk, useInkInput, useInkStage, useSongAnnotations (M10)
+│   │   │   ├── lib/                  # ChordPro parser, offlineSongs (read-through), markers/transpose/songKey (§10), personalKeyStore,
+│   │   │   │                         # inkAnchor/inkGeometry/inkStroke/inkTools, songAnnotationsStore (M10)
+│   │   │   ├── services/             # songsServer, songStateServer (Directus admin-client; только для server/)
+│   │   │   └── types.ts              # Song-specific types (+ SongStroke/SongAnnotations)
 │   │   ├── setlists/                 # Setlists feature slice (M7)
 │   │   │   ├── components/           # SetlistsList, SetlistCard, SetlistView, SetlistBuilder, SetlistConfirmStep,
 │   │   │   │                         # SelectedChipsRow, SetlistSongPickRow, SetlistReorderList, SetlistItemRow,
@@ -116,7 +120,8 @@ bible-plan/
 │       ├── app.ts                    # createApp() factory (Hono instance, testable via app.request())
 │       ├── session.ts                # Hono adapter over src/lib/session-core.ts
 │       ├── env.ts                    # zod-validated env (lazy-throw on missing secrets)
-│       └── routes/                   # auth, bible, plan, songs, user, chat, graphql, directus-proxy, ai
+│       └── routes/                   # auth, bible, plan, songs (+ /:id/state — личные пометки),
+│                                     # setlists, user, chat, graphql, directus-proxy, ai
 ├── docs/                             # Project documentation
 │   ├── AI_INTEGRATION_GUIDE.md
 │   ├── DIRECTUS_SETUP_GUIDE.md
@@ -156,9 +161,9 @@ bible-plan/
 | `src/lib/register-access.ts` | `isRegistrationOpen()` / `verifyChurchCode()` — контроль доступа к регистрации |
 | `src/features/plan/components/PlanView.tsx` | Core plan UI — week view, day selection |
 | `src/shared/services/api/endpoints.ts` | All API calls with TypeScript types |
-| `src/shared/offline/db.ts` | IndexedDB schema (idb) — bibleChapters/songs/apiCache/outbox/meta/manifest |
-| `src/shared/offline/outbox.ts` + `sync.ts` | Write-ahead outbox для прогресса + replay-движок (LWW) |
-| `src/shared/offline/downloadManager.ts` | Опциональная офлайн-загрузка Писания/песен/плана/сетлистов + очистка |
+| `src/shared/offline/db.ts` | IndexedDB schema (idb), **версия 2** — bibleChapters/songs/apiCache/outbox/meta/manifest/songState. Миграция 1→2 только ДОБАВЛЯЕТ стор: снос существующих = потеря скачанного Писания и песен у установивших PWA |
+| `src/shared/offline/outbox.ts` + `sync.ts` | Write-ahead outbox (прогресс + пометки песен) и replay-движок (LWW). `OutboxRecord` — дискриминированный union; запись **без `kind` = прогресс** (такие лежат в IDB у пользователей), разбор только через `isProgressOutboxRecord()` |
+| `src/shared/offline/downloadManager.ts` | Опциональная офлайн-загрузка Писания/песен/плана/сетлистов (+ пометки песен) и очистка |
 | `src/shared/offline/autoDownload.ts` | Автозагрузка базового набора после логина (iOS partition fix, T11) |
 | `src/lib/app-roles.ts` + `src/shared/hooks/useAppRole.ts` | `AppRole` (reader/musician/musician_editor), `GET /api/user/role` — гейт кнопок сетлистов (реальный гейт — BFF `requireSetlistWrite`, см. `CLAUDE.md`) |
 | `server/src/routes/setlists.ts` + `src/features/setlists/services/setlistsServer.ts` | CRUD сетлистов (Directus admin-client), `requireSetlistWrite` на мутирующих роутах |
@@ -169,14 +174,17 @@ bible-plan/
 | `src/features/setlists/hooks/useSetlistPlayback.ts` | Навигация между песнями сета в просмотре песни (`/dashboard/song?id=&setlistId=`), обёрнута в `SwipePager` |
 | `src/shared/components/pager/SwipePager.tsx` + `PagerHint.tsx` | Общие примитивы горизонтального свайпа (drag-follow, edge-resistance) и подсказки «N из M» — переиспользуются в песне (`SetlistPagerDock`) и в ридере (свайп по главам). Цель жеста описывается объектом `PagerHintTarget { index, label, atEdge, action? }`: `action:'end'` → ✓ «Завершить», мёртвый край (`atEdge` без `action`) → подсказки нет |
 | `src/features/setlists/components/SetlistPagerDock.tsx` | Нижняя таблетка `‹ N/M ›` навигации по сету в просмотре песни, скрывается вместе с шапкой |
-| `src/features/songs/components/SongToolStack.tsx` | Правый нижний край экрана песни — точка входа для инструментов (сейчас автоскролл, задел под карандаш заметок M10). Вместе с шапкой НЕ скрывается: прячут только открытые шторки |
+| `src/features/songs/components/SongToolStack.tsx` | Правый нижний край экрана песни — точка входа для инструментов (автоскролл + карандаш пометок). Вместе с шапкой НЕ скрывается: прячут только открытые шторки. Активный инструмент забирает край целиком |
+| `src/features/songs/components/SongInkLayer.tsx` + `hooks/useSongInk.ts`, `useInkInput.ts`, `useInkStage.ts` | Рукописные пометки (M10, спека §6): слой ОБОРАЧИВАЕТ поток песни (canvas внутри multicol фрагментируется по колонкам), штрих привязан к строке-якорю, зум/пан живут только в слое и не персистятся. Матрица жестов (палец/перо/«только стилус») — `docs/song-viewer-spec.md` §6 |
+| `src/features/songs/lib/inkAnchor.ts` | Единственный источник имён DOM-атрибутов строки-якоря (`data-song-line-section`/`-index`) — импортируется и writer'ом (`LineRenderer`), и reader'ом (`inkGeometry`) |
+| `src/features/songs/lib/songAnnotationsStore.ts` + `server/src/routes/songs.ts` (`/state`) | Персист пометок: чтение — read-through (сеть → IDB `songState`, ответ сети применяется по LWW), запись — через outbox. Владелец записи — ТОЛЬКО `directus_id` из сессии, никогда из тела запроса |
 | `src/sw/sw.ts` + `scripts/build-sw.ts` | Build-time precache service worker (Serwist `injectManifest` → `out/sw.js`) |
 | `src/shared/hooks/useSwUpdate.ts` + `src/shared/components/ui/UpdateToast.tsx` | Update flow: `registration.waiting` → тост «Обновить» → `SKIP_WAITING` → reload |
 | `src/shared/hooks/useAutoHideOnScroll.ts` | Hide-on-scroll обёртка над `useScrollDirection` для не-ридер страниц (список/деталь песен) |
 | `src/features/songs/hooks/useScrollRestore.ts` | Восстановление позиции скролла + поискового запроса списка песен (`sessionStorage`) |
 | `src/shared/offline/chunkGuard.ts` + `src/components/ChunkGuard.tsx` | ChunkLoadError guard — auto-reload-once с cooldown |
 | `server/src/routes/*` (health route) | 204 no-store ping — гейт online-триггера outbox-синка (`isServerReachable`) |
-| `e2e/offline/` + `playwright.config.ts` | Офлайн E2E-регрессия (`npm run e2e:offline`) — cold start, cold-start-any-route (precache), навигация, outbox sync, update-flow |
+| `e2e/offline/` + `playwright.config.ts` | Офлайн E2E-регрессия (`npm run e2e:offline`) — cold start, cold-start-any-route (precache), навигация, outbox sync, update-flow, сетлисты, пометки песни (полный круг записи) |
 | `scripts/static-serve.ts` | Локальный static+bff-proxy сервер для e2e (аналог nginx) |
 | `next.config.ts` | Next.js config — basePath, `output: 'export'` |
 
