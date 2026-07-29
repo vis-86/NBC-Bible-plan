@@ -60,6 +60,7 @@ bible-plan/
 │   │   │   ├── hooks/                # useSongs, useSong, useSongSearch, useScrollRestore, useSongViewSettings, useSongKey,
 │   │   │   │                         # useSongInk, useInkInput, useInkStage, useSongAnnotations (M10)
 │   │   │   ├── lib/                  # ChordPro parser, offlineSongs (read-through), markers/transpose/songKey (§10), personalKeyStore,
+│   │   │   │                         # searchText (plain-текст ChordPro + нормализация для поиска, §14),
 │   │   │   │                         # inkAnchor/inkGeometry/inkStroke/inkTools, songAnnotationsStore (M10)
 │   │   │   ├── services/             # songsServer, songStateServer (Directus admin-client; только для server/)
 │   │   │   └── types.ts              # Song-specific types (+ SongStroke/SongAnnotations)
