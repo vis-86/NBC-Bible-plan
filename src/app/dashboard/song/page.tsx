@@ -15,6 +15,7 @@ import { SongAutoScroll } from '@/features/songs/components/SongAutoScroll';
 import { SongToolStack } from '@/features/songs/components/SongToolStack';
 import { SongInkButton } from '@/features/songs/components/SongInkButton';
 import { SongInkToolbar } from '@/features/songs/components/SongInkToolbar';
+import { SongInkModeBar } from '@/features/songs/components/SongInkModeBar';
 import { useSongInk } from '@/features/songs/hooks/useSongInk';
 import { useInkStage } from '@/features/songs/hooks/useInkStage';
 import { useSongAnnotations } from '@/features/songs/hooks/useSongAnnotations';
@@ -237,15 +238,29 @@ function SongPageContent() {
               pagerHint.track({ index: playback.index - 1, label: prevSongTitle, atEdge: state.atEdge });
           }}
           overlay={
-            <PagerHint
-              visible={pagerHint.state.visible}
-              dragging={pagerHint.state.dragging}
-              index={pagerHint.state.index}
-              total={playback.total}
-              label={pagerHint.state.label}
-              atEdge={pagerHint.state.atEdge}
-              action={pagerHint.state.action}
-            />
+            <>
+              <PagerHint
+                visible={pagerHint.state.visible}
+                dragging={pagerHint.state.dragging}
+                index={pagerHint.state.index}
+                total={playback.total}
+                label={pagerHint.state.label}
+                atEdge={pagerHint.state.atEdge}
+                action={pagerHint.state.action}
+              />
+              {/* Слой оверлея живёт ВНЕ сдвигаемого узла — плашка не едет за жестом. */}
+              {ink.active && (
+                <SongInkModeBar
+                  tool={ink.tool}
+                  color={ink.selectedStroke?.color ?? ink.color}
+                  dirty={ink.dirty}
+                  zoom={stage.zoom}
+                  onResetZoom={stage.reset}
+                  onDone={() => ink.exit(true)}
+                  onCancel={() => ink.exit(false)}
+                />
+              )}
+            </>
           }
           className="relative min-h-0 flex-1 overflow-hidden"
         >
@@ -332,23 +347,24 @@ function SongPageContent() {
           </SongToolStack>
         )}
 
+        {/* Рельс инструментов встаёт ровно туда, где вне режима живёт карандаш. Плашка
+            режима (состояние + выходы) — сверху по центру, внутри SwipePager: там она
+            под шапкой, а не поверх неё. */}
         {ink.active && (
           <SongInkToolbar
             tool={ink.tool}
-            color={ink.color}
-            width={ink.width}
+            // При выделенной заметке панель показывает ЕЁ цвет и кегль: правки уходят
+            // в неё (`useSongInk.setColor/setWidth`), и подсвеченным обязан быть тот же
+            // цвет, который человек видит на листе.
+            color={ink.selectedStroke?.color ?? ink.color}
+            width={ink.selectedStroke?.width ?? ink.width}
             canUndo={ink.canUndo}
-            dirty={ink.dirty}
             hasStrokes={ink.strokes.length > 0}
-            zoom={stage.zoom}
-            onResetZoom={stage.reset}
             onToolChange={ink.setTool}
             onColorChange={ink.setColor}
             onWidthChange={ink.setWidth}
             onUndo={ink.undo}
             onClearAll={ink.clearAll}
-            onDone={() => ink.exit(true)}
-            onCancel={() => ink.exit(false)}
           />
         )}
 

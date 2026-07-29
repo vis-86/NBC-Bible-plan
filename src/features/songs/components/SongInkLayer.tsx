@@ -70,8 +70,19 @@ export function SongInkLayer({
    * заметки иначе не перекрашивались бы при смене темы.
    */
   const [themeInk, setThemeInk] = useState('#111827');
-  /** Открытое поле ввода заметки: новая (`strokeId: null`) либо правка существующей. */
-  const [editor, setEditor] = useState<{ x: number; y: number; strokeId: string | null; text: string } | null>(null);
+  /**
+   * Открытое поле ввода заметки: новая (`strokeId: null`) либо правка существующей.
+   * `width` (кегль) держим в состоянии поля, а не берём из `ink.width`: при правке
+   * существующей заметки текущая толщина инструмента может быть другой, и текст в поле
+   * прыгал бы в размере относительно того, что стояло на листе.
+   */
+  const [editor, setEditor] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    strokeId: string | null;
+    text: string;
+  } | null>(null);
 
   const rectIndex = useMemo(() => indexLineRects(rects), [rects]);
   const rectsRef = useRef(rects);
@@ -200,9 +211,9 @@ export function SongInkLayer({
   }, [ink, editor]);
 
   const startEdit = useCallback(
-    (strokeId: string, x: number, y: number, text: string) => {
+    (strokeId: string, x: number, y: number, text: string, width: number) => {
       commitEditor();
-      setEditor({ x, y, strokeId, text });
+      setEditor({ x, y, width, strokeId, text });
     },
     [commitEditor]
   );
@@ -246,16 +257,25 @@ export function SongInkLayer({
     if (ink.tool === 'text') {
       const point = textTapRef.current;
       textTapRef.current = null;
-      if (point) {
-        // Открытое поле сначала коммитим — иначе набранный текст молча пропадёт.
+      if (!point) return;
+      // Тап по пустому месту при открытом поле = «закончил вводить». Открывать вторую
+      // заметку тем же тапом нельзя: первая теряла бы фокус и коммитилась вслепую.
+      if (editor) {
         commitEditor();
-        setEditor({ x: point.x, y: point.y, strokeId: null, text: '' });
+        return;
       }
+      // Тап по пустому месту при выделенной заметке = снять выделение. Иначе спрятать
+      // её панель действий было нечем: любой тап мимо открывал ввод новой заметки.
+      if (ink.selectedId) {
+        ink.setSelectedId(null);
+        return;
+      }
+      setEditor({ x: point.x, y: point.y, width: ink.width, strokeId: null, text: '' });
       return;
     }
     if (ink.tool === 'eraser') return;
     ink.commitDraft(rectsRef.current);
-  }, [ink, commitEditor]);
+  }, [ink, commitEditor, editor]);
 
   const handleCancel = useCallback(() => {
     textTapRef.current = null;
@@ -314,7 +334,7 @@ export function SongInkLayer({
               onSelect={() => ink.setSelectedId(stroke.id)}
               onMove={(point) => ink.moveStroke(stroke.id, { ...point, pressure: 0.5 }, rectsRef.current)}
               onToggleVertical={() => ink.updateStroke(stroke.id, { vertical: !stroke.vertical })}
-              onEdit={() => startEdit(stroke.id, points[0][0], points[0][1], stroke.text ?? '')}
+              onEdit={() => startEdit(stroke.id, points[0][0], points[0][1], stroke.text ?? '', stroke.width)}
               onDelete={() => ink.removeStroke(stroke.id)}
               toLayer={toLayer}
               onActivity={ink.noteActivity}
@@ -330,8 +350,12 @@ export function SongInkLayer({
             value={editor.text}
             placeholder="Заметка"
             aria-label="Текст заметки"
-            style={{ left: editor.x, top: editor.y, fontSize: ink.width }}
-            className="pointer-events-auto absolute w-40 -translate-x-1/2 -translate-y-1/2 rounded-app-sm border border-app-primary bg-app-surface-elevated px-2 py-1 font-sans text-app-text shadow-app-md outline-none"
+            // Точка тапа — ЛЕВЫЙ край строки, а не её центр: человек тычет туда, откуда
+            // текст должен начинаться. Поэтому по горизонтали сдвига нет, по вертикали
+            // строка центрируется по тапу. Готовая заметка якорится ровно так же —
+            // иначе набранное уезжало бы относительно того, что получилось.
+            style={{ left: editor.x, top: editor.y, fontSize: editor.width }}
+            className="pointer-events-auto absolute w-40 -translate-y-1/2 rounded-app-sm border border-app-primary bg-app-surface-elevated px-1 py-0.5 text-left font-sans leading-tight text-app-text shadow-app-md outline-none"
             onChange={(e) => {
               ink.noteActivity();
               setEditor((prev) => (prev ? { ...prev, text: e.target.value } : prev));

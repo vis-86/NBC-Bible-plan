@@ -73,7 +73,7 @@ export function cloneStrokes(strokes: SongStroke[]): SongStroke[] {
 export function useSongInk({ initialStrokes, onSave, instantAnnotation = false, onEnter }: UseSongInkOptions) {
   const [active, setActive] = useState(false);
   const [tool, setToolState] = useState<InkToolChoice>('pen');
-  const [color, setColor] = useState<string>(INK_COLOR_THEME);
+  const [color, setColorState] = useState<string>(INK_COLOR_THEME);
   const [widths, setWidths] = useState<Record<SongInkTool, number>>(() => ({
     pen: INK_WIDTH_RANGE.pen.default,
     highlighter: INK_WIDTH_RANGE.highlighter.default,
@@ -132,15 +132,6 @@ export function useSongInk({ initialStrokes, onSave, instantAnnotation = false, 
     // перехватывали бы штрихи пера и попадания ластика.
     if (next !== 'text') setSelectedId(null);
   }, []);
-
-  const setWidth = useCallback(
-    (value: number) => {
-      const target: SongInkTool = tool === 'eraser' ? 'pen' : tool;
-      const range = INK_WIDTH_RANGE[target];
-      setWidths((prev) => ({ ...prev, [target]: Math.min(range.max, Math.max(range.min, value)) }));
-    },
-    [tool]
-  );
 
   // ---- Черновик штриха -------------------------------------------------------
 
@@ -256,6 +247,35 @@ export function useSongInk({ initialStrokes, onSave, instantAnnotation = false, 
     [pushUndo]
   );
 
+  /**
+   * Выделенная заметка — цель правок цвета и кегля. Смена цвета при выделении красит
+   * ИМЕННО её, а не только будущие пометки: «выделил, ткнул в красный, а покраснело
+   * что-то другое» — не то, что человек имел в виду.
+   */
+  const selectedStroke = useMemo(
+    () => (selectedId ? (strokes.find((stroke) => stroke.id === selectedId) ?? null) : null),
+    [selectedId, strokes]
+  );
+
+  const setColor = useCallback(
+    (next: string) => {
+      setColorState(next);
+      if (selectedId) updateStroke(selectedId, { color: next });
+    },
+    [selectedId, updateStroke]
+  );
+
+  const setWidth = useCallback(
+    (value: number) => {
+      const target: SongInkTool = tool === 'eraser' ? 'pen' : tool;
+      const range = INK_WIDTH_RANGE[target];
+      const clamped = Math.min(range.max, Math.max(range.min, value));
+      setWidths((prev) => ({ ...prev, [target]: clamped }));
+      if (selectedId) updateStroke(selectedId, { width: clamped });
+    },
+    [tool, selectedId, updateStroke]
+  );
+
   /** Перенос заметки в новую точку слоя с перепривязкой к ближайшей строке. */
   const moveStroke = useCallback(
     (id: string, point: LayerPoint, rects: LineRect[]): void => {
@@ -349,6 +369,7 @@ export function useSongInk({ initialStrokes, onSave, instantAnnotation = false, 
     strokes,
     draft,
     selectedId,
+    selectedStroke,
     dirty,
     canUndo: undoStack.length > 0,
     /** Множество занятых якорей — для диагностики и тестов. */

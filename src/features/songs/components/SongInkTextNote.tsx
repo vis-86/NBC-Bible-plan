@@ -86,7 +86,8 @@ export function SongInkTextNote({
         if (Math.hypot(e.clientX - start.left, e.clientY - start.top) < DRAG_THRESHOLD_PX) return;
         moved = true;
       }
-      el.style.transform = `translate(-50%, -50%)`;
+      // Тот же якорь, что в разметке: под пальцем едет ЛЕВЫЙ край заметки.
+      el.style.transform = `translateY(-50%)`;
       el.style.left = `${point.x}px`;
       el.style.top = `${point.y}px`;
     };
@@ -130,11 +131,18 @@ export function SongInkTextNote({
         data-song-ink-note-selected={selected ? '' : undefined}
         style={style}
         className={cn(
-          'absolute -translate-x-1/2 -translate-y-1/2 whitespace-pre rounded-app-sm px-1 font-sans leading-tight',
+          // Якорь заметки — её ЛЕВЫЙ край: тапом задают место, откуда текст начинается.
+          // Тот же якорь у поля ввода (`SongInkLayer`) — иначе набранное и получившееся
+          // стоят в разных местах.
+          'absolute -translate-y-1/2 whitespace-pre rounded-app-sm px-1 font-sans leading-tight',
           interactive ? 'pointer-events-auto touch-none cursor-move' : 'pointer-events-none',
           selected && 'outline-2 outline-dashed outline-offset-2 outline-app-primary'
         )}
       >
+        {/* Заметку можно таскать — но перетаскивание жест немой: без ручки его никто
+            не пробует. Ручка появляется только при активном текстовом инструменте,
+            когда заметка действительно ловит указатель. */}
+        {interactive && <DragGrip />}
         {stroke.text}
       </div>
 
@@ -145,7 +153,7 @@ export function SongInkTextNote({
           data-song-ink-ui
           data-song-ink-note-actions
           style={{ left: x, top: y - stroke.width - 12 }}
-          className="pointer-events-auto absolute z-10 flex -translate-x-1/2 -translate-y-full items-center gap-0.5 rounded-app-md border border-app-border bg-app-surface-elevated p-1 shadow-app-md"
+          className="pointer-events-auto absolute z-10 flex -translate-y-full items-center gap-0.5 rounded-app-md border border-app-border bg-app-surface-elevated p-1 shadow-app-md"
         >
           <NoteAction label="Повернуть" onClick={onToggleVertical}>
             <RotateCw size={16} />
@@ -159,6 +167,31 @@ export function SongInkTextNote({
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Пять точек у левого края заметки — общепринятый значок «меня можно двигать».
+ * Рисуем разметкой, а не иконкой: `GripVertical` из lucide даёт шесть точек в два
+ * столбца и на мелком кегле заметки читается пятном.
+ *
+ * Ручка — часть самой заметки, отдельного обработчика у неё нет: жест уже висит на
+ * корне заметки, и второй pointer-слушатель тут дал бы две конкурирующие цели.
+ *
+ * Позиционируется абсолютно ВНЕ потока заметки: в потоке она сдвигала бы текст вправо
+ * на свою ширину, и заметка переставала совпадать с полем ввода, из которого её набрали.
+ */
+function DragGrip() {
+  return (
+    <span
+      data-song-ink-note-grip
+      aria-hidden
+      className="absolute top-1/2 right-full flex -translate-y-1/2 flex-col items-center gap-[2px] pr-1 opacity-45"
+    >
+      {[0, 1, 2, 3, 4].map((dot) => (
+        <span key={dot} className="h-[2px] w-[2px] rounded-full bg-current" />
+      ))}
+    </span>
   );
 }
 

@@ -42,6 +42,28 @@ export const INK_WIDTH_RANGE: Record<SongInkTool, { min: number; max: number; de
   text: { min: 10, max: 32, default: 15 },
 };
 
+/**
+ * Именованные кегли заметки. Слайдер для текста бесполезен: важно не «17 против 18 px»,
+ * а «мелко / обычно / крупно», и на репетиции это выбирают одним тапом, не подгонкой.
+ * Значения обязаны лежать в `INK_WIDTH_RANGE.text`.
+ */
+export const INK_TEXT_SIZES: ReadonlyArray<{ value: number; label: string }> = [
+  { value: 12, label: 'Мелкий' },
+  { value: 15, label: 'Обычный' },
+  { value: 20, label: 'Крупный' },
+  { value: 26, label: 'Очень крупный' },
+];
+
+/**
+ * Ближайший именованный кегль. Нужен для заметок с произвольным размером (набранных
+ * слайдером до появления этого списка): без него `<select>` остался бы без значения.
+ */
+export function nearestTextSize(width: number): number {
+  return INK_TEXT_SIZES.reduce((best, option) =>
+    Math.abs(option.value - width) < Math.abs(best.value - width) ? option : best
+  ).value;
+}
+
 export const INK_TOOL_LABELS: Record<SongInkTool | 'eraser', string> = {
   pen: 'Перо',
   highlighter: 'Маркер',
@@ -52,6 +74,15 @@ export const INK_TOOL_LABELS: Record<SongInkTool | 'eraser', string> = {
 
 /** Инструмент, выбранный в панели: рисующие + ластик. */
 export type InkToolChoice = SongInkTool | 'eraser';
+
+/**
+ * CSS-цвет для образца в UI (кружок палитры, точка в плашке режима, превью толщины).
+ * Отдельно от `resolveInkColor`: тому нужен вычисленный цвет для canvas, а разметке
+ * достаточно `var(--app-text)` — она сама перекрасится при смене темы.
+ */
+export function inkSwatchColor(value: string): string {
+  return INK_COLORS.find((option) => option.value === value)?.swatch ?? value;
+}
 
 /**
  * Реальный цвет для canvas/DOM. `INK_COLOR_THEME` берётся из CSS-переменной темы,

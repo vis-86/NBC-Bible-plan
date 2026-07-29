@@ -237,3 +237,61 @@ describe('instant annotation', () => {
     vi.useRealTimers();
   });
 });
+
+describe('правки выделенной заметки', () => {
+  const NOTE: SongStroke = {
+    id: 'note-1',
+    tool: 'text',
+    anchor: { section: 0, line: 0 },
+    points: [[10, 5, 1]],
+    color: 'ink',
+    width: 15,
+    text: 'повтор ×2',
+  };
+
+  it('смена цвета при выделении красит саму заметку, а не только будущие пометки', () => {
+    const { result } = setup([NOTE]);
+    act(() => result.current.enter());
+    act(() => result.current.setTool('text'));
+    act(() => result.current.setSelectedId('note-1'));
+
+    act(() => result.current.setColor('#dc2626'));
+
+    expect(result.current.strokes[0].color).toBe('#dc2626');
+    // Цвет инструмента тоже меняется: следующая заметка наберётся тем же цветом.
+    expect(result.current.color).toBe('#dc2626');
+    expect(result.current.selectedStroke?.color).toBe('#dc2626');
+  });
+
+  it('смена кегля при выделении меняет размер самой заметки', () => {
+    const { result } = setup([NOTE]);
+    act(() => result.current.enter());
+    act(() => result.current.setTool('text'));
+    act(() => result.current.setSelectedId('note-1'));
+
+    act(() => result.current.setWidth(26));
+
+    expect(result.current.strokes[0].width).toBe(26);
+  });
+
+  it('без выделения цвет меняет только инструмент', () => {
+    const { result } = setup([NOTE]);
+    act(() => result.current.enter());
+    act(() => result.current.setColor('#16a34a'));
+
+    expect(result.current.strokes[0].color).toBe('ink');
+    expect(result.current.color).toBe('#16a34a');
+  });
+
+  it('правку заметки можно откатить одним undo', () => {
+    const { result } = setup([NOTE]);
+    act(() => result.current.enter());
+    act(() => result.current.setTool('text'));
+    act(() => result.current.setSelectedId('note-1'));
+    act(() => result.current.setColor('#dc2626'));
+
+    act(() => result.current.undo());
+
+    expect(result.current.strokes[0].color).toBe('ink');
+  });
+});
