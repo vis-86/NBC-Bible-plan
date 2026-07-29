@@ -295,3 +295,22 @@ describe('правки выделенной заметки', () => {
     expect(result.current.strokes[0].color).toBe('ink');
   });
 });
+
+describe('цвет пометок', () => {
+  it('стартует с переданного цвета и возвращает выбор наружу', () => {
+    // Сессия рисования живёт ровно столько, сколько открыта песня, поэтому цвет
+    // приходит из настроек просмотра и туда же возвращается — иначе он терялся бы
+    // при переходе к следующей песне сета.
+    const onColorChange = vi.fn();
+    const { result } = renderHook(() =>
+      useSongInk({ initialStrokes: EMPTY, onSave: vi.fn(), initialColor: '#dc2626', onColorChange })
+    );
+
+    expect(result.current.color).toBe('#dc2626');
+
+    act(() => result.current.setColor('#0284c7'));
+
+    expect(result.current.color).toBe('#0284c7');
+    expect(onColorChange).toHaveBeenCalledWith('#0284c7');
+  });
+});

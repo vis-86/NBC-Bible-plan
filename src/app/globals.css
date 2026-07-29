@@ -252,8 +252,12 @@ body {
   overscroll-behavior-y: none;
   overscroll-behavior-block: none;
   overscroll-behavior-x: none;
-  /* Prevent pull-to-refresh and restrict touch gestures */
-  touch-action: pan-y pinch-zoom;
+  /* Prevent pull-to-refresh and restrict touch gestures.
+     БЕЗ `pinch-zoom`: нативный зум страницы в приложении запрещён (PWA-раскладка
+     с фиксированной высотой ломается — после возврата к 1× остаётся пустая полоса
+     снизу, а в режиме пометок нативный зум накладывался на зум слоя). Единственный
+     зум в приложении — свой, внутри слоя пометок (useInkStage). */
+  touch-action: pan-y;
   /* Prevent elastic scrolling on iOS that can trigger close */
   -webkit-overflow-scrolling: touch;
   height: 100%;
@@ -279,7 +283,8 @@ main {
 .overflow-y-auto,
 .overflow-auto,
 [style*="overflow"] {
-  touch-action: pan-x pan-y pinch-zoom;
+  /* Прокрутка — да, нативный зум — нет (см. body выше). */
+  touch-action: pan-x pan-y;
   overscroll-behavior: contain;
 }
 

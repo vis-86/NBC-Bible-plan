@@ -6,6 +6,7 @@ import AuthProvider from "@/components/AuthProvider";
 import ThemeProvider from "@/components/ThemeProvider";
 import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import ChunkGuard from "@/components/ChunkGuard";
+import PageZoomGuard from "@/components/PageZoomGuard";
 import { UpdateToast } from "@/shared/components/ui/UpdateToast";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
@@ -48,6 +49,15 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // env(safe-area-inset-*) наполняются только при viewport-fit=cover.
   viewportFit: "cover",
+  // Нативный зум страницы запрещён: приложение — PWA с фиксированной высотой,
+  // после пинча и возврата к 1× layout-viewport оставался смещённым (пустая полоса
+  // снизу). Свой зум есть только в режиме пометок песни (useInkStage).
+  // Мета работает в Android Chrome и в standalone-PWA; iOS Safari её игнорирует —
+  // там гасит жест PageZoomGuard.
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
   // themeColor здесь не задаём: он динамический — цвет брови текущего экрана,
   // управляется ThemeProvider + useStatusBarColor (src/shared/utils/statusBarColor.ts).
 };
@@ -120,6 +130,7 @@ export default function RootLayout({
         className={`${inter.variable} ${literata.variable} ${geistMono.variable} antialiased font-sans`}
       >
         <ChunkGuard />
+        <PageZoomGuard />
         <ThemeProvider>
           <AuthProvider>
             {children}

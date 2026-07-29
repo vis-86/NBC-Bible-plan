@@ -44,6 +44,14 @@ export interface UseSongInkOptions {
    * а не в обработчике кнопки: instant annotation входит в режим мимо неё.
    */
   onEnter?: () => void;
+  /**
+   * Стартовый цвет — последний выбранный, из настроек просмотра. Сессия рисования живёт
+   * ровно столько, сколько открыта песня, поэтому помнить цвет она не может: хранит его
+   * `useSongViewSettings`, сюда он приходит как начальное значение.
+   */
+  initialColor?: string;
+  /** Выбор цвета уходит в настройки — там он и переживает песню и перезапуск. */
+  onColorChange?: (color: string) => void;
 }
 
 let strokeCounter = 0;
@@ -70,10 +78,17 @@ export function cloneStrokes(strokes: SongStroke[]): SongStroke[] {
   }));
 }
 
-export function useSongInk({ initialStrokes, onSave, instantAnnotation = false, onEnter }: UseSongInkOptions) {
+export function useSongInk({
+  initialStrokes,
+  onSave,
+  instantAnnotation = false,
+  onEnter,
+  initialColor = INK_COLOR_THEME,
+  onColorChange,
+}: UseSongInkOptions) {
   const [active, setActive] = useState(false);
   const [tool, setToolState] = useState<InkToolChoice>('pen');
-  const [color, setColorState] = useState<string>(INK_COLOR_THEME);
+  const [color, setColorState] = useState<string>(initialColor);
   const [widths, setWidths] = useState<Record<SongInkTool, number>>(() => ({
     pen: INK_WIDTH_RANGE.pen.default,
     highlighter: INK_WIDTH_RANGE.highlighter.default,
@@ -94,6 +109,7 @@ export function useSongInk({ initialStrokes, onSave, instantAnnotation = false, 
   const undoStackRef = useRef(undoStack);
   const onSaveRef = useRef(onSave);
   const onEnterRef = useRef(onEnter);
+  const onColorChangeRef = useRef(onColorChange);
   // Ref-зеркало актуальных значений: запись в ref во время рендера запрещена
   // (React Compiler), а обработчики жестов обязаны видеть свежее состояние.
   useEffect(() => {
@@ -103,6 +119,7 @@ export function useSongInk({ initialStrokes, onSave, instantAnnotation = false, 
     undoStackRef.current = undoStack;
     onSaveRef.current = onSave;
     onEnterRef.current = onEnter;
+    onColorChangeRef.current = onColorChange;
   });
 
   // Синхронизация с пропом — в рендер-фазе (официальный паттерн «adjusting state when
@@ -260,6 +277,7 @@ export function useSongInk({ initialStrokes, onSave, instantAnnotation = false, 
   const setColor = useCallback(
     (next: string) => {
       setColorState(next);
+      onColorChangeRef.current?.(next);
       if (selectedId) updateStroke(selectedId, { color: next });
     },
     [selectedId, updateStroke]

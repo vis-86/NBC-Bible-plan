@@ -10,9 +10,14 @@
  * | «Только стилус» | Палец                        | Перо  | Нативный скролл       |
  * | :-------------- | :--------------------------- | :---- | :-------------------- |
  * | выкл            | 1 палец рисует, 2 прокручивают и зумят | рисует | выключен            |
- * | вкл             | прокручивает и зумит штатно  | рисует | включён (`pan-y`)     |
+ * | вкл             | 1 палец прокручивает, 2 зумят | рисует | включён (`pan-x pan-y`) |
+ *
+ * Нативного зума страницы нет НИГДЕ в приложении (`touch-action` без `pinch-zoom`,
+ * viewport `maximum-scale=1`, `PageZoomGuard` для iOS): единственный зум — этот.
+ * Поэтому владение прокруткой разведено жёстко: где скроллит браузер (`penOnly`),
+ * жест отдаёт только масштаб — иначе сдвиг центра пальцев приезжает дважды.
  */
-import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import type { InkGesture } from './useInkInput';
 
 export const INK_MIN_ZOOM = 1;
@@ -24,13 +29,19 @@ export interface UseInkStageOptions {
   /** Внутренний контейнер, к которому применяется `scale`. */
   stageRef: RefObject<HTMLElement | null>;
   active: boolean;
+  /**
+   * «Только стилус»: прокруткой владеет браузер (`touch-action: pan-x pan-y`), и жест
+   * обязан отдавать ТОЛЬКО зум. Иначе сдвиг центра пальцев приезжает дважды — нативным
+   * скроллом и нашим `scrollTop -= dy` — и лист уезжает вдвое быстрее пальцев.
+   */
+  penOnly?: boolean;
 }
 
 function clampZoom(value: number): number {
   return Math.min(INK_MAX_ZOOM, Math.max(INK_MIN_ZOOM, value));
 }
 
-export function useInkStage({ viewportRef, stageRef, active }: UseInkStageOptions) {
+export function useInkStage({ viewportRef, stageRef, active, penOnly = false }: UseInkStageOptions) {
   const [zoom, setZoom] = useState(1);
   /**
    * Натуральный размер листа (до `scale`). `transform` не меняет layout-размер, поэтому
@@ -39,10 +50,24 @@ export function useInkStage({ viewportRef, stageRef, active }: UseInkStageOption
    */
   const [naturalSize, setNaturalSize] = useState<{ width: number; height: number } | null>(null);
 
+  const zoomRef = useRef(zoom);
+  useEffect(() => {
+    zoomRef.current = zoom;
+  });
+
+  /**
+   * Мерить лист можно ТОЛЬКО в масштабе 1×. Обёртка задаёт ширину `natural * zoom`,
+   * лист внутри неё — блок и растягивается на неё же; измерение под зумом скормило бы
+   * эту ширину обратно в обёртку, и та росла бы степенью масштаба на каждом кадре
+   * жеста (лист «убегал» из-под пальцев). При зуме ширина листа зафиксирована
+   * измеренной (`stageStyle`), поэтому пересчитывать её и незачем.
+   */
   const measureNatural = useCallback(() => {
     const stage = stageRef.current;
-    if (!stage) return;
-    setNaturalSize({ width: stage.offsetWidth, height: stage.offsetHeight });
+    if (!stage || zoomRef.current !== 1) return;
+    const width = stage.offsetWidth;
+    const height = stage.offsetHeight;
+    setNaturalSize((prev) => (prev && prev.width === width && prev.height === height ? prev : { width, height }));
   }, [stageRef]);
 
   useEffect(() => {
@@ -54,10 +79,14 @@ export function useInkStage({ viewportRef, stageRef, active }: UseInkStageOption
     return () => observer.disconnect();
   }, [stageRef, measureNatural]);
 
-  const zoomRef = useRef(zoom);
-  useEffect(() => {
-    zoomRef.current = zoom;
-  });
+  /**
+   * Позиция прокрутки, которую нужно выставить ПОСЛЕ того, как обёртка выросла под
+   * новый масштаб. Раньше её ставили в `requestAnimationFrame` — и она приезжала
+   * раньше, чем React коммитил новую высоту обёртки: браузер обрезал `scrollTop` по
+   * СТАРОМУ диапазону прокрутки, и строка под пальцами уезжала вниз тем сильнее,
+   * чем ближе к низу листа зумили.
+   */
+  const pendingScroll = useRef<{ left: number; top: number } | null>(null);
 
   /** Зум вокруг точки экрана: без этого лист «убегает» из-под пальцев. */
   const zoomAt = useCallback(
@@ -74,25 +103,42 @@ export function useInkStage({ viewportRef, stageRef, active }: UseInkStageOption
 
       zoomRef.current = next;
       setZoom(next);
-      // Позицию правим сразу, а не эффектом: между рендерами лист успел бы дёрнуться.
-      requestAnimationFrame(() => {
-        viewport.scrollLeft = anchorX * ratio - (clientX - box.left);
-        viewport.scrollTop = anchorY * ratio - (clientY - box.top);
-      });
+      console.debug('[FIX] ink stage zoom', { next, penOnly });
+      pendingScroll.current = {
+        left: anchorX * ratio - (clientX - box.left),
+        top: anchorY * ratio - (clientY - box.top),
+      };
     },
-    [viewportRef]
+    [viewportRef, penOnly]
   );
 
-  /** Двухпальцевый жест: центр двигает лист, изменение расстояния — масштабирует. */
+  // Прокрутка правится в layout-эффекте — в том же кадре, но уже по обновлённому DOM
+  // (обёртка выросла ⇒ диапазон прокрутки новый) и до отрисовки, поэтому лист не дёргается.
+  useLayoutEffect(() => {
+    const target = pendingScroll.current;
+    const viewport = viewportRef.current;
+    if (!target || !viewport) return;
+    pendingScroll.current = null;
+    viewport.scrollLeft = target.left;
+    viewport.scrollTop = target.top;
+  }, [zoom, naturalSize, viewportRef]);
+
+  /**
+   * Двухпальцевый жест: центр двигает лист, изменение расстояния — масштабирует.
+   * Сдвиг применяем только там, где лист заморожен: при «только стилус» его уже
+   * отработал нативный скролл (см. `penOnly` в опциях).
+   */
   const applyGesture = useCallback(
     (gesture: InkGesture) => {
       const viewport = viewportRef.current;
       if (!viewport) return;
-      viewport.scrollLeft -= gesture.dx;
-      viewport.scrollTop -= gesture.dy;
+      if (!penOnly) {
+        viewport.scrollLeft -= gesture.dx;
+        viewport.scrollTop -= gesture.dy;
+      }
       if (Math.abs(gesture.scale - 1) > 0.005) zoomAt(gesture.scale, gesture.clientX, gesture.clientY);
     },
-    [viewportRef, zoomAt]
+    [viewportRef, zoomAt, penOnly]
   );
 
   const reset = useCallback(() => {
@@ -126,13 +172,29 @@ export function useInkStage({ viewportRef, stageRef, active }: UseInkStageOption
     return () => viewport.removeEventListener('wheel', onWheel);
   }, [active, viewportRef, zoomAt]);
 
+  // Вернулись в 1× (вышли из режима, сбросили масштаб) — перемеряем: пока лист был
+  // увеличен, `measureNatural` намеренно молчал, и размер мог устареть (сменили шрифт,
+  // повернули планшет).
+  useEffect(() => {
+    if (zoom === 1) measureNatural();
+  }, [zoom, measureNatural]);
+
   /** Стиль обёртки: размер растёт вместе с масштабом, иначе край листа недостижим. */
   const wrapperStyle =
     zoom === 1 || !naturalSize
       ? undefined
       : { width: naturalSize.width * zoom, height: naturalSize.height * zoom };
 
-  const stageStyle = zoom === 1 ? undefined : { transform: `scale(${zoom})`, transformOrigin: '0 0' as const };
+  /**
+   * Стиль листа: масштаб + ЖЁСТКАЯ ширина. Без неё лист как блок растянулся бы на
+   * увеличенную обёртку — раскладка песни поехала бы прямо во время жеста (колонки
+   * шире, строки переносятся иначе), а измерение вернуло бы эту ширину обратно
+   * в обёртку. Зум обязан менять только масштаб, не раскладку.
+   */
+  const stageStyle =
+    zoom === 1 || !naturalSize
+      ? undefined
+      : { transform: `scale(${zoom})`, transformOrigin: '0 0' as const, width: naturalSize.width };
 
   return { zoom, applyGesture, reset, wrapperStyle, stageStyle };
 }

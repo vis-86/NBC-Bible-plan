@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { INK_COLORS } from '../lib/inkTools';
 
 export const SONG_VIEW_SETTINGS_STORAGE_KEY = 'songs:view-settings';
 
@@ -36,6 +37,12 @@ export interface SongViewSettings {
    * сохраняет и выходит. Убирает два тапа на каждую пометку — на репетиции их десятки.
    */
   inkInstant: boolean;
+  /**
+   * Последний выбранный цвет пометок (M10, §7). Живёт здесь, а не в `useSongInk`:
+   * состояние сессии рисования умирает вместе с песней, а цвет человек выбирает один
+   * раз и ожидает увидеть его на следующей песне и после перезапуска приложения.
+   */
+  inkColor: string;
 }
 
 export const MIN_FONT_SIZE = 12;
@@ -49,6 +56,9 @@ export const DEFAULT_SONG_VIEW_SETTINGS: SongViewSettings = {
   showHeader: true,
   inkPenOnly: false,
   inkInstant: false,
+  // Красный: пометка обязана отличаться от печатного текста листа с одного взгляда,
+  // а «цвет по теме» сливается с ним ровно в тот момент, когда пометку ищут глазами.
+  inkColor: '#dc2626',
 };
 
 const DENSITIES: readonly SongViewDensity[] = ['comfortable', 'compact'];
@@ -83,9 +93,16 @@ function sanitize(raw: Partial<SongViewSettings> | null | undefined): SongViewSe
   const inkPenOnly = typeof raw?.inkPenOnly === 'boolean' ? raw.inkPenOnly : DEFAULT_SONG_VIEW_SETTINGS.inkPenOnly;
   const inkInstant = typeof raw?.inkInstant === 'boolean' ? raw.inkInstant : DEFAULT_SONG_VIEW_SETTINGS.inkInstant;
 
+  // Цвет принимаем только из палитры: произвольная строка из чужого/битого JSON уехала
+  // бы в canvas как есть и дала бы невидимый штрих.
+  const inkColor =
+    typeof raw?.inkColor === 'string' && INK_COLORS.some((option) => option.value === raw.inkColor)
+      ? raw.inkColor
+      : DEFAULT_SONG_VIEW_SETTINGS.inkColor;
+
   // Старый JSON мог нести `mode` (до этого рефакторинга) — поле просто игнорируется:
   // `Partial<SongViewSettings>` больше не объявляет его, а sanitize строит объект заново.
-  return { columns, fontSize, density, showChords, showHeader, inkPenOnly, inkInstant };
+  return { columns, fontSize, density, showChords, showHeader, inkPenOnly, inkInstant, inkColor };
 }
 
 /** Читает legacy-ключ размера шрифта (миграция v1 → v2). Только чтение — см. `readSettings`. */

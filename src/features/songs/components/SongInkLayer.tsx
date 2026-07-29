@@ -305,8 +305,10 @@ export function SongInkLayer({
       data-song-ink-active={ink.active ? '' : undefined}
       className={cn('relative', className)}
       // touch-action: none — иначе браузер съест жест как скролл ещё до pointermove.
-      // Снимаем его при «только стилус»: там палец обязан прокручивать штатно.
-      style={{ ...style, touchAction: ink.active && !penOnly ? 'none' : undefined }}
+      // При «только стилус» палец обязан прокручивать штатно — но именно ПРОКРУЧИВАТЬ:
+      // `pan-x pan-y` (а не `auto`) оставляет нативный скролл и отбирает нативный
+      // пинч-зум, иначе он накладывался бы на зум слоя (лист и страница ехали врозь).
+      style={{ ...style, touchAction: ink.active ? (penOnly ? 'pan-x pan-y' : 'none') : undefined }}
     >
       {children}
 

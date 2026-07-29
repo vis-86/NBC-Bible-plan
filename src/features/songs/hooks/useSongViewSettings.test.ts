@@ -36,7 +36,19 @@ describe('useSongViewSettings', () => {
       showHeader: false,
       inkPenOnly: false,
       inkInstant: false,
+      inkColor: DEFAULT_SONG_VIEW_SETTINGS.inkColor,
     });
+  });
+
+  it('помнит выбранный цвет пометок, а чужое значение отбрасывает', () => {
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ inkColor: '#16a34a' }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0].inkColor).toBe('#16a34a');
+
+    // Цвет вне палитры уехал бы в canvas как есть — штрих мог оказаться невидимым.
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ inkColor: 'transparent' }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0].inkColor).toBe(
+      DEFAULT_SONG_VIEW_SETTINGS.inkColor
+    );
   });
 
   it('читает сохранённые тумблеры режима пометок', () => {

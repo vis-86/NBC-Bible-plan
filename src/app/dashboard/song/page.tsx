@@ -104,8 +104,17 @@ function SongPageContent() {
     instantAnnotation: viewSettings.inkInstant,
     // Ехать под пером бессмысленно — вход в режим (в т.ч. instant) гасит автоскролл.
     onEnter: () => autoscrollRef.current?.pause(),
+    // Цвет переживает песню и перезапуск: хранит его localStorage настроек просмотра,
+    // сессия рисования получает его стартовым и возвращает выбор обратно.
+    initialColor: viewSettings.inkColor,
+    onColorChange: (inkColor) => setViewSettings({ inkColor }),
   });
-  const stage = useInkStage({ viewportRef: contentRef, stageRef, active: ink.active });
+  const stage = useInkStage({
+    viewportRef: contentRef,
+    stageRef,
+    active: ink.active,
+    penOnly: viewSettings.inkPenOnly,
+  });
 
 
   // Переход к соседней песне сета: сброс scrollTop (компонент не размонтируется —
@@ -278,7 +287,10 @@ function SongPageContent() {
               ink.active && !viewSettings.inkPenOnly ? 'overflow-hidden' : 'overflow-y-auto',
               mode === 'scroll' ? 'px-4 py-4' : 'py-2'
             )}
-            style={ink.active && viewSettings.inkPenOnly ? { touchAction: 'pan-y' } : undefined}
+            // pan-x тоже нужен: на увеличенном листе правый край иначе недостижим.
+            // Нативного зума нет ни здесь, ни глобально (см. globals.css) — зум
+            // страницы песни живёт только в useInkStage.
+            style={ink.active && viewSettings.inkPenOnly ? { touchAction: 'pan-x pan-y' } : undefined}
           >
             {!id ? (
               <ErrorMessage title="Песня не найдена" message="Не указан идентификатор песни." onRetry={handleBack} retryLabel="К списку" />
