@@ -49,7 +49,6 @@ function SongPageContent() {
 
   const { song, loading, error } = useSong(id);
   const contentRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
   const { hidden, ignoreNextScroll } = useAutoHideOnScroll(contentRef, song?.id);
   const [viewSettings, setViewSettings] = useSongViewSettings();
   const [isViewSettingsOpen, setIsViewSettingsOpen] = useState(false);
@@ -109,9 +108,15 @@ function SongPageContent() {
     initialColor: viewSettings.inkColor,
     onColorChange: (inkColor) => setViewSettings({ inkColor }),
   });
-  const stage = useInkStage({
+  const {
+    setStage,
+    zoom: stageZoom,
+    reset: resetStageZoom,
+    wrapperStyle: stageWrapperStyle,
+    stageStyle,
+    applyGesture: applyInkGesture,
+  } = useInkStage({
     viewportRef: contentRef,
-    stageRef,
     active: ink.active,
     penOnly: viewSettings.inkPenOnly,
   });
@@ -263,8 +268,8 @@ function SongPageContent() {
                   tool={ink.tool}
                   color={ink.selectedStroke?.color ?? ink.color}
                   dirty={ink.dirty}
-                  zoom={stage.zoom}
-                  onResetZoom={stage.reset}
+                  zoom={stageZoom}
+                  onResetZoom={resetStageZoom}
                   onDone={() => ink.exit(true)}
                   onCancel={() => ink.exit(false)}
                 />
@@ -308,8 +313,8 @@ function SongPageContent() {
               // Обёртка несёт РАЗМЕР под масштаб: `transform: scale()` не меняет
               // layout-размер, и без этого правый с нижним краем увеличенного листа
               // недостижимы — диапазон прокрутки не растёт.
-              <div data-song-page-stage-size style={stage.wrapperStyle}>
-              <div ref={stageRef} data-song-page-stage style={stage.stageStyle}>
+              <div data-song-page-stage-size style={stageWrapperStyle}>
+              <div ref={setStage} data-song-page-stage style={stageStyle}>
               <SongView
                 // title не прокидываем: он уже показан в PageHeader сверху (без дубля).
                 content={song.content}
@@ -332,7 +337,7 @@ function SongPageContent() {
                 ink={ink}
                 inkPenOnly={viewSettings.inkPenOnly}
                 inkInstant={viewSettings.inkInstant}
-                onInkGesture={stage.applyGesture}
+                onInkGesture={applyInkGesture}
               />
               </div>
               </div>

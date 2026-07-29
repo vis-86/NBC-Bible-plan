@@ -26,8 +26,6 @@ export const INK_MAX_ZOOM = 4;
 export interface UseInkStageOptions {
   /** Скролл-контейнер страницы песни. */
   viewportRef: RefObject<HTMLElement | null>;
-  /** Внутренний контейнер, к которому применяется `scale`. */
-  stageRef: RefObject<HTMLElement | null>;
   active: boolean;
   /**
    * «Только стилус»: прокруткой владеет браузер (`touch-action: pan-x pan-y`), и жест
@@ -41,8 +39,18 @@ function clampZoom(value: number): number {
   return Math.min(INK_MAX_ZOOM, Math.max(INK_MIN_ZOOM, value));
 }
 
-export function useInkStage({ viewportRef, stageRef, active, penOnly = false }: UseInkStageOptions) {
+export function useInkStage({ viewportRef, active, penOnly = false }: UseInkStageOptions) {
   const [zoom, setZoom] = useState(1);
+  /**
+   * Лист держим СОСТОЯНИЕМ, а не ref'ом: лист появляется в DOM только после загрузки
+   * песни, а эффект измерения отрабатывает на маунте страницы — на скелетоне. Ref в
+   * зависимостях эффекта не меняется, повторно эффект не запускался, `naturalSize`
+   * оставался `null` НАВСЕГДА. Итог: `stageStyle` не применялся (зума не видно), но
+   * анкер-правка прокрутки считалась по новому масштабу — лист прыгал от щипка
+   * в разы быстрее пальцев. Callback-ref перезапускает измерение ровно тогда,
+   * когда узел появился.
+   */
+  const stageElRef = useRef<HTMLElement | null>(null);
   /**
    * Натуральный размер листа (до `scale`). `transform` не меняет layout-размер, поэтому
    * без явных width/height на обёртке диапазон прокрутки не растёт и правый с нижним
@@ -63,21 +71,35 @@ export function useInkStage({ viewportRef, stageRef, active, penOnly = false }: 
    * измеренной (`stageStyle`), поэтому пересчитывать её и незачем.
    */
   const measureNatural = useCallback(() => {
-    const stage = stageRef.current;
+    const stage = stageElRef.current;
     if (!stage || zoomRef.current !== 1) return;
     const width = stage.offsetWidth;
     const height = stage.offsetHeight;
     setNaturalSize((prev) => (prev && prev.width === width && prev.height === height ? prev : { width, height }));
-  }, [stageRef]);
+  }, []);
 
-  useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    measureNatural();
-    const observer = new ResizeObserver(() => measureNatural());
-    observer.observe(stage);
-    return () => observer.disconnect();
-  }, [stageRef, measureNatural]);
+  /**
+   * Измерение подключается КОЛБЭК-РЕФОМ, а не эффектом по `stageRef`: лист появляется
+   * в DOM только после загрузки песни, а эффект отрабатывал на маунте страницы —
+   * на скелетоне. Ref в зависимостях не меняется, эффект больше не запускался, и
+   * `naturalSize` оставался `null` НАВСЕГДА: `stageStyle` не применялся (зума не
+   * видно), но анкер-правка прокрутки считалась по новому масштабу — от щипка лист
+   * швыряло в разы быстрее пальцев. Колбэк-реф срабатывает ровно когда узел появился.
+   */
+  const setStage = useCallback(
+    (node: HTMLElement | null) => {
+      stageElRef.current = node;
+      if (!node) return;
+      measureNatural();
+      const observer = new ResizeObserver(() => measureNatural());
+      observer.observe(node);
+      return () => {
+        observer.disconnect();
+        stageElRef.current = null;
+      };
+    },
+    [measureNatural]
+  );
 
   /**
    * Позиция прокрутки, которую нужно выставить ПОСЛЕ того, как обёртка выросла под
@@ -88,6 +110,16 @@ export function useInkStage({ viewportRef, stageRef, active, penOnly = false }: 
    */
   const pendingScroll = useRef<{ left: number; top: number } | null>(null);
 
+  /**
+   * Позиция прокрутки, от которой считает следующий кадр жеста. Пока правка зума
+   * ждёт коммита, в DOM лежит СТАРАЯ позиция: считая от неё, второй кадр щипка
+   * затирал бы анкер первого — масштаб «скакал», а лист уезжал.
+   */
+  const scrollBase = useCallback(
+    (viewport: HTMLElement) => pendingScroll.current ?? { left: viewport.scrollLeft, top: viewport.scrollTop },
+    []
+  );
+
   /** Зум вокруг точки экрана: без этого лист «убегает» из-под пальцев. */
   const zoomAt = useCallback(
     (factor: number, clientX: number, clientY: number) => {
@@ -97,19 +129,22 @@ export function useInkStage({ viewportRef, stageRef, active, penOnly = false }: 
       if (next === zoomRef.current) return;
 
       const box = viewport.getBoundingClientRect();
-      const anchorX = viewport.scrollLeft + (clientX - box.left);
-      const anchorY = viewport.scrollTop + (clientY - box.top);
+      const base = scrollBase(viewport);
+      const anchorX = base.left + (clientX - box.left);
+      const anchorY = base.top + (clientY - box.top);
       const ratio = next / zoomRef.current;
 
       zoomRef.current = next;
       setZoom(next);
-      console.debug('[FIX] ink stage zoom', { next, penOnly });
+      if (process.env.NODE_ENV !== 'production') {
+        console.debug('[FIX] ink stage zoom', { next, penOnly, hasNaturalSize: naturalSize !== null });
+      }
       pendingScroll.current = {
         left: anchorX * ratio - (clientX - box.left),
         top: anchorY * ratio - (clientY - box.top),
       };
     },
-    [viewportRef, penOnly]
+    [viewportRef, penOnly, scrollBase, naturalSize]
   );
 
   // Прокрутка правится в layout-эффекте — в том же кадре, но уже по обновлённому DOM
@@ -117,11 +152,13 @@ export function useInkStage({ viewportRef, stageRef, active, penOnly = false }: 
   useLayoutEffect(() => {
     const target = pendingScroll.current;
     const viewport = viewportRef.current;
-    if (!target || !viewport) return;
     pendingScroll.current = null;
+    // Вышли из режима — масштаб сброшен в 1×, и правка от последнего щипка стала
+    // мусором: применённая к листу 1× она швырнула бы его в случайное место.
+    if (!target || !viewport || !active) return;
     viewport.scrollLeft = target.left;
     viewport.scrollTop = target.top;
-  }, [zoom, naturalSize, viewportRef]);
+  }, [zoom, naturalSize, viewportRef, active]);
 
   /**
    * Двухпальцевый жест: центр двигает лист, изменение расстояния — масштабирует.
@@ -133,16 +170,24 @@ export function useInkStage({ viewportRef, stageRef, active, penOnly = false }: 
       const viewport = viewportRef.current;
       if (!viewport) return;
       if (!penOnly) {
-        viewport.scrollLeft -= gesture.dx;
-        viewport.scrollTop -= gesture.dy;
+        const base = scrollBase(viewport);
+        const next = { left: base.left - gesture.dx, top: base.top - gesture.dy };
+        // Пока правка зума ждёт коммита, писать в DOM нельзя: layout-эффект всё равно
+        // выставит `pendingScroll`, и сдвиг пальцев потерялся бы.
+        if (pendingScroll.current) pendingScroll.current = next;
+        else {
+          viewport.scrollLeft = next.left;
+          viewport.scrollTop = next.top;
+        }
       }
       if (Math.abs(gesture.scale - 1) > 0.005) zoomAt(gesture.scale, gesture.clientX, gesture.clientY);
     },
-    [viewportRef, zoomAt, penOnly]
+    [viewportRef, zoomAt, penOnly, scrollBase]
   );
 
   const reset = useCallback(() => {
     zoomRef.current = 1;
+    pendingScroll.current = null;
     setZoom(1);
   }, []);
 
@@ -175,8 +220,12 @@ export function useInkStage({ viewportRef, stageRef, active, penOnly = false }: 
   // Вернулись в 1× (вышли из режима, сбросили масштаб) — перемеряем: пока лист был
   // увеличен, `measureNatural` намеренно молчал, и размер мог устареть (сменили шрифт,
   // повернули планшет).
+  // Кадром позже: к этому моменту браузер уже разложил лист без `transform`-ширины,
+  // а синхронный setState прямо в эффекте дал бы каскадный ререндер.
   useEffect(() => {
-    if (zoom === 1) measureNatural();
+    if (zoom !== 1) return;
+    const frame = requestAnimationFrame(() => measureNatural());
+    return () => cancelAnimationFrame(frame);
   }, [zoom, measureNatural]);
 
   /** Стиль обёртки: размер растёт вместе с масштабом, иначе край листа недостижим. */
@@ -196,5 +245,5 @@ export function useInkStage({ viewportRef, stageRef, active, penOnly = false }: 
       ? undefined
       : { transform: `scale(${zoom})`, transformOrigin: '0 0' as const, width: naturalSize.width };
 
-  return { zoom, applyGesture, reset, wrapperStyle, stageStyle };
+  return { zoom, setStage, applyGesture, reset, wrapperStyle, stageStyle };
 }
