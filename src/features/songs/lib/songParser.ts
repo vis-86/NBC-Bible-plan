@@ -9,13 +9,14 @@ import {
   isStartOfChorus,
   parseDirective,
 } from './chordProUtils';
+import { classifySection, type SongSectionKind } from './songSectionKind';
 
 export interface SongBlock {
   comment: string;
   content: string;
   commentType?: 'normal' | 'italic' | 'box';
-  isChorus?: boolean;
-  isRepeated?: boolean;
+  /** Вид секции, выведенный из метки `{comment:}` (§3.6). */
+  kind: SongSectionKind;
 }
 
 /**
@@ -43,6 +44,7 @@ export const parseSongBlocks = (content: string): SongBlock[] => {
               comment: currentComment,
               content: currentContent.trim(),
               commentType: currentCommentType,
+              kind: classifySection(currentComment),
             });
           }
           currentContent = '';
@@ -74,6 +76,7 @@ export const parseSongBlocks = (content: string): SongBlock[] => {
           comment: currentComment,
           content: currentContent.trim(),
           commentType: currentCommentType,
+          kind: classifySection(currentComment),
         });
       }
       currentContent = '';
@@ -95,6 +98,7 @@ export const parseSongBlocks = (content: string): SongBlock[] => {
       comment: currentComment,
       content: currentContent.trim(),
       commentType: currentCommentType,
+      kind: classifySection(currentComment),
     });
   }
 

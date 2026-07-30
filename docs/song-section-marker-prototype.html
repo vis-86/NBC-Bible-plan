@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Прототип: маркировка припевов и мостов · ChordPro</title>
+<style>
+  :root {
+    --paper: #f6f7f9;
+    --surface: #ffffff;
+    --ink: #151a21;
+    --ink-soft: #5b6472;
+    --ink-muted: #8b94a3;
+    --line: #dfe3ea;
+    /* Прокси токенов приложения: primary = красный, accent = янтарный */
+    --primary: #b3261e;
+    --primary-soft: #fbeceb;
+    --accent: #a8620a;
+    --accent-soft: #fdf2e3;
+
+    --font-ui: ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-serif: Georgia, "Times New Roman", serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --lyric-size: 17px;
+    --rail-w: 4px;
+    --rail-gap: 12px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #12151a; --surface: #191d24; --ink: #e7eaf0; --ink-soft: #949dad;
+      --ink-muted: #757e8d; --line: #2b313b;
+      --primary: #ff8a80; --primary-soft: #2a1d1c;
+      --accent: #e8b168; --accent-soft: #2a2318;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #12151a; --surface: #191d24; --ink: #e7eaf0; --ink-soft: #949dad;
+    --ink-muted: #757e8d; --line: #2b313b;
+    --primary: #ff8a80; --primary-soft: #2a1d1c;
+    --accent: #e8b168; --accent-soft: #2a2318;
+  }
+  :root[data-theme="light"] {
+    --paper: #f6f7f9; --surface: #ffffff; --ink: #151a21; --ink-soft: #5b6472;
+    --ink-muted: #8b94a3; --line: #dfe3ea;
+    --primary: #b3261e; --primary-soft: #fbeceb;
+    --accent: #a8620a; --accent-soft: #fdf2e3;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 20px 16px 64px;
+    background: var(--paper); color: var(--ink);
+    font-family: var(--font-ui); -webkit-text-size-adjust: 100%;
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .lede { color: var(--ink-soft); font-size: 14px; margin: 0 0 20px; max-width: 62ch; line-height: 1.5; }
+
+  /* ── Панель управления ───────────────────────────────────────── */
+  .bar {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    padding: 10px 12px; margin: 0 -16px 20px; border-bottom: 1px solid var(--line);
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(8px);
+  }
+  .bar b { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-muted); margin-right: 2px; }
+  button {
+    font: inherit; font-size: 13px; padding: 6px 11px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer;
+  }
+  button[aria-pressed="true"] { border-color: var(--primary); color: var(--primary); font-weight: 600; }
+
+  /* ── Сетка вариантов ─────────────────────────────────────────── */
+  .variants { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); align-items: start; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .card > header { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .card h2 { margin: 0; font-size: 14px; }
+  .card p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-soft); }
+  .card .verdict { margin-top: 6px; font-size: 12px; color: var(--ink-muted); }
+  .sheet { padding: 14px 16px 18px; }
+
+  /* ── Базовый рендер песни (упрощённая копия songs.css) ───────── */
+  .song { font-family: var(--font-serif); font-size: var(--lyric-size); color: var(--ink); }
+  .song[data-cols="2"] .flow { columns: 2; column-gap: 1.6rem; }
+  .sect { display: block; break-inside: avoid; margin-bottom: 1rem; position: relative; }
+  .sect:last-child { margin-bottom: 0; }
+  .label {
+    display: block; font-family: var(--font-ui); font-size: .72em; line-height: 1.9;
+    text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft);
+  }
+  .ln { display: block; line-height: 1.55; padding-top: .2em; white-space: pre-wrap; }
+  .w { display: inline-block; position: relative; vertical-align: bottom; }
+  .ch { display: block; font-family: var(--font-mono); font-size: .78em; font-weight: 700; line-height: 1.15; color: var(--primary); white-space: nowrap; }
+  .bar-tok { color: var(--ink-muted); font-weight: 400; }
+  .note { font-style: italic; color: var(--ink-soft); }
+
+  /* ══════════════════════════════════════════════════════════════
+     Вариант A — рельс только у припева (предложение Игоря)
+     ══════════════════════════════════════════════════════════════ */
+  .vA .sect[data-kind="chorus"] { padding-left: calc(var(--rail-w) + var(--rail-gap)); }
+  .vA .sect[data-kind="chorus"]::before {
+    content: ""; position: absolute; left: 0; top: .15em; bottom: .1em;
+    width: var(--rail-w); border-radius: 999px; background: var(--primary);
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     Вариант B — рельс с типизацией: припев / мост / предприпев
+     ══════════════════════════════════════════════════════════════ */
+  .vB .sect[data-rail]  { padding-left: calc(var(--rail-w) + var(--rail-gap)); }
+  .vB .sect[data-rail]::before {
+    content: ""; position: absolute; left: 0; top: .15em; bottom: .1em;
+    width: var(--rail-w); border-radius: 999px; background: var(--primary);
+  }
+  .vB .sect[data-kind="bridge"]::before { background: var(--accent); }
+  .vB .sect[data-kind="prechorus"]::before {
+    background: repeating-linear-gradient(var(--primary) 0 5px, transparent 5px 10px);
+  }
+  .vB .sect[data-kind="chorus"] > .label { color: var(--primary); font-weight: 600; }
+  .vB .sect[data-kind="bridge"] > .label { color: var(--accent); font-weight: 600; }
+
+  /* ══════════════════════════════════════════════════════════════
+     Вариант C — рельс + фоновая подложка припева
+     ══════════════════════════════════════════════════════════════ */
+  .vC .sect[data-rail] {
+    padding: .1em .6em .35em calc(var(--rail-w) + var(--rail-gap));
+    border-radius: 0 8px 8px 0; position: relative;
+  }
+  .vC .sect[data-kind="chorus"] { background: var(--primary-soft); }
+  .vC .sect[data-kind="bridge"] { background: var(--accent-soft); }
+  .vC .sect[data-rail]::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0;
+    width: var(--rail-w); border-radius: 999px; background: var(--primary);
+  }
+  .vC .sect[data-kind="bridge"]::before { background: var(--accent); }
+
+  /* ══════════════════════════════════════════════════════════════
+     Вариант D — без рельса: только типографика метки (контроль)
+     ══════════════════════════════════════════════════════════════ */
+  .vD .sect[data-kind="chorus"] > .label,
+  .vD .sect[data-kind="bridge"] > .label {
+    color: var(--ink); font-weight: 700; letter-spacing: .1em;
+  }
+  .vD .sect[data-kind="chorus"] > .label::after,
+  .vD .sect[data-kind="bridge"] > .label::after {
+    content: ""; display: inline-block; width: 2.2em; height: 1px; margin-left: .6em;
+    vertical-align: .35em; background: var(--line);
+  }
+
+  footer { margin-top: 28px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.6; max-width: 78ch; }
+  footer h3 { font-size: 13px; color: var(--ink); margin: 18px 0 6px; }
+  footer li { margin-bottom: 4px; }
+  code { font-family: var(--font-mono); font-size: .92em; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; }
+</style>
+</head>
+<body>
+
+<h1>Маркировка припевов и мостов — 4 варианта</h1>
+<p class="lede">
+  Один и тот же лист песни «Кто моря все (Вот наш Бог)» — реальный файл из корпуса.
+  Классификация секции выводится из текста метки <code>{comment:}</code>: директив
+  <code>{soc}</code>/<code>{eoc}</code> в корпусе нет. Переключайте тему, размер и колонки —
+  рельс обязан выживать во всех режимах листа.
+</p>
+
+<div class="bar">
+  <b>Тема</b>
+  <button data-theme-set="light" aria-pressed="true">Светлая</button>
+  <button data-theme-set="dark" aria-pressed="false">Тёмная</button>
+  <b style="margin-left:10px">Шрифт</b>
+  <button data-size="15" aria-pressed="false">15</button>
+  <button data-size="17" aria-pressed="true">17</button>
+  <button data-size="22" aria-pressed="false">22</button>
+  <b style="margin-left:10px">Колонки</b>
+  <button data-cols="1" aria-pressed="true">1</button>
+  <button data-cols="2" aria-pressed="false">2 (листы)</button>
+</div>
+
+<div class="variants" id="variants"></div>
+
+<footer>
+  <h3>Что показал ресерч</h3>
+  <ul>
+    <li><b>ChordPro (референсный рендерер)</b> — левая вертикальная полоса у припева
+      встроена в формат: <code>pdf.chorus.bar { offset, width, color }</code>, плюс
+      <code>chorus.indent</code>. То есть предложение «линия слева» — не самоделка,
+      а поведение по умолчанию в самом стандарте.</li>
+    <li><b>OnSong</b> — цветная полоса слева маркирует секцию в режиме исполнения;
+      метки секций («Chorus», «Verse») — отдельный переключаемый слой стиля.</li>
+    <li><b>Печатные сборники (hymnals)</b> — припев/refrain традиционно отбивается
+      отступом и курсивной меткой, без цвета: важна работа в ч/б печати.</li>
+    <li><b>Доступность (WCAG 1.4.1)</b> — цвет не может быть единственным носителем
+      смысла. Здесь это выполнено бесплатно: метка секции («ПРИПЕВ», «БРИДЖ») уже
+      написана словами, рельс — избыточная подсказка для периферийного зрения.</li>
+  </ul>
+
+  <h3>Ключевой вывод для нашего листа</h3>
+  <p>
+    Рельс работает именно потому, что музыкант ищет припев <i>периферийным зрением</i>,
+    не читая метки: на листе с 3 куплетами и 4 повторами припева глаз цепляется за
+    вертикаль, а не за текст. Отступ на 16px — а не только цвет — это второй,
+    ахроматический канал: припев физически смещён от куплетов.
+  </p>
+</footer>
+
+<script>
+// ── Реальный файл корпуса (data/songs/23-кто-моря-все-вот-наш-бог.chordpro) ──
+const SONG = String.raw`{title: Кто моря все (Вот наш Бог)}
+{subtitle: Sovereign Grace (Behold our God)}
+{key: C}
+{tempo: 76}
+
+{comment: Вступление}
+[C][|][Em][|][C][|][Em]
+
+{comment: Куплет 1}
+Кт[C]о моря все г[Em]орстью исчерпал?
+Кт[C]о песок земл[Em]и пересчитал?
+Кт[C]о один над вс[Em]ем имеет власть?
+Кт[C]о творению р[Em]адость может д[G]ать?
+
+{comment: Предприпев}
+И вс[F]ё, что дышит, — [G]Ему хвала
+
+{comment: Припев}
+В[C]от н[G/B]аш Б[Am]ог,
+Трон Его выс[F]ок,
+Будем поклон[C]ятьс[G]я!
+
+В[C]от н[G/B]аш Ц[Am]арь,
+Не сравним ни с к[F]ем,
+Будем поклон[C]я[G]ться!
+
+{comment: Проигрыш}
+[(][C][)][|][Em][|][C][|][Em]
+
+{comment: Куплет 2}
+Кт[C]о даёт нар[Em]одам Свой устав?
+Кт[C]о единый пр[Em]ав во всех делах?
+Кт[C]о решает, чт[Em]о произойдёт?
+Кт[C]о один всё зн[Em]ает напер[G]ёд?
+
+{comment: Припев}
+В[C]от н[G/B]аш Б[Am]ог,
+Трон Его выс[F]ок,
+Будем поклон[C]ятьс[G]я!
+
+{comment: Бридж}
+Ц[C]арствуешь вов[F]еки!
+[(тише)] (Будь прославлен на земле!)
+Ц[C]арствуешь вов[F]еки!
+(Будь прославлен на земле!)
+
+{comment: Припев - 2x}
+В[C]от н[G/B]аш Ц[Am]арь,
+Не сравним ни с к[F]ем,
+Будем поклон[C]я[G]ться!
+
+{comment: Завершение}
+[D][|][A]`;
+
+// ══════════════════════════════════════════════════════════════════
+// Классификатор секции по тексту метки {comment:}.
+// Порядок проверок значим: «Предприпев» содержит «припев».
+// `\b` НЕ применим: кириллица не входит в \w, и `/припев\b/` не матчит «припев»
+// в конце строки. Отсекаем продолжение слова явным (?![а-яё]) — так «Припева нет»
+// не станет припевом, а «Припев - 2x» станет.
+// ══════════════════════════════════════════════════════════════════
+const RULES = [
+  ['prechorus',    /^(пред-?\s?припев|пре-?припев|выход на припев|pre-?chorus)(?![а-яё])/],
+  ['chorus',       /^(припев|chorus|refrain)(?![а-яё])/],
+  ['bridge',       /^(бридж|мост|bridge)(?![а-яё])/],
+  ['verse',        /^(куплет|verse)(?![а-яё])/],
+  ['instrumental', /^(вступление|проигрыш(ь)?|интро|intro|инструмент|instrum|модуляц|modulation)/],
+  ['ending',       /^(завершение|концовка|кода|coda|end|tag|outro)(?![а-яё])/],
+];
+function classify(label) {
+  const s = (label || '').trim().toLowerCase();
+  for (const [kind, re] of RULES) if (re.test(s)) return kind;
+  return 'other';
+}
+// Рельс получают только смысловые «острова», от которых глаз отталкивается.
+const RAILED = new Set(['chorus', 'bridge', 'prechorus']);
+
+// ── Парсер: секция = блок строк от одного {comment:} до следующего ──
+function parseSections(src) {
+  const out = [];
+  let cur = null;
+  for (const raw of src.split('\n')) {
+    const line = raw.trim();
+    const m = line.match(/^\{\s*comment(?:_italic|_box)?\s*:\s*(.+?)\s*\}$/i);
+    if (m) { cur = { label: m[1], lines: [] }; out.push(cur); continue; }
+    if (/^\{[^}]*\}$/.test(line)) continue;   // метаданные
+    if (!line) continue;
+    if (!cur) { cur = { label: '', lines: [] }; out.push(cur); }
+    cur.lines.push(raw);
+  }
+  return out.filter(s => s.lines.length || s.label);
+}
+
+// ── Рендер строки: токен + прилипший к нему текст ──
+function renderLine(line) {
+  const parts = line.split(/(\[[^\]]*\])/g).filter(p => p !== '');
+  let html = '';
+  for (let i = 0; i < parts.length; i++) {
+    const p = parts[i];
+    if (!(p.startsWith('[') && p.endsWith(']'))) { html += esc(p); continue; }
+    const tok = p.slice(1, -1);
+    const next = parts[i + 1];
+    const lyric = next && !next.startsWith('[') ? (i++, next) : '';
+    if (tok === '|')            html += `<span class="w"><span class="ch bar-tok">|</span>${esc(lyric)}</span>`;
+    else if (/^\(.*\)$/.test(tok) && tok.length > 2)
+                                html += `<span class="note">${esc(tok)}</span>${esc(lyric)}`;
+    else                        html += `<span class="w"><span class="ch">${esc(tok)}</span>${esc(lyric)}</span>`;
+  }
+  return html || '&nbsp;';
+}
+const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+function renderSong(sections) {
+  return sections.map(s => {
+    const kind = classify(s.label);
+    const rail = RAILED.has(kind) ? ' data-rail' : '';
+    return `<span class="sect" data-kind="${kind}"${rail}>`
+      + (s.label ? `<span class="label">${esc(s.label)}</span>` : '')
+      + s.lines.map(l => `<span class="ln">${renderLine(l)}</span>`).join('')
+      + `</span>`;
+  }).join('');
+}
+
+// ── Сборка карточек вариантов ──
+const VARIANTS = [
+  { cls: 'vA', title: 'A · Рельс только у припева',
+    desc: 'Предложение из задачи: 4px закруглённая линия слева + отступ 16px. Куплеты, проигрыши и концовка — без изменений.',
+    verdict: 'Минимум кода и шума. Мост при этом не отличим от куплета.' },
+  { cls: 'vB', title: 'B · Типизированный рельс',
+    desc: 'Припев — сплошной primary, бридж — янтарный, предприпев — пунктирный. Метка припева/бриджа окрашена в цвет рельса.',
+    verdict: 'Решает задачу целиком (припевы И мосты). Три сущности на листе — предел до пестроты.' },
+  { cls: 'vC', title: 'C · Рельс + подложка',
+    desc: 'То же плюс лёгкий фон блока. Самый «громкий» вариант.',
+    verdict: 'Хорошо видно с 1.5 м, но фон конфликтует с рукописными пометками и печатью.' },
+  { cls: 'vD', title: 'D · Только метка (контроль)',
+    desc: 'Без рельса: жирная разрядка метки и линия-выноска. Базовая линия для сравнения.',
+    verdict: 'Ахроматично и печатается идеально, но глаз не цепляет — читать метки приходится.' },
+];
+
+const html = renderSong(parseSections(SONG));
+document.getElementById('variants').innerHTML = VARIANTS.map(v => `
+  <section class="card">
+    <header>
+      <h2>${v.title}</h2>
+      <p>${v.desc}</p>
+      <p class="verdict">→ ${v.verdict}</p>
+    </header>
+    <div class="sheet">
+      <div class="song ${v.cls}" data-cols="1"><div class="flow">${html}</div></div>
+    </div>
+  </section>`).join('');
+
+// ── Контролы ──
+function group(attr, apply) {
+  document.querySelectorAll(`[${attr}]`).forEach(btn => btn.addEventListener('click', () => {
+    document.querySelectorAll(`[${attr}]`).forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+    apply(btn.getAttribute(attr));
+  }));
+}
+group('data-theme-set', v => document.documentElement.setAttribute('data-theme', v));
+group('data-size', v => document.documentElement.style.setProperty('--lyric-size', v + 'px'));
+group('data-cols', v => document.querySelectorAll('.song').forEach(el => el.setAttribute('data-cols', v)));
+</script>
+</body>
+</html>

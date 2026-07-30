@@ -3,10 +3,13 @@
 import type React from 'react';
 import './songs.css';
 import { LineRenderer } from './LineRenderer';
+import { SONG_SECTION_KIND_ATTR, type SongSectionKind } from '../../lib/songSectionKind';
 
 export interface HtmlSection {
   comment?: string;
   commentType?: 'normal' | 'italic' | 'box';
+  /** Вид секции (§3.6) — по нему CSS рисует левый рельс припева/бриджа/предприпева. */
+  kind: SongSectionKind;
   lines: string[];
 }
 
@@ -28,7 +31,7 @@ const CommentRenderer: React.FC<{ comment: string; commentType?: 'normal' | 'ita
  */
 const SectionRenderer: React.FC<{ section: HtmlSection; sectionIndex: number }> = ({ section, sectionIndex }) => {
   return (
-    <span className="cproSongSection">
+    <span className="cproSongSection" {...{ [SONG_SECTION_KIND_ATTR]: section.kind }}>
       {section.comment && <CommentRenderer comment={section.comment} commentType={section.commentType} />}
       {section.lines.map((line, idx) => (
         // Якорь пометок — пара (индекс секции, индекс строки внутри секции), §6.

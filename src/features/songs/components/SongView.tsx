@@ -5,6 +5,7 @@ import { useMemo, useRef, type RefObject } from 'react';
 import { cn } from '@/shared/utils/cn';
 import { parseSongBlocks } from '../lib/songParser';
 import { transposeLine } from '../lib/transpose';
+import { MARKED_SECTION_KINDS } from '../lib/songSectionKind';
 import { useSheets } from '../hooks/useSheets';
 import { PAGE_PADDING, SHEET_PADDING_TOP } from '../lib/sheets';
 import ChordProHtmlColumn, { type HtmlSection } from './render/ChordProHtmlColumn';
@@ -98,6 +99,7 @@ export const SongView: React.FC<SongViewProps> = ({
         return {
           comment: block.comment || undefined,
           commentType: block.commentType || undefined,
+          kind: block.kind,
           // При нулевом сдвиге строки идут как есть — без копирования и без работы.
           lines: semitones === 0 ? lines : lines.map((line) => transposeLine(line, semitones, songKey ?? '')),
         };
@@ -106,8 +108,10 @@ export const SongView: React.FC<SongViewProps> = ({
   );
 
   if (process.env.NODE_ENV !== 'production') {
-    // Standard logging: сколько секций распарсили (диагностика пустых/битых песен).
-    console.debug(`[SongView] parsed ${sections.length} section(s)`, { title });
+    // Standard logging: сколько секций распарсили (диагностика пустых/битых песен) и
+    // сколько из них с подложкой — «marked: 0» на песне с припевом сразу видно в консоли.
+    const marked = sections.filter((section) => MARKED_SECTION_KINDS.has(section.kind)).length;
+    console.debug(`[SongView] parsed ${sections.length} section(s), ${marked} marked`, { title });
   }
 
   const sourceRef = useRef<HTMLDivElement>(null);

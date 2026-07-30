@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import { render } from '@testing-library/react';
 import { SongView } from './SongView';
+import { SONG_SECTION_KIND_ATTR } from '../lib/songSectionKind';
 
 const CONTENT = '{comment: Куплет 1}\n[Am]Хор поёт [F]тут\n\n{comment: Припев}\n[C]Второй [G]блок';
 
@@ -103,5 +104,16 @@ describe('SongView', () => {
     expect(container.querySelector('[data-song-view-measure]')?.getAttribute('aria-hidden')).toBe('true');
     expect(container.querySelectorAll('[data-song-view-sheet]').length).toBeGreaterThanOrEqual(1);
     expect(container.querySelector('[data-song-view-sheet-number]')?.textContent).toBe('1 / 1');
+  });
+
+  it('вид секции есть и в источнике-линейке, и в клонах листов', () => {
+    const { container } = render(<SongView content={CONTENT} fontSize={12} mode="sheets" />);
+    const sheetCount = container.querySelectorAll('[data-song-view-sheet]').length;
+    expect(sheetCount).toBeGreaterThanOrEqual(1);
+
+    // Источник + по копии на лист: рельс не должен теряться на второй странице.
+    const expected = sheetCount + 1;
+    expect(container.querySelectorAll(`[${SONG_SECTION_KIND_ATTR}="chorus"]`).length).toBe(expected);
+    expect(container.querySelectorAll(`[${SONG_SECTION_KIND_ATTR}="verse"]`).length).toBe(expected);
   });
 });

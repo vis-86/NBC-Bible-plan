@@ -47,6 +47,23 @@ describe('toAnchored / toAbsolute', () => {
     expect(toAbsolute(stroke([anchored]), moved)).toEqual([[55, 268, 1]]);
   });
 
+  // §3.6: маркировка секций текст НЕ сдвигает (поля подложки погашены отрицательными
+  // margin) — но гарантия должна держаться на инварианте, а не на текущем CSS. Если
+  // оформление секции когда-нибудь снова начнёт сдвигать строку по X, сохранённые штрихи
+  // обязаны уехать ровно вместе со своим словом, без миграции.
+  it('горизонтальный сдвиг строки не отрывает штрих от слова', () => {
+    const INDENT = 16;
+    const before = rect(0, 0, 40, 100);
+    const after = rect(0, 0, 40 + INDENT, 100);
+
+    const anchored = toAnchored({ x: 55, y: 108, pressure: 1 }, before);
+    // Относительные координаты от сдвига не зависят — это и есть причина, по которой
+    // миграция не нужна.
+    expect(toAnchored({ x: 55 + INDENT, y: 108, pressure: 1 }, after)).toEqual(anchored);
+    // А развёрнутая точка съезжает ровно на величину сдвига, вместе со строкой.
+    expect(toAbsolute(stroke([anchored]), indexLineRects([after]))).toEqual([[55 + INDENT, 108, 1]]);
+  });
+
   it('строки-якоря нет — null, а не падение', () => {
     expect(toAbsolute(stroke([[1, 1, 1]], { anchor: { section: 9, line: 9 } }), indexLineRects([rect(0, 0, 0, 0)]))).toBeNull();
   });

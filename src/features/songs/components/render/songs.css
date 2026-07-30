@@ -6,6 +6,9 @@
 .cproSongBody {
   --line-height: 1.5;
   --section-gap: 1rem;
+  /* Поля заливки секции — гасятся отрицательными margin, текст от них не двигается. */
+  --section-fill-pad-inline: 10px;
+  --section-fill-pad-block: 6px;
   background-color: var(--app-bg);
   color: var(--app-text);
   border: none;
@@ -16,6 +19,8 @@
 .cproSongBody[data-density='compact'] {
   --line-height: 1.2;
   --section-gap: 0.5rem;
+  /* В компактном режиме и зазор между секциями меньше — поля заливки следом. */
+  --section-fill-pad-block: 4px;
 }
 
 /* Режим «только текст» (§3.3): аккорды скрыты через CSS, а не отдельную ветку рендера. */
@@ -44,6 +49,48 @@
   /* Зазор между секциями: раньше его давал flex-gap обёртки блоков, которой больше нет. */
   margin-bottom: var(--section-gap, 1rem);
 }
+
+/* ── Маркировка секций: заливка припева, бриджа и предприпева (§3.6) ──────
+   Полупрозрачная подложка вместо рельса с отступом. Ключевое свойство: строки
+   НЕ двигаются. Поля заливки компенсированы отрицательными margin, поэтому текст
+   стоит ровно там же, где у куплета, — общий левый край цел, ширина строки не
+   теряется, разбивка по листам не пересчитывается.
+
+   `box-decoration-break: clone` обязателен: секция живёт внутри multicol и, несмотря
+   на `break-inside: avoid`, секция выше колонки всё равно фрагментируется — без clone
+   вторая половина припева осталась бы без заливки (та же причина, по которой здесь
+   нельзя абсолютный `::before`: он отрисуется только в первом фрагменте).
+
+   Заливка ОЧЕНЬ светлая (7%): `--app-primary` уже занят аккордами
+   (`.cproSongLine .chord` — тот же цвет и bold), и плотный акцент конкурировал бы
+   с ними за самый громкий цвет листа. Подложка обязана работать периферийным
+   зрением, а не перетягивать внимание.
+   Обоснование целиком — `.ai-factory/plans/feature-song-section-markers.md`. */
+.cproSongSection[data-song-section-kind='chorus'],
+.cproSongSection[data-song-section-kind='bridge'],
+.cproSongSection[data-song-section-kind='prechorus'] {
+  background-color: color-mix(in srgb, var(--app-primary) 7%, transparent);
+  border-radius: var(--app-radius-sm);
+  padding: var(--section-fill-pad-block) var(--section-fill-pad-inline);
+  /* Гасим собственные поля: подложка расширяется наружу, текст остаётся на месте. */
+  margin-inline: calc(-1 * var(--section-fill-pad-inline));
+  margin-top: calc(-1 * var(--section-fill-pad-block));
+  margin-bottom: calc(var(--section-gap, 1rem) - var(--section-fill-pad-block));
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* Предприпев — подводка к припеву, а не самостоятельная секция: заливка вдвое слабее. */
+.cproSongSection[data-song-section-kind='prechorus'] {
+  background-color: color-mix(in srgb, var(--app-primary) 4%, transparent);
+}
+
+/* Метка секции с заливкой чуть плотнее — тип несёт слово, а не цвет подложки. */
+[data-song-section-kind='chorus'] > .cproComment,
+[data-song-section-kind='bridge'] > .cproComment,
+[data-song-section-kind='prechorus'] > .cproComment {
+  font-weight: 600;
+}
+
 .cproComment {
   display: block;
   font-weight: normal;
