@@ -91,18 +91,43 @@ describe('useSetlists.refresh', () => {
     expect(result.current.setlists).toEqual([FRESH]);
   });
 
-  it('refresh во время первичной загрузки -> в сеть не идёт', async () => {
+  it('refresh во время первичной загрузки не молчит: ошибка доходит до UI', async () => {
+    // Гонка прод-контура: стартовое чтение ещё висит (медленный Directus), а
+    // пользователь уже потянул список офлайн. Раньше жест пропускался — спиннер
+    // отрабатывал вхолостую, «Нет сети» не появлялось (e2e setlists-offline.spec.ts:166).
     readThroughMock.mockImplementationOnce(
       () => new Promise<SetlistSummary[]>((r) => setTimeout(() => r([OLD]), 20))
     );
+    refreshMock.mockRejectedValueOnce(new Error('Нет сети. Список не обновлён'));
+
     const { result } = renderHook(() => useSetlists());
     expect(result.current.loading).toBe(true);
 
     await act(async () => {
       await result.current.refresh();
     });
-    expect(refreshMock).not.toHaveBeenCalled();
+
+    expect(refreshMock).toHaveBeenCalledTimes(1);
+    expect(result.current.refreshError).toBe('Нет сети. Список не обновлён');
 
     await waitFor(() => expect(result.current.loading).toBe(false));
+  });
+
+  it('опоздавшая первичная загрузка не затирает данные удавшегося refresh', async () => {
+    readThroughMock.mockImplementationOnce(
+      () => new Promise<SetlistSummary[]>((r) => setTimeout(() => r([OLD]), 20))
+    );
+    refreshMock.mockResolvedValueOnce([FRESH]);
+
+    const { result } = renderHook(() => useSetlists());
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(result.current.setlists).toEqual([FRESH]);
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.setlists).toEqual([FRESH]);
+    expect(result.current.error).toBeNull();
   });
 });

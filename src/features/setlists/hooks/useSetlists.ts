@@ -42,6 +42,12 @@ export function useSetlists() {
 
   const activeRef = useRef(true);
   const refreshingRef = useRef(false);
+  /**
+   * Ручное обновление уже отдало данные — стартовое чтение опоздало и его результат
+   * (как и его ошибка) больше не истина: теперь эти два запроса могут идти
+   * параллельно, и без флага поздний ответ затирал бы свежий список.
+   */
+  const refreshWonRef = useRef(false);
 
   useEffect(() => {
     activeRef.current = true;
@@ -55,8 +61,11 @@ export function useSetlists() {
    * ждёт промис, чтобы остановить спиннер, и не должен ловить исключение.
    */
   const refresh = useCallback(async () => {
-    // Пул во время стартового readSetlistsThrough послал бы второй запрос за тем же.
-    if (refreshingRef.current || loading) {
+    // Дедуп только с ДРУГИМ ручным обновлением: там спиннер уже крутится и результат
+    // придёт. Пропускать жест из-за стартового readSetlistsThrough нельзя — он
+    // завершался молча: ни новых данных, ни ошибки (офлайн-жест не давал «Нет сети»).
+    // Лишний запрос в этой гонке дешевле немого жеста.
+    if (refreshingRef.current) {
       console.debug('[useSetlists] refresh: skipped (already in flight)');
       return;
     }
@@ -69,9 +78,11 @@ export function useSetlists() {
       // Обновляем module-кэш, а не сбрасываем: reset заставил бы следующий монтаж
       // экрана снова идти в сеть, хотя свежие данные уже на руках.
       cache = list;
+      refreshWonRef.current = true;
       if (activeRef.current) {
         setSetlists(list);
         setRefreshError(null);
+        setError(null);
       }
       console.debug(`[useSetlists] refresh: ok ${list.length} setlist(s)`);
     } catch (err) {
@@ -84,7 +95,7 @@ export function useSetlists() {
       refreshingRef.current = false;
       if (activeRef.current) setRefreshing(false);
     }
-  }, [loading]);
+  }, []);
 
   useEffect(() => {
     if (cache) return;
@@ -93,12 +104,12 @@ export function useSetlists() {
 
     fetchSetlistsOnce()
       .then((list) => {
-        if (!active) return;
+        if (!active || refreshWonRef.current) return;
         setSetlists(list);
         console.debug(`[useSetlists] loaded ${list.length} setlist(s)`);
       })
       .catch((err) => {
-        if (!active) return;
+        if (!active || refreshWonRef.current) return;
         setError(err instanceof Error ? err.message : 'Не удалось загрузить сеты');
         console.error('[useSetlists] load error:', err);
       })
