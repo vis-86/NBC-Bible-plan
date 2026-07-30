@@ -103,6 +103,13 @@ export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgramma
   const stepRef = useRef(step);
   const reducedMotionRef = useRef(reducedMotion);
   const onBeforeRef = useRef(onBeforeProgrammaticScroll);
+  // Читается из колбэка ResizeObserver (см. гистерезис в `measure`), который пересоздавать
+  // на каждый старт/стоп не нужно. Объявлен ВЫШЕ эффекта замера — тот полагается на
+  // актуальное значение к моменту своего первого синхронного measure().
+  const playingRef = useRef(playing);
+  useEffect(() => {
+    playingRef.current = playing;
+  }, [playing]);
   useEffect(() => {
     stepRef.current = step;
   }, [step]);
@@ -141,7 +148,18 @@ export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgramma
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !enabled) return;
-    const measure = () => setCanScrollMeasured(container.scrollHeight > container.clientHeight);
+    const measure = () => {
+      const measured = container.scrollHeight > container.clientHeight;
+      debug('canScroll', { measured, playing: playingRef.current });
+      // Гистерезис: пока играем, замер только подтверждает, но не снимает canScroll.
+      // Старт фокус-режима прячет хром → clientHeight растёт → на песне, которая
+      // скроллилась «ровно на высоту шапки», замер даёт false, FAB уходит из DOM,
+      // playing=false возвращает шапку — и FAB возвращается. Мигание.
+      // Причина false здесь — выросший вьюпорт, а не «контента не стало»; остановкой
+      // по-прежнему владеет только rAF-стоп у низа (§8).
+      if (!measured && playingRef.current) return;
+      setCanScrollMeasured(measured);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(container);

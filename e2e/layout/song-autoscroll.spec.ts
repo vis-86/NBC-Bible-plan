@@ -119,8 +119,9 @@ test.describe('Автоскролл — режим scroll', () => {
     });
     expect(atBottom, 'остановка ровно у низа').toBe(true);
 
-    // Даём анимации автоскрытия шапки (grid-rows 300ms) доиграть: она меняет высоту вьюпорта
-    // и клампит scrollTop на пару пикселей — это лейаут, не движок.
+    // Даём анимации хрома (grid-rows 300ms) доиграть: шапка сворачивается на СТАРТЕ
+    // (фокус-режим) и разворачивается обратно после стопа у низа — оба перехода меняют
+    // высоту вьюпорта и клампят scrollTop на пару пикселей. Это лейаут, не движок.
     await page.waitForTimeout(500);
     const settled = await scrollTop(page);
     expect(settled, 'не откатился к верху (нет зацикливания)').toBeGreaterThan(0);
@@ -158,6 +159,30 @@ test.describe('Автоскролл — режим scroll', () => {
       return raw ? (JSON.parse(raw)[id] as number) : null;
     }, songId);
     expect(storedStep, 'ступень (index) сохранена per-song').toBe(2);
+  });
+
+  test('фокус-режим: play сворачивает хром, оставляя управление автоскроллом', async () => {
+    await openSong(page, songId, NARROW, {});
+    await page.locator('[data-song-autoscroll]').waitFor({ state: 'visible', timeout: 10_000 });
+
+    const header = page.locator('[data-song-page-header-collapse]');
+    await expect(header).toHaveClass(/grid-rows-\[1fr\]/);
+    await expect(page.locator('[data-song-ink-open]')).toBeVisible();
+
+    await page.locator('[data-song-autoscroll-toggle]').click();
+    await expect(page.locator('[data-song-autoscroll-toggle]')).toHaveAttribute('aria-label', 'Пауза автоскролла');
+
+    // Хром уехал: шапка свёрнута, карандаш пометок из DOM ушёл.
+    await expect(header).toHaveClass(/grid-rows-\[0fr\]/);
+    await expect(page.locator('[data-song-ink-open]')).toHaveCount(0);
+    // Управление автоскроллом остаётся — иначе режим нечем выключить.
+    await expect(page.locator('[data-song-autoscroll-toggle]')).toBeVisible();
+    await expect(page.locator('[data-song-autoscroll-speed]')).toBeVisible();
+
+    // Пауза возвращает карандаш.
+    await page.locator('[data-song-autoscroll-toggle]').click();
+    await expect(page.locator('[data-song-autoscroll-toggle]')).toHaveAttribute('aria-label', 'Запустить автоскролл');
+    await expect(page.locator('[data-song-ink-open]')).toBeVisible();
   });
 
   test('при открытых настройках контрол автоскролла скрыт (не перекрывает лист)', async () => {

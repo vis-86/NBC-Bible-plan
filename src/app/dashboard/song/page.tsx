@@ -49,7 +49,7 @@ function SongPageContent() {
 
   const { song, loading, error } = useSong(id);
   const contentRef = useRef<HTMLDivElement>(null);
-  const { hidden, ignoreNextScroll } = useAutoHideOnScroll(contentRef, song?.id);
+  const { hidden, ignoreNextScroll, setHidden } = useAutoHideOnScroll(contentRef, song?.id);
   const [viewSettings, setViewSettings] = useSongViewSettings();
   const [isViewSettingsOpen, setIsViewSettingsOpen] = useState(false);
   const [isKeyPickerOpen, setIsKeyPickerOpen] = useState(false);
@@ -74,19 +74,39 @@ function SongPageContent() {
     // это первая строка, которую смотрят.
     console.debug('[SongPage] view mode', { columns: viewSettings.columns, isWideLayout, mode });
   }
-  // Автоскрытие шапки меняет высоту вьюпорта — в постраничных режимах это
-  // пересборка листов на каждый скролл, поэтому шапка там всегда видна.
-  const headerHidden = mode === 'scroll' ? hidden : false;
-
   // Автоскролл активен только в режиме scroll при загруженной песне (§4.5, §8).
   // Скорость — per-song device-local настройка (autoScrollSpeedStore).
   // ignoreNextScroll гасит реакцию useScrollDirection на программный сдвиг scrollTop.
+  // Объявлен ВЫШЕ headerHidden: фокус-режим читает autoscroll.playing (TDZ).
   const autoscroll = useAutoScroll({
     containerRef: contentRef,
     songId: song?.id ?? '',
     enabled: mode === 'scroll' && !!song,
     onBeforeProgrammaticScroll: ignoreNextScroll,
   });
+
+  // Автоскрытие шапки меняет высоту вьюпорта — в постраничных режимах это
+  // пересборка листов на каждый скролл, поэтому шапка там всегда видна.
+  // Играющий автоскролл сворачивает хром принудительно (фокус-режим): лист едет сам,
+  // любой элемент хрома — помеха чтению. Таблетка сета уезжает бесплатно — она уже
+  // читает headerHidden. Обратно шапку возвращает жест скролла вверх после паузы:
+  // setHidden наружу не отдан, и расширять API хука ради этого не нужно.
+  const headerHidden = mode === 'scroll' && (hidden || autoscroll.playing);
+  if (process.env.NODE_ENV !== 'production') {
+    console.debug('[SongPage] chrome hidden', { headerHidden, playing: autoscroll.playing });
+  }
+
+  /**
+   * Старт автоскролла переводит и состояние жеста в «спрятано». Без этого стоп у низа
+   * (и любая пауза) мгновенно возвращал бы шапку: `ignoreNextScroll` подавляет детекцию
+   * направления на программных кадрах, поэтому сам жест так и остаётся в `hidden=false`.
+   * Вернувшаяся шапка уменьшает вьюпорт и выталкивает последние строки под фолд ровно
+   * там, где человек дочитывает. Возврат хрома остаётся за жестом — скроллом вверх.
+   */
+  const handleAutoScrollToggle = () => {
+    if (!autoscroll.playing) setHidden(true);
+    autoscroll.toggle();
+  };
 
   // Зеркало автоскролла: `useSongInk` объявляется ниже и не может замкнуть его напрямую
   // без пересоздания колбэка на каждый рендер.
@@ -356,11 +376,16 @@ function SongPageContent() {
               playing={autoscroll.playing}
               step={autoscroll.step}
               canScroll={autoscroll.canScroll}
-              onToggle={autoscroll.toggle}
+              onToggle={handleAutoScrollToggle}
               onSetStep={autoscroll.setStep}
             />
             )}
-            <SongInkButton onClick={ink.enter} hasAnnotations={ink.strokes.length > 0} />
+            {/* Фокус-режим: пока автоскролл играет, в стеке остаётся только его FAB —
+                им и выключают режим. Вход в пометки и так гасит автоскролл
+                (useSongInk.onEnter), так что скрытый карандаш ничего не отнимает. */}
+            {!autoscroll.playing && (
+              <SongInkButton onClick={ink.enter} hasAnnotations={ink.strokes.length > 0} />
+            )}
           </SongToolStack>
         )}
 

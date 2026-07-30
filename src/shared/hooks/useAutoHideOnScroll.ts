@@ -7,6 +7,13 @@ export interface UseAutoHideOnScrollResult {
   hidden: boolean;
   /** Вызвать перед программным изменением scrollTop — см. useScrollDirection. */
   ignoreNextScroll: () => void;
+  /**
+   * Задать состояние напрямую — для режимов, которые прячут хром не жестом
+   * (автоскролл песни: старт прячет хром сам, иначе стоп у низа вернул бы шапку и
+   * вытолкнул последние строки под фолд). Возврат хрома по-прежнему за жестом:
+   * вызывать с `true`, а `false` оставлять детекции направления.
+   */
+  setHidden: (hidden: boolean) => void;
 }
 
 /**
@@ -29,5 +36,5 @@ export function useAutoHideOnScroll(
     }
   }, [contentReady, ref, setHidden]);
 
-  return { hidden, ignoreNextScroll };
+  return { hidden, ignoreNextScroll, setHidden };
 }

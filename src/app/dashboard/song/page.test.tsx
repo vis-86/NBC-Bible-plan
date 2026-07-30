@@ -42,8 +42,17 @@ vi.mock('@/features/songs/hooks/useSongKey', () => ({
 }));
 
 const pauseMock = vi.fn();
+let autoscrollPlaying = false;
 vi.mock('@/features/songs/hooks/useAutoScroll', () => ({
-  useAutoScroll: () => ({ playing: false, canScroll: true, step: 1, setStep: vi.fn(), toggle: vi.fn(), play: vi.fn(), pause: pauseMock }),
+  useAutoScroll: () => ({
+    playing: autoscrollPlaying,
+    canScroll: true,
+    step: 1,
+    setStep: vi.fn(),
+    toggle: vi.fn(),
+    play: vi.fn(),
+    pause: pauseMock,
+  }),
 }));
 
 vi.mock('@/shared/hooks/useAutoHideOnScroll', () => ({
@@ -103,6 +112,7 @@ describe('SongPage — режим сета (T18/T19)', () => {
   afterEach(() => {
     vi.clearAllMocks();
     wideLayout = false;
+    autoscrollPlaying = false;
     playbackState = { ...playbackState, prevId: 1, nextId: 3, inSetlist: true, index: 1 };
   });
 
@@ -172,5 +182,37 @@ describe('SongPage — режим сета (T18/T19)', () => {
     fireEvent.click(container.querySelector('[data-setlist-pager-dock-counter]') as HTMLElement);
     expect(container.querySelector('[data-song-autoscroll-fab]')).toBeNull();
     void queryByText;
+  });
+});
+
+describe('SongPage — фокус-режим автоскролла', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    wideLayout = false;
+    autoscrollPlaying = false;
+    playbackState = { ...playbackState, prevId: 1, nextId: 3, inSetlist: true, index: 1 };
+  });
+
+  it('автоскролл на паузе: шапка развёрнута, карандаш в стеке', () => {
+    const { container } = render(<SongPage />);
+    expect(container.querySelector('[data-song-page-header-collapse]')?.className).toContain('grid-rows-[1fr]');
+    expect(container.querySelector('[data-song-ink-open]')).toBeTruthy();
+  });
+
+  it('играющий автоскролл сворачивает шапку и прячет карандаш, FAB остаётся', () => {
+    autoscrollPlaying = true;
+    const { container } = render(<SongPage />);
+    expect(container.querySelector('[data-song-page-header-collapse]')?.className).toContain('grid-rows-[0fr]');
+    expect(container.querySelector('[data-song-ink-open]')).toBeNull();
+    // Выход из режима возможен только через FAB — он не прячется никогда.
+    expect(container.querySelector('[data-song-autoscroll-fab]')).toBeTruthy();
+  });
+
+  it('играющий автоскролл уводит таблетку сета', () => {
+    autoscrollPlaying = true;
+    const { container } = render(<SongPage />);
+    const dock = container.querySelector('[data-setlist-pager-dock]') as HTMLElement;
+    expect(dock.className).toContain('translate-y-24');
+    expect(dock.className).toContain('opacity-0');
   });
 });
