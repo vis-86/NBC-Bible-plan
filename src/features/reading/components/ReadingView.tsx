@@ -327,7 +327,10 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
           className={`h-full overflow-y-auto w-full ${themeClasses[displayTheme] || themeClasses.light}`}
           ref={contentRef}
         >
-          <div className="max-w-xl mx-auto px-6 py-8 pb-[calc(var(--dock-nav-h)+env(safe-area-inset-bottom)+96px)]">
+          {/* px-2 — узкое поле по запросу владельца: на широких экранах поле задаёт
+              max-w-xl + mx-auto, так что правка видна только на телефоне. Текст встаёт
+              левее заголовка шапки (ReadingHeader на pl-4) — осознанный рассинхрон. */}
+          <div className="max-w-xl mx-auto px-2 py-8 pb-[calc(var(--dock-nav-h)+env(safe-area-inset-bottom)+96px)]">
             <ReadingContent
               text={text}
               loading={loading}
