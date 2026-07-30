@@ -89,8 +89,9 @@ function SongPageContent() {
   // пересборка листов на каждый скролл, поэтому шапка там всегда видна.
   // Играющий автоскролл сворачивает хром принудительно (фокус-режим): лист едет сам,
   // любой элемент хрома — помеха чтению. Таблетка сета уезжает бесплатно — она уже
-  // читает headerHidden. Обратно шапку возвращает жест скролла вверх после паузы:
-  // setHidden наружу не отдан, и расширять API хука ради этого не нужно.
+  // читает headerHidden. Обратно шапку возвращает только жест скролла вверх после паузы
+  // (программного возврата нет) — см. handleAutoScrollToggle про то, почему старт ещё и
+  // синхронизирует состояние самого жеста.
   const headerHidden = mode === 'scroll' && (hidden || autoscroll.playing);
   if (process.env.NODE_ENV !== 'production') {
     console.debug('[SongPage] chrome hidden', { headerHidden, playing: autoscroll.playing });
