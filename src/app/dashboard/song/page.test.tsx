@@ -195,14 +195,14 @@ describe('SongPage — фокус-режим автоскролла', () => {
 
   it('автоскролл на паузе: шапка развёрнута, карандаш в стеке', () => {
     const { container } = render(<SongPage />);
-    expect(container.querySelector('[data-song-page-header-collapse]')?.className).toContain('grid-rows-[1fr]');
+    expect(container.querySelector('[data-song-page-header-hidden]')).toBeNull();
     expect(container.querySelector('[data-song-ink-open]')).toBeTruthy();
   });
 
   it('играющий автоскролл сворачивает шапку и прячет карандаш, FAB остаётся', () => {
     autoscrollPlaying = true;
     const { container } = render(<SongPage />);
-    expect(container.querySelector('[data-song-page-header-collapse]')?.className).toContain('grid-rows-[0fr]');
+    expect(container.querySelector('[data-song-page-header-hidden]')).toBeTruthy();
     expect(container.querySelector('[data-song-ink-open]')).toBeNull();
     // Выход из режима возможен только через FAB — он не прячется никогда.
     expect(container.querySelector('[data-song-autoscroll-fab]')).toBeTruthy();

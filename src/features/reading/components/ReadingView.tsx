@@ -21,6 +21,7 @@ import { CompletionModal } from './CompletionModal';
 import { FloatingChapterNav } from './FloatingChapterNav';
 import { useStatusBarColor } from '@/shared/hooks/useStatusBarColor';
 import { useScrollDirection } from '@/shared/hooks/useScrollDirection';
+import { useTapToReveal } from '@/shared/hooks/useTapToReveal';
 import { useChromeVisibility } from '@/shared/components/layout/ChromeVisibility';
 import { shouldShowCompletionOnCheck } from '../completionDecision';
 import { SwipePager } from '@/shared/components/pager/SwipePager';
@@ -104,6 +105,13 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
   const { setChromeHidden } = useChromeVisibility();
   const { hidden: scrollHidden, setHidden: setScrollHidden, ignoreNextScroll } = useScrollDirection(contentRef);
   const pagerHint = usePagerHint();
+
+  // Тап по тексту главы возвращает нижний хром (нав + плавающая навигация глав):
+  // прокрутка вверх ради него — лишнее движение, когда место чтения уже найдено.
+  // Выключен при открытых шторках/модалках — там хром и так виден.
+  useTapToReveal(contentRef, () => setScrollHidden(false), {
+    enabled: !showBookPicker && !showChapterPicker && !showSettings && !showCompletionModal,
+  });
 
   useEffect(() => {
     console.debug('[ReadingView] chrome', { hidden: scrollHidden });

@@ -152,9 +152,10 @@ export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgramma
       const measured = container.scrollHeight > container.clientHeight;
       debug('canScroll', { measured, playing: playingRef.current });
       // Гистерезис: пока играем, замер только подтверждает, но не снимает canScroll.
-      // Старт фокус-режима прячет хром → clientHeight растёт → на песне, которая
-      // скроллилась «ровно на высоту шапки», замер даёт false, FAB уходит из DOM,
-      // playing=false возвращает шапку — и FAB возвращается. Мигание.
+      // Вьюпорт во время проигрывания может вырасти сам по себе — на мобильных это
+      // схлопывание адресной строки при скролле вниз. На песне, которая скроллилась
+      // почти впритык, выросший clientHeight даёт false → FAB уходит из DOM →
+      // playing=false → вьюпорт возвращается → FAB возвращается. Мигание.
       // Причина false здесь — выросший вьюпорт, а не «контента не стало»; остановкой
       // по-прежнему владеет только rAF-стоп у низа (§8).
       if (!measured && playingRef.current) return;

@@ -22,12 +22,12 @@ async function fireScroll(el: HTMLElement) {
   });
 }
 
-function setup(scrollTop = 0) {
+function setup(scrollTop = 0, options?: { minScrollTop?: number }) {
   const div = document.createElement('div');
   const ref = createRef<HTMLDivElement>();
   (ref as { current: HTMLDivElement }).current = div;
   mockScrollMetrics(div, { scrollTop, scrollHeight: 2000, clientHeight: 800 });
-  const utils = renderHook(() => useScrollDirection(ref));
+  const utils = renderHook(() => useScrollDirection(ref, options));
   return { div, ...utils };
 }
 
@@ -131,5 +131,37 @@ describe('useScrollDirection', () => {
     mockScrollMetrics(div, { scrollTop: -30, scrollHeight: 2000, clientHeight: 800 });
     await fireScroll(div);
     expect(result.current.hidden).toBe(true);
+  });
+
+  // Оверлейная шапка: пока лист не уехал под неё, прятать нечего — под шапкой ещё
+  // нет контента, и уборка открыла бы пустую полосу.
+  describe('minScrollTop', () => {
+    it('скролл вниз ДО minScrollTop не прячет chrome', async () => {
+      const { div, result } = setup(0, { minScrollTop: 120 });
+
+      mockScrollMetrics(div, { scrollTop: 60, scrollHeight: 2000, clientHeight: 800 });
+      await fireScroll(div);
+      expect(result.current.hidden).toBe(false);
+    });
+
+    it('скролл вниз ПОСЛЕ minScrollTop прячет как обычно', async () => {
+      const { div, result } = setup(0, { minScrollTop: 120 });
+
+      mockScrollMetrics(div, { scrollTop: 200, scrollHeight: 2000, clientHeight: 800 });
+      await fireScroll(div);
+      expect(result.current.hidden).toBe(true);
+    });
+
+    it('возврат наверх показывает chrome независимо от minScrollTop', async () => {
+      const { div, result } = setup(0, { minScrollTop: 120 });
+
+      mockScrollMetrics(div, { scrollTop: 400, scrollHeight: 2000, clientHeight: 800 });
+      await fireScroll(div);
+      expect(result.current.hidden).toBe(true);
+
+      mockScrollMetrics(div, { scrollTop: 10, scrollHeight: 2000, clientHeight: 800 });
+      await fireScroll(div);
+      expect(result.current.hidden).toBe(false);
+    });
   });
 });

@@ -9,6 +9,12 @@ interface UseScrollDirectionOptions {
   showThreshold?: number;
   /** Зона у верха (px): движение вверх внутри неё всегда показывает chrome. */
   topThreshold?: number;
+  /**
+   * Позиция (px), до которой скрывать нельзя. Нужна оверлейной шапке: пока контент
+   * не уехал под неё, на её месте нет контента — уборка шапки открыла бы пустую
+   * полосу. Задавать равной измеренной высоте шапки.
+   */
+  minScrollTop?: number;
 }
 
 export interface ScrollDirectionHandle {
@@ -48,7 +54,7 @@ const scheduleFrame: (cb: () => void) => void =
  */
 export function useScrollDirection(
   ref: React.RefObject<HTMLElement | null>,
-  { hideThreshold = 0, showThreshold = 12, topThreshold = 24 }: UseScrollDirectionOptions = {}
+  { hideThreshold = 0, showThreshold = 12, topThreshold = 24, minScrollTop = 0 }: UseScrollDirectionOptions = {}
 ): ScrollDirectionHandle {
   const [hidden, setHiddenState] = useState(false);
   const lastScrollTop = useRef(0);
@@ -100,7 +106,7 @@ export function useScrollDirection(
 
         const delta = scrollTop - lastScrollTop.current;
 
-        if (delta > hideThreshold) {
+        if (delta > hideThreshold && scrollTop >= minScrollTop) {
           setHiddenState((prevHidden) => {
             if (!prevHidden) {
               console.debug('[ChromeVisibility] visible→hidden', { scrollTop, delta });
@@ -122,7 +128,7 @@ export function useScrollDirection(
 
     el.addEventListener('scroll', handleScroll, { passive: true });
     return () => el.removeEventListener('scroll', handleScroll);
-  }, [ref, hideThreshold, showThreshold, topThreshold]);
+  }, [ref, hideThreshold, showThreshold, topThreshold, minScrollTop]);
 
   return useMemo(
     () => ({ hidden, setHidden, ignoreNextScroll }),

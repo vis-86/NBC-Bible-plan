@@ -119,9 +119,9 @@ test.describe('Автоскролл — режим scroll', () => {
     });
     expect(atBottom, 'остановка ровно у низа').toBe(true);
 
-    // Даём анимации хрома (grid-rows 300ms) доиграть: шапка сворачивается на СТАРТЕ
-    // (фокус-режим) и разворачивается обратно после стопа у низа — оба перехода меняют
-    // высоту вьюпорта и клампят scrollTop на пару пикселей. Это лейаут, не движок.
+    // Даём анимации хрома (transform 300ms) доиграть. Шапка — оверлей, высоту потока
+    // она не меняет, но её съезд на СТАРТЕ соседствует с клампом scrollTop от прочих
+    // перестроений на пару пикселей. Это лейаут, не движок.
     await page.waitForTimeout(500);
     const settled = await scrollTop(page);
     expect(settled, 'не откатился к верху (нет зацикливания)').toBeGreaterThan(0);
@@ -166,14 +166,14 @@ test.describe('Автоскролл — режим scroll', () => {
     await page.locator('[data-song-autoscroll]').waitFor({ state: 'visible', timeout: 10_000 });
 
     const header = page.locator('[data-song-page-header-collapse]');
-    await expect(header).toHaveClass(/grid-rows-\[1fr\]/);
+    await expect(header).not.toHaveAttribute('data-song-page-header-hidden', '');
     await expect(page.locator('[data-song-ink-open]')).toBeVisible();
 
     await page.locator('[data-song-autoscroll-toggle]').click();
     await expect(page.locator('[data-song-autoscroll-toggle]')).toHaveAttribute('aria-label', 'Пауза автоскролла');
 
     // Хром уехал: шапка свёрнута, карандаш пометок из DOM ушёл.
-    await expect(header).toHaveClass(/grid-rows-\[0fr\]/);
+    await expect(header).toHaveAttribute('data-song-page-header-hidden', '');
     await expect(page.locator('[data-song-ink-open]')).toHaveCount(0);
     // Управление автоскроллом остаётся — иначе режим нечем выключить.
     await expect(page.locator('[data-song-autoscroll-toggle]')).toBeVisible();
@@ -226,6 +226,60 @@ test.describe('Автоскролл — режим scroll', () => {
     await page.waitForTimeout(700);
     const after = await scrollTop(page);
     expect(Math.abs(after - paused), 'после паузы scrollTop не растёт').toBeLessThanOrEqual(1);
+  });
+});
+
+test.describe('Шапка песни — оверлей без скачка', () => {
+  test('скрытие шапки при скролле не сдвигает текст и не меняет высоту вьюпорта', async () => {
+    await openSong(page, songId, NARROW, {});
+    const header = page.locator('[data-song-page-header-collapse]');
+    await expect(header).not.toHaveAttribute('data-song-page-header-hidden', '');
+
+    const metrics = () =>
+      page.evaluate(() => {
+        const scroller = document.querySelector('[data-song-view]')?.closest<HTMLElement>('.overflow-y-auto');
+        const line = document.querySelector('[data-song-view-flow] .cproSongLine');
+        return {
+          clientHeight: scroller?.clientHeight ?? -1,
+          scrollTop: Math.round(scroller?.scrollTop ?? -1),
+          // Экранная позиция первой строки: если шапка схлопывалась бы в потоке,
+          // текст уехал бы вверх ровно на её высоту.
+          lineTop: line ? Math.round(line.getBoundingClientRect().top) : -1,
+        };
+      });
+
+    // Уводим лист достаточно далеко, чтобы шапка имела право спрятаться (minScrollTop).
+    await page.mouse.move(200, 300);
+    await page.mouse.wheel(0, 300);
+    await expect(header).toHaveAttribute('data-song-page-header-hidden', '');
+    await page.waitForTimeout(400); // transform доиграл
+    const hiddenState = await metrics();
+
+    // Возвращаем шапку тапом и сравниваем: ни высота вьюпорта, ни экранная позиция
+    // строки при том же scrollTop меняться не должны — шапка лежит поверх листа.
+    await page.locator('[data-song-page-viewport]').click({ position: { x: 30, y: 300 } });
+    await expect(header).not.toHaveAttribute('data-song-page-header-hidden', '');
+    await page.waitForTimeout(400);
+    const shownState = await metrics();
+
+    expect(shownState.scrollTop, 'тап не прокручивает лист').toBe(hiddenState.scrollTop);
+    expect(shownState.clientHeight, 'высота вьюпорта не зависит от шапки').toBe(hiddenState.clientHeight);
+    expect(
+      Math.abs(shownState.lineTop - hiddenState.lineTop),
+      'текст не сдвигается при появлении/уходе шапки',
+    ).toBeLessThanOrEqual(1);
+  });
+
+  test('тап по листу возвращает скрытую шапку', async () => {
+    await openSong(page, songId, NARROW, {});
+    const header = page.locator('[data-song-page-header-collapse]');
+
+    await page.mouse.move(200, 300);
+    await page.mouse.wheel(0, 300);
+    await expect(header).toHaveAttribute('data-song-page-header-hidden', '');
+
+    await page.locator('[data-song-page-viewport]').click({ position: { x: 30, y: 300 } });
+    await expect(header).not.toHaveAttribute('data-song-page-header-hidden', '');
   });
 });
 

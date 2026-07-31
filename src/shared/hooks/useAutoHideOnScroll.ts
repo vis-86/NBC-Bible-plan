@@ -25,9 +25,12 @@ export interface UseAutoHideOnScrollResult {
  */
 export function useAutoHideOnScroll(
   ref: RefObject<HTMLElement | null>,
-  contentReady?: unknown
+  contentReady?: unknown,
+  options?: { minScrollTop?: number }
 ): UseAutoHideOnScrollResult {
-  const { hidden, setHidden, ignoreNextScroll } = useScrollDirection(ref);
+  const { hidden, setHidden, ignoreNextScroll } = useScrollDirection(ref, {
+    minScrollTop: options?.minScrollTop,
+  });
 
   useEffect(() => {
     const el = ref.current;

@@ -22,6 +22,7 @@ import { useSongAnnotations } from '@/features/songs/hooks/useSongAnnotations';
 import { useSongKey } from '@/features/songs/hooks/useSongKey';
 import { useAutoScroll } from '@/features/songs/hooks/useAutoScroll';
 import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
+import { useTapToReveal } from '@/shared/hooks/useTapToReveal';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 import { SwipePager } from '@/shared/components/pager/SwipePager';
 import { PagerHint, usePagerHint } from '@/shared/components/pager/PagerHint';
@@ -49,7 +50,28 @@ function SongPageContent() {
 
   const { song, loading, error } = useSong(id);
   const contentRef = useRef<HTMLDivElement>(null);
-  const { hidden, ignoreNextScroll, setHidden } = useAutoHideOnScroll(contentRef, song?.id);
+  const headerRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Реальная высота шапки. Шапка — ОВЕРЛЕЙ (см. разметку), поэтому её высота обязана
+   * стать верхним отступом листа, иначе первая строка окажется под ней. Высота зависит
+   * от контента и устройства (длина названия, safe-area, масштаб шрифта), поэтому она
+   * измеряется, а не задаётся константой (тот же приём, что `--dock-nav-actual-h`).
+   */
+  const [headerHeight, setHeaderHeight] = useState(0);
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => setHeaderHeight(el.getBoundingClientRect().height));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // minScrollTop: прятать шапку раньше, чем лист уехал под неё, нельзя — под ней
+  // ещё нет контента, и уборка открыла бы пустую полосу.
+  const { hidden, ignoreNextScroll, setHidden } = useAutoHideOnScroll(contentRef, song?.id, {
+    minScrollTop: headerHeight,
+  });
   const [viewSettings, setViewSettings] = useSongViewSettings();
   const [isViewSettingsOpen, setIsViewSettingsOpen] = useState(false);
   const [isKeyPickerOpen, setIsKeyPickerOpen] = useState(false);
@@ -142,6 +164,15 @@ function SongPageContent() {
     penOnly: viewSettings.inkPenOnly,
   });
 
+  /**
+   * Тап по листу возвращает хром. Скролл вверх остаётся вторым способом, но когда
+   * человек уже дочитал до нужного места, прокрутка ради шапки — лишнее движение.
+   * Выключен в режиме пометок (там тап рисует) и при открытых шторках (хром и так виден).
+   * Автоскролл тап гасит сам — своим `touchstart`-слушателем на контейнере.
+   */
+  useTapToReveal(contentRef, () => setHidden(false), {
+    enabled: !ink.active && !isViewSettingsOpen && !isKeyPickerOpen && !isSetlistSheetOpen,
+  });
 
   // Переход к соседней песне сета: сброс scrollTop (компонент не размонтируется —
   // без сброса новая песня открылась бы с середины), пауза автоскролла (скорость
@@ -190,15 +221,27 @@ function SongPageContent() {
     // hideBottomNav — фокус-режим чтения: нижняя навигация скрыта.
     <DashboardLayout onChangeView={() => {}} hideBottomNav>
       <div data-song-page className="relative flex min-h-0 flex-1 flex-col">
-        {/* grid-rows 0fr↔1fr анимирует высоту без измерения. pt-safe в скрытом
-            состоянии сохраняет закрашенную полоску брови (PageHeader несёт
-            свой pt-safe-3 только когда виден) — инвариант «бровь = цвет шапки». */}
+        {/* Бровь остаётся закрашенной, даже когда шапка уехала: инвариант
+            «бровь = цвет шапки». Высота полоски = safe-area (на устройствах без
+            выреза она нулевая), поверх уехавшей шапки — отсюда z-40. */}
+        <div data-song-page-brow className="pointer-events-none absolute inset-x-0 top-0 z-40 bg-app-surface pt-safe" />
+
+        {/* Шапка — ОВЕРЛЕЙ, а не элемент потока. Прежний вариант сворачивал её высоту
+            (grid-rows 1fr↔0fr), из-за чего верхняя граница листа физически уезжала
+            вверх на высоту шапки — текст прыгал прямо под читающим пальцем. Оверлей
+            высоту потока не трогает: лист стоит на месте, шапка просто съезжает
+            за край, открывая контент, который уже был под ней. Цена — верхний отступ
+            листа обязан равняться измеренной высоте шапки (headerHeight). */}
         <div
+          ref={headerRef}
           data-song-page-header-collapse
-          className={cn(
-            'grid bg-app-surface transition-[grid-template-rows,padding] duration-300 ease-out',
-            headerHidden ? 'grid-rows-[0fr] pt-safe' : 'grid-rows-[1fr] pt-0'
-          )}
+          data-song-page-header-hidden={headerHidden ? '' : undefined}
+          className="absolute inset-x-0 z-30 bg-app-surface transition-[top] duration-300 ease-out"
+          // Уезжает через `top`, а НЕ через transform: шторка транспонирования живёт
+          // внутри шапки (её рендерит SongKeyPicker), а любой transform на предке
+          // делает контейнером для `position: fixed` — шторка схлопнулась бы в
+          // 52px шапки. `top` такого эффекта не даёт. Сдвиг — на измеренную высоту.
+          style={{ top: headerHidden ? -headerHeight : 0 }}
         >
           <div className="min-h-0 overflow-hidden">
             <PageHeader
@@ -311,12 +354,17 @@ function SongPageContent() {
               // лист двигают двумя пальцами. При «только стилусом» палец скроллит
               // штатно — заморозка там не нужна и только мешала бы.
               ink.active && !viewSettings.inkPenOnly ? 'overflow-hidden' : 'overflow-y-auto',
-              mode === 'scroll' ? 'px-4 py-4' : 'py-2'
+              mode === 'scroll' ? 'px-4 pb-4' : 'pb-2'
             )}
             // pan-x тоже нужен: на увеличенном листе правый край иначе недостижим.
             // Нативного зума нет ни здесь, ни глобально (см. globals.css) — зум
             // страницы песни живёт только в useInkStage.
-            style={ink.active && viewSettings.inkPenOnly ? { touchAction: 'pan-x pan-y' } : undefined}
+            // paddingTop — место под оверлейную шапку: собственный отступ листа
+            // (py-4/py-2 прежней раскладки) прибавляется к её измеренной высоте.
+            style={{
+              paddingTop: `calc(${headerHeight}px + ${mode === 'scroll' ? '1rem' : '0.5rem'})`,
+              ...(ink.active && viewSettings.inkPenOnly ? { touchAction: 'pan-x pan-y' } : {}),
+            }}
           >
             {!id ? (
               <ErrorMessage title="Песня не найдена" message="Не указан идентификатор песни." onRetry={handleBack} retryLabel="К списку" />
