@@ -92,6 +92,13 @@ describe('SongInkModeBar', () => {
     );
   });
 
+  it('встаёт под шапкой: top = высота шапки + зазор', () => {
+    // Регрессия: с фиксированным top-2 плашка стояла под шапкой песни и под
+    // непрозрачной бровью safe-area (z-40) — на телефоне с вырезом невидима.
+    render(<SongInkModeBar {...base} topOffset={96} />);
+    expect((document.querySelector('[data-song-ink-modebar]') as HTMLElement).style.top).toBe('104px');
+  });
+
   it('чип масштаба появляется только при зуме', () => {
     const { rerender } = render(<SongInkModeBar {...base} />);
     expect(document.querySelector('[data-song-ink-zoom-reset]')).toBeNull();

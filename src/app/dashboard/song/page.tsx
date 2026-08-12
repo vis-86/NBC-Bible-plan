@@ -334,6 +334,13 @@ function SongPageContent() {
                   dirty={ink.dirty}
                   zoom={stageZoom}
                   onResetZoom={resetStageZoom}
+                  // Оверлей SwipePager начинается у верхнего края экрана (шапка —
+                  // оверлей вне потока), поэтому плашку сдвигаем на измеренную высоту
+                  // шапки: без этого она стоит ПОД шапкой и под непрозрачной бровью
+                  // safe-area (z-40) — на телефоне с вырезом её не видно вообще.
+                  // Сдвиг постоянный, а не по headerHidden: автоскрытие шапки во время
+                  // рисования иначе дёргало бы плашку вверх-вниз.
+                  topOffset={headerHeight}
                   onDone={() => ink.exit(true)}
                   onCancel={() => ink.exit(false)}
                 />

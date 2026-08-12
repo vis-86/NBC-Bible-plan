@@ -27,7 +27,18 @@ export interface SongInkModeBarProps {
   onResetZoom: () => void;
   onDone: () => void;
   onCancel: () => void;
+  /**
+   * Отступ сверху, px — измеренная высота шапки песни. Плашка живёт в `overlay`
+   * SwipePager, а он начинается у верхнего края экрана (шапка — оверлей вне потока),
+   * поэтому без этого сдвига плашка оказывается ПОД шапкой и под непрозрачной
+   * «бровью» safe-area (z-40): на iPhone инсет ~47–59px закрывает её целиком.
+   * Спека §6: плашка стоит под шапкой, а не поверх неё.
+   */
+  topOffset?: number;
 }
+
+/** Зазор между шапкой и плашкой. */
+const TOP_GAP_PX = 8;
 
 /** Подсказка о двухпальцевом жесте: сам его никто не найдёт. */
 const HINT_TEXT = 'Два пальца — прокрутка и масштаб';
@@ -41,6 +52,7 @@ export function SongInkModeBar({
   onResetZoom,
   onDone,
   onCancel,
+  topOffset = 0,
 }: SongInkModeBarProps) {
   const [hintVisible, setHintVisible] = useState(true);
   const [confirming, setConfirming] = useState(false);
@@ -60,7 +72,8 @@ export function SongInkModeBar({
     <div
       data-song-ink-ui
       data-song-ink-modebar
-      className="pointer-events-none absolute inset-x-0 top-2 z-30 flex flex-col items-center gap-1.5 px-3"
+      className="pointer-events-none absolute inset-x-0 z-30 flex flex-col items-center gap-1.5 px-3"
+      style={{ top: topOffset + TOP_GAP_PX }}
     >
       <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border border-app-border bg-app-surface-elevated/95 py-1 pr-1 pl-3 shadow-app-md backdrop-blur-md">
         <span
