@@ -147,6 +147,8 @@ export const SongView: React.FC<SongViewProps> = ({
     className: string | undefined,
     style: React.CSSProperties | undefined,
     children: React.ReactNode,
+    /** Сдвиг «окна» листа — тот же, что и у потока: слой живёт в координатах всего потока. */
+    contentOffsetX = 0,
   ) =>
     ink ? (
       <SongInkLayer
@@ -155,6 +157,7 @@ export const SongView: React.FC<SongViewProps> = ({
         instantAnnotation={inkInstant}
         onGesture={onInkGesture}
         layoutSignature={inkLayoutSignature}
+        contentOffsetX={contentOffsetX}
         className={className}
         style={style}
       >
@@ -229,6 +232,7 @@ export const SongView: React.FC<SongViewProps> = ({
                 <div className="sheet-flow" style={{ width: sheets.width ? `${sheets.width}px` : undefined }}>
                   <ChordProHtmlColumn sections={sections} />
                 </div>,
+                index * sheets.pitch,
               )}
               <span className="sheet-num" data-song-view-sheet-number>
                 {index + 1} / {sheets.count}

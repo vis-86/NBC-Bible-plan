@@ -40,6 +40,14 @@ export interface SongInkLayerProps {
    * строки переехали ⇒ bounding box'ы надо пересобрать.
    */
   layoutSignature: string;
+  /**
+   * Сдвиг «окна» листа по горизонтали (px в координатах слоя): на листе N виден кусок
+   * потока, начинающийся с `N * pitch`. Слой продолжает жить в координатах ВСЕГО потока
+   * (строка-якорь второй страницы стоит на x ≈ pitch), а видимая область — только
+   * `[offset, offset + width]`. Без этого canvas второго листа уезжает вместе со сдвигом
+   * потока за пределы листа, и всё нарисованное на второй странице становится невидимым.
+   */
+  contentOffsetX?: number;
   /** Двухпальцевый жест уходит наверх — прокруткой и зумом владеет страница. */
   onGesture?: (gesture: InkGesture) => void;
   className?: string;
@@ -55,6 +63,7 @@ export function SongInkLayer({
   penOnly,
   instantAnnotation = false,
   layoutSignature,
+  contentOffsetX = 0,
   onGesture,
   className,
   style,
@@ -161,8 +170,10 @@ export function SongInkLayer({
       }
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, size.width, size.height);
+      // Битмап покрывает только видимое окно листа, а геометрия штрихов живёт в
+      // координатах всего потока — сдвиг окна вносится трансформацией контекста.
+      ctx.setTransform(dpr, 0, 0, dpr, -contentOffsetX * dpr, 0);
+      ctx.clearRect(contentOffsetX, 0, size.width, size.height);
 
       for (const stroke of strokes) {
         if (stroke.tool === 'text') continue; // заметки живут в DOM-слое
@@ -182,7 +193,7 @@ export function SongInkLayer({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [strokes, draft, rectIndex, size]);
+  }, [strokes, draft, rectIndex, size, contentOffsetX]);
 
   // ---- Поле ввода заметки ----------------------------------------------------
 
@@ -316,7 +327,10 @@ export function SongInkLayer({
         ref={canvasRef}
         data-song-ink-canvas
         aria-hidden
-        className="pointer-events-none absolute inset-0 h-full w-full"
+        // Canvas стоит на видимом окне листа, а не на всём потоке: холст шириной во
+        // весь поток пришлось бы держать в памяти по копии на каждый лист.
+        className="pointer-events-none absolute top-0 h-full w-full"
+        style={{ left: contentOffsetX }}
       />
 
       <div data-song-ink-notes className="pointer-events-none absolute inset-0">

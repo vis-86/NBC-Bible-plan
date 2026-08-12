@@ -6,7 +6,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SongInkLayer } from './SongInkLayer';
 import { useSongInk } from '../hooks/useSongInk';
 import { songLineAnchorProps } from '../lib/inkAnchor';
@@ -74,6 +74,52 @@ beforeEach(() => {
     y: 0,
     toJSON: () => ({}),
   } as DOMRect);
+});
+
+// Подмены размеров и кадра ставятся по-тестово — снимаем их, чтобы соседние тесты
+// продолжали видеть штатный jsdom.
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('SongInkLayer — лист со сдвигом окна (вторая страница)', () => {
+  /** Стенд без текстового инструмента: важен только холст под пером. */
+  function OffsetHarness({ offset }: { offset: number }) {
+    const ink = useSongInk({ initialStrokes: [], onSave: vi.fn() });
+    return (
+      <SongInkLayer ink={ink} penOnly={false} layoutSignature="test" contentOffsetX={offset}>
+        <span {...songLineAnchorProps(0, 0)}>строка песни</span>
+      </SongInkLayer>
+    );
+  }
+
+  it('холст стоит на видимом окне листа, а контекст сдвинут на ту же величину', () => {
+    // Поток второго листа уехал влево на `pitch`: без встречного сдвига холст уезжает
+    // вместе с ним за край листа, и нарисованное на второй странице не видно.
+    const calls: Array<[string, unknown[]]> = [];
+    const ctx = new Proxy({} as CanvasRenderingContext2D, {
+      get: (_target, prop) => (...args: unknown[]) => {
+        calls.push([String(prop), args]);
+      },
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(ctx as never);
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(200);
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(20);
+    // Отрисовка батчится кадром — в тесте кадр синхронный.
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 0;
+    });
+
+    render(<OffsetHarness offset={220} />);
+
+    const canvas = document.querySelector('[data-song-ink-canvas]') as HTMLCanvasElement;
+    expect(canvas.style.left).toBe('220px');
+
+    const dpr = window.devicePixelRatio || 1;
+    expect(calls).toContainEqual(['setTransform', [dpr, 0, 0, dpr, -220 * dpr, 0]]);
+    expect(calls).toContainEqual(['clearRect', [220, 0, 200, 20]]);
+  });
 });
 
 describe('SongInkLayer — тап текстовым инструментом', () => {
