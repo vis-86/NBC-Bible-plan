@@ -58,6 +58,28 @@ function toLayerPoint(el: HTMLElement, clientX: number, clientY: number, pressur
   };
 }
 
+/**
+ * Активные указатели ВСЕЙ страницы, а не одного слоя.
+ *
+ * В постраничном режиме слоёв несколько — по одному на лист, — и пальцы двухпальцевого
+ * жеста легко попадают на разные листы (границу листа видно на экране почти всегда).
+ * Пока счёт вёлся внутри слоя, каждый слой видел ровно один палец и честно рисовал им
+ * штрих: прокрутка и зум превращались в две линии поперёк песни.
+ *
+ * Модульная область — осознанно: страница песни на экране одна, а альтернатива
+ * (контекст/провайдер вокруг всех листов) добавляет слой ради счётчика из двух чисел.
+ */
+const activePointers = new Map<number, { clientX: number; clientY: number; type: string }>();
+
+/** Есть ли на экране перо. Пока оно есть, касания пальцем игнорируются целиком. */
+function hasActivePen(): boolean {
+  for (const pointer of activePointers.values()) if (pointer.type === 'pen') return true;
+  return false;
+}
+
+/** Слой, на котором начался жест: только он отдаёт наверх сдвиг и масштаб. */
+let gestureOwner: object | null = null;
+
 export function useInkInput({
   targetRef,
   enabled,
@@ -80,10 +102,21 @@ export function useInkInput({
     const el = targetRef.current;
     if (!enabled || !el) return;
 
-    /** Активные указатели на слое. Больше одного ⇒ это жест, а не штрих. */
-    const pointers = new Map<number, { clientX: number; clientY: number }>();
+    /** Ключ этого слоя во владении жестом. */
+    const layerToken = {};
+    /** Указатели, зарегистрированные ЭТИМ слоем — только их он и убирает за собой. */
+    const ownPointers = new Set<number>();
     let drawingId: number | null = null;
     let gestureState: { distance: number; centerX: number; centerY: number } | null = null;
+
+    const forgetPointer = (pointerId: number) => {
+      activePointers.delete(pointerId);
+      ownPointers.delete(pointerId);
+      if (activePointers.size < 2) {
+        gestureState = null;
+        if (gestureOwner === layerToken) gestureOwner = null;
+      }
+    };
 
     const stopDrawing = (cancelled: boolean) => {
       if (drawingId === null) return;
@@ -98,7 +131,7 @@ export function useInkInput({
     };
 
     const gestureMetrics = () => {
-      const [a, b] = [...pointers.values()];
+      const [a, b] = [...activePointers.values()];
       return {
         distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
         centerX: (a.clientX + b.clientX) / 2,
@@ -106,12 +139,38 @@ export function useInkInput({
       };
     };
 
+    /**
+     * Перо главнее пальца. Системного palm rejection в браузере нет, поэтому ладонь,
+     * лежащая на листе, иначе либо рисует сама, либо (как второй указатель) превращает
+     * штрих пера в двухпальцевый жест. Пришло перо — касания пальцем сбрасываем вместе
+     * с уже начатым ими штрихом.
+     */
+    const dropTouchPointers = () => {
+      let dropped = false;
+      for (const [pointerId, pointer] of activePointers) {
+        if (pointer.type === 'pen') continue;
+        activePointers.delete(pointerId);
+        ownPointers.delete(pointerId);
+        dropped = true;
+      }
+      if (!dropped) return;
+      gestureState = null;
+      // Штрих мог начаться и на соседнем листе: сессия рисования одна на песню,
+      // поэтому отмена черновика идёт наверх в любом случае.
+      if (drawingId !== null) stopDrawing(true);
+      else handlers.current.onCancel();
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       const ignore = handlers.current.ignoreSelector;
       if (ignore && e.target instanceof Element && e.target.closest(ignore)) return;
-      pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+      if (e.pointerType !== 'pen' && hasActivePen()) return;
+      if (e.pointerType === 'pen') dropTouchPointers();
+      activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY, type: e.pointerType });
+      ownPointers.add(e.pointerId);
+      if (activePointers.size === 1) gestureOwner = layerToken;
 
-      if (pointers.size >= 2) {
+      if (activePointers.size >= 2) {
         // Второй указатель ОТМЕНЯЕТ уже начатый штрих: иначе каждый двухпальцевый
         // жест оставляет на листе случайную закорючку от первого пальца.
         stopDrawing(true);
@@ -134,10 +193,19 @@ export function useInkInput({
     };
 
     const onPointerMove = (e: PointerEvent) => {
-      if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
+      const tracked = activePointers.get(e.pointerId);
+      if (tracked) activePointers.set(e.pointerId, { ...tracked, clientX: e.clientX, clientY: e.clientY });
 
-      if (pointers.size >= 2) {
-        if (!gestureState || !handlers.current.onGesture) return;
+      if (activePointers.size >= 2) {
+        // Второй палец мог опуститься на СОСЕДНИЙ лист — тогда `pointerdown` этого слоя
+        // не сработал, и штрих здесь всё ещё идёт. Гасим его на первом же движении.
+        stopDrawing(true);
+        if (gestureOwner !== layerToken || !handlers.current.onGesture) return;
+        // Отсчёт мог не начаться там же, где начался жест (см. выше) — заводим его лениво.
+        if (!gestureState) {
+          gestureState = gestureMetrics();
+          return;
+        }
         const next = gestureMetrics();
         handlers.current.onGesture({
           dx: next.centerX - gestureState.centerX,
@@ -165,14 +233,12 @@ export function useInkInput({
     };
 
     const onPointerUp = (e: PointerEvent) => {
-      pointers.delete(e.pointerId);
-      if (pointers.size < 2) gestureState = null;
+      forgetPointer(e.pointerId);
       if (e.pointerId === drawingId) stopDrawing(false);
     };
 
     const onPointerCancel = (e: PointerEvent) => {
-      pointers.delete(e.pointerId);
-      if (pointers.size < 2) gestureState = null;
+      forgetPointer(e.pointerId);
       if (e.pointerId === drawingId) stopDrawing(true);
     };
 
@@ -189,6 +255,11 @@ export function useInkInput({
       window.removeEventListener('pointerup', onPointerUp);
       window.removeEventListener('pointercancel', onPointerCancel);
       stopDrawing(true);
+      // Реестр указателей общий на страницу — за собой слой убирает только своё,
+      // иначе размонтированный лист унёс бы палец, лежащий на соседнем.
+      for (const pointerId of ownPointers) activePointers.delete(pointerId);
+      ownPointers.clear();
+      if (gestureOwner === layerToken) gestureOwner = null;
     };
   }, [targetRef, enabled]);
 }
