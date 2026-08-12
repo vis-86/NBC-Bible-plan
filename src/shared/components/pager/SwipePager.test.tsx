@@ -173,6 +173,62 @@ describe('SwipePager', () => {
     expect(onPrev).not.toHaveBeenCalled();
   });
 
+  /**
+   * Регрессия Android: Chrome отбирает поток указателя, как только решит, что началась
+   * прокрутка, и присылает `pointercancel` вместо `pointerup`. Жест при этом молча
+   * откатывался — «страница дёрнулась, песня не переключилась».
+   */
+  describe('жест оборван браузером (pointercancel)', () => {
+    const renderPager = (onNext: () => void, onPrev: () => void) =>
+      render(
+        <SwipePager enabled canPrev canNext onPrev={onPrev} onNext={onNext}>
+          <div>content</div>
+        </SwipePager>
+      ).container.querySelector('[data-swipe-pager]') as HTMLElement;
+
+    it('состоявшийся свайп доводится до перехода', () => {
+      const onNext = vi.fn();
+      const root = renderPager(onNext, vi.fn());
+      fireEvent.pointerDown(root, { clientX: 200, clientY: 100 });
+      fireEvent.pointerMove(root, { clientX: 100, clientY: 100 });
+      // Координат `pointercancel` не несёт — решение по последней точке движения.
+      fireEvent.pointerCancel(root, { clientX: 0, clientY: 0 });
+      expect(onNext).toHaveBeenCalledTimes(1);
+    });
+
+    it('движение не дошло до порога → перехода нет', () => {
+      const onNext = vi.fn();
+      const onPrev = vi.fn();
+      const root = renderPager(onNext, onPrev);
+      fireEvent.pointerDown(root, { clientX: 200, clientY: 100 });
+      fireEvent.pointerMove(root, { clientX: 170, clientY: 100 });
+      fireEvent.pointerCancel(root, { clientX: 170, clientY: 100 });
+      expect(onNext).not.toHaveBeenCalled();
+      expect(onPrev).not.toHaveBeenCalled();
+    });
+
+    it('два пальца на экране → это пинч, а не свайп', () => {
+      const onNext = vi.fn();
+      const root = renderPager(onNext, vi.fn());
+      fireEvent.pointerDown(root, { pointerId: 1, clientX: 200, clientY: 100 });
+      fireEvent.pointerMove(root, { pointerId: 1, clientX: 100, clientY: 100 });
+      fireEvent.pointerDown(root, { pointerId: 2, clientX: 260, clientY: 140 });
+      fireEvent.pointerCancel(root, { pointerId: 1, clientX: 100, clientY: 100 });
+      expect(onNext).not.toHaveBeenCalled();
+    });
+  });
+
+  it('включённый пейджер не отдаёт горизонталь браузеру (touch-action: pan-y)', () => {
+    // Внутри лежит скролл-контейнер, которому глобальный CSS разрешает `pan-x pan-y`:
+    // без этого ограничения Android Chrome забирает горизонтальный жест себе.
+    const { container } = render(
+      <SwipePager enabled canPrev canNext onPrev={vi.fn()} onNext={vi.fn()}>
+        <div>content</div>
+      </SwipePager>
+    );
+    expect((container.querySelector('[data-swipe-pager]') as HTMLElement).style.touchAction).toBe('pan-y');
+  });
+
   it('matchMedia замокан на prefers-reduced-motion: reduce → style.transform пуст, но коммит произошёл', () => {
     vi.stubGlobal('matchMedia', (query: string) => ({
       matches: query.includes('reduce'),

@@ -85,7 +85,11 @@ export function SwipePager({
 }: SwipePagerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
-  const startRef = useRef<{ x: number; y: number } | null>(null);
+  const startRef = useRef<{ x: number; y: number; pointerId: number } | null>(null);
+  /** Последняя точка жеста: `pointercancel` координат не несёт, а решение по ним. */
+  const lastRef = useRef<{ x: number; y: number } | null>(null);
+  /** На экране больше одного пальца — это не свайп, чем бы он ни кончился. */
+  const multiTouchRef = useRef(false);
   const axisRef = useRef<Axis>('undecided');
   const progressRef = useRef(0);
   const settleFrameRef = useRef<number | null>(null);
@@ -149,21 +153,76 @@ export function SwipePager({
     applyTransform(0, true);
     settleProgress();
     startRef.current = null;
+    lastRef.current = null;
+    multiTouchRef.current = false;
     axisRef.current = 'undecided';
     emitDragChange({ active: false, direction: commit ? lastDragStateRef.current.direction : null, atEdge: false });
+  };
+
+  /**
+   * Разбор завершённого жеста. Общий для `pointerup` и `pointercancel`: Android Chrome
+   * отбирает поток указателя, как только решит, что началась прокрутка, и присылает
+   * ТОЛЬКО `pointercancel` — на нём жест раньше молча откатывался. Со стороны это
+   * «страница дёрнулась и ничего не переключилось».
+   */
+  const finishGesture = (clientX: number, clientY: number, cancelled: boolean) => {
+    const start = startRef.current;
+    const wasHorizontal = axisRef.current === 'horizontal';
+    // Отмена при двух пальцах — это пинч/системный жест, а не свайп.
+    if (!start || !wasHorizontal || (cancelled && multiTouchRef.current)) {
+      resetDrag(false);
+      return;
+    }
+
+    const dx = clientX - start.x;
+    const dy = clientY - start.y;
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
+    const direction = resolveSwipeDirection(start.x, dx, dy, viewportWidth);
+
+    resetDrag(true);
+
+    if (direction === 'left') {
+      if (canNext) {
+        console.debug('[SwipePager] commit', { direction: 'next', canPrev, canNext, cancelled });
+        onNext();
+      } else if (onEnd) {
+        console.debug('[SwipePager] commit', { direction: 'end', canPrev, canNext, cancelled });
+        onEnd();
+      } else {
+        console.debug('[SwipePager] rejected', { dx, dy, reason: 'at-edge-next' });
+      }
+    } else if (direction === 'right') {
+      if (canPrev) {
+        console.debug('[SwipePager] commit', { direction: 'prev', canPrev, canNext, cancelled });
+        onPrev();
+      } else {
+        console.debug('[SwipePager] rejected', { dx, dy, reason: 'at-edge-prev' });
+      }
+    } else {
+      console.debug('[SwipePager] rejected', { dx, dy, reason: 'threshold' });
+    }
   };
 
   const handlers = !enabled
     ? {}
     : {
         onPointerDown: (e: React.PointerEvent) => {
+          // Второй палец не перезапускает жест, а помечает его как многопальцевый:
+          // иначе пинч превращался бы в свайп со стартом от второго касания.
+          if (startRef.current) {
+            multiTouchRef.current = true;
+            return;
+          }
           cancelSettle();
-          startRef.current = { x: e.clientX, y: e.clientY };
+          startRef.current = { x: e.clientX, y: e.clientY, pointerId: e.pointerId };
+          lastRef.current = { x: e.clientX, y: e.clientY };
+          multiTouchRef.current = false;
           axisRef.current = 'undecided';
         },
         onPointerMove: (e: React.PointerEvent) => {
           const start = startRef.current;
-          if (!start) return;
+          if (!start || e.pointerId !== start.pointerId) return;
+          lastRef.current = { x: e.clientX, y: e.clientY };
           const dx = e.clientX - start.x;
           const dy = e.clientY - start.y;
 
@@ -187,48 +246,28 @@ export function SwipePager({
           emitDragChange({ active: true, direction, atEdge });
         },
         onPointerUp: (e: React.PointerEvent) => {
-          const start = startRef.current;
-          const wasHorizontal = axisRef.current === 'horizontal';
-          if (!start || !wasHorizontal) {
-            resetDrag(false);
-            return;
-          }
-
-          const dx = e.clientX - start.x;
-          const dy = e.clientY - start.y;
-          const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : 0;
-          const direction = resolveSwipeDirection(start.x, dx, dy, viewportWidth);
-
-          resetDrag(true);
-
-          if (direction === 'left') {
-            if (canNext) {
-              console.debug('[SwipePager] commit', { direction: 'next', canPrev, canNext });
-              onNext();
-            } else if (onEnd) {
-              console.debug('[SwipePager] commit', { direction: 'end', canPrev, canNext });
-              onEnd();
-            } else {
-              console.debug('[SwipePager] rejected', { dx, dy, reason: 'at-edge-next' });
-            }
-          } else if (direction === 'right') {
-            if (canPrev) {
-              console.debug('[SwipePager] commit', { direction: 'prev', canPrev, canNext });
-              onPrev();
-            } else {
-              console.debug('[SwipePager] rejected', { dx, dy, reason: 'at-edge-prev' });
-            }
-          } else {
-            console.debug('[SwipePager] rejected', { dx, dy, reason: 'threshold' });
-          }
+          if (startRef.current && e.pointerId !== startRef.current.pointerId) return;
+          finishGesture(e.clientX, e.clientY, false);
         },
-        onPointerCancel: () => {
-          resetDrag(false);
+        onPointerCancel: (e: React.PointerEvent) => {
+          if (startRef.current && e.pointerId !== startRef.current.pointerId) return;
+          const last = lastRef.current;
+          finishGesture(last?.x ?? e.clientX, last?.y ?? e.clientY, true);
         },
       };
 
   return (
-    <div ref={rootRef} data-swipe-pager className={className} {...handlers}>
+    <div
+      ref={rootRef}
+      data-swipe-pager
+      className={className}
+      // Горизонталь браузеру не отдаём совсем: внутри лежит скролл-контейнер, которому
+      // глобальный CSS разрешает `pan-x pan-y`, и Android Chrome на этом основании
+      // забирал жест себе (pointercancel вместо pointerup). Вертикальная прокрутка
+      // остаётся нативной, нативный зум в приложении и так запрещён (globals.css).
+      style={enabled ? { touchAction: 'pan-y' } : undefined}
+      {...handlers}
+    >
       {/* Сдвигается только этот узел — оверлей (подсказка) остаётся неподвижным. */}
       <div ref={contentRef} data-swipe-pager-content className="h-full w-full">
         {children}
