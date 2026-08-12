@@ -37,6 +37,16 @@ import { cn } from '@/shared/utils/cn';
 const HINT_HOLD_COMMIT_MS = 900;
 
 /**
+ * «Рисовать только стилусом» и «перо сразу рисует» отключены (2026-08-12): оба режима
+ * ведут себя не так, как задумано, и мешают пользоваться пометками. Тумблеры убраны из
+ * `SongViewSettings`, но сами режимы и их настройки в localStorage сохранены — возврат
+ * = снять эти константы обратно на `viewSettings.inkPenOnly` / `inkInstant` и вернуть
+ * группу «Пометки» в панель настроек.
+ */
+const INK_PEN_ONLY = false;
+const INK_INSTANT = false;
+
+/**
  * Единый клиентский маршрут детали песни (approach C): id живёт в search-параметре,
  * а не в сегменте `songs/[id]`. Search не меняет сегмент маршрута → один документ
  * `/dashboard/song` (прогретый в HTML-кеш + отдаваемый SW по ignoreSearch) открывает
@@ -143,7 +153,7 @@ function SongPageContent() {
   const ink = useSongInk({
     initialStrokes: annotations.strokes,
     onSave: annotations.save,
-    instantAnnotation: viewSettings.inkInstant,
+    instantAnnotation: INK_INSTANT,
     // Ехать под пером бессмысленно — вход в режим (в т.ч. instant) гасит автоскролл.
     onEnter: () => autoscrollRef.current?.pause(),
     // Цвет переживает песню и перезапуск: хранит его localStorage настроек просмотра,
@@ -161,7 +171,7 @@ function SongPageContent() {
   } = useInkStage({
     viewportRef: contentRef,
     active: ink.active,
-    penOnly: viewSettings.inkPenOnly,
+    penOnly: INK_PEN_ONLY,
   });
 
   /**
@@ -360,7 +370,7 @@ function SongPageContent() {
               // В режиме рисования палец рисует, поэтому нативный скролл выключен и
               // лист двигают двумя пальцами. При «только стилусом» палец скроллит
               // штатно — заморозка там не нужна и только мешала бы.
-              ink.active && !viewSettings.inkPenOnly ? 'overflow-hidden' : 'overflow-y-auto',
+              ink.active && !INK_PEN_ONLY ? 'overflow-hidden' : 'overflow-y-auto',
               mode === 'scroll' ? 'px-4 pb-4' : 'pb-2'
             )}
             // pan-x тоже нужен: на увеличенном листе правый край иначе недостижим.
@@ -370,7 +380,7 @@ function SongPageContent() {
             // (py-4/py-2 прежней раскладки) прибавляется к её измеренной высоте.
             style={{
               paddingTop: `calc(${headerHeight}px + ${mode === 'scroll' ? '1rem' : '0.5rem'})`,
-              ...(ink.active && viewSettings.inkPenOnly ? { touchAction: 'pan-x pan-y' } : {}),
+              ...(ink.active && INK_PEN_ONLY ? { touchAction: 'pan-x pan-y' } : {}),
             }}
           >
             {!id ? (
@@ -411,8 +421,8 @@ function SongPageContent() {
                 columns={viewSettings.columns}
                 viewportRef={contentRef}
                 ink={ink}
-                inkPenOnly={viewSettings.inkPenOnly}
-                inkInstant={viewSettings.inkInstant}
+                inkPenOnly={INK_PEN_ONLY}
+                inkInstant={INK_INSTANT}
                 onInkGesture={applyInkGesture}
               />
               </div>

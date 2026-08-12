@@ -146,26 +146,8 @@ export const SongViewSettings: React.FC<SongViewSettingsProps> = ({ isOpen, onCl
           </div>
         </SettingsGroup>
 
-        <SettingsGroup title="Пометки">
-          <div className="space-y-4">
-            <ToggleRow
-              label="Рисовать только стилусом"
-              checked={settings.inkPenOnly}
-              onChange={() => onSettingsChange({ inkPenOnly: !settings.inkPenOnly })}
-              dataAttr="data-section-ink-pen-only"
-            />
-            <ToggleRow
-              label="Перо сразу рисует"
-              checked={settings.inkInstant}
-              onChange={() => onSettingsChange({ inkInstant: !settings.inkInstant })}
-              dataAttr="data-section-ink-instant"
-            />
-            <p className="text-xs text-app-text-muted" data-song-view-settings-ink-hint>
-              «Только стилусом» — палец прокручивает лист, рисует лишь перо. «Перо сразу рисует» —
-              касание пером включает пометки, пауза сохраняет их и выходит.
-            </p>
-          </div>
-        </SettingsGroup>
+        {/* Группа «Пометки» («только стилусом» и «перо сразу рисует») временно убрана —
+            см. INK_PEN_ONLY / INK_INSTANT в src/app/dashboard/song/page.tsx. */}
       </div>
     </BottomSheet>
   );
