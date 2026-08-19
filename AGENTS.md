@@ -99,7 +99,7 @@ bible-plan/
 │   │   ├── config/
 │   │   │   └── design-tokens.ts      # TS design token constants (maps to CSS vars)
 │   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast), useAutoHideOnScroll (hide-on-scroll обёртка над useScrollDirection), useTapToReveal (тап по контенту возвращает скрытый хром), useAppRole, useIsOnline, useHorizontalSwipe, usePullToRefresh
-│   │   ├── offline/                  # IndexedDB layer (idb), read-through, write-ahead outbox, sync, downloadManager, autoDownload (T11), chunkGuard, networkTimeout
+│   │   ├── offline/                  # IndexedDB layer (idb), read-through (+ readThroughSWR — cache-first), write-ahead outbox, sync, downloadManager (+ дельта-синк), autoDownload, syncVersions, chunkGuard, networkTimeout
 │   │   ├── services/
 │   │   │   └── api/
 │   │   │       ├── client.ts         # Fetch wrapper + ApiClientError
@@ -123,7 +123,8 @@ bible-plan/
 │       ├── session.ts                # Hono adapter over src/lib/session-core.ts
 │       ├── env.ts                    # zod-validated env (lazy-throw on missing secrets)
 │       └── routes/                   # auth, bible, plan, songs (+ /:id/state — личные пометки),
-│                                     # setlists, user, chat, graphql, directus-proxy, ai
+│                                     # setlists, sync (манифест версий), user, chat, graphql,
+│                                     # directus-proxy, ai
 ├── docs/                             # Project documentation
 │   ├── AI_INTEGRATION_GUIDE.md
 │   ├── DIRECTUS_SETUP_GUIDE.md
@@ -165,8 +166,12 @@ bible-plan/
 | `src/shared/services/api/endpoints.ts` | All API calls with TypeScript types |
 | `src/shared/offline/db.ts` | IndexedDB schema (idb), **версия 2** — bibleChapters/songs/apiCache/outbox/meta/manifest/songState. Миграция 1→2 только ДОБАВЛЯЕТ стор: снос существующих = потеря скачанного Писания и песен у установивших PWA |
 | `src/shared/offline/outbox.ts` + `sync.ts` | Write-ahead outbox (прогресс + пометки песен) и replay-движок (LWW). `OutboxRecord` — дискриминированный union; запись **без `kind` = прогресс** (такие лежат в IDB у пользователей), разбор только через `isProgressOutboxRecord()` |
-| `src/shared/offline/downloadManager.ts` | Опциональная офлайн-загрузка Писания/песен/плана/сетлистов (+ пометки песен) и очистка |
-| `src/shared/offline/autoDownload.ts` | Автозагрузка базового набора после логина (iOS partition fix, T11) |
+| `src/shared/offline/downloadManager.ts` | Опциональная офлайн-загрузка Писания/песен/плана/сетлистов (+ пометки песен), очистка и **дельта-синк** (`syncSongsDelta`/`syncSetlistsDelta`) |
+| `src/shared/offline/autoDownload.ts` | Автозагрузка базового набора после логина (iOS partition fix) + дельта-синк на КАЖДОМ запуске: манифест с ETag → качается только изменившееся, отсутствующее в манифесте удаляется. Версии и ETag фиксируются только после успеха |
+| `src/shared/offline/syncVersions.ts` | Карта версий и ETag манифеста в существующем сторе `meta` (`sync:versions`, `sync:etag`) — без новых сторов и без подъёма `DB_VERSION` |
+| `server/src/routes/sync.ts` | `GET /api/sync/manifest` — пер-элементные версии песен/сетов/плана, ETag + 304, in-memory кеш 60 с. Версия сета учитывает состав (`setlist_items`), не только `date_updated`. Сбой Directus → 503, НИКОГДА не пустой манифест |
+| `src/features/setlists/lib/warmSetlistSongs.ts` | Фоновый прогрев всех песен открытого сета тем же вызовом, которым их читает экран (`readSongThroughSWR`) |
+| `src/features/songs/components/SongFreshBanner.tsx` | Плашка «Песня обновлена» — свежая версия открытой песни применяется только по явному тапу (`useSong().applyFresh`) |
 | `src/lib/app-roles.ts` + `src/shared/hooks/useAppRole.ts` | `AppRole` (reader/musician/musician_editor), `GET /api/user/role` — гейт кнопок сетлистов (реальный гейт — BFF `requireSetlistWrite`, см. `CLAUDE.md`) |
 | `server/src/routes/setlists.ts` + `src/features/setlists/services/setlistsServer.ts` | CRUD сетлистов (Directus admin-client), `requireSetlistWrite` на мутирующих роутах |
 | `src/app/dashboard/setlists/page.tsx`, `.../setlist/page.tsx`, `.../setlist-edit/page.tsx` | Список / read-only просмотр / создание сета — все три в `APP_SHELL_ROUTES`. Карточка списка показывает состав и ведёт на первую песню сета (`/dashboard/song?id=&setlistId=`); `setlist-edit` — ТОЛЬКО создание (два шага: выбор песен → название/дата/порядок) |
