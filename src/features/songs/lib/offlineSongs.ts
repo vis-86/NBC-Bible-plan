@@ -1,6 +1,7 @@
 import { getDB } from '@/shared/offline/db';
 import { OfflineNoDataError, isDefinitelyOffline, raceNetwork } from '@/shared/offline/networkHealth';
 import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout } from '@/shared/offline/networkTimeout';
+import { DEFAULT_SWR_TTL_MS } from '@/shared/offline/readThrough';
 import type { Song } from '../types';
 
 /**
@@ -78,4 +79,78 @@ export async function readSongThrough(
     }
     throw err;
   }
+}
+
+/** Запись стора `songs` целиком — нужен `updatedAt` для TTL SWR-чтения. */
+export async function getCachedSongRecord(
+  id: string | number
+): Promise<{ data: Song; updatedAt: number } | undefined> {
+  try {
+    const db = await getDB();
+    const record = await db.get('songs', String(id));
+    if (!record) return undefined;
+    return { data: record.data as Song, updatedAt: record.updatedAt };
+  } catch (err) {
+    debug('IDB read failed', id, err);
+    return undefined;
+  }
+}
+
+export interface ReadSongSWROptions {
+  ttlMs?: number;
+  timeoutMs?: number;
+  /** Вызывается, когда фоновая ревалидация принесла песню с сервера. */
+  onFresh?: (song: Song) => void;
+}
+
+export interface ReadSongSWRResult {
+  song: Song;
+  fromCache: boolean;
+  revalidating: boolean;
+}
+
+/**
+ * Cache-first чтение песни (см. `readThroughSWR`): свежий кеш отдаётся мгновенно без
+ * сети, протухший — мгновенно + фоновая ревалидация, пустой — прежний network-first
+ * (`readSongThrough`) со всеми его гарантиями, включая `OfflineNoDataError`.
+ */
+export async function readSongThroughSWR(
+  id: string | number,
+  fetcher: () => Promise<Song>,
+  options: ReadSongSWROptions = {}
+): Promise<ReadSongSWRResult> {
+  const { ttlMs = DEFAULT_SWR_TTL_MS, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS, onFresh } = options;
+
+  const record = await getCachedSongRecord(id);
+
+  if (record === undefined) {
+    debug('cache miss → network-first', id);
+    const song = await readSongThrough(id, fetcher, timeoutMs);
+    return { song, fromCache: false, revalidating: false };
+  }
+
+  const age = Date.now() - record.updatedAt;
+  if (age < ttlMs) {
+    debug('cache hit (fresh)', id, { ageMs: age, ttlMs });
+    return { song: record.data, fromCache: true, revalidating: false };
+  }
+
+  debug('cache hit (stale) → background revalidate', id, { ageMs: age, ttlMs });
+  if (isDefinitelyOffline()) {
+    debug('offline — фоновая ревалидация пропущена', id);
+    return { song: record.data, fromCache: true, revalidating: false };
+  }
+
+  void fetcher()
+    .then((fresh) => {
+      void persistCachedSong(fresh);
+      const changed = JSON.stringify(fresh) !== JSON.stringify(record.data);
+      debug('revalidated', id, { changed });
+      onFresh?.(fresh);
+    })
+    .catch((err) => {
+      debug('background revalidation failed', id, err);
+    });
+
+  return { song: record.data, fromCache: true, revalidating: true };
 }

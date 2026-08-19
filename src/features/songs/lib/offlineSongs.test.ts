@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { readSongThrough, getCachedSong, persistCachedSong } from './offlineSongs';
-import { __resetDBConnection } from '@/shared/offline/db';
+import { readSongThrough, readSongThroughSWR, getCachedSong, persistCachedSong } from './offlineSongs';
+import { __resetDBConnection, getDB } from '@/shared/offline/db';
+import * as dbModule from '@/shared/offline/db';
 import { OfflineNoDataError, resetNetworkSuspicionForTests } from '@/shared/offline/networkHealth';
 import type { Song } from '../types';
 
@@ -95,5 +96,110 @@ describe('offlineSongs', () => {
     const fetcher = vi.fn(() => new Promise<Song>(() => {}));
 
     await expect(readSongThrough('999', fetcher, 20)).rejects.toBeInstanceOf(OfflineNoDataError);
+  });
+});
+
+describe('readSongThroughSWR', () => {
+  const STALE_AGE_MS = 10 * 60_000;
+
+  beforeEach(() => {
+    __resetDBConnection();
+    resetNetworkSuspicionForTests();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** Кладёт песню в стор `songs` с заданным возрастом записи. */
+  async function seed(song: Song, ageMs: number) {
+    const db = await getDB();
+    await db.put('songs', { id: String(song.id), data: song, updatedAt: Date.now() - ageMs });
+  }
+
+  it('свежий кеш отдаётся мгновенно, fetcher НЕ вызывается', async () => {
+    await seed(SONG, 1_000);
+    const fetcher = vi.fn();
+
+    const res = await readSongThroughSWR('42', fetcher);
+
+    expect(res).toEqual({ song: SONG, fromCache: true, revalidating: false });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('протухший кеш: песня мгновенно, onFresh после фоновой сети', async () => {
+    await seed(SONG, STALE_AGE_MS);
+    const fresh: Song = { ...SONG, content: '{soc}\n[A]Обновлённый текст\n{eoc}' };
+    const fetcher = vi.fn().mockResolvedValue(fresh);
+    const onFresh = vi.fn();
+
+    const res = await readSongThroughSWR('42', fetcher, { onFresh });
+
+    expect(res.song).toEqual(SONG);
+    expect(res.revalidating).toBe(true);
+
+    await vi.waitFor(() => expect(onFresh).toHaveBeenCalledWith(fresh));
+    expect(await getCachedSong('42')).toEqual(fresh);
+  });
+
+  it('пустой кеш: прежнее поведение network-first', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ ...SONG, id: 'swr-miss' });
+
+    const res = await readSongThroughSWR('swr-miss', fetcher);
+
+    expect(res).toEqual({ song: { ...SONG, id: 'swr-miss' }, fromCache: false, revalidating: false });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it('офлайн-режим A: fetcher мгновенно reject + песня в IDB -> кеш', async () => {
+    await seed(SONG, STALE_AGE_MS);
+    const fetcher = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    const onFresh = vi.fn();
+
+    const res = await readSongThroughSWR('42', fetcher, { onFresh });
+
+    expect(res.song).toEqual(SONG);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(onFresh).not.toHaveBeenCalled();
+  });
+
+  it('офлайн-режим B: fetcher НИКОГДА не резолвится + песня в IDB -> кеш сразу', async () => {
+    await seed(SONG, STALE_AGE_MS);
+    const fetcher = vi.fn(() => new Promise<Song>(() => {}));
+
+    const res = await readSongThroughSWR('42', fetcher);
+
+    expect(res.song).toEqual(SONG);
+    expect(res.revalidating).toBe(true);
+  });
+
+  it('navigator.onLine === false + пустой кеш -> OfflineNoDataError', async () => {
+    vi.stubGlobal('navigator', { onLine: false });
+    const fetcher = vi.fn(() => new Promise<Song>(() => {}));
+
+    await expect(readSongThroughSWR('swr-offline-empty', fetcher, { timeoutMs: 10 })).rejects.toBeInstanceOf(
+      OfflineNoDataError
+    );
+  });
+
+  it('navigator.onLine === false + протухший кеш -> сеть не трогаем', async () => {
+    await seed(SONG, STALE_AGE_MS);
+    vi.stubGlobal('navigator', { onLine: false });
+    const fetcher = vi.fn();
+
+    const res = await readSongThroughSWR('42', fetcher);
+
+    expect(res).toEqual({ song: SONG, fromCache: true, revalidating: false });
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('ошибка IDB не роняет путь — уходим в network-first', async () => {
+    const fetcher = vi.fn().mockResolvedValue(SONG);
+    const spy = vi.spyOn(dbModule, 'getDB').mockRejectedValue(new Error('IDB dead'));
+
+    const res = await readSongThroughSWR('swr-idb-fail', fetcher);
+
+    expect(res.song).toEqual(SONG);
+    spy.mockRestore();
   });
 });
