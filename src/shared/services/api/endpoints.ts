@@ -1,4 +1,5 @@
-import { apiClient } from './client';
+import { apiClient, ApiClientError } from './client';
+import { getApiPath } from '@/shared/utils/api';
 import { BibleReference, ReadingPlanDay, PlanItem } from '@/types';
 import type { AppRole } from '@/lib/app-roles';
 // Type-only import (стирается при компиляции) — доменные типы фичи songs.
@@ -172,3 +173,45 @@ export const appSettingsApi = {
   },
 };
 
+
+/** Пер-элементные версии офлайн-ресурсов (`GET /api/sync/manifest`). */
+export interface SyncManifest {
+  /** `[songId, version]`; ПОЛНЫЙ список опубликованных песен — отсутствие id = удалена. */
+  songs: Array<[string, string]>;
+  /** `[setlistId, version]`; версия учитывает и состав сета, не только `date_updated`. */
+  setlists: Array<[string, string]>;
+  plan: string;
+}
+
+export type SyncManifestResult =
+  | { status: 'not-modified' }
+  | { status: 'ok'; manifest: SyncManifest; etag: string | null };
+
+export const syncApi = {
+  /**
+   * Читает манифест с условным запросом. `apiClient` здесь не подходит: он трактует
+   * любой не-`ok` статус как ошибку, а 304 — штатный и самый частый ответ.
+   */
+  getManifest: async (etag?: string | null): Promise<SyncManifestResult> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (etag) headers['If-None-Match'] = etag;
+    console.debug('[syncApi] getManifest, If-None-Match:', etag ?? '—');
+
+    const response = await fetch(getApiPath('/api/sync/manifest'), {
+      method: 'GET',
+      headers,
+      credentials: 'include',
+      // Валидацию делает сервер (ETag). HTTP-кеш браузера тут только мешал бы.
+      cache: 'no-cache',
+    });
+
+    console.debug('[syncApi] getManifest status:', response.status);
+    if (response.status === 304) return { status: 'not-modified' };
+    if (!response.ok) {
+      throw new ApiClientError(`Sync manifest error: ${response.status}`, response.status);
+    }
+
+    const manifest = (await response.json()) as SyncManifest;
+    return { status: 'ok', manifest, etag: response.headers.get('ETag') };
+  },
+};

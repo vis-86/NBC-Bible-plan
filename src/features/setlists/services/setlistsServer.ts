@@ -5,6 +5,12 @@
 import { createItem, createItems, deleteItem, deleteItems, readItem, readItems, updateItem } from '@directus/sdk';
 import type { DirectusClient, RestClient } from '@directus/sdk';
 import { getDirectusAdminClient } from '@/lib/directus';
+import { createHash } from 'node:crypto';
+
+/** Короткий стабильный хеш строки — только для сравнения версий, не для безопасности. */
+function shortHash(input: string): string {
+  return createHash('sha1').update(input).digest('hex').slice(0, 12);
+}
 
 const LOG = '[Setlists API]';
 
@@ -42,6 +48,8 @@ type SetlistRow = {
   title: string;
   date: string | null;
   date_created: string;
+  /** Заполняется Directus при правке самого сета; правка состава его НЕ трогает. */
+  date_updated: string | null;
   created_by: string;
 };
 type SetlistItemRow = { id: string; setlist: string; song: number | null; sort: number };
@@ -275,4 +283,36 @@ export async function deleteSetlist(id: string): Promise<void> {
   const client = getClient();
   await client.request(deleteItems('setlists', [id]));
   console.debug(`${LOG} delete ${id}`);
+}
+
+/**
+ * Версии сетов для sync-манифеста.
+ *
+ * ЛОВУШКА: правка состава меняет `setlist_items`, а НЕ `setlists.date_updated` — версия
+ * по одному лишь `date_updated` пропустила бы ровно то изменение, ради которого сет и
+ * открывают. Поэтому версия = короткий хеш от `date_updated` сета + его отсортированного
+ * состава (`itemId:sort:songId`).
+ */
+export async function getSetlistVersions(): Promise<Array<[string, string]>> {
+  const client = getClient();
+  const [setlists, items] = await Promise.all([
+    client.request(readItems('setlists', { fields: ['id', 'date_updated', 'date_created'], limit: -1 })),
+    client.request(readItems('setlist_items', { fields: ['id', 'setlist', 'song', 'sort'], limit: -1 })),
+  ]);
+
+  const bySetlist = new Map<string, string[]>();
+  for (const item of items) {
+    const list = bySetlist.get(item.setlist) ?? [];
+    list.push(`${item.id}:${item.sort}:${item.song}`);
+    bySetlist.set(item.setlist, list);
+  }
+
+  const versions = setlists.map((row): [string, string] => {
+    const composition = (bySetlist.get(row.id) ?? []).sort().join('|');
+    const stamp = String(row.date_updated ?? row.date_created ?? '');
+    return [row.id, shortHash(`${stamp}#${composition}`)];
+  });
+
+  console.debug(`${LOG} versions: ${versions.length} setlist(s)`);
+  return versions;
 }

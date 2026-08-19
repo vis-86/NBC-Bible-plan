@@ -89,3 +89,26 @@ export async function getSongById(id: number): Promise<Song | null> {
     return null;
   }
 }
+
+/**
+ * Версии песен для sync-манифеста: `[id, date_updated]`. `date_updated` — родное поле
+ * Directus, отдельного счётчика версий заводить не нужно. Отдаём ВСЕ опубликованные id:
+ * полный список заменяет tombstones — клиент удаляет из IDB всё, чего здесь нет.
+ */
+export async function getSongVersions(): Promise<Array<[string, string]>> {
+  const client = getDirectusAdminClient();
+  const rows: Array<{ id: number; date_updated?: string | null; date_created?: string | null }> =
+    await client.request(
+      readItems('songs', {
+        fields: ['id', 'date_updated', 'date_created'],
+        filter: { status: { _eq: 'published' } },
+        sort: ['id'],
+        limit: -1,
+      }),
+    );
+
+  console.debug(`${LOG} versions: ${rows.length} song(s)`);
+  // Песня, ни разу не правленная после импорта, имеет пустой date_updated — берём
+  // date_created, иначе все такие песни делили бы одну «версию» и не обновлялись.
+  return rows.map((row) => [String(row.id), String(row.date_updated ?? row.date_created ?? '')]);
+}
