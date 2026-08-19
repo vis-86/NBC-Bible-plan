@@ -49,6 +49,12 @@ interface SongViewProps {
   mode?: 'scroll' | 'sheets';
   /** Число колонок в постраничных режимах; в `scroll` всегда одна (§4.1). */
   columns?: 1 | 2;
+  /**
+   * Экран шире `SONG_WIDE_LAYOUT_QUERY`. Вместе с одной колонкой включает склейку
+   * соседних строк в одну визуальную (`.cproSongLinePair`). Приходит пропом, а не
+   * медиа-запросом в CSS: брейкпоинт обязан остаться одной константой.
+   */
+  wideLayout?: boolean;
   /** Скролл-контейнер страницы — из его высоты берётся высота листа (§4.2). */
   viewportRef?: RefObject<HTMLElement | null>;
   /**
@@ -86,6 +92,7 @@ export const SongView: React.FC<SongViewProps> = ({
   showHeader = true,
   mode = 'scroll',
   columns = 1,
+  wideLayout = false,
   viewportRef,
   ink,
   inkPenOnly = false,
@@ -117,13 +124,16 @@ export const SongView: React.FC<SongViewProps> = ({
   const sourceRef = useRef<HTMLDivElement>(null);
   // Две колонки существуют только вместе с постраничным режимом (§4.1).
   const effectiveColumns = mode === 'scroll' ? 1 : columns;
+  // Склейка строк: только там, где под неё есть свободная ширина — широкий экран и
+  // одна колонка. Во второй колонке ширина уже разделена, склеивать нечего.
+  const pairLines = wideLayout && effectiveColumns === 1;
   const sheets = useSheets({
     enabled: mode !== 'scroll',
     sourceRef,
     viewportRef,
     // Транспозиция входит в подпись: `Bb7` шире `A7`, ширина аккордов меняет разбивку,
     // а без пересборки лист остался бы обрезанным или пустым.
-    layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}|${semitones}`,
+    layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}|${semitones}|${pairLines ? 'pair' : 'solo'}`,
     fontSize: fontSize ?? 0,
     // PAGE_PADDING — нижнее поле корня: `chromeAboveFlow` меряет только то, что над потоком.
     reservedHeight: SHEET_PADDING_TOP + PAGE_PADDING,
@@ -134,7 +144,7 @@ export const SongView: React.FC<SongViewProps> = ({
   const meta = [metaKey ?? songKey, tempo].filter(Boolean).join(' · ');
 
   // Та же подпись, что пересобирает листы: строки переехали ⇒ bbox пометок пересчитать.
-  const inkLayoutSignature = `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${semitones}|${fontSize ?? 0}`;
+  const inkLayoutSignature = `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${semitones}|${fontSize ?? 0}|${pairLines ? 'pair' : 'solo'}`;
 
   /**
    * Обёртка потока: со слоем пометок или без него. Обёртка есть ВСЕГДА — включение
@@ -185,6 +195,7 @@ export const SongView: React.FC<SongViewProps> = ({
       data-chords={hideChords ? 'off' : undefined}
       data-density={density}
       data-mode={mode}
+      data-pair-lines={pairLines ? '' : undefined}
       style={rootStyle}
     >
       {showHeader && (title || subtitle || meta) && (

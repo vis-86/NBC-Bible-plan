@@ -59,6 +59,18 @@ describe('SongView', () => {
     expect(root.style.getPropertyValue('--col-count')).toBe('2');
   });
 
+  it('склейка строк включается только на широком экране с одной колонкой', () => {
+    const narrow = render(<SongView content={CONTENT} columns={1} />);
+    expect(narrow.container.querySelector('[data-song-view]')?.hasAttribute('data-pair-lines')).toBe(false);
+
+    const wideOneColumn = render(<SongView content={CONTENT} columns={1} wideLayout />);
+    expect(wideOneColumn.container.querySelector('[data-song-view]')?.hasAttribute('data-pair-lines')).toBe(true);
+
+    // Две колонки: ширина уже поделена, склеивать нечего.
+    const wideTwoColumns = render(<SongView content={CONTENT} columns={2} mode="sheets" wideLayout />);
+    expect(wideTwoColumns.container.querySelector('[data-song-view]')?.hasAttribute('data-pair-lines')).toBe(false);
+  });
+
   it('транспонирует аккорды при ненулевом сдвиге, не трогая такты и пометки', () => {
     const content = '{comment: Куплет 1}\n[Am]Хор [|]поёт [(пауза)] [F]тут';
     const { container } = render(<SongView content={content} songKey="Bm" semitones={2} />);

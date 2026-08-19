@@ -4,6 +4,7 @@ import type React from 'react';
 import './songs.css';
 import { LineRenderer } from './LineRenderer';
 import { SONG_SECTION_KIND_ATTR, type SongSectionKind } from '../../lib/songSectionKind';
+import { groupSongLinePairs } from '../../lib/songLinePairs';
 
 export interface HtmlSection {
   comment?: string;
@@ -33,9 +34,17 @@ const SectionRenderer: React.FC<{ section: HtmlSection; sectionIndex: number }> 
   return (
     <span className="cproSongSection" {...{ [SONG_SECTION_KIND_ATTR]: section.kind }}>
       {section.comment && <CommentRenderer comment={section.comment} commentType={section.commentType} />}
-      {section.lines.map((line, idx) => (
-        // Якорь пометок — пара (индекс секции, индекс строки внутри секции), §6.
-        <LineRenderer key={idx} line={line} anchor={{ section: sectionIndex, line: idx }} />
+      {/* Строки завёрнуты парами (см. `groupSongLinePairs`). Обёртка есть ВСЕГДА, но
+          вне режима склейки она `display: contents` — раскладка ровно прежняя. Индекс
+          строки берётся из группы, а не из позиции внутри неё: якорь пометок обязан
+          остаться исходным, иначе штрихи уедут на чужие строки. */}
+      {groupSongLinePairs(section.lines).map((pair, pairIdx) => (
+        <span className="cproSongLinePair" key={pairIdx}>
+          {pair.map((lineIdx) => (
+            // Якорь пометок — пара (индекс секции, индекс строки внутри секции), §6.
+            <LineRenderer key={lineIdx} line={section.lines[lineIdx]} anchor={{ section: sectionIndex, line: lineIdx }} />
+          ))}
+        </span>
       ))}
     </span>
   );

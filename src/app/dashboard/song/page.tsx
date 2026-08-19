@@ -420,6 +420,9 @@ function SongPageContent() {
                 showHeader={viewSettings.showHeader}
                 mode={mode}
                 columns={viewSettings.columns}
+                // Тот же isWideLayout, что решает про листы: склейка строк включается
+                // на широком экране с одной колонкой (второго брейкпоинта нет).
+                wideLayout={isWideLayout}
                 viewportRef={contentRef}
                 ink={ink}
                 inkPenOnly={INK_PEN_ONLY}
