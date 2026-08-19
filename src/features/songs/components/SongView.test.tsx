@@ -136,6 +136,16 @@ describe('SongView', () => {
     expect(container.querySelector('[data-song-view-sheet-number]')?.textContent).toBe('1 / 1');
   });
 
+  // В jsdom измерений нет (нулевые размеры), поэтому листы остаются неготовыми —
+  // ровно то состояние, в котором на планшете успевала мелькнуть черновая страница.
+  it('прячет листы, пока раскладка не измерена', () => {
+    const { container } = render(<SongView content={CONTENT} fontSize={12} mode="sheets" />);
+    const sheets = container.querySelector('[data-song-view-sheets]') as HTMLElement;
+
+    expect(sheets.getAttribute('data-song-view-sheets-ready')).toBeNull();
+    expect(sheets.className).toContain('invisible');
+  });
+
   it('вид секции есть и в источнике-линейке, и в клонах листов', () => {
     const { container } = render(<SongView content={CONTENT} fontSize={12} mode="sheets" />);
     const sheetCount = container.querySelectorAll('[data-song-view-sheet]').length;

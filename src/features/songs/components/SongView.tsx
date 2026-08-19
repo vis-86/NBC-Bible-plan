@@ -236,7 +236,15 @@ export const SongView: React.FC<SongViewProps> = ({
       </div>
 
       {mode === 'sheets' && (
-        <div className="sheets" data-song-view-sheets style={sheets.width ? { width: `${sheets.width}px` } : undefined}>
+        // Пока раскладка не измерена, листы скрыты: показать их раньше — значит
+        // показать одну черновую страницу без сдвига потока, которая через пару
+        // кадров перестроится на глазах. Готовые проявляются, а не возникают.
+        <div
+          className={cn('sheets', sheets.ready ? 'animate-content-in' : 'invisible')}
+          data-song-view-sheets
+          data-song-view-sheets-ready={sheets.ready ? '' : undefined}
+          style={sheets.width ? { width: `${sheets.width}px` } : undefined}
+        >
           {Array.from({ length: sheets.count }, (_, index) => (
             <div key={index} className="sheet" data-song-view-sheet style={{ paddingTop: SHEET_PADDING_TOP }}>
               {/* Сдвиг «окна» живёт на обёртке, а не на самом потоке: слой пометок —

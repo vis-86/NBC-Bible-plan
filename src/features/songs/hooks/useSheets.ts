@@ -15,9 +15,15 @@ export interface SheetsMetrics {
   width: number;
   /** Высота потока страницы, px (0 — ещё не измерено). */
   pageHeight: number;
+  /**
+   * Раскладка измерена: ширина и высота страницы известны, число листов настоящее.
+   * До этого листы рисовать нельзя — они успевали показаться одной черновой страницей
+   * без сдвига потока и затем перекладывались на глазах («листы прыгают» на планшете).
+   */
+  ready: boolean;
 }
 
-const EMPTY: SheetsMetrics = { count: 1, pitch: 0, width: 0, pageHeight: 0 };
+const EMPTY: SheetsMetrics = { count: 1, pitch: 0, width: 0, pageHeight: 0, ready: false };
 
 /**
  * Правый край последней непустой секции. `scrollWidth` тут не годится: multicol
@@ -113,10 +119,15 @@ export function useSheets(params: {
         pitch: nextPitch,
         width,
         pageHeight: nextPageHeight,
+        ready: width > 0 && nextPageHeight > 0,
       };
 
       setMetrics((prev) =>
-        prev.count === next.count && prev.pitch === next.pitch && prev.width === next.width && prev.pageHeight === next.pageHeight
+        prev.count === next.count &&
+        prev.pitch === next.pitch &&
+        prev.width === next.width &&
+        prev.pageHeight === next.pageHeight &&
+        prev.ready === next.ready
           ? prev
           : next,
       );
