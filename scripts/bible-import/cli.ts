@@ -12,6 +12,7 @@ import { BIBLE_STRUCTURE } from '../../src/lib/constants';
 import { moduleFullNameToCanonical } from './canonical-names';
 import { parseBibleqtIniFile, resolveBibleqtIniPath } from './parse-bibleqt-ini';
 import { parseBiblequoteBookHtml } from './parse-biblequote-html';
+import { applyCorrections, loadCorrections } from './corrections';
 
 const LOG = '[convert-bible]';
 
@@ -79,6 +80,8 @@ function main(): void {
   const entries = parseBibleqtIniFile(iniPath);
   const index: Record<string, string> = {};
   let converted = 0;
+  let correctionsApplied = 0;
+  const corrections = loadCorrections(translationId);
   let skipped = 0;
   const errors: string[] = [];
 
@@ -123,6 +126,15 @@ function main(): void {
     if (isDebug() && bookName && bookName !== entry.fullName) {
       console.error(`${LOG} DEBUG book name differs: INI="${entry.fullName}" HTML="${bookName}"`);
     }
+
+    // Вычитка OCR-дефектов модуля. Правки декларативны и живут рядом с конвейером —
+    // правка сгенерированного JSON руками терялась бы на следующем импорте.
+    const { applied, problems } = applyCorrections(canonical, chapters, corrections);
+    correctionsApplied += applied;
+    for (const problem of problems) {
+      console.error(`${LOG} WARN correction not applied: ${problem}`);
+      errors.push(`Correction not applied: ${problem}`);
+    }
     if (chapterKeys.length === 0) {
       const msg = `No chapters parsed for ${canonical} (${htmlPath})`;
       console.error(`${LOG} WARN ${msg}`);
@@ -162,7 +174,9 @@ function main(): void {
   }
 
   fs.writeFileSync(path.join(outDir, 'index.json'), JSON.stringify(index, null, 2), 'utf-8');
-  console.error(`${LOG} INFO done converted=${converted} skippedUnknown=${skipped} indexKeys=${Object.keys(index).length}`);
+  console.error(
+    `${LOG} INFO done converted=${converted} skippedUnknown=${skipped} indexKeys=${Object.keys(index).length} correctionsApplied=${correctionsApplied}/${corrections.length}`
+  );
   if (errors.length) {
     console.error(`${LOG} WARN issues=${errors.length}`);
   }
