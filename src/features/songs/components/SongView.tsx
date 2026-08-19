@@ -37,6 +37,10 @@ interface SongViewProps {
   fontSize?: number;
   /** Скрыть аккорды (режим «только текст») — переключает `data-chords="off"` на корне. */
   hideChords?: boolean;
+  /** CSS-цвет аккордов — задаёт переменную `--chord-color` на корне (см. `chordColors.ts`). */
+  chordColor?: string;
+  /** Кегль аккордов в долях от лирики (0.85 = прежний) — переменная `--chord-scale`. */
+  chordScale?: number;
   /** Плотность строк/секций — переключает `data-density` на корне (§5). */
   density?: 'comfortable' | 'compact';
   /** Показывать шапку (title/subtitle/key·tempo) — по умолчанию показана. */
@@ -88,6 +92,8 @@ export const SongView: React.FC<SongViewProps> = ({
   tempo,
   fontSize,
   hideChords = false,
+  chordColor,
+  chordScale,
   density = 'comfortable',
   showHeader = true,
   mode = 'scroll',
@@ -133,7 +139,7 @@ export const SongView: React.FC<SongViewProps> = ({
     viewportRef,
     // Транспозиция входит в подпись: `Bb7` шире `A7`, ширина аккордов меняет разбивку,
     // а без пересборки лист остался бы обрезанным или пустым.
-    layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}|${semitones}|${pairLines ? 'pair' : 'solo'}`,
+    layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}|${semitones}|${chordScale ?? 0}|${pairLines ? 'pair' : 'solo'}`,
     fontSize: fontSize ?? 0,
     // PAGE_PADDING — нижнее поле корня: `chromeAboveFlow` меряет только то, что над потоком.
     reservedHeight: SHEET_PADDING_TOP + PAGE_PADDING,
@@ -144,7 +150,7 @@ export const SongView: React.FC<SongViewProps> = ({
   const meta = [metaKey ?? songKey, tempo].filter(Boolean).join(' · ');
 
   // Та же подпись, что пересобирает листы: строки переехали ⇒ bbox пометок пересчитать.
-  const inkLayoutSignature = `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${semitones}|${fontSize ?? 0}|${pairLines ? 'pair' : 'solo'}`;
+  const inkLayoutSignature = `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${semitones}|${fontSize ?? 0}|${chordScale ?? 0}|${pairLines ? 'pair' : 'solo'}`;
 
   /**
    * Обёртка потока: со слоем пометок или без него. Обёртка есть ВСЕГДА — включение
@@ -181,6 +187,8 @@ export const SongView: React.FC<SongViewProps> = ({
 
   const rootStyle = {
     ...(fontSize ? { '--lyric-size': `${fontSize}px` } : null),
+    ...(chordColor ? { '--chord-color': chordColor } : null),
+    ...(chordScale ? { '--chord-scale': String(chordScale) } : null),
     '--col-count': effectiveColumns,
     ...(sheets.pageHeight ? { '--page-h': `${sheets.pageHeight}px` } : null),
   } as React.CSSProperties;

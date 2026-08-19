@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { INK_COLORS } from '../lib/inkTools';
+import { CHORD_COLOR_THEME, isChordColor } from '../lib/chordColors';
 
 export const SONG_VIEW_SETTINGS_STORAGE_KEY = 'songs:view-settings';
 
@@ -27,6 +28,17 @@ export interface SongViewSettings {
   showChords: boolean;
   showHeader: boolean;
   /**
+   * Цвет аккордов на листе (сентинел из `CHORD_COLORS` либо hex). Device-scoped, как и
+   * остальные настройки просмотра: выбор зависит от экрана, на котором читают.
+   */
+  chordColor: string;
+  /**
+   * Кегль аккордов в процентах от размера лирики. Относительная величина, а не px:
+   * при смене размера текста аккорды обязаны ехать вместе с ним, иначе подобранная
+   * пара «текст/аккорд» разваливается на каждом шаге слайдера шрифта.
+   */
+  chordScale: number;
+  /**
    * «Только стилус» (M10, §7): рисует лишь `pointerType === 'pen'`, палец прокручивает
    * и зумит даже внутри режима пометок. Системного palm rejection в браузере нет —
    * это единственный доступный способ отсечь ладонь.
@@ -45,6 +57,9 @@ export interface SongViewSettings {
   inkColor: string;
 }
 
+export const MIN_CHORD_SCALE = 60;
+export const MAX_CHORD_SCALE = 130;
+
 export const MIN_FONT_SIZE = 12;
 export const MAX_FONT_SIZE = 32;
 
@@ -54,6 +69,9 @@ export const DEFAULT_SONG_VIEW_SETTINGS: SongViewSettings = {
   density: 'comfortable',
   showChords: true,
   showHeader: true,
+  chordColor: CHORD_COLOR_THEME,
+  // 85% — исторический кегль аккордов (`font-size: 0.85em` в songs.css до этой настройки).
+  chordScale: 85,
   inkPenOnly: false,
   inkInstant: false,
   // Красный: пометка обязана отличаться от печатного текста листа с одного взгляда,
@@ -80,6 +98,10 @@ function warnStorageUnavailable(err: unknown): void {
   console.warn('[useSongViewSettings] localStorage unavailable', err);
 }
 
+export function clampChordScale(value: number): number {
+  return Math.min(MAX_CHORD_SCALE, Math.max(MIN_CHORD_SCALE, Math.round(value)));
+}
+
 function clampFontSize(value: number): number {
   return Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, value));
 }
@@ -90,6 +112,13 @@ function sanitize(raw: Partial<SongViewSettings> | null | undefined): SongViewSe
   const columns = raw?.columns === 2 ? 2 : DEFAULT_SONG_VIEW_SETTINGS.columns;
   const showChords = typeof raw?.showChords === 'boolean' ? raw.showChords : DEFAULT_SONG_VIEW_SETTINGS.showChords;
   const showHeader = typeof raw?.showHeader === 'boolean' ? raw.showHeader : DEFAULT_SONG_VIEW_SETTINGS.showHeader;
+  // Как и с чернилами: произвольная строка из чужого/битого JSON уехала бы в CSS-переменную
+  // и дала бы невидимые аккорды — принимаем только значения из палитры.
+  const chordColor = isChordColor(raw?.chordColor) ? raw.chordColor : DEFAULT_SONG_VIEW_SETTINGS.chordColor;
+  const chordScale =
+    typeof raw?.chordScale === 'number' && Number.isFinite(raw.chordScale)
+      ? clampChordScale(raw.chordScale)
+      : DEFAULT_SONG_VIEW_SETTINGS.chordScale;
   const inkPenOnly = typeof raw?.inkPenOnly === 'boolean' ? raw.inkPenOnly : DEFAULT_SONG_VIEW_SETTINGS.inkPenOnly;
   const inkInstant = typeof raw?.inkInstant === 'boolean' ? raw.inkInstant : DEFAULT_SONG_VIEW_SETTINGS.inkInstant;
 
@@ -102,7 +131,7 @@ function sanitize(raw: Partial<SongViewSettings> | null | undefined): SongViewSe
 
   // Старый JSON мог нести `mode` (до этого рефакторинга) — поле просто игнорируется:
   // `Partial<SongViewSettings>` больше не объявляет его, а sanitize строит объект заново.
-  return { columns, fontSize, density, showChords, showHeader, inkPenOnly, inkInstant, inkColor };
+  return { columns, fontSize, density, showChords, showHeader, chordColor, chordScale, inkPenOnly, inkInstant, inkColor };
 }
 
 /** Читает legacy-ключ размера шрифта (миграция v1 → v2). Только чтение — см. `readSettings`. */

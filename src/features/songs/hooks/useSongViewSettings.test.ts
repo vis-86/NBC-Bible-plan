@@ -34,10 +34,31 @@ describe('useSongViewSettings', () => {
       density: 'compact',
       showChords: false,
       showHeader: false,
+      chordColor: DEFAULT_SONG_VIEW_SETTINGS.chordColor,
+      chordScale: DEFAULT_SONG_VIEW_SETTINGS.chordScale,
       inkPenOnly: false,
       inkInstant: false,
       inkColor: DEFAULT_SONG_VIEW_SETTINGS.inkColor,
     });
+  });
+
+  it('зажимает кегль аккордов в допустимый диапазон, нечисло игнорирует', () => {
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ chordScale: 400 }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0].chordScale).toBe(130);
+
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ chordScale: 10 }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0].chordScale).toBe(60);
+
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ chordScale: 'big' }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0].chordScale).toBe(DEFAULT_SONG_VIEW_SETTINGS.chordScale);
+  });
+
+  it('помнит выбранный цвет аккордов, а чужое значение отбрасывает', () => {
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ chordColor: '#0284c7' }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0].chordColor).toBe('#0284c7');
+
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ chordColor: 'javascript:alert(1)' }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0].chordColor).toBe(DEFAULT_SONG_VIEW_SETTINGS.chordColor);
   });
 
   it('помнит выбранный цвет пометок, а чужое значение отбрасывает', () => {

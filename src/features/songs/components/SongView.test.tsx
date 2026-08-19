@@ -26,6 +26,24 @@ describe('SongView', () => {
     expect(container.querySelectorAll('[style*="font-size"]').length).toBe(0);
   });
 
+  it('sets --chord-color on the root when chordColor is given, and omits it otherwise', () => {
+    const { container } = render(<SongView content={CONTENT} chordColor="#0284c7" />);
+    const root = container.querySelector('[data-song-view]') as HTMLElement;
+    expect(root.style.getPropertyValue('--chord-color')).toBe('#0284c7');
+
+    const bare = render(<SongView content={CONTENT} />).container.querySelector('[data-song-view]') as HTMLElement;
+    expect(bare.style.getPropertyValue('--chord-color')).toBe('');
+  });
+
+  it('sets --chord-scale on the root when chordScale is given, and omits it otherwise', () => {
+    const { container } = render(<SongView content={CONTENT} chordScale={1.1} />);
+    const root = container.querySelector('[data-song-view]') as HTMLElement;
+    expect(root.style.getPropertyValue('--chord-scale')).toBe('1.1');
+
+    const bare = render(<SongView content={CONTENT} />).container.querySelector('[data-song-view]') as HTMLElement;
+    expect(bare.style.getPropertyValue('--chord-scale')).toBe('');
+  });
+
   it('marks data-chords="off" when hideChords is set, without stripping chord markup from the DOM', () => {
     const { container } = render(<SongView content={CONTENT} hideChords />);
     const root = container.querySelector('[data-song-view]') as HTMLElement;

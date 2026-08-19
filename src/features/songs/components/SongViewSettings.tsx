@@ -6,7 +6,8 @@ import { BottomSheet } from '@/shared/components/ui/BottomSheet';
 import { ChoiceGroup } from '@/shared/components/ui/ChoiceGroup';
 import { RangeSlider } from '@/shared/components/ui/RangeSlider';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
-import { MAX_FONT_SIZE, MIN_FONT_SIZE, SONG_WIDE_LAYOUT_QUERY } from '../hooks/useSongViewSettings';
+import { MAX_CHORD_SCALE, MAX_FONT_SIZE, MIN_CHORD_SCALE, MIN_FONT_SIZE, SONG_WIDE_LAYOUT_QUERY, clampChordScale } from '../hooks/useSongViewSettings';
+import { CHORD_COLORS } from '../lib/chordColors';
 import type { SongViewColumns, SongViewDensity, SongViewSettings as SongViewSettingsValue } from '../hooks/useSongViewSettings';
 
 export interface SongViewSettingsProps {
@@ -57,6 +58,65 @@ function ColumnsGlyph({ columns }: { columns: SongViewColumns }) {
       <span className="h-4 w-1 rounded-full bg-current" />
       {columns === 2 && <span className="h-4 w-1 rounded-full bg-current" />}
     </span>
+  );
+}
+
+/**
+ * Выбор цвета аккордов: фиксированная палитра кружками, а не color picker — попасть
+ * в «свой» цвет нужно одним тапом (та же логика, что у палитры пометок).
+ */
+function ChordColorRow({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  return (
+    <div data-section-chord-color>
+      <label className="mb-2 block text-sm font-medium text-app-text-secondary">Цвет аккордов</label>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Цвет аккордов">
+        {CHORD_COLORS.map((option) => {
+          const selected = option.value === value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              aria-label={option.label}
+              title={option.label}
+              data-chord-color={option.value}
+              onClick={() => onChange(option.value)}
+              className={`flex h-11 w-11 items-center justify-center rounded-full transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary ${
+                selected ? 'ring-2 ring-app-primary' : ''
+              }`}
+            >
+              <span aria-hidden className="h-6 w-6 rounded-full border border-app-border" style={{ backgroundColor: option.swatch }} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Кегль аккордов — в процентах от размера лирики, а не в px: настройка обязана
+ * пережить смену размера текста, иначе подобранную пару приходится набирать заново.
+ */
+function ChordScaleRow({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  return (
+    <div data-section-chord-scale>
+      <label className="mb-2 block text-sm font-medium text-app-text-secondary">Размер аккордов</label>
+      <div className="flex items-center gap-2">
+        <RangeSlider
+          value={value}
+          min={MIN_CHORD_SCALE}
+          max={MAX_CHORD_SCALE}
+          step={5}
+          aria-label="Размер аккордов"
+          data-song-view-settings-chord-scale-slider
+          onChange={(next) => onChange(clampChordScale(next))}
+          className="flex-1"
+        />
+        <span className="w-12 shrink-0 text-right text-sm tabular-nums text-app-text-secondary">{value}%</span>
+      </div>
+    </div>
   );
 }
 
@@ -142,6 +202,9 @@ export const SongViewSettings: React.FC<SongViewSettingsProps> = ({ isOpen, onCl
         <SettingsGroup title="Отображение">
           <div className="space-y-4">
             <ToggleRow label="Аккорды" checked={settings.showChords} onChange={() => onSettingsChange({ showChords: !settings.showChords })} dataAttr="data-section-show-chords" />
+            {/* Цвет показываем только когда аккорды включены: скрытым аккордам он ни на что не влияет. */}
+            {settings.showChords && <ChordColorRow value={settings.chordColor} onChange={(chordColor) => onSettingsChange({ chordColor })} />}
+            {settings.showChords && <ChordScaleRow value={settings.chordScale} onChange={(chordScale) => onSettingsChange({ chordScale })} />}
             <ToggleRow label="Заголовок песни" checked={settings.showHeader} onChange={() => onSettingsChange({ showHeader: !settings.showHeader })} dataAttr="data-section-show-header" />
           </div>
         </SettingsGroup>

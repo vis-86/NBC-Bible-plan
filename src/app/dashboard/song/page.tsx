@@ -9,6 +9,7 @@ import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { useSong } from '@/features/songs/hooks/useSong';
 import { useSongViewSettings, resolveSongViewMode, SONG_WIDE_LAYOUT_QUERY } from '@/features/songs/hooks/useSongViewSettings';
 import { SongView } from '@/features/songs/components/SongView';
+import { resolveChordColor } from '@/features/songs/lib/chordColors';
 import { SongKeyPicker } from '@/features/songs/components/SongKeyPicker';
 import { SongViewSettings } from '@/features/songs/components/SongViewSettings';
 import { SongAutoScroll } from '@/features/songs/components/SongAutoScroll';
@@ -416,6 +417,8 @@ function SongPageContent() {
                 tempo={song.tempo}
                 fontSize={viewSettings.fontSize}
                 hideChords={!viewSettings.showChords}
+                chordColor={resolveChordColor(viewSettings.chordColor)}
+                chordScale={viewSettings.chordScale / 100}
                 density={viewSettings.density}
                 showHeader={viewSettings.showHeader}
                 mode={mode}
