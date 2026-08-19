@@ -2,23 +2,38 @@
 
 import { useEffect, useState } from 'react';
 import { songsApi } from '@/shared/services/api/endpoints';
-import { SONGS_LIST_CACHE_KEY, readThrough } from '@/shared/offline/readThrough';
+import { SONGS_LIST_CACHE_KEY, readThroughSWR } from '@/shared/offline/readThrough';
 import type { SongSummary } from '../types';
 
 /**
  * Module-level кэш: список песен грузится один раз за сессию (97 песен статичны).
- * `fetchSongsOnce` — ЕДИНАЯ точка загрузки: network-first + IDB apiCache фолбэк
- * (Task 31) — офлайн отдаёт последний загруженный список.
+ * `fetchSongsOnce` — ЕДИНАЯ точка загрузки: cache-first (SWR) поверх IDB apiCache.
+ * Свежий список из фоновой ревалидации применяется МОЛЧА — список не является
+ * контекстом чтения на служении, подменять его безопасно (в отличие от открытой песни).
  */
 let cache: SongSummary[] | null = null;
 let inflight: Promise<SongSummary[]> | null = null;
 
+/** Подписчики на молчаливое обновление списка фоновой ревалидацией. */
+const listeners = new Set<(list: SongSummary[]) => void>();
+
+function publish(list: SongSummary[]) {
+  cache = list;
+  listeners.forEach((notify) => notify(list));
+}
+
 async function fetchSongsOnce(): Promise<SongSummary[]> {
   if (cache) return cache;
   if (!inflight) {
-    inflight = readThrough(SONGS_LIST_CACHE_KEY, () => songsApi.getSongs())
-      .then((res) => {
-        cache = res.songs;
+    inflight = readThroughSWR(SONGS_LIST_CACHE_KEY, () => songsApi.getSongs(), {
+      onFresh: (res) => {
+        console.debug('[useSongs] фоновая ревалидация принесла свежий список — применяем молча');
+        publish(res.songs);
+      },
+    })
+      .then(({ data, fromCache }) => {
+        console.debug('[useSongs] источник данных:', fromCache ? 'cache' : 'network');
+        cache = data.songs;
         return cache;
       })
       .finally(() => {
@@ -30,20 +45,20 @@ async function fetchSongsOnce(): Promise<SongSummary[]> {
 
 export function useSongs() {
   const [songs, setSongs] = useState<SongSummary[]>(() => cache ?? []);
+  // Скелет показываем ТОЛЬКО когда показать нечего: при попадании в кеш его быть не должно.
   const [loading, setLoading] = useState(!cache);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (cache) {
-      setSongs(cache);
-      setLoading(false);
-      return;
-    }
-
     let active = true;
-    setLoading(true);
-    setError(null);
+    const notify = (list: SongSummary[]) => {
+      if (active) setSongs(list);
+    };
+    listeners.add(notify);
 
+    // Идём через единую точку всегда: при заполненном module-кэше она резолвится
+    // немедленно, а setState остаётся в асинхронном колбэке (React Compiler запрещает
+    // синхронный setState в теле эффекта).
     fetchSongsOnce()
       .then((list) => {
         if (!active) return;
@@ -61,8 +76,15 @@ export function useSongs() {
 
     return () => {
       active = false;
+      listeners.delete(notify);
     };
   }, []);
 
   return { songs, loading, error };
+}
+
+/** Сброс module-level кэша списка (после мутаций каталога/дельта-синка). */
+export function resetSongsCache() {
+  cache = null;
+  inflight = null;
 }

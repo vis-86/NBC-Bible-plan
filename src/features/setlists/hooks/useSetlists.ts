@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { readSetlistsThrough, refreshSetlistsFromNetwork } from '../lib/offlineSetlists';
+import { readSetlistsThroughSWR, refreshSetlistsFromNetwork } from '../lib/offlineSetlists';
 import type { SetlistSummary } from '../types';
 
 /** Module-level кэш: список сетов грузится один раз за сессию (по образцу `useSongs`). */
@@ -9,22 +9,46 @@ let cache: SetlistSummary[] | null = null;
 let inflight: Promise<SetlistSummary[]> | null = null;
 
 /**
+ * Поколение кэша. Чтение стало cache-first: помимо `inflight` в воздухе может висеть
+ * фоновая ревалидация SWR, и её поздний ответ обязан быть отброшен после сброса кэша —
+ * иначе экран показал бы состав, которого уже нет.
+ */
+let generation = 0;
+
+/** Подписчики на молчаливое применение свежего списка (фоновая ревалидация). */
+const listeners = new Set<(list: SetlistSummary[]) => void>();
+
+/**
  * Сбрасывает module-кэш списка — вызывать после ЛЮБОЙ мутации сета (создание, правка
  * состава, удаление). Без этого экран списка после возврата рендерит состав, которого
- * уже нет: apiCache в IDB инвалидируется, а память процесса — нет.
+ * уже нет: apiCache в IDB инвалидируется, а память процесса — нет. Вместе с кэшем
+ * гасится и SWR-состояние: незавершённые чтение и ревалидация этого поколения.
  */
 export function resetSetlistsCache(): void {
   cache = null;
-  console.debug('[useSetlists] module cache reset');
+  inflight = null;
+  generation += 1;
+  console.debug('[useSetlists] module cache reset', { generation });
 }
 
 async function fetchSetlistsOnce(): Promise<SetlistSummary[]> {
   if (cache) return cache;
   if (!inflight) {
-    inflight = readSetlistsThrough()
-      .then((list) => {
+    const gen = generation;
+    inflight = readSetlistsThroughSWR({
+      onFresh: (list) => {
+        if (gen !== generation) {
+          console.debug('[useSetlists] свежий список отброшен: кэш сброшен во время ревалидации');
+          return;
+        }
         cache = list;
-        return list;
+        listeners.forEach((notify) => notify(list));
+      },
+    })
+      .then(({ setlists, fromCache }) => {
+        console.debug('[useSetlists] источник данных:', fromCache ? 'cache' : 'network');
+        if (gen === generation) cache = setlists;
+        return setlists;
       })
       .finally(() => {
         inflight = null;
@@ -98,9 +122,11 @@ export function useSetlists() {
   }, []);
 
   useEffect(() => {
-    if (cache) return;
-
     let active = true;
+    const notify = (list: SetlistSummary[]) => {
+      if (active && !refreshWonRef.current) setSetlists(list);
+    };
+    listeners.add(notify);
 
     fetchSetlistsOnce()
       .then((list) => {
@@ -119,6 +145,7 @@ export function useSetlists() {
 
     return () => {
       active = false;
+      listeners.delete(notify);
     };
   }, []);
 

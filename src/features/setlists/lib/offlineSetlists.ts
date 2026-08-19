@@ -1,6 +1,6 @@
 import { isDefinitelyOffline, reportNetworkSuccess } from '@/shared/offline/networkHealth';
 import { DEFAULT_NETWORK_TIMEOUT_MS, raceWithTimeout } from '@/shared/offline/networkTimeout';
-import { persistApiCache, readThrough } from '@/shared/offline/readThrough';
+import { persistApiCache, readThrough, readThroughSWR } from '@/shared/offline/readThrough';
 import { setlistsApi } from '@/shared/services/api/endpoints';
 import type { Setlist, SetlistSummary } from '../types';
 
@@ -71,4 +71,54 @@ export async function refreshSetlistsFromNetwork(
 export async function readSetlistThrough(id: string, timeoutMs: number = DEFAULT_NETWORK_TIMEOUT_MS): Promise<Setlist> {
   const res = await readThrough(setlistCacheKey(id), () => setlistsApi.getSetlist(id), timeoutMs);
   return res.setlist;
+}
+
+export interface SetlistsSWRResult {
+  setlists: SetlistSummary[];
+  fromCache: boolean;
+}
+
+/**
+ * Cache-first чтение списка сетов. Ключ тот же (`SETLISTS_LIST_CACHE_KEY`) — строку
+ * не дублируем. Свежий ответ уходит в `onFresh`; экран применяет его молча.
+ */
+export async function readSetlistsThroughSWR(options: {
+  onFresh?: (list: SetlistSummary[]) => void;
+  timeoutMs?: number;
+} = {}): Promise<SetlistsSWRResult> {
+  const { data, fromCache } = await readThroughSWR(
+    SETLISTS_LIST_CACHE_KEY,
+    () => setlistsApi.getSetlists(),
+    {
+      timeoutMs: options.timeoutMs,
+      onFresh: (res) => {
+        console.debug('[setlists/offline] фоновая ревалидация списка', SETLISTS_LIST_CACHE_KEY);
+        options.onFresh?.(res.setlists);
+      },
+    }
+  );
+  console.debug('[setlists/offline] список прочитан', SETLISTS_LIST_CACHE_KEY, { fromCache });
+  return { setlists: data.setlists, fromCache };
+}
+
+export interface SetlistSWRResult {
+  setlist: Setlist;
+  fromCache: boolean;
+}
+
+/** Cache-first чтение детали сета; ключ — тот же `setlistCacheKey(id)`. */
+export async function readSetlistThroughSWR(
+  id: string,
+  options: { onFresh?: (setlist: Setlist) => void; timeoutMs?: number } = {}
+): Promise<SetlistSWRResult> {
+  const key = setlistCacheKey(id);
+  const { data, fromCache } = await readThroughSWR(key, () => setlistsApi.getSetlist(id), {
+    timeoutMs: options.timeoutMs,
+    onFresh: (res) => {
+      console.debug('[setlists/offline] фоновая ревалидация детали', key);
+      options.onFresh?.(res.setlist);
+    },
+  });
+  console.debug('[setlists/offline] деталь прочитана', key, { fromCache });
+  return { setlist: data.setlist, fromCache };
 }

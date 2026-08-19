@@ -3,13 +3,13 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SetlistSummary } from '../types';
 
-const { readThroughMock, refreshMock } = vi.hoisted(() => ({
-  readThroughMock: vi.fn(),
+const { readSWRMock, refreshMock } = vi.hoisted(() => ({
+  readSWRMock: vi.fn(),
   refreshMock: vi.fn(),
 }));
 
 vi.mock('../lib/offlineSetlists', () => ({
-  readSetlistsThrough: readThroughMock,
+  readSetlistsThroughSWR: readSWRMock,
   refreshSetlistsFromNetwork: refreshMock,
 }));
 
@@ -28,9 +28,9 @@ async function renderLoaded() {
 describe('useSetlists.refresh', () => {
   beforeEach(() => {
     resetSetlistsCache();
-    readThroughMock.mockReset();
+    readSWRMock.mockReset();
     refreshMock.mockReset();
-    readThroughMock.mockResolvedValue([OLD]);
+    readSWRMock.mockResolvedValue({ setlists: [OLD], fromCache: true });
   });
 
   it('успешный refresh заменяет список и обновляет module-кэш', async () => {
@@ -47,11 +47,11 @@ describe('useSetlists.refresh', () => {
     unmount();
 
     // Второй монтаж стартует уже со свежими данными и в сеть не идёт.
-    readThroughMock.mockClear();
+    readSWRMock.mockClear();
     const second = renderHook(() => useSetlists());
     expect(second.result.current.setlists).toEqual([FRESH]);
     expect(second.result.current.loading).toBe(false);
-    expect(readThroughMock).not.toHaveBeenCalled();
+    expect(readSWRMock).not.toHaveBeenCalled();
   });
 
   it('ошибка refresh -> refreshError заполнен, список прежний', async () => {
@@ -95,7 +95,7 @@ describe('useSetlists.refresh', () => {
     // Гонка прод-контура: стартовое чтение ещё висит (медленный Directus), а
     // пользователь уже потянул список офлайн. Раньше жест пропускался — спиннер
     // отрабатывал вхолостую, «Нет сети» не появлялось (e2e setlists-offline.spec.ts:166).
-    readThroughMock.mockImplementationOnce(
+    readSWRMock.mockImplementationOnce(
       () => new Promise<SetlistSummary[]>((r) => setTimeout(() => r([OLD]), 20))
     );
     refreshMock.mockRejectedValueOnce(new Error('Нет сети. Список не обновлён'));
@@ -114,7 +114,7 @@ describe('useSetlists.refresh', () => {
   });
 
   it('опоздавшая первичная загрузка не затирает данные удавшегося refresh', async () => {
-    readThroughMock.mockImplementationOnce(
+    readSWRMock.mockImplementationOnce(
       () => new Promise<SetlistSummary[]>((r) => setTimeout(() => r([OLD]), 20))
     );
     refreshMock.mockResolvedValueOnce([FRESH]);
@@ -129,5 +129,48 @@ describe('useSetlists.refresh', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.setlists).toEqual([FRESH]);
     expect(result.current.error).toBeNull();
+  });
+});
+
+describe('useSetlists — SWR-состояние и resetSetlistsCache', () => {
+  beforeEach(() => {
+    resetSetlistsCache();
+    readSWRMock.mockReset();
+    refreshMock.mockReset();
+  });
+
+  it('свежий список фоновой ревалидации применяется молча', async () => {
+    let emitFresh: ((list: SetlistSummary[]) => void) | undefined;
+    readSWRMock.mockImplementation((options) => {
+      emitFresh = options?.onFresh;
+      return Promise.resolve({ setlists: [OLD], fromCache: true });
+    });
+
+    const { result } = await renderLoaded();
+    expect(result.current.setlists).toEqual([OLD]);
+
+    await act(async () => {
+      emitFresh?.([FRESH]);
+    });
+
+    expect(result.current.setlists).toEqual([FRESH]);
+  });
+
+  it('resetSetlistsCache гасит SWR-состояние: поздняя ревалидация не возвращает удалённый сет', async () => {
+    let emitFresh: ((list: SetlistSummary[]) => void) | undefined;
+    readSWRMock.mockImplementation((options) => {
+      emitFresh = options?.onFresh;
+      return Promise.resolve({ setlists: [OLD], fromCache: true });
+    });
+
+    const { result } = await renderLoaded();
+
+    // Мутация сета -> сброс кэша; ревалидация со старым составом опоздала.
+    resetSetlistsCache();
+    await act(async () => {
+      emitFresh?.([OLD, FRESH]);
+    });
+
+    expect(result.current.setlists).toEqual([OLD]);
   });
 });

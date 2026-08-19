@@ -13,6 +13,7 @@ import { SongKeyPicker } from '@/features/songs/components/SongKeyPicker';
 import { SongViewSettings } from '@/features/songs/components/SongViewSettings';
 import { SongAutoScroll } from '@/features/songs/components/SongAutoScroll';
 import { SongToolStack } from '@/features/songs/components/SongToolStack';
+import { SongFreshBanner } from '@/features/songs/components/SongFreshBanner';
 import { SongInkButton } from '@/features/songs/components/SongInkButton';
 import { SongInkToolbar } from '@/features/songs/components/SongInkToolbar';
 import { SongInkModeBar } from '@/features/songs/components/SongInkModeBar';
@@ -58,7 +59,7 @@ function SongPageContent() {
   const id = searchParams.get('id') ?? '';
   const setlistId = searchParams.get('setlistId');
 
-  const { song, loading, error } = useSong(id);
+  const { song, loading, error, freshAvailable, applyFresh } = useSong(id);
   const contentRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
@@ -475,6 +476,16 @@ function SongPageContent() {
             onClearAll={ink.clearAll}
           />
         )}
+
+        {/* Плашка «песня обновлена». Не показывается в фокус-режиме (играющий автоскролл),
+            в режиме пометок и при открытых шторках — условие вычисляется на рендере,
+            поэтому после выхода из режима предложение появляется само. */}
+        {freshAvailable &&
+          !ink.active &&
+          !autoscroll.playing &&
+          !isViewSettingsOpen &&
+          !isKeyPickerOpen &&
+          !isSetlistSheetOpen && <SongFreshBanner onApply={applyFresh} />}
 
         {/* Нижняя таблетка навигации по сету — правый край отдан SongToolStack. */}
         {playback.inSetlist && !ink.active && (
