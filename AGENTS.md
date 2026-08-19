@@ -132,6 +132,7 @@ bible-plan/
 │   ├── database-schema.md
 │   └── nginx.md                      # Reverse proxy + PWA cache headers (static + bff proxy)
 ├── e2e/offline/                      # Playwright offline regression suite (npm run e2e:offline)
+├── e2e/gestures/                     # Playwright: жесты в мобильном тач-контуре (свайп пейджера)
 ├── playwright.config.ts              # Playwright config — отдельный контур от vitest (src/**)
 ├── scripts/
 │   ├── build-manifest.ts             # Generates public/manifest.webmanifest (build-time)
@@ -193,6 +194,7 @@ bible-plan/
 | `src/features/songs/hooks/useScrollRestore.ts` | Восстановление позиции скролла + поискового запроса списка песен (`sessionStorage`) |
 | `src/shared/offline/chunkGuard.ts` + `src/components/ChunkGuard.tsx` | ChunkLoadError guard — auto-reload-once с cooldown |
 | `server/src/routes/*` (health route) | 204 no-store ping — гейт online-триггера outbox-синка (`isServerReachable`) |
+| `e2e/gestures/swipe-pager.spec.ts` | Свайп глав/песен настоящим тачем (CDP `Input.dispatchTouchEvent`, контур Pixel 7): ловит регрессии `touch-action`, которые jsdom-тесты `SwipePager` увидеть не могут |
 | `e2e/offline/` + `playwright.config.ts` | Офлайн E2E-регрессия (`npm run e2e:offline`) — cold start, cold-start-any-route (precache), навигация, outbox sync, update-flow, сетлисты, пометки песни (полный круг записи) |
 | `scripts/static-serve.ts` | Локальный static+bff-proxy сервер для e2e (аналог nginx) |
 | `next.config.ts` | Next.js config — basePath, `output: 'export'` |

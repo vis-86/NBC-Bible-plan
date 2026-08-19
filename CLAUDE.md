@@ -99,6 +99,7 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
 
 - Только семантические токены `bg-app-*` / `text-app-*` / `border-app-*` / `shadow-app-*` (источник — CSS-переменные в `globals.css`, TS-константы в `src/shared/config/design-tokens.ts`). Хардкод-шейды Tailwind (`stone-`, `red-`…) и `dark:`-варианты запрещены; тёмная тема — автоматически через переменные. Исключение: `theme-light|dark|sepia` в ридере — пользовательский выбор, не тема приложения.
 - DOM-якоря для e2e/аналитики: kebab-case `data-{component-kebab}-{зона}` (`TodayReadingCard` → `data-today-reading-card-day-counter`), не `data-component`.
+- `touch-action` считается браузером по цепочке до БЛИЖАЙШЕГО скролл-контейнера: `pan-y` на `[data-swipe-pager]` до вложенного `.overflow-y-auto` НЕ доходит, и Chrome на Android забирает горизонтальный жест себе (`pointercancel` через ~20px) — свайп глав/песен молча умирает. Скролл-контейнеры внутри пейджера обязаны сами быть `pan-y` (правило в `globals.css`). Гейт — `e2e/gestures/swipe-pager.spec.ts`; jsdom-тесты `SwipePager` этот класс багов не ловят.
 - Скриншоты на dev-сборке: перед КАЖДЫМ снимком прячь Next dev-индикатор (`nextjs-portal{display:none!important}` через evaluate). DevTools-пресет «Offline» не переключает `navigator.onLine` — событийную UI-логику проверяй `window.dispatchEvent(new Event('offline'))`.
 - Компоненты `'use client'`, named exports, props-интерфейс `<Name>Props` в том же файле, `cn()` для классов.
 

@@ -288,6 +288,21 @@ main {
   overscroll-behavior: contain;
 }
 
+/*
+ * ...но НЕ внутри горизонтального пейджера (ридер, песня сета). Chrome на Android
+ * считает эффективный touch-action по цепочке до БЛИЖАЙШЕГО скролл-контейнера, и
+ * `pan-y` на самом `[data-swipe-pager]` до вложенного `.overflow-y-auto` не доходит:
+ * браузер видит разрешённый `pan-x`, забирает жест себе примерно через 20px и шлёт
+ * `pointercancel`. Свайп не набирает порога в 60px и молча откатывается — со стороны
+ * «главы и песни не переключаются». Горизонтальный скролл (`.overflow-x-auto`,
+ * шкала дней) правило намеренно не трогает.
+ */
+[data-swipe-pager] .overflow-y-auto,
+[data-swipe-pager] .overflow-auto,
+[data-swipe-pager] [style*="overflow"] {
+  touch-action: pan-y;
+}
+
 /* Exception for interactive elements that need full touch support */
 button,
 a,
