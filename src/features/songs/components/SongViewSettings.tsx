@@ -7,7 +7,7 @@ import { ChoiceGroup } from '@/shared/components/ui/ChoiceGroup';
 import { RangeSlider } from '@/shared/components/ui/RangeSlider';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 import { MAX_CHORD_SCALE, MAX_FONT_SIZE, MIN_CHORD_SCALE, MIN_FONT_SIZE, SONG_WIDE_LAYOUT_QUERY, clampChordScale } from '../hooks/useSongViewSettings';
-import { CHORD_COLORS } from '../lib/chordColors';
+import { CHORD_COLORS, CUSTOM_CHORD_COLOR_FALLBACK, isCustomChordColor } from '../lib/chordColors';
 import type { SongViewColumns, SongViewDensity, SongViewSettings as SongViewSettingsValue } from '../hooks/useSongViewSettings';
 
 export interface SongViewSettingsProps {
@@ -90,8 +90,49 @@ function ChordColorRow({ value, onChange }: { value: string; onChange: (value: s
             </button>
           );
         })}
+        <CustomChordColorSwatch value={value} onChange={onChange} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Произвольный цвет — нативный `<input type="color">` в кружке палитры. Системный
+ * пикер вместо своего: он уже умеет и HSV-поле, и пипетку, и сохранённые цвета,
+ * а на планшете открывается тем же диалогом, к которому человек привык.
+ */
+function CustomChordColorSwatch({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const custom = isCustomChordColor(value);
+  // У сентинелов («по теме», «как текст») hex-эквивалента нет — пикеру нужен валидный
+  // стартовый цвет, иначе он откроется на чёрном и «сбросит» выбор одним касанием.
+  const pickerValue = custom ? value : CUSTOM_CHORD_COLOR_FALLBACK;
+
+  return (
+    <label
+      data-section-chord-color-custom
+      title="Свой цвет"
+      className={`relative flex h-11 w-11 cursor-pointer items-center justify-center rounded-full focus-within:outline-none focus-within:ring-2 focus-within:ring-app-primary ${
+        custom ? 'ring-2 ring-app-primary' : ''
+      }`}
+    >
+      <span className="sr-only">Свой цвет</span>
+      <span
+        aria-hidden
+        className="h-6 w-6 rounded-full border border-app-border"
+        style={{
+          // Радужная заливка, пока свой цвет не выбран: кружок обязан читаться как
+          // «выбрать цвет», а не как ещё один готовый вариант палитры.
+          background: custom ? value : 'conic-gradient(#dc2626, #eab308, #16a34a, #0284c7, #7c3aed, #db2777, #dc2626)',
+        }}
+      />
+      <input
+        type="color"
+        value={pickerValue}
+        aria-label="Свой цвет"
+        onChange={(e) => onChange(e.target.value)}
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+      />
+    </label>
   );
 }
 

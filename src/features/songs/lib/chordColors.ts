@@ -23,8 +23,24 @@ export const CHORD_COLORS: ReadonlyArray<{ value: string; label: string; swatch:
   { value: '#db2777', label: 'Розовый', swatch: '#db2777' },
 ];
 
+/** Пользовательский цвет из color picker'а: только `#rrggbb`, иначе в CSS уедет мусор. */
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
+export function isHexColor(value: unknown): value is string {
+  return typeof value === 'string' && HEX_COLOR.test(value);
+}
+
+/** Значение цвета аккордов: сентинел темы/текста, цвет палитры либо произвольный hex. */
 export function isChordColor(value: unknown): value is string {
-  return typeof value === 'string' && CHORD_COLORS.some((option) => option.value === value);
+  return (typeof value === 'string' && CHORD_COLORS.some((option) => option.value === value)) || isHexColor(value);
+}
+
+/** Начальное значение для color picker'а, когда выбран сентинел (у него нет hex-эквивалента). */
+export const CUSTOM_CHORD_COLOR_FALLBACK = '#dc2626';
+
+/** Выбран произвольный цвет, а не один из готовых кружков палитры. */
+export function isCustomChordColor(value: string): boolean {
+  return isHexColor(value) && !CHORD_COLORS.some((option) => option.value === value);
 }
 
 /** CSS-цвет для переменной `--chord-color` (и для образца в UI — он тот же). */

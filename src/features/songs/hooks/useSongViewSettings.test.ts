@@ -61,6 +61,17 @@ describe('useSongViewSettings', () => {
     expect(renderHook(() => useSongViewSettings()).result.current[0].chordColor).toBe(DEFAULT_SONG_VIEW_SETTINGS.chordColor);
   });
 
+  it('принимает произвольный hex из color picker и отбрасывает не-hex', () => {
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ chordColor: '#123abc' }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0].chordColor).toBe('#123abc');
+
+    // Короткая форма и CSS-функции в переменную не пускаются: пикер отдаёт только #rrggbb.
+    for (const bad of ['#abc', 'rgb(1,2,3)', 'red', '#12345g']) {
+      localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ chordColor: bad }));
+      expect(renderHook(() => useSongViewSettings()).result.current[0].chordColor).toBe(DEFAULT_SONG_VIEW_SETTINGS.chordColor);
+    }
+  });
+
   it('помнит выбранный цвет пометок, а чужое значение отбрасывает', () => {
     localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ inkColor: '#16a34a' }));
     expect(renderHook(() => useSongViewSettings()).result.current[0].inkColor).toBe('#16a34a');
