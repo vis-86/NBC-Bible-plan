@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { ArrowLeft } from 'lucide-react';
 import { BottomSheet } from '@/shared/components/ui/BottomSheet';
 import { getApiPath } from '@/shared/utils/api';
-import { readThrough } from '@/shared/offline/readThrough';
+import { readThroughSWR } from '@/shared/offline/readThrough';
 
 const BOOKS_CACHE_KEY = 'bible:books';
 
@@ -50,7 +50,7 @@ export const BookPicker: React.FC<BookPickerProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const data = await readThrough(BOOKS_CACHE_KEY, async () => {
+      const fetchBooksFromNetwork = async () => {
         const response = await fetch(getApiPath('/api/bible/books'), {
           credentials: 'include',
         });
@@ -58,8 +58,16 @@ export const BookPicker: React.FC<BookPickerProps> = ({
           throw new Error('Не удалось загрузить список книг');
         }
         return response.json();
+      };
+
+      // Cache-first: список книг статичен, свежий применяется молча.
+      const { data } = await readThroughSWR(BOOKS_CACHE_KEY, fetchBooksFromNetwork, {
+        onFresh: (fresh: { books?: Book[] }) => {
+          console.debug('[BookPicker] применяем свежий список книг', BOOKS_CACHE_KEY);
+          setBooks(fresh.books || []);
+        },
       });
-      setBooks(data.books || []);
+      setBooks((data as { books?: Book[] }).books || []);
     } catch (err: any) {
       console.error('Error fetching books:', err);
       setError(err.message || 'Ошибка при загрузке книг');

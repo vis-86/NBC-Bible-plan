@@ -80,6 +80,35 @@ export function useBibleText(reference: BibleReference | null, translationId: st
       setError(null);
       setText('');
 
+      // Cache-first: скачанная глава отдаётся сразу, без похода в сеть. Текст Писания
+      // для пары (перевод, глава) неизменен, поэтому подмена безопасна — ревалидация
+      // идёт фоном и ложится в кеши, применяясь при следующем открытии главы.
+      const cachedChapter = await getPersistedText(reference.book, reference.chapter, translationId);
+      if (cachedChapter !== undefined) {
+        if (cancelled) return;
+        debug('IDB cache hit → отдаём мгновенно', { book: reference.book, chapter: reference.chapter });
+        setCachedText(reference.book, reference.chapter, translationId, cachedChapter);
+        setText(cachedChapter);
+        setError(null);
+        setLoading(false);
+        if (!isDefinitelyOffline()) {
+          void raceNetwork(bibleApi.getText(reference.book, reference.chapter), DEFAULT_NETWORK_TIMEOUT_MS)
+            .then((fresh) => {
+              const freshText = fresh.text || '';
+              const resolved = fresh.translation ?? translationId;
+              setCachedText(reference.book, reference.chapter, resolved, freshText);
+              void persistText(resolved, reference.book, reference.chapter, freshText);
+              debug('фоновая ревалидация главы', {
+                book: reference.book,
+                chapter: reference.chapter,
+                changed: freshText !== cachedChapter,
+              });
+            })
+            .catch((err) => debug('фоновая ревалидация главы не удалась', err));
+        }
+        return;
+      }
+
       try {
         // Race с таймаутом: реальный «офлайн» вешает fetch, а не роняет его — без
         // таймаута IDB-фолбэк скачанной главы никогда не наступал (see networkTimeout.ts).

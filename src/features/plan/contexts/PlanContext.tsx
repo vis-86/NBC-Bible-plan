@@ -5,7 +5,7 @@ import { ReadingPlanDay, BibleReference, PlanItem } from '@/types';
 import { planApi, progressApi } from '@/shared/services/api/endpoints';
 import { ApiClientError } from '@/shared/services/api/client';
 import { dayOfYearToDateStr, parseReadingItem } from '@/shared/utils/bible';
-import { readThrough } from '@/shared/offline/readThrough';
+import { readThrough, readThroughSWR } from '@/shared/offline/readThrough';
 import { enqueueSingleProgress, enqueueBatchProgress, getPendingOutboxOverlay } from '@/shared/offline/outbox';
 
 type ProgressApiRow = {
@@ -60,7 +60,11 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
     setError(null);
     
     try {
-      const planResponse = await readThrough('plan:days', () => planApi.getPlan());
+      // Cache-first: прогретый план рисуется без похода в сеть. Свежий ответ фоновой
+      // ревалидации ложится в IDB и применяется на следующем монтировании — на живой
+      // экран его не подменяем: маппинг дней/прогресса/outbox-оверлея пересобирается
+      // целиком, а `fetchPlan` и так грузит план один раз за сессию.
+      const { data: planResponse } = await readThroughSWR('plan:days', () => planApi.getPlan());
       const planData = planResponse.plan;
 
       // Прогресс — это ОБОГАЩЕНИЕ поверх дней плана, а не обязательные данные.
@@ -70,6 +74,11 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
       // без снапшота прогресса — outbox-overlay ниже всё равно накроет офлайн-отметки.
       let progressData: ProgressApiRow[] | null = null;
       try {
+        // `plan:progress` СОЗНАТЕЛЬНО остаётся network-first: это единственные здесь
+        // данные, которые правит сам пользователь. Cache-first с TTL 5 минут после
+        // «отметил → синхронизировалось → reload» показывал бы снимок ДО отметки
+        // (outbox уже пуст и оверлеем это не прикрыть) — реальное падение
+        // e2e/offline/outbox-sync.spec.ts. IDB-фолбэк при этом сохраняется.
         const progressResponse = await readThrough('plan:progress', () => progressApi.getProgress());
         progressData = progressResponse.progress as ProgressApiRow[] | null;
       } catch (progressErr) {

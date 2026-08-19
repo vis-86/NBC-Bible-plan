@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { canManageSetlists, type AppRole } from '@/lib/app-roles';
 import { useAuth } from '@/hooks/useAuth';
-import { readThrough } from '@/shared/offline/readThrough';
+import { readThroughSWR } from '@/shared/offline/readThrough';
 import { userApi } from '@/shared/services/api/endpoints';
 
 /**
@@ -34,10 +34,19 @@ async function fetchRoleOnce(userId: string): Promise<AppRole> {
   resetCacheIfUserChanged(userId);
   if (cachedRole) return cachedRole;
   if (!inflight) {
-    inflight = readThrough(appRoleCacheKey(userId), () => userApi.getRole())
-      .then((res) => {
+    // Cache-first: роль меняется редко, а её чтение стоит на пути отрисовки кнопок.
+    // Свежая роль применяется молча в module-кэш; экран подхватит её при следующем
+    // монтировании — визуально дёргать кнопки под руками не нужно.
+    inflight = readThroughSWR(appRoleCacheKey(userId), () => userApi.getRole(), {
+      onFresh: (fresh) => {
+        if (cachedForUserId !== userId) return;
+        cachedRole = fresh.role;
+        console.debug(`[useAppRole] фоновая ревалидация: role=${cachedRole}`);
+      },
+    })
+      .then(({ data: res, fromCache }) => {
         cachedRole = res.role;
-        console.debug(`[useAppRole] role=${cachedRole} (source=network|cache)`);
+        console.debug(`[useAppRole] role=${cachedRole} (source=${fromCache ? 'cache' : 'network'})`);
         return cachedRole;
       })
       .catch((err) => {

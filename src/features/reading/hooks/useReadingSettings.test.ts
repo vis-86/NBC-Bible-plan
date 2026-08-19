@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
-import { __resetDBConnection } from '@/shared/offline/db';
+import { __resetDBConnection, getDB } from '@/shared/offline/db';
 import { resetNetworkSuspicionForTests } from '@/shared/offline/networkHealth';
 
 const { getSettingsMock, updateSettingsMock } = vi.hoisted(() => ({
@@ -17,9 +17,14 @@ vi.mock('@/shared/services/api/endpoints', () => ({
 import { useReadingSettings } from './useReadingSettings';
 
 describe('useReadingSettings — verse_per_line', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     __resetDBConnection();
     resetNetworkSuspicionForTests();
+    // Чтение стало cache-first: запись предыдущего теста моложе TTL перебила бы мок
+    // следующего. Чистим apiCache, иначе тесты видят чужие настройки.
+    const db = await getDB();
+    await db.clear('apiCache');
+    __resetDBConnection();
     getSettingsMock.mockReset();
     updateSettingsMock.mockReset().mockResolvedValue(undefined);
   });

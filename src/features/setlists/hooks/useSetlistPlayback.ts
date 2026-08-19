@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { readSetlistThrough } from '../lib/offlineSetlists';
+import { readSetlistThroughSWR } from '../lib/offlineSetlists';
+import { warmSetlistSongs } from '../lib/warmSetlistSongs';
 import { readSongThrough } from '@/features/songs/lib/offlineSongs';
 import { songsApi } from '@/shared/services/api/endpoints';
 import type { Setlist, SetlistItem } from '../types';
@@ -38,11 +39,21 @@ export function useSetlistPlayback(setlistId: string | null | undefined, songId:
     let active = true;
     // Резолв только внутри .then/.catch — синхронный setState в теле эффекта
     // вызывает каскадный ре-рендер (react-hooks/set-state-in-effect).
-    const promise: Promise<Setlist | null> = setlistId ? readSetlistThrough(setlistId) : Promise.resolve(null);
+    // Cache-first, свежий состав применяется молча (экран read-only).
+    const promise: Promise<Setlist | null> = setlistId
+      ? readSetlistThroughSWR(setlistId, {
+          onFresh: (fresh) => {
+            if (active) setSetlist(fresh);
+          },
+        }).then(({ setlist: loaded }) => loaded)
+      : Promise.resolve(null);
 
     promise
       .then((loaded) => {
         if (active) setSetlist(loaded);
+        // Здесь начинается реальное «прохождение сета» (переход с карточки списка сразу
+        // на первую песню), поэтому греем весь сет именно тут, а не только в useSetlist.
+        if (loaded) void warmSetlistSongs(loaded.id, loaded.items);
       })
       .catch((err) => {
         console.warn('[useSetlistPlayback] failed to load setlist', setlistId, err);

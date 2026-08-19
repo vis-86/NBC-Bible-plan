@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 
 const replaceMock = vi.fn();
@@ -17,6 +17,7 @@ vi.mock('@/shared/services/api/endpoints', () => ({
   songsApi: { getSong: getSongMock },
 }));
 
+import { __resetDBConnection, getDB } from '@/shared/offline/db';
 import { useSetlistPlayback } from './useSetlistPlayback';
 
 const SETLIST = {
@@ -33,6 +34,15 @@ const SETLIST = {
 };
 
 describe('useSetlistPlayback', () => {
+  // Чтение сета стало cache-first: запись предыдущего теста моложе TTL перебивала бы
+  // мок следующего (fetcher не вызывался бы вовсе). Чистим apiCache между тестами.
+  beforeEach(async () => {
+    __resetDBConnection();
+    const db = await getDB();
+    await db.clear('apiCache');
+    __resetDBConnection();
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });

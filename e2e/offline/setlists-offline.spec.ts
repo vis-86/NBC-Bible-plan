@@ -134,6 +134,38 @@ test.describe('Сетлисты — офлайн (T15)', () => {
     await context.close();
   });
 
+  /**
+   * Cache-first (SWR) — `.ai-factory/plans/feature-offline-cache-first.md`, T9/T16.
+   * Живёт в ЭТОМ файле осознанно: отдельный спек = ещё один логин, а BFF рейт-лимитит
+   * `/api/auth/login` (10/15мин на IP) — полный прогон и так на грани бюджета.
+   */
+  test('cache-first: вторая песня сета открывается без скелета, консоль чистая', async ({ browser }) => {
+    const context = await browser.newContext({ storageState });
+    const page = await context.newPage();
+    await waitForServiceWorkerReady(page);
+
+    const rscErrors: string[] = [];
+    page.on('console', (msg) => {
+      if (msg.text().includes('Failed to fetch RSC payload')) rscErrors.push(msg.text());
+    });
+
+    // Первый заход греет кеш: сама песня + фоновый прогрев всех песен сета
+    // (`warmSetlistSongs`) кладёт их в IDB store `songs`.
+    await page.goto(appPath(`/dashboard/song?id=${songIds[0]}&setlistId=${setlistId}`));
+    await expect(page.locator('[data-song-page-viewport]')).toBeVisible();
+    await expect(page.locator('[data-song-page-loading]')).toHaveCount(0, { timeout: 15_000 });
+    await page.waitForTimeout(2_000); // даём прогреву сета доехать
+
+    // Соседняя песня уже в IDB — скелета не должно быть НИ РАЗУ за переход,
+    // поэтому проверяем сразу после навигации, без промежуточных ожиданий.
+    await page.goto(appPath(`/dashboard/song?id=${songIds[1]}&setlistId=${setlistId}`));
+    await expect(page.locator('[data-song-page-viewport]')).toBeVisible();
+    expect(await page.locator('[data-song-page-loading]').count()).toBe(0);
+
+    expect(rscErrors, 'консоль должна быть чистой').toEqual([]);
+    await context.close();
+  });
+
   test('pull-to-refresh офлайн: список остаётся, спиннер не залипает, консоль чистая', async ({ browser }) => {
     const context = await browser.newContext({ storageState });
     const page = await context.newPage();
