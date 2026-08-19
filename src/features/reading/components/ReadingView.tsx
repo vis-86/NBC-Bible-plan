@@ -342,6 +342,7 @@ export const ReadingView: React.FC<ReadingViewProps> = ({
             <ReadingContent
               text={text}
               loading={loading}
+              contentKey={reading ? `${reading.book}-${reading.chapter}` : 'none'}
               settings={settings}
               displayTheme={displayTheme}
               contextInfo={contextInfo}

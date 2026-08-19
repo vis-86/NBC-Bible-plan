@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Settings } from 'lucide-react';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
@@ -26,6 +26,7 @@ import { useAutoScroll } from '@/features/songs/hooks/useAutoScroll';
 import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
 import { useTapToReveal } from '@/shared/hooks/useTapToReveal';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
+import { useDelayedFlag } from '@/shared/hooks/useDelayedFlag';
 import { SwipePager } from '@/shared/components/pager/SwipePager';
 import { PagerHint, usePagerHint } from '@/shared/components/pager/PagerHint';
 import { useSetlistPlayback } from '@/features/setlists/hooks/useSetlistPlayback';
@@ -61,6 +62,7 @@ function SongPageContent() {
   const setlistId = searchParams.get('setlistId');
 
   const { song, loading, error, freshAvailable, applyFresh } = useSong(id);
+  const showSkeleton = useDelayedFlag(loading || !song);
   const contentRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
 
@@ -71,9 +73,14 @@ function SongPageContent() {
    * измеряется, а не задаётся константой (тот же приём, что `--dock-nav-actual-h`).
    */
   const [headerHeight, setHeaderHeight] = useState(0);
-  useEffect(() => {
+  // Первое измерение — синхронно, ДО кадра: `ResizeObserver` присылает высоту уже после
+  // отрисовки, и лист успевал показаться с нулевым верхним отступом, а затем прыгнуть
+  // вниз на высоту шапки. Дальше высоту ведёт наблюдатель (шрифт, safe-area, поворот).
+  useLayoutEffect(() => {
     const el = headerRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
+    if (!el) return;
+    setHeaderHeight(el.getBoundingClientRect().height);
+    if (typeof ResizeObserver === 'undefined') return;
     const observer = new ResizeObserver(() => setHeaderHeight(el.getBoundingClientRect().height));
     observer.observe(el);
     return () => observer.disconnect();
@@ -390,18 +397,26 @@ function SongPageContent() {
             ) : error ? (
               <ErrorMessage title="Песня не найдена" message={error} onRetry={handleBack} retryLabel="К списку" />
             ) : loading || !song ? (
-              <div data-song-page-loading className="animate-pulse space-y-3" aria-hidden>
+              // Скелет — с задержкой: закешированная песня приходит почти мгновенно, и
+              // мелькнувший скелет читался как рывок. Пустой блок сохраняет место.
+              !showSkeleton ? (
+                <div data-song-page-loading aria-hidden />
+              ) : (
+              <div data-song-page-loading className="animate-pulse animate-content-in space-y-3" aria-hidden>
                 <div className="h-7 w-2/3 rounded bg-app-surface-muted" />
                 <div className="h-4 w-1/2 rounded bg-app-surface-muted" />
                 <div className="mt-6 h-4 w-full rounded bg-app-surface-muted" />
                 <div className="h-4 w-11/12 rounded bg-app-surface-muted" />
                 <div className="h-4 w-10/12 rounded bg-app-surface-muted" />
               </div>
+              )
             ) : (
               // Обёртка несёт РАЗМЕР под масштаб: `transform: scale()` не меняет
               // layout-размер, и без этого правый с нижним краем увеличенного листа
               // недостижимы — диапазон прокрутки не растёт.
-              <div data-song-page-stage-size style={stageWrapperStyle}>
+              // key = песня: свайп по сету подменяет содержимое того же узла, и без
+              // перезапуска появления новый лист возникал готовым кадром.
+              <div key={song.id} className="animate-content-in" data-song-page-stage-size style={stageWrapperStyle}>
               <div ref={setStage} data-song-page-stage style={stageStyle}>
               <SongView
                 // title не прокидываем: он уже показан в PageHeader сверху (без дубля).

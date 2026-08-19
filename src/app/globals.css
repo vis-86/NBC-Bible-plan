@@ -491,9 +491,29 @@ html {
     animation: scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Появление контента (глава Писания, лист песни).
+   Ставится на обёртку с key = идентификатор контента: смена главы/песни перезапускает
+   анимацию, и текст не «выпрыгивает» готовым кадром, а проявляется. Сдвиг маленький
+   (4px) намеренно — это смягчение подмены, а не въезд элемента. */
+@keyframes content-in {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-content-in {
+    animation: content-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-slide-up,
-  .animate-scale-in {
+  .animate-scale-in,
+  .animate-content-in {
     animation: none;
   }
 }
