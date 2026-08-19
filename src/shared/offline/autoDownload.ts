@@ -1,5 +1,15 @@
-import { getManifest, downloadPlan, downloadSongs, downloadSetlists, downloadBibleTranslation } from './downloadManager';
-import { readingSettingsApi } from '@/shared/services/api/endpoints';
+import {
+  getManifest,
+  downloadPlan,
+  downloadSongs,
+  downloadSetlists,
+  downloadBibleTranslation,
+  syncSongsDelta,
+  syncSetlistsDelta,
+} from './downloadManager';
+import { readingSettingsApi, syncApi } from '@/shared/services/api/endpoints';
+import { isDefinitelyOffline } from './networkHealth';
+import { getSyncEtag, getSyncVersions, saveSyncEtag, saveSyncVersions } from './syncVersions';
 import { resolveSelfHostedTranslationId, type BibleTranslationId } from '@/lib/bible-translations';
 
 /**
@@ -62,12 +72,39 @@ async function resolveDefaultTranslation(): Promise<BibleTranslationId> {
 }
 
 /**
- * Идемпотентно докачивает недостающее по манифест-стору IDB: план, песни, дефолтный
- * перевод. Каждый джоб независим — обрыв одного не должен блокировать остальные, и не
- * бросает наружу (ретрай — на следующем запуске `ensureOfflineData`, идемпотентность
- * делает его бесплатным).
+ * Догружает базовый офлайн-набор и приводит уже скачанное к состоянию сервера.
+ *
+ * Раньше здесь стоял гард `if (!have.has('songs'))` — он качал ресурс РАЗ ЗА ЖИЗНЬ
+ * установки: сет, собранный в четверг, не приезжал к воскресенью. Теперь на КАЖДОМ
+ * запуске сверяется sync-манифест и качается только дельта.
+ *
+ * Каждый джоб независим и наружу не бросает: ретрай — следующий запуск, идемпотентность
+ * делает его бесплатным.
  */
 export async function ensureOfflineData(): Promise<void> {
+  // Заведомый офлайн — ждать нечего by construction, сеть не трогаем вовсе.
+  if (isDefinitelyOffline()) {
+    debug('offline — авто-загрузка и дельта-синк пропущены');
+    return;
+  }
+
+  const context = getDisplayContext();
+  info('auto-download starting', { context });
+
+  const freshlyDownloaded = await ensureBaseline();
+  await runDeltaSync(context, freshlyDownloaded);
+
+  // Терминальный маркер «офлайн-данные готовы»: на него завязан e2e
+  // (`cold-start-any-route.spec.ts` ждёт его перед уходом в офлайн). Переименование
+  // этой строки ломает прод-контур молча — менять только вместе со спеком.
+  info('auto-download finished', { context });
+}
+
+/**
+ * Базовый набор: то, чего в IDB нет вообще. Манифест-стор здесь по-прежнему уместен —
+ * это гард «первой загрузки», а не гард свежести (свежесть теперь на дельте).
+ */
+async function ensureBaseline(): Promise<Set<string>> {
   const manifest = await getManifest();
   const have = new Set(manifest.map((m) => m.key));
 
@@ -82,24 +119,83 @@ export async function ensureOfflineData(): Promise<void> {
   }
 
   if (jobs.length === 0) {
-    debug('nothing to auto-download, baseline already present');
-    return;
+    debug('baseline already present');
+    return new Set();
   }
 
-  const context = getDisplayContext();
-  info('auto-download starting', { context, keys: jobs.map((j) => j.key) });
-
-  let downloaded = 0;
+  info('baseline download', { keys: jobs.map((j) => j.key) });
+  const downloaded = new Set<string>();
   for (const job of jobs) {
     try {
       await job.run();
-      downloaded++;
+      downloaded.add(job.key);
     } catch (err) {
-      debug('auto-download failed for', job.key, err);
+      debug('baseline download failed for', job.key, err);
     }
   }
+  info('baseline download finished', { requested: jobs.length, downloaded: downloaded.size });
+  return downloaded;
+}
 
-  info('auto-download finished', { context, requested: jobs.length, downloaded });
+/**
+ * Дельта-синк: манифест → сравнение версий → докачка изменившегося → чистка удалённого.
+ * Версии и ETag фиксируются ТОЛЬКО после успешного применения обеих частей — иначе
+ * оборвавшийся посреди дельты запуск записал бы версию недокачанного, и следующий
+ * запуск счёл бы всё актуальным.
+ */
+async function runDeltaSync(
+  context: 'standalone' | 'browser-tab',
+  freshlyDownloaded: Set<string>
+): Promise<void> {
+  try {
+    const storedEtag = await getSyncEtag();
+    const result = await syncApi.getManifest(storedEtag);
+
+    if (result.status === 'not-modified') {
+      info('delta sync: 304, ничего делать не нужно', { context });
+      return;
+    }
+
+    const stored = await getSyncVersions();
+
+    // Ресурс, только что скачанный целиком в `ensureBaseline`, уже соответствует
+    // манифесту — иначе первый запуск качал бы весь каталог дважды.
+    const songsBase = freshlyDownloaded.has('songs')
+      ? Object.fromEntries(result.manifest.songs)
+      : stored.songs;
+    const setlistsBase = freshlyDownloaded.has('setlists')
+      ? Object.fromEntries(result.manifest.setlists)
+      : stored.setlists;
+    const planBase = freshlyDownloaded.has('plan') ? result.manifest.plan : stored.plan;
+
+    const songs = await syncSongsDelta(result.manifest.songs, songsBase);
+    const setlists = await syncSetlistsDelta(result.manifest.setlists, setlistsBase);
+
+    // План версионируется целиком: изменился — перекачиваем прогрев целиком.
+    let planUpdated = false;
+    if (planBase !== result.manifest.plan) {
+      await downloadPlan();
+      planUpdated = true;
+    }
+
+    await saveSyncVersions({
+      songs: songs.versions,
+      setlists: setlists.versions,
+      plan: result.manifest.plan,
+    });
+    await saveSyncEtag(result.etag);
+
+    info('delta sync finished', {
+      context,
+      songs: songs.stats,
+      setlists: setlists.stats,
+      planUpdated,
+    });
+  } catch (err) {
+    // Наружу не бросаем: ретрай — следующий запуск. Версии не записаны, значит
+    // недокачанное будет добрано.
+    info('delta sync failed, версии НЕ зафиксированы — добор на следующем запуске', err);
+  }
 }
 
 /**

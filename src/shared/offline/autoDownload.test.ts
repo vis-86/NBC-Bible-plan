@@ -2,22 +2,33 @@
 import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getSettingsMock } = vi.hoisted(() => ({
+const { getSettingsMock, getSyncManifestMock } = vi.hoisted(() => ({
   getSettingsMock: vi.fn(),
+  getSyncManifestMock: vi.fn(),
 }));
 
 vi.mock('@/shared/services/api/endpoints', () => ({
   readingSettingsApi: { getSettings: getSettingsMock },
+  syncApi: { getManifest: getSyncManifestMock },
 }));
 
-const { downloadPlanMock, downloadSongsMock, downloadSetlistsMock, downloadBibleTranslationMock, getManifestMock } =
-  vi.hoisted(() => ({
-    downloadPlanMock: vi.fn(),
-    downloadSongsMock: vi.fn(),
-    downloadSetlistsMock: vi.fn(),
-    downloadBibleTranslationMock: vi.fn(),
-    getManifestMock: vi.fn(),
-  }));
+const {
+  downloadPlanMock,
+  downloadSongsMock,
+  downloadSetlistsMock,
+  downloadBibleTranslationMock,
+  getManifestMock,
+  syncSongsDeltaMock,
+  syncSetlistsDeltaMock,
+} = vi.hoisted(() => ({
+  downloadPlanMock: vi.fn(),
+  downloadSongsMock: vi.fn(),
+  downloadSetlistsMock: vi.fn(),
+  downloadBibleTranslationMock: vi.fn(),
+  getManifestMock: vi.fn(),
+  syncSongsDeltaMock: vi.fn(),
+  syncSetlistsDeltaMock: vi.fn(),
+}));
 
 vi.mock('./downloadManager', () => ({
   getManifest: getManifestMock,
@@ -25,8 +36,12 @@ vi.mock('./downloadManager', () => ({
   downloadSongs: downloadSongsMock,
   downloadSetlists: downloadSetlistsMock,
   downloadBibleTranslation: downloadBibleTranslationMock,
+  syncSongsDelta: syncSongsDeltaMock,
+  syncSetlistsDelta: syncSetlistsDeltaMock,
 }));
 
+import { __resetDBConnection, getDB } from './db';
+import { getSyncEtag, getSyncVersions, saveSyncEtag } from './syncVersions';
 import { ensureOfflineData, scheduleEnsureOfflineData, __resetAutoDownloadGuard } from './autoDownload';
 
 describe('offline/autoDownload', () => {
@@ -37,6 +52,12 @@ describe('offline/autoDownload', () => {
     downloadSetlistsMock.mockReset().mockResolvedValue(undefined);
     downloadBibleTranslationMock.mockReset().mockResolvedValue(undefined);
     getManifestMock.mockReset().mockResolvedValue([]);
+    // По умолчанию дельта-синк отключён (304) — существующие кейсы проверяют baseline.
+    getSyncManifestMock.mockReset().mockResolvedValue({ status: 'not-modified' });
+    syncSongsDeltaMock.mockReset().mockResolvedValue({ stats: { checked: 0, updated: 0, removed: 0 }, versions: {} });
+    syncSetlistsDeltaMock
+      .mockReset()
+      .mockResolvedValue({ stats: { checked: 0, updated: 0, removed: 0 }, versions: {} });
     __resetAutoDownloadGuard();
   });
 
@@ -147,5 +168,122 @@ describe('offline/autoDownload', () => {
       await vi.runAllTimersAsync();
       expect(getManifestMock).toHaveBeenCalledTimes(2);
     });
+  });
+});
+
+describe('offline/autoDownload — дельта-синк (T15)', () => {
+  beforeEach(async () => {
+    getSettingsMock.mockReset().mockResolvedValue({ settings: { nt_translation: 'rst' } });
+    downloadPlanMock.mockReset().mockResolvedValue(undefined);
+    downloadSongsMock.mockReset().mockResolvedValue(undefined);
+    downloadSetlistsMock.mockReset().mockResolvedValue(undefined);
+    downloadBibleTranslationMock.mockReset().mockResolvedValue(undefined);
+    // Базовый набор уже скачан — проверяем именно дельту.
+    getManifestMock.mockReset().mockResolvedValue([
+      { key: 'plan' },
+      { key: 'songs' },
+      { key: 'setlists' },
+      { key: 'rst' },
+    ]);
+    getSyncManifestMock.mockReset();
+    syncSongsDeltaMock.mockReset();
+    syncSetlistsDeltaMock.mockReset();
+    __resetAutoDownloadGuard();
+
+    __resetDBConnection();
+    const db = await getDB();
+    await db.clear('meta');
+    __resetDBConnection();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('офлайн: ни манифеста, ни докачки', async () => {
+    vi.stubGlobal('navigator', { onLine: false });
+
+    await ensureOfflineData();
+
+    expect(getSyncManifestMock).not.toHaveBeenCalled();
+    expect(syncSongsDeltaMock).not.toHaveBeenCalled();
+    expect(downloadSongsMock).not.toHaveBeenCalled();
+  });
+
+  it('304: ни одного запроса деталей, версии не трогаем', async () => {
+    getSyncManifestMock.mockResolvedValue({ status: 'not-modified' });
+
+    await ensureOfflineData();
+
+    expect(syncSongsDeltaMock).not.toHaveBeenCalled();
+    expect(syncSetlistsDeltaMock).not.toHaveBeenCalled();
+    expect(await getSyncVersions()).toEqual({ songs: {}, setlists: {}, plan: null });
+  });
+
+  it('200: дельта применяется, версии и ETag фиксируются', async () => {
+    getSyncManifestMock.mockResolvedValue({
+      status: 'ok',
+      etag: '"v1"',
+      manifest: { songs: [['1', 'a']], setlists: [['s1', 'h1']], plan: 'p1' },
+    });
+    syncSongsDeltaMock.mockResolvedValue({
+      stats: { checked: 1, updated: 1, removed: 0 },
+      versions: { '1': 'a' },
+    });
+    syncSetlistsDeltaMock.mockResolvedValue({
+      stats: { checked: 1, updated: 1, removed: 0 },
+      versions: { s1: 'h1' },
+    });
+
+    await ensureOfflineData();
+
+    expect(syncSongsDeltaMock).toHaveBeenCalledWith([['1', 'a']], {});
+    expect(await getSyncVersions()).toEqual({ songs: { '1': 'a' }, setlists: { s1: 'h1' }, plan: 'p1' });
+    expect(await getSyncEtag()).toBe('"v1"');
+  });
+
+  it('сохранённый ETag уходит в запрос манифеста', async () => {
+    await saveSyncEtag('"stored"');
+    getSyncManifestMock.mockResolvedValue({ status: 'not-modified' });
+
+    await ensureOfflineData();
+
+    expect(getSyncManifestMock).toHaveBeenCalledWith('"stored"');
+  });
+
+  it('сеть падает посреди дельты -> версии НЕ записаны (следующий запуск дочистит)', async () => {
+    getSyncManifestMock.mockResolvedValue({
+      status: 'ok',
+      etag: '"v1"',
+      manifest: { songs: [['1', 'a']], setlists: [['s1', 'h1']], plan: 'p1' },
+    });
+    syncSongsDeltaMock.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    await ensureOfflineData();
+
+    expect(await getSyncVersions()).toEqual({ songs: {}, setlists: {}, plan: null });
+    expect(await getSyncEtag()).toBeNull();
+  });
+
+  it('первый запуск (baseline только что скачан) не качает каталог повторно', async () => {
+    getManifestMock.mockResolvedValue([]); // ничего не скачано
+    getSyncManifestMock.mockResolvedValue({
+      status: 'ok',
+      etag: '"v1"',
+      manifest: { songs: [['1', 'a']], setlists: [['s1', 'h1']], plan: 'p1' },
+    });
+    syncSongsDeltaMock.mockImplementation((manifestSongs, stored) =>
+      Promise.resolve({ stats: { checked: 1, updated: 0, removed: 0 }, versions: stored })
+    );
+    syncSetlistsDeltaMock.mockImplementation((manifestSetlists, stored) =>
+      Promise.resolve({ stats: { checked: 1, updated: 0, removed: 0 }, versions: stored })
+    );
+
+    await ensureOfflineData();
+
+    // Версии уже совпадают с манифестом -> дельта не найдёт работы, план не перекачивается.
+    expect(syncSongsDeltaMock).toHaveBeenCalledWith([['1', 'a']], { '1': 'a' });
+    expect(syncSetlistsDeltaMock).toHaveBeenCalledWith([['s1', 'h1']], { s1: 'h1' });
+    expect(downloadPlanMock).toHaveBeenCalledTimes(1); // ровно baseline, без повторного
   });
 });

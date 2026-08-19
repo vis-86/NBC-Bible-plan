@@ -280,3 +280,103 @@ export async function clearAllOfflineData(options?: { force?: boolean }): Promis
   debug('offline data cleared', { pendingOutboxCount: pending.length });
   return { cleared: true, pendingOutboxCount: pending.length };
 }
+
+/* ------------------------------------------------------------------------ *
+ * Дельта-синк (см. .ai-factory/plans/feature-offline-cache-first.md, T14)
+ * ------------------------------------------------------------------------ */
+
+export interface DeltaStats {
+  checked: number;
+  updated: number;
+  removed: number;
+}
+
+/**
+ * Догружает песни, чьи версии в манифесте разошлись с локальными, и удаляет те, которых
+ * в манифесте больше нет (полный список id заменяет tombstones).
+ *
+ * Пишет ТЕМИ ЖЕ путями, что читают экраны: стор `songs` (читает `readSongThroughSWR`) и
+ * `SONGS_LIST_CACHE_KEY` (читает `useSongs`) — писатель и читатель обязаны совпадать.
+ *
+ * Возвращает НОВУЮ карту версий; вызывающий записывает её только после успеха целиком —
+ * частичный сбой не должен зафиксировать версию недокачанного.
+ */
+export async function syncSongsDelta(
+  manifestSongs: Array<[string, string]>,
+  storedVersions: Record<string, string>
+): Promise<{ stats: DeltaStats; versions: Record<string, string> }> {
+  const db = await getDB();
+  const versions: Record<string, string> = { ...storedVersions };
+  const stats: DeltaStats = { checked: manifestSongs.length, updated: 0, removed: 0 };
+
+  const manifestIds = new Set(manifestSongs.map(([id]) => id));
+
+  for (const [id, version] of manifestSongs) {
+    if (storedVersions[id] === version) continue;
+    debug('delta: песня изменилась', { id, from: storedVersions[id] ?? '—', to: version });
+    const full = await songsApi.getSong(id);
+    await db.put('songs', { id: full.song.id, data: full.song, updatedAt: Date.now() });
+    // Пометки греются тем же вызовом, которым их читает экран песни.
+    await readAnnotations(full.song.id).catch(() => undefined);
+    versions[id] = version;
+    stats.updated++;
+  }
+
+  // Снятая с публикации песня иначе живёт в IDB вечно.
+  const localIds = await db.getAllKeys('songs');
+  for (const localId of localIds) {
+    const id = String(localId);
+    if (manifestIds.has(id)) continue;
+    debug('delta: песня удалена на сервере', { id });
+    await db.delete('songs', id);
+    await db.delete('apiCache', `songs:item:${id}`);
+    delete versions[id];
+    stats.removed++;
+  }
+
+  if (stats.updated > 0 || stats.removed > 0) {
+    // Список содержит title/plainText изменившихся песен — освежаем той же записью,
+    // что читает `useSongs`.
+    await persistApiCache(SONGS_LIST_CACHE_KEY, await songsApi.getSongs());
+  }
+
+  return { stats, versions };
+}
+
+/**
+ * То же для сетов: изменившиеся детали перекачиваются, исчезнувшие — вычищаются из
+ * `apiCache` по тому же ключу, которым их читает `useSetlist`/`useSetlistPlayback`.
+ */
+export async function syncSetlistsDelta(
+  manifestSetlists: Array<[string, string]>,
+  storedVersions: Record<string, string>
+): Promise<{ stats: DeltaStats; versions: Record<string, string> }> {
+  const db = await getDB();
+  const versions: Record<string, string> = { ...storedVersions };
+  const stats: DeltaStats = { checked: manifestSetlists.length, updated: 0, removed: 0 };
+
+  const manifestIds = new Set(manifestSetlists.map(([id]) => id));
+
+  for (const [id, version] of manifestSetlists) {
+    if (storedVersions[id] === version) continue;
+    debug('delta: сет изменился', { id, from: storedVersions[id] ?? '—', to: version });
+    const detail = await setlistsApi.getSetlist(id);
+    await persistApiCache(setlistCacheKey(id), detail);
+    versions[id] = version;
+    stats.updated++;
+  }
+
+  for (const id of Object.keys(storedVersions)) {
+    if (manifestIds.has(id)) continue;
+    debug('delta: сет удалён на сервере', { id });
+    await db.delete('apiCache', setlistCacheKey(id));
+    delete versions[id];
+    stats.removed++;
+  }
+
+  if (stats.updated > 0 || stats.removed > 0) {
+    await persistApiCache(SETLISTS_LIST_CACHE_KEY, await setlistsApi.getSetlists());
+  }
+
+  return { stats, versions };
+}

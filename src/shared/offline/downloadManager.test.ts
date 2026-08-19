@@ -45,11 +45,14 @@ import {
   getManifest,
   requestPersistentStorage,
   clearAllOfflineData,
+  syncSongsDelta,
+  syncSetlistsDelta,
 } from './downloadManager';
 import { getDB, __deleteDB } from './db';
-import { getApiCache } from './readThrough';
+import { getApiCache, persistApiCache, SONGS_LIST_CACHE_KEY } from './readThrough';
+import { getCachedSong } from '@/features/songs/lib/offlineSongs';
 import { enqueueSingleProgress, getPendingOutbox } from './outbox';
-import { readSetlistThrough, readSetlistsThrough } from '@/features/setlists/lib/offlineSetlists';
+import { readSetlistThrough, readSetlistsThrough, setlistCacheKey } from '@/features/setlists/lib/offlineSetlists';
 
 describe('offline/downloadManager', () => {
   beforeEach(async () => {
@@ -329,6 +332,97 @@ describe('offline/downloadManager', () => {
 
       expect(result).toEqual({ cleared: true, pendingOutboxCount: 0 });
       expect(await getPendingOutbox()).toEqual([]);
+    });
+  });
+});
+
+describe('offline/downloadManager — дельта-синк (T15)', () => {
+  beforeEach(async () => {
+    await __deleteDB();
+    getSongsMock.mockReset();
+    getSongMock.mockReset();
+    getSetlistsMock.mockReset();
+    getSetlistMock.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  describe('syncSongsDelta', () => {
+    it('версия совпала -> ни одного запроса детали', async () => {
+      const res = await syncSongsDelta([['1', 'a']], { '1': 'a' });
+
+      expect(getSongMock).not.toHaveBeenCalled();
+      expect(getSongsMock).not.toHaveBeenCalled();
+      expect(res.stats).toEqual({ checked: 1, updated: 0, removed: 0 });
+    });
+
+    it('изменилась одна песня -> ровно один запрос детали, песня в сторе `songs`', async () => {
+      getSongMock.mockResolvedValue({ song: { id: '2', title: 'Вторая', content: 'x' } });
+      getSongsMock.mockResolvedValue({ songs: [{ id: '2', title: 'Вторая' }] });
+
+      const res = await syncSongsDelta(
+        [
+          ['1', 'a'],
+          ['2', 'b2'],
+        ],
+        { '1': 'a', '2': 'b1' }
+      );
+
+      expect(getSongMock).toHaveBeenCalledTimes(1);
+      expect(getSongMock).toHaveBeenCalledWith('2');
+      expect(res.versions).toEqual({ '1': 'a', '2': 'b2' });
+      expect(res.stats.updated).toBe(1);
+
+      // Ассерт тем же вызовом, которым песню читает экран.
+      expect(await getCachedSong('2')).toEqual({ id: '2', title: 'Вторая', content: 'x' });
+      // И список — тем же ключом, что читает useSongs.
+      expect(await getApiCache(SONGS_LIST_CACHE_KEY)).toEqual({ songs: [{ id: '2', title: 'Вторая' }] });
+    });
+
+    it('песня исчезла из манифеста -> удалена из `songs` и из `apiCache`', async () => {
+      const db = await getDB();
+      await db.put('songs', { id: '9', data: { id: '9', title: 'Снятая' }, updatedAt: Date.now() });
+      await db.put('apiCache', { key: 'songs:item:9', data: {}, updatedAt: Date.now() });
+      getSongsMock.mockResolvedValue({ songs: [] });
+
+      const res = await syncSongsDelta([], { '9': 'v' });
+
+      expect(await getCachedSong('9')).toBeUndefined();
+      expect(await getApiCache('songs:item:9')).toBeUndefined();
+      expect(res.versions).toEqual({});
+      expect(res.stats.removed).toBe(1);
+    });
+
+    it('сбой сети посреди дельты пробрасывается наружу (версии фиксирует вызывающий)', async () => {
+      getSongMock.mockRejectedValue(new TypeError('Failed to fetch'));
+
+      await expect(syncSongsDelta([['1', 'a']], {})).rejects.toBeInstanceOf(TypeError);
+    });
+  });
+
+  describe('syncSetlistsDelta', () => {
+    it('изменился один сет -> одна деталь, кеш под ключом, который читает экран', async () => {
+      getSetlistMock.mockResolvedValue({ setlist: { id: 's1', title: 'Сет', date: null, items: [] } });
+      getSetlistsMock.mockResolvedValue({ setlists: [{ id: 's1', title: 'Сет', date: null, items: [] }] });
+
+      const res = await syncSetlistsDelta([['s1', 'h2']], { s1: 'h1' });
+
+      expect(getSetlistMock).toHaveBeenCalledTimes(1);
+      expect(res.versions).toEqual({ s1: 'h2' });
+      expect(await readSetlistThrough('s1')).toEqual({ id: 's1', title: 'Сет', date: null, items: [] });
+    });
+
+    it('сет исчез из манифеста -> его деталь вычищена из apiCache', async () => {
+      await persistApiCache(setlistCacheKey('s9'), { setlist: { id: 's9' } });
+      getSetlistsMock.mockResolvedValue({ setlists: [] });
+
+      const res = await syncSetlistsDelta([], { s9: 'h' });
+
+      expect(await getApiCache(setlistCacheKey('s9'))).toBeUndefined();
+      expect(res.versions).toEqual({});
+      expect(res.stats.removed).toBe(1);
     });
   });
 });
