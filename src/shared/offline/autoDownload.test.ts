@@ -287,3 +287,83 @@ describe('offline/autoDownload — дельта-синк (T15)', () => {
     expect(downloadPlanMock).toHaveBeenCalledTimes(1); // ровно baseline, без повторного
   });
 });
+
+describe('offline/autoDownload — переводы Писания для обоих заветов', () => {
+  beforeEach(() => {
+    downloadPlanMock.mockReset().mockResolvedValue(undefined);
+    downloadSongsMock.mockReset().mockResolvedValue(undefined);
+    downloadSetlistsMock.mockReset().mockResolvedValue(undefined);
+    downloadBibleTranslationMock.mockReset().mockResolvedValue(undefined);
+    getSettingsMock.mockReset();
+    // Всё, кроме переводов, уже скачано — смотрим только на переводы.
+    getManifestMock.mockReset().mockResolvedValue([{ key: 'plan' }, { key: 'songs' }, { key: 'setlists' }]);
+    getSyncManifestMock.mockReset().mockResolvedValue({ status: 'not-modified' });
+    __resetAutoDownloadGuard();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('разные переводы ВЗ и НЗ -> качаются ОБА', async () => {
+    getSettingsMock.mockResolvedValue({
+      settings: { ot_translation: 'rst', nt_translation: 'kassian2019' },
+    });
+
+    await ensureOfflineData();
+
+    expect(downloadBibleTranslationMock).toHaveBeenCalledTimes(2);
+    expect(downloadBibleTranslationMock).toHaveBeenCalledWith('rst');
+    expect(downloadBibleTranslationMock).toHaveBeenCalledWith('kassian2019');
+  });
+
+  it('один перевод на оба завета -> одна загрузка, не две', async () => {
+    getSettingsMock.mockResolvedValue({
+      settings: { ot_translation: 'nrt2019', nt_translation: 'nrt2019' },
+    });
+
+    await ensureOfflineData();
+
+    expect(downloadBibleTranslationMock).toHaveBeenCalledTimes(1);
+    expect(downloadBibleTranslationMock).toHaveBeenCalledWith('nrt2019');
+  });
+
+  it('НЗ-перевод без поддержки ВЗ не подменяет собой ВЗ — Ветхий Завет получает fallback', async () => {
+    // Регрессия: раньше резолвился ТОЛЬКО nt_translation, и ВЗ оставался без копии.
+    getSettingsMock.mockResolvedValue({
+      settings: { ot_translation: 'kassian2019', nt_translation: 'kassian2019' },
+    });
+
+    await ensureOfflineData();
+
+    // kassian2019 не поддерживает ВЗ -> для ВЗ берётся rst.
+    expect(downloadBibleTranslationMock).toHaveBeenCalledWith('rst');
+    expect(downloadBibleTranslationMock).toHaveBeenCalledWith('kassian2019');
+  });
+
+  it('уже скачанный перевод не качается повторно', async () => {
+    getManifestMock.mockResolvedValue([
+      { key: 'plan' },
+      { key: 'songs' },
+      { key: 'setlists' },
+      { key: 'rst' },
+    ]);
+    getSettingsMock.mockResolvedValue({
+      settings: { ot_translation: 'rst', nt_translation: 'kassian2019' },
+    });
+
+    await ensureOfflineData();
+
+    expect(downloadBibleTranslationMock).toHaveBeenCalledTimes(1);
+    expect(downloadBibleTranslationMock).toHaveBeenCalledWith('kassian2019');
+  });
+
+  it('настройки недоступны -> дефолтный перевод, докачка не падает', async () => {
+    getSettingsMock.mockRejectedValue(new TypeError('Failed to fetch'));
+
+    await ensureOfflineData();
+
+    expect(downloadBibleTranslationMock).toHaveBeenCalledTimes(1);
+    expect(downloadBibleTranslationMock).toHaveBeenCalledWith('rst');
+  });
+});

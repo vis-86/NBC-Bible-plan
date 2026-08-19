@@ -57,17 +57,27 @@ function getDisplayContext(): 'standalone' | 'browser-tab' {
 }
 
 /**
- * `nt_translation` пользователя, если он разрешён для self-host и поддерживает НЗ —
- * иначе `DEFAULT_TRANSLATION`. Сетевой сбой чтения настроек тоже даёт дефолт (докачка
- * не должна падать из-за недоступности одного эндпоинта).
+ * Переводы, которые качаются автоматически: ОБА выбора пользователя — для Ветхого и для
+ * Нового Завета, каждый приведённый к self-host-варианту своего завета.
+ *
+ * Раньше здесь резолвился только `nt_translation`, и это оставляло Ветхий Завет без
+ * офлайн-копии: у переводов вроде «Кассиан 2019» `supports.ot === false`, так что
+ * скачивался НЗ-перевод, а план чтения бóльшую часть года ведёт по ВЗ — каждая глава
+ * шла в сеть. Совпавшие идентификаторы схлопываются, так что обычный случай
+ * (один перевод на оба завета) остаётся одной загрузкой.
+ *
+ * Сетевой сбой чтения настроек даёт дефолт: докачка не должна падать из-за
+ * недоступности одного эндпоинта.
  */
-async function resolveDefaultTranslation(): Promise<BibleTranslationId> {
+async function resolveDefaultTranslations(): Promise<BibleTranslationId[]> {
   try {
     const { settings } = await readingSettingsApi.getSettings();
-    return resolveSelfHostedTranslationId(settings.nt_translation, 'nt', DEFAULT_TRANSLATION);
+    const ot = resolveSelfHostedTranslationId(settings.ot_translation, 'ot', DEFAULT_TRANSLATION);
+    const nt = resolveSelfHostedTranslationId(settings.nt_translation, 'nt', DEFAULT_TRANSLATION);
+    return [...new Set([ot, nt])];
   } catch (err) {
     debug('reading-settings unavailable, falling back to default translation', err);
-    return DEFAULT_TRANSLATION;
+    return [DEFAULT_TRANSLATION];
   }
 }
 
@@ -108,13 +118,14 @@ async function ensureBaseline(): Promise<Set<string>> {
   const manifest = await getManifest();
   const have = new Set(manifest.map((m) => m.key));
 
-  const translationId = await resolveDefaultTranslation();
+  const translationIds = await resolveDefaultTranslations();
 
   const jobs: Array<{ key: string; run: () => Promise<void> }> = [];
   if (!have.has('plan')) jobs.push({ key: 'plan', run: downloadPlan });
   if (!have.has('songs')) jobs.push({ key: 'songs', run: downloadSongs });
   if (!have.has('setlists')) jobs.push({ key: 'setlists', run: downloadSetlists });
-  if (!have.has(translationId)) {
+  for (const translationId of translationIds) {
+    if (have.has(translationId)) continue;
     jobs.push({ key: translationId, run: () => downloadBibleTranslation(translationId) });
   }
 

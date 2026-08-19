@@ -3,8 +3,45 @@ import { readingSettingsApi } from '@/shared/services/api/endpoints';
 import { readThroughSWR } from '@/shared/offline/readThrough';
 import type { ReadingSettings } from '@/features/reading/types';
 import { isBibleTranslationId } from '@/lib/bible-translations';
+import { scheduleEnsureOfflineData } from '@/shared/offline/autoDownload';
 
 const READING_SETTINGS_CACHE_KEY = 'reading:settings';
+
+/**
+ * Снимок настроек в localStorage — единственный источник ключа, читают и пишут его
+ * только функции ниже.
+ *
+ * Зачем: настройки грузятся асинхронно, а `ReadingView` считает перевод главы из них
+ * СРАЗУ на первом рендере. Без снимка первый рендер уходил в IDB за ключом
+ * `rst|Книга|глава`, промахивался (у пользователя скачан другой перевод) и лез в сеть —
+ * лишний запрос и кадр скелета онлайн, ожидание до таймаута офлайн, даже когда перевод
+ * скачан целиком. localStorage синхронен, поэтому ключ верен с первого кадра. Ждать
+ * настройки вместо этого нельзя: два последовательных network-first экрана перемножают
+ * таймауты (N×T).
+ */
+export const READING_SETTINGS_SNAPSHOT_KEY = 'reading:settings:snapshot:v1';
+
+function readSnapshot(): ReadingSettings | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(READING_SETTINGS_SNAPSHOT_KEY);
+    if (!raw) return null;
+    return normalizeSettings(JSON.parse(raw) as Record<string, unknown>, defaultSettings);
+  } catch (err) {
+    console.debug('[useReadingSettings] снимок настроек нечитаем, берём дефолты', err);
+    return null;
+  }
+}
+
+function writeSnapshot(settings: ReadingSettings): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(READING_SETTINGS_SNAPSHOT_KEY, JSON.stringify(settings));
+  } catch (err) {
+    // Приватный режим / переполненное хранилище — не повод ронять чтение.
+    console.debug('[useReadingSettings] снимок настроек не сохранён', err);
+  }
+}
 
 function isTextAlign(value: unknown): value is ReadingSettings['text_align'] {
   return value === 'left' || value === 'center' || value === 'justify';
@@ -48,7 +85,8 @@ function normalizeSettings(
 }
 
 export function useReadingSettings() {
-  const [settings, setSettings] = useState<ReadingSettings>(defaultSettings);
+  // Снимок читается синхронно — перевод главы обязан быть верным с ПЕРВОГО рендера.
+  const [settings, setSettings] = useState<ReadingSettings>(() => readSnapshot() ?? defaultSettings);
   const [loading, setLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -66,12 +104,20 @@ export function useReadingSettings() {
             onFresh: (fresh) => {
               if (!fresh.settings) return;
               console.debug('[useReadingSettings] применяем свежие настройки', READING_SETTINGS_CACHE_KEY);
-              setSettings((prev) => normalizeSettings(fresh.settings, prev));
+              setSettings((prev) => {
+                const next = normalizeSettings(fresh.settings, prev);
+                writeSnapshot(next);
+                return next;
+              });
             },
           }
         );
         if (response.settings) {
-          setSettings((prev) => normalizeSettings(response.settings, prev));
+          setSettings((prev) => {
+            const next = normalizeSettings(response.settings, prev);
+            writeSnapshot(next);
+            return next;
+          });
         }
       } catch (error) {
         console.error('Error loading settings:', error);
@@ -89,6 +135,10 @@ export function useReadingSettings() {
     try {
       await readingSettingsApi.updateSettings(newSettings);
       setSettings(newSettings);
+      writeSnapshot(newSettings);
+      // Перевод мог смениться — базовый офлайн-набор обязан догнать выбор пользователя,
+      // иначе новый перевод существует только онлайн до следующего логина.
+      scheduleEnsureOfflineData();
     } catch (error) {
       console.error('Error saving settings:', error);
       throw error;
