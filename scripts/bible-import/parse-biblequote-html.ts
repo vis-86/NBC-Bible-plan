@@ -66,7 +66,40 @@ function extractParagraphInnerTexts(block: string): string[] {
   return out;
 }
 
-export function parseBiblequoteBookHtml(html: string): Record<string, string> {
+/**
+ * Book name from <h4>…</h4>: the header without its trailing chapter number
+ * ("К Филимону 1" → "К Филимону"). Whitespace is collapsed so that modules with
+ * ragged spacing still compare equal.
+ */
+function bookNameFromHeader(header: string): string {
+  return header.replace(/\s*\d+\s*$/, '').replace(/\s+/g, ' ').trim();
+}
+
+export interface ParsedBook {
+  chapters: Record<string, string>;
+  /**
+   * Имя книги, как оно записано в САМОМ файле (заголовок первого блока). Может
+   * расходиться с `FullName` из INI — в модуле Кассиана INI говорит «Иуды», а HTML
+   * «Иуда 1». Это расхождение имён, а не подмена текста, и отбрасывать по нему блоки
+   * нельзя: так книга осталась бы пустой.
+   */
+  bookName: string;
+  /**
+   * Chapter blocks whose header names a DIFFERENT book than the file is supposed to
+   * contain. Real defect seen in the Kassian module: 63.HTM ("К Титу") ends with a
+   * stray "К Филимону 1" block, and because chapters used to be keyed by number alone,
+   * it silently overwrote Titus 1 — readers saw Paul writing to Philemon inside Titus.
+   * The chapter count still matched, so no count-based check could catch it.
+   */
+  foreignChapters: Array<{ header: string; chapter: string }>;
+}
+
+/**
+ * Эталон книги ВСЕГДА берётся из первого блока файла: файл книги начинается со своей
+ * книги, а имена в INI и в HTML могут расходиться. `expectedBook` из INI нужен только
+ * вызывающему — сравнить с `bookName` и предупредить о расхождении.
+ */
+export function parseBiblequoteBookHtml(html: string): ParsedBook {
   const normalized = html.replace(/\r/g, '');
   const h4Regex = /<h4[^>]*>([^<]+)<\/h4>/gi;
   const markers: Array<{ header: string; contentStart: number; contentEnd: number }> = [];
@@ -81,9 +114,20 @@ export function parseBiblequoteBookHtml(html: string): Record<string, string> {
   }
 
   const chapters: Record<string, string> = {};
+  const foreignChapters: Array<{ header: string; chapter: string }> = [];
+
+  const expected = bookNameFromHeader(markers[0]?.header ?? '');
+
   for (const { header, contentStart, contentEnd } of markers) {
     const ch = chapterNumberFromHeader(header);
     if (!ch) continue;
+
+    // Ключевать главы одним лишь номером нельзя: чужой блок с тем же номером
+    // молча затирает свою главу (см. ParsedBook.foreignChapters).
+    if (expected && bookNameFromHeader(header) !== expected) {
+      foreignChapters.push({ header, chapter: ch });
+      continue;
+    }
 
     const block = normalized.slice(contentStart, contentEnd);
     const inners = extractParagraphInnerTexts(block);
@@ -96,5 +140,5 @@ export function parseBiblequoteBookHtml(html: string): Record<string, string> {
     chapters[ch] = verseParts.length ? verseParts.join(' ') : '';
   }
 
-  return chapters;
+  return { chapters, foreignChapters, bookName: expected };
 }

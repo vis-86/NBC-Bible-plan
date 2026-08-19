@@ -106,8 +106,23 @@ function main(): void {
     }
 
     const html = fs.readFileSync(htmlPath, 'utf-8');
-    const chapters = parseBiblequoteBookHtml(html);
+    // Имя книги из INI обязательно: без него чужой блок в конце файла (реальный дефект
+    // модуля Кассиана, 63.HTM) затирает одноимённую главу, и проверка по КОЛИЧЕСТВУ глав
+    // этого не ловит — количество остаётся верным.
+    const { chapters, foreignChapters, bookName } = parseBiblequoteBookHtml(html);
     const chapterKeys = Object.keys(chapters);
+
+    for (const foreign of foreignChapters) {
+      const msg = `Foreign chapter block in ${htmlPath}: "${foreign.header}" inside book "${bookName}" — skipped`;
+      console.error(`${LOG} WARN ${msg}`);
+      errors.push(msg);
+    }
+
+    // Расхождение имён INI vs HTML («Иуды» против «Иуда») безобидно и встречается
+    // в реальных модулях — это НЕ повод отбрасывать текст, только заметка в отладке.
+    if (isDebug() && bookName && bookName !== entry.fullName) {
+      console.error(`${LOG} DEBUG book name differs: INI="${entry.fullName}" HTML="${bookName}"`);
+    }
     if (chapterKeys.length === 0) {
       const msg = `No chapters parsed for ${canonical} (${htmlPath})`;
       console.error(`${LOG} WARN ${msg}`);

@@ -9,7 +9,15 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'server/**/*.test.ts'],
+    // scripts/ добавлены после инцидента с импортом Писания: конвейер импорта менял
+    // ТЕКСТ ПИСАНИЯ в проде, а тестами не покрывался вовсе (подмена Тит 1 текстом
+    // Филимона прошла молча — количество глав при этом оставалось верным).
+    include: [
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+      'server/**/*.test.ts',
+      'scripts/**/*.test.ts',
+    ],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json-summary'],
