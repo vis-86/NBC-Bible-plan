@@ -76,6 +76,58 @@ export function usePullToRefresh({ enabled = true, onRefresh }: UsePullToRefresh
     };
   }, []);
 
+  /**
+   * Chrome на Android отдаёт вертикаль своему скроллу и на `scrollTop === 0`, где
+   * прокручивать некуда: жест уходит в overscroll (`overscroll-behavior: contain`
+   * гасит его глушилкой), странице прилетает `pointercancel`, и pointer-обработчики
+   * ниже перестают получать `pointermove` примерно на 20px — до порога взвода (64px)
+   * жест не доживает. Со стороны это «свайп вниз не обновляет».
+   *
+   * Лечится только отказом браузеру ДО старта скролла: не-passive `touchmove` с
+   * `preventDefault()`, пока палец тянет вниз от самого верха. React вешает свои
+   * слушатели passive'ными, поэтому листенер — нативный. Всё остальное (вверх,
+   * горизонталь, жест не от верха) браузеру не мешаем.
+   *
+   * Гейт — `e2e/gestures/pull-to-refresh.spec.ts`: jsdom про touch-action и нативный
+   * скролл ничего не знает и этот класс багов увидеть не может.
+   */
+  useEffect(() => {
+    const node = scrollRef.current;
+    if (!node || !enabled) return;
+
+    let startY: number | null = null;
+
+    const onTouchStart = (e: TouchEvent) => {
+      startY = e.touches.length === 1 && node.scrollTop <= 0 ? e.touches[0].clientY : null;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (startY === null || e.touches.length !== 1) return;
+      if (phaseRef.current === 'refreshing') return;
+      // Скролл вверх — нативный; уводим руки, чтобы больше не мешать до конца жеста.
+      if (e.touches[0].clientY - startY <= 0) {
+        startY = null;
+        return;
+      }
+      if (e.cancelable) e.preventDefault();
+    };
+
+    const onTouchEnd = () => {
+      startY = null;
+    };
+
+    node.addEventListener('touchstart', onTouchStart, { passive: true });
+    node.addEventListener('touchmove', onTouchMove, { passive: false });
+    node.addEventListener('touchend', onTouchEnd, { passive: true });
+    node.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    return () => {
+      node.removeEventListener('touchstart', onTouchStart);
+      node.removeEventListener('touchmove', onTouchMove);
+      node.removeEventListener('touchend', onTouchEnd);
+      node.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [enabled]);
+
   const setPhaseSafely = useCallback((next: PullToRefreshPhase) => {
     if (phaseRef.current === next) return;
     phaseRef.current = next;
