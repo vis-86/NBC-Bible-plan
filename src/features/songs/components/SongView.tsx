@@ -5,6 +5,7 @@ import { useMemo, useRef, type RefObject } from 'react';
 import { cn } from '@/shared/utils/cn';
 import { parseSongBlocks } from '../lib/songParser';
 import { transposeLine } from '../lib/transpose';
+import { applyChordDisplay, type SongChordDisplay } from '../lib/chordDisplay';
 import { MARKED_SECTION_KINDS } from '../lib/songSectionKind';
 import { useSheets } from '../hooks/useSheets';
 import { PAGE_PADDING, SHEET_PADDING_TOP } from '../lib/sheets';
@@ -37,6 +38,8 @@ interface SongViewProps {
   fontSize?: number;
   /** Скрыть аккорды (режим «только текст») — переключает `data-chords="off"` на корне. */
   hideChords?: boolean;
+  /** Свёртка аккордов при отображении: полные / без баса / только бас. */
+  chordDisplay?: SongChordDisplay;
   /** CSS-цвет аккордов — задаёт переменную `--chord-color` на корне (см. `chordColors.ts`). */
   chordColor?: string;
   /** Кегль аккордов в долях от лирики (0.85 = прежний) — переменная `--chord-scale`. */
@@ -92,6 +95,7 @@ export const SongView: React.FC<SongViewProps> = ({
   tempo,
   fontSize,
   hideChords = false,
+  chordDisplay = 'full',
   chordColor,
   chordScale,
   density = 'comfortable',
@@ -113,11 +117,16 @@ export const SongView: React.FC<SongViewProps> = ({
           comment: block.comment || undefined,
           commentType: block.commentType || undefined,
           kind: block.kind,
-          // При нулевом сдвиге строки идут как есть — без копирования и без работы.
-          lines: semitones === 0 ? lines : lines.map((line) => transposeLine(line, semitones, songKey ?? '')),
+          // При нулевом сдвиге и полных аккордах строки идут как есть — без копирования
+          // и без работы. Свёртка баса — ПОСЛЕ транспозиции: спеллинг целевой тональности
+          // считается по полному аккорду.
+          lines:
+            semitones === 0 && chordDisplay === 'full'
+              ? lines
+              : lines.map((line) => applyChordDisplay(transposeLine(line, semitones, songKey ?? ''), chordDisplay)),
         };
       }),
-    [content, semitones, songKey],
+    [content, semitones, songKey, chordDisplay],
   );
 
   if (process.env.NODE_ENV !== 'production') {
@@ -137,9 +146,10 @@ export const SongView: React.FC<SongViewProps> = ({
     enabled: mode !== 'scroll',
     sourceRef,
     viewportRef,
-    // Транспозиция входит в подпись: `Bb7` шире `A7`, ширина аккордов меняет разбивку,
-    // а без пересборки лист остался бы обрезанным или пустым.
-    layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}|${semitones}|${chordScale ?? 0}|${pairLines ? 'pair' : 'solo'}`,
+    // Транспозиция и свёртка баса входят в подпись: `Bb7` шире `A7`, `G` уже `G/B`,
+    // ширина аккордов меняет разбивку, а без пересборки лист остался бы обрезанным
+    // или пустым.
+    layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}|${semitones}|${chordDisplay}|${chordScale ?? 0}|${pairLines ? 'pair' : 'solo'}`,
     fontSize: fontSize ?? 0,
     // PAGE_PADDING — нижнее поле корня: `chromeAboveFlow` меряет только то, что над потоком.
     reservedHeight: SHEET_PADDING_TOP + PAGE_PADDING,
@@ -150,7 +160,7 @@ export const SongView: React.FC<SongViewProps> = ({
   const meta = [metaKey ?? songKey, tempo].filter(Boolean).join(' · ');
 
   // Та же подпись, что пересобирает листы: строки переехали ⇒ bbox пометок пересчитать.
-  const inkLayoutSignature = `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${semitones}|${fontSize ?? 0}|${chordScale ?? 0}|${pairLines ? 'pair' : 'solo'}`;
+  const inkLayoutSignature = `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${semitones}|${chordDisplay}|${fontSize ?? 0}|${chordScale ?? 0}|${pairLines ? 'pair' : 'solo'}`;
 
   /**
    * Обёртка потока: со слоем пометок или без него. Обёртка есть ВСЕГДА — включение

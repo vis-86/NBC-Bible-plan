@@ -108,6 +108,25 @@ describe('SongView', () => {
     expect(chords).toEqual(expect.arrayContaining(['Am', 'F', 'C', 'G']));
   });
 
+  it('chordDisplay сворачивает бас поверх транспозиции', () => {
+    const content = '{comment: Куплет 1}\n[G/B]Хор [|]поёт [(пауза)] [Am7]тут';
+
+    const noBass = render(<SongView content={content} chordDisplay="noBass" />);
+    expect(Array.from(noBass.container.querySelectorAll('code.chord')).map((node) => node.textContent)).toEqual(['G', '|', '(пауза)', 'Am7']);
+
+    const bassOnly = render(<SongView content={content} chordDisplay="bassOnly" />);
+    expect(Array.from(bassOnly.container.querySelectorAll('code.chord')).map((node) => node.textContent)).toEqual(['B', '|', '(пауза)', 'A']);
+
+    // Свёртка идёт ПОСЛЕ транспозиции: бас берётся из уже сдвинутого аккорда.
+    const transposed = render(<SongView content={content} songKey="G" semitones={2} chordDisplay="bassOnly" />);
+    expect(Array.from(transposed.container.querySelectorAll('code.chord')).map((node) => node.textContent)).toContain('C#');
+  });
+
+  it('по умолчанию (full) аккорды остаются с басом', () => {
+    const { container } = render(<SongView content={'{comment: Куплет 1}\n[G/B]Хор'} />);
+    expect(Array.from(container.querySelectorAll('code.chord')).map((node) => node.textContent)).toEqual(['G/B']);
+  });
+
   it('плашка показывает тональность и темп', () => {
     const { container } = render(<SongView content={CONTENT} title="Песня" songKey="G" tempo="72" />);
     expect(container.querySelector('[data-song-view-meta]')?.textContent).toBe('G · 72');

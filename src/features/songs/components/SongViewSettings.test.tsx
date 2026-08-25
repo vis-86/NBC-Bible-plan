@@ -84,6 +84,29 @@ describe('SongViewSettings', () => {
     expect(onSettingsChange).toHaveBeenCalledWith({ columns: 2 });
   });
 
+  it('вид аккордов виден только при включённых аккордах и шлёт патч', () => {
+    mockMatchMedia(false);
+    const onSettingsChange = vi.fn();
+    const { rerender } = render(
+      <SongViewSettings isOpen settings={DEFAULT_SONG_VIEW_SETTINGS} onClose={() => {}} onSettingsChange={onSettingsChange} />
+    );
+
+    expect(screen.getByText('Вид аккордов')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Только бас' }));
+    expect(onSettingsChange).toHaveBeenCalledWith({ chordDisplay: 'bassOnly' });
+
+    // Выключенным аккордам вид ни на что не влияет — контрол уходит вместе с ними.
+    rerender(
+      <SongViewSettings
+        isOpen
+        settings={{ ...DEFAULT_SONG_VIEW_SETTINGS, showChords: false }}
+        onClose={() => {}}
+        onSettingsChange={onSettingsChange}
+      />
+    );
+    expect(screen.queryByText('Вид аккордов')).not.toBeInTheDocument();
+  });
+
   it('keeps font size, density and toggles available on mobile', () => {
     mockMatchMedia(false);
     render(<SongViewSettings isOpen settings={DEFAULT_SONG_VIEW_SETTINGS} onClose={() => {}} onSettingsChange={() => {}} />);

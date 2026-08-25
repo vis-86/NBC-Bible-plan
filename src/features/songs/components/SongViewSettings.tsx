@@ -8,6 +8,7 @@ import { RangeSlider } from '@/shared/components/ui/RangeSlider';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 import { MAX_CHORD_SCALE, MAX_FONT_SIZE, MIN_CHORD_SCALE, MIN_FONT_SIZE, SONG_WIDE_LAYOUT_QUERY, clampChordScale } from '../hooks/useSongViewSettings';
 import { CHORD_COLORS, CUSTOM_CHORD_COLOR_FALLBACK, isCustomChordColor } from '../lib/chordColors';
+import type { SongChordDisplay } from '../lib/chordDisplay';
 import type { SongViewColumns, SongViewDensity, SongViewSettings as SongViewSettingsValue } from '../hooks/useSongViewSettings';
 
 export interface SongViewSettingsProps {
@@ -161,6 +162,29 @@ function ChordScaleRow({ value, onChange }: { value: number; onChange: (value: n
   );
 }
 
+const CHORD_DISPLAY_LABELS: Record<SongChordDisplay, string> = { full: 'Полные', noBass: 'Без баса', bassOnly: 'Только бас' };
+const CHORD_DISPLAY_HINTS: Record<SongChordDisplay, string> = {
+  full: 'G/B — как в песне.',
+  noBass: 'G/B → G — аккорд без басовой ноты.',
+  bassOnly: 'G/B → B, Am7 → A — только нижняя нота.',
+};
+
+/**
+ * Свёртка аккордов: полные / без баса / только бас. Один ряд взаимоисключающих опций,
+ * а не пара тумблеров — «без баса» и «только бас» одновременно не существуют.
+ */
+function ChordDisplayRow({ value, onChange }: { value: SongChordDisplay; onChange: (value: SongChordDisplay) => void }) {
+  return (
+    <div data-section-chord-display>
+      <label className="mb-2 block text-sm font-medium text-app-text-secondary">Вид аккордов</label>
+      <ChoiceGroup options={['full', 'noBass', 'bassOnly'] as const} value={value} onChange={onChange} labelFor={(d) => CHORD_DISPLAY_LABELS[d]} columns={3} />
+      <p className="mt-2 text-xs text-app-text-muted" data-song-view-settings-chord-display-hint>
+        {CHORD_DISPLAY_HINTS[value]}
+      </p>
+    </div>
+  );
+}
+
 const DENSITY_LABELS: Record<SongViewDensity, string> = { comfortable: 'Свободно', compact: 'Компактно' };
 const COLUMNS_LABELS: Record<SongViewColumns, string> = { 1: '1 колонка', 2: '2 колонки' };
 
@@ -244,6 +268,7 @@ export const SongViewSettings: React.FC<SongViewSettingsProps> = ({ isOpen, onCl
           <div className="space-y-4">
             <ToggleRow label="Аккорды" checked={settings.showChords} onChange={() => onSettingsChange({ showChords: !settings.showChords })} dataAttr="data-section-show-chords" />
             {/* Цвет показываем только когда аккорды включены: скрытым аккордам он ни на что не влияет. */}
+            {settings.showChords && <ChordDisplayRow value={settings.chordDisplay} onChange={(chordDisplay) => onSettingsChange({ chordDisplay })} />}
             {settings.showChords && <ChordColorRow value={settings.chordColor} onChange={(chordColor) => onSettingsChange({ chordColor })} />}
             {settings.showChords && <ChordScaleRow value={settings.chordScale} onChange={(chordScale) => onSettingsChange({ chordScale })} />}
             <ToggleRow label="Заголовок песни" checked={settings.showHeader} onChange={() => onSettingsChange({ showHeader: !settings.showHeader })} dataAttr="data-section-show-header" />

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { INK_COLORS } from '../lib/inkTools';
 import { CHORD_COLOR_THEME, isChordColor } from '../lib/chordColors';
+import { SONG_CHORD_DISPLAYS, type SongChordDisplay } from '../lib/chordDisplay';
 
 export const SONG_VIEW_SETTINGS_STORAGE_KEY = 'songs:view-settings';
 
@@ -27,6 +28,12 @@ export interface SongViewSettings {
   density: SongViewDensity;
   showChords: boolean;
   showHeader: boolean;
+  /**
+   * Свёртка аккордов при отображении: полные / без баса / только бас (`chordDisplay.ts`).
+   * Одно поле на три состояния, а не два тумблера: «без баса» и «только бас» —
+   * взаимоисключающие, парой тумблеров выражается невалидная комбинация.
+   */
+  chordDisplay: SongChordDisplay;
   /**
    * Цвет аккордов на листе (сентинел из `CHORD_COLORS` либо hex). Device-scoped, как и
    * остальные настройки просмотра: выбор зависит от экрана, на котором читают.
@@ -69,6 +76,7 @@ export const DEFAULT_SONG_VIEW_SETTINGS: SongViewSettings = {
   density: 'comfortable',
   showChords: true,
   showHeader: true,
+  chordDisplay: 'full',
   chordColor: CHORD_COLOR_THEME,
   // 85% — исторический кегль аккордов (`font-size: 0.85em` в songs.css до этой настройки).
   chordScale: 85,
@@ -114,6 +122,9 @@ function sanitize(raw: Partial<SongViewSettings> | null | undefined): SongViewSe
   const showHeader = typeof raw?.showHeader === 'boolean' ? raw.showHeader : DEFAULT_SONG_VIEW_SETTINGS.showHeader;
   // Как и с чернилами: произвольная строка из чужого/битого JSON уехала бы в CSS-переменную
   // и дала бы невидимые аккорды — принимаем только значения из палитры.
+  // Как и с цветом: значение из чужого/битого JSON уехало бы в свёртку аккордов —
+  // принимаем только известные режимы.
+  const chordDisplay = raw?.chordDisplay && SONG_CHORD_DISPLAYS.includes(raw.chordDisplay) ? raw.chordDisplay : DEFAULT_SONG_VIEW_SETTINGS.chordDisplay;
   const chordColor = isChordColor(raw?.chordColor) ? raw.chordColor : DEFAULT_SONG_VIEW_SETTINGS.chordColor;
   const chordScale =
     typeof raw?.chordScale === 'number' && Number.isFinite(raw.chordScale)
@@ -131,7 +142,7 @@ function sanitize(raw: Partial<SongViewSettings> | null | undefined): SongViewSe
 
   // Старый JSON мог нести `mode` (до этого рефакторинга) — поле просто игнорируется:
   // `Partial<SongViewSettings>` больше не объявляет его, а sanitize строит объект заново.
-  return { columns, fontSize, density, showChords, showHeader, chordColor, chordScale, inkPenOnly, inkInstant, inkColor };
+  return { columns, fontSize, density, showChords, showHeader, chordDisplay, chordColor, chordScale, inkPenOnly, inkInstant, inkColor };
 }
 
 /** Читает legacy-ключ размера шрифта (миграция v1 → v2). Только чтение — см. `readSettings`. */

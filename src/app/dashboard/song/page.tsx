@@ -432,6 +432,7 @@ function SongPageContent() {
                 tempo={song.tempo}
                 fontSize={viewSettings.fontSize}
                 hideChords={!viewSettings.showChords}
+                chordDisplay={viewSettings.chordDisplay}
                 chordColor={resolveChordColor(viewSettings.chordColor)}
                 chordScale={viewSettings.chordScale / 100}
                 density={viewSettings.density}

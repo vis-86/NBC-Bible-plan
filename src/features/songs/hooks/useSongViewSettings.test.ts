@@ -34,6 +34,7 @@ describe('useSongViewSettings', () => {
       density: 'compact',
       showChords: false,
       showHeader: false,
+      chordDisplay: DEFAULT_SONG_VIEW_SETTINGS.chordDisplay,
       chordColor: DEFAULT_SONG_VIEW_SETTINGS.chordColor,
       chordScale: DEFAULT_SONG_VIEW_SETTINGS.chordScale,
       inkPenOnly: false,
@@ -51,6 +52,14 @@ describe('useSongViewSettings', () => {
 
     localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ chordScale: 'big' }));
     expect(renderHook(() => useSongViewSettings()).result.current[0].chordScale).toBe(DEFAULT_SONG_VIEW_SETTINGS.chordScale);
+  });
+
+  it('помнит вид аккордов, а неизвестный режим отбрасывает', () => {
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ chordDisplay: 'bassOnly' }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0].chordDisplay).toBe('bassOnly');
+
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ chordDisplay: 'onlyTheBass' }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0].chordDisplay).toBe('full');
   });
 
   it('помнит выбранный цвет аккордов, а чужое значение отбрасывает', () => {

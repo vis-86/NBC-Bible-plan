@@ -67,6 +67,18 @@ function spellingTable(targetKey: string): readonly string[] {
   return table;
 }
 
+/**
+ * Корень и суффикс аккорда/басовой ноты: `Am7` → `['A', 'm7']`, `G` → `['G', '']`.
+ * Нераспознанное (не начинается с ноты) → `null`.
+ *
+ * Экспортируется, чтобы `chordDisplay.ts` резал корень той же регуляркой: разъехавшийся
+ * разбор корня дал бы разное написание одной ноты в транспозиции и в режиме «только бас».
+ */
+export function splitChordRoot(text: string): [root: string, suffix: string] | null {
+  const match = ROOT_RE.exec(text);
+  return match ? [match[1], match[2]] : null;
+}
+
 /** Транспонирует одну ноту (корень или бас), сохраняя суффикс аккорда как есть. */
 function transposeRoot(text: string, semitones: number, table: readonly string[]): string | null {
   const match = ROOT_RE.exec(text);
