@@ -426,6 +426,28 @@ html {
     margin-inline: auto;
 }
 
+/* ── Высота оболочки приложения ──────────────────────────────────────
+   --app-vh пишет useAppViewportHeight (visualViewport + пересчёт на
+   orientationchange). Не `100dvh`: в standalone-PWA на iOS layout viewport
+   залипает смещённым после поворота экрана (и после нативного пинча), и
+   оболочка перестаёт доставать до низа — снизу остаётся пустая полоса.
+   `100dvh` — фолбэк первого кадра, до того как JS измерил реальный вьюпорт. */
+.h-app-viewport {
+    height: var(--app-vh, 100dvh);
+    /* Оболочка намеренно объявлена containing block'ом для `position: fixed`
+       потомков: тогда КАЖДЫЙ оверлей приложения (шторки, доки, плавающие
+       кнопки) отсчитывается от измеренной высоты, а не от layout viewport,
+       который на iOS врёт после поворота. `transform` — единственное, чем это
+       достигается в Safari: `contain`, `filter`, `opacity` там создают только
+       контекст наложения, но containing block для fixed НЕ дают.
+       Обратная сторона того же свойства описана в CLAUDE.md как грабли (transform
+       на шапке песни ловил шторку транспонирования) — здесь она используется
+       осознанно и на самом верхнем узле, где «привязка к оболочке» и означает
+       «привязка к экрану». Оверлеи, порталенные мимо оболочки, из этой системы
+       выпадают — цель портала берётся из AppShellNode. */
+    transform: translateZ(0);
+}
+
 /* ── Docked bottom nav ───────────────────────────────────────────────
    --dock-nav-h — fallback estimate of the docked nav row height, used only
    for the very first paint (before JS measures the real thing) and as a
@@ -510,10 +532,30 @@ html {
     animation: content-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Проявление кнопок управления песней на месте уехавшей шапки: снизу вверх, из нуля
+   прозрачности в их штатную позицию (margin-top: 0 — ровно координаты слота шапки).
+   Только opacity + margin-top: transform на предке SongKeyPicker сделал бы его
+   контейнером для `position: fixed` и схлопнул шторку транспонирования. */
+@keyframes song-quick-tools-in {
+    from {
+        opacity: 0;
+        margin-top: 0.5rem;
+    }
+    to {
+        opacity: 1;
+        margin-top: 0;
+    }
+}
+
+.animate-song-quick-tools-in {
+    animation: song-quick-tools-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-slide-up,
   .animate-scale-in,
-  .animate-content-in {
+  .animate-content-in,
+  .animate-song-quick-tools-in {
     animation: none;
   }
 }

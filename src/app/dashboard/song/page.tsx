@@ -14,6 +14,7 @@ import { SongKeyPicker } from '@/features/songs/components/SongKeyPicker';
 import { SongViewSettings } from '@/features/songs/components/SongViewSettings';
 import { SongAutoScroll } from '@/features/songs/components/SongAutoScroll';
 import { SongToolStack } from '@/features/songs/components/SongToolStack';
+import { SongQuickTools } from '@/features/songs/components/SongQuickTools';
 import { SongFreshBanner } from '@/features/songs/components/SongFreshBanner';
 import { SongInkButton } from '@/features/songs/components/SongInkButton';
 import { SongInkToolbar } from '@/features/songs/components/SongInkToolbar';
@@ -133,9 +134,12 @@ function SongPageContent() {
   // читает headerHidden. Обратно шапку возвращает только жест скролла вверх после паузы
   // (программного возврата нет) — см. handleAutoScrollToggle про то, почему старт ещё и
   // синхронизирует состояние самого жеста.
-  const headerHidden = mode === 'scroll' && (hidden || autoscroll.playing);
+  // Ручной подскролл во время автоскролла снимает фокус-режим на время жеста
+  // (`suspended`): иначе хром было бы не вернуть, не выключив автоскролл.
+  const focusMode = autoscroll.playing && !autoscroll.suspended;
+  const headerHidden = mode === 'scroll' && (hidden || focusMode);
   if (process.env.NODE_ENV !== 'production') {
-    console.debug('[SongPage] chrome hidden', { headerHidden, playing: autoscroll.playing });
+    console.debug('[SongPage] chrome hidden', { headerHidden, playing: autoscroll.playing, suspended: autoscroll.suspended });
   }
 
   /**
@@ -205,6 +209,40 @@ function SongPageContent() {
     playback.goTo(songId);
   };
 
+  /**
+   * Контролы песни (тональность + настройки). Живут ЛИБО в шапке, ЛИБО в плавающей
+   * таблетке, когда шапка уехала, — но всегда в одном экземпляре: два смонтированных
+   * `SongKeyPicker` дали бы два одинаковых DOM-якоря и две независимые шторки.
+   * Поэтому фабрика, а не готовый узел.
+   */
+  const renderSongActions = () => (
+    <div className="flex items-center gap-1">
+      {song && showKeyPicker && (
+        <SongKeyPicker
+          value={songKeyState.effectiveKey as string}
+          source={songKeyState.source}
+          originalKey={song.key}
+          options={songKeyState.options}
+          onChange={songKeyState.setKey}
+          onReset={songKeyState.resetKey}
+          capo={songKeyState.capo}
+          onCapoChange={songKeyState.setCapo}
+          shapeKey={songKeyState.shapeKey}
+          onOpenChange={setIsKeyPickerOpen}
+        />
+      )}
+      <button
+        type="button"
+        data-song-page-view-settings-button
+        aria-label="Настройки просмотра"
+        onClick={() => setIsViewSettingsOpen(true)}
+        className="rounded-app-sm p-2 text-app-text-secondary transition-transform duration-150 hover:bg-app-surface-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
+      >
+        <Settings size={20} />
+      </button>
+    </div>
+  );
+
   const pagerHint = usePagerHint();
 
   // Свайп между песнями сета: не работает при открытой любой шторке страницы
@@ -268,36 +306,19 @@ function SongPageContent() {
               onBack={handleBack}
               backAriaLabel="Назад к списку"
               density="compact"
-              right={
-                <div className="flex items-center gap-1">
-                  {song && showKeyPicker && (
-                    <SongKeyPicker
-                      value={songKeyState.effectiveKey as string}
-                      source={songKeyState.source}
-                      originalKey={song.key}
-                      options={songKeyState.options}
-                      onChange={songKeyState.setKey}
-                      onReset={songKeyState.resetKey}
-                      capo={songKeyState.capo}
-                      onCapoChange={songKeyState.setCapo}
-                      shapeKey={songKeyState.shapeKey}
-                      onOpenChange={setIsKeyPickerOpen}
-                    />
-                  )}
-                  <button
-                    type="button"
-                    data-song-page-view-settings-button
-                    aria-label="Настройки просмотра"
-                    onClick={() => setIsViewSettingsOpen(true)}
-                    className="rounded-app-sm p-2 text-app-text-secondary transition-transform duration-150 hover:bg-app-surface-muted active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
-                  >
-                    <Settings size={20} />
-                  </button>
-                </div>
-              }
+              right={headerHidden ? undefined : renderSongActions()}
             />
           </div>
         </div>
+
+        {/* Шапка уехала — управление песней возвращается плавающей таблеткой на её месте:
+            иначе скролл листа отнимает тональность и настройки, а вернуть их можно было
+            только прокруткой вверх. В фокус-режиме (играющий автоскролл) таблетки нет —
+            там хром свёрнут намеренно (§4.5); ручной подскролл снимает фокус-режим на
+            время жеста, и таблетка проявляется вместе с остальным хромом. */}
+        {song && headerHidden && !focusMode && !ink.active && (
+          <SongQuickTools>{renderSongActions()}</SongQuickTools>
+        )}
 
         {/* Свайп между песнями сета — обёртка вокруг скролл-контейнера, не сам контейнер:
             SwipePager капчурит pointer-события и сдвигает контент трансформом во время

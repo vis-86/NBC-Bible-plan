@@ -55,7 +55,7 @@ bible-plan/
 │   │   │   ├── types.ts              # Reading-specific types
 │   │   │   └── bible-text-cache.ts   # Client-side cache for bible text
 │   │   ├── songs/                    # Songs (ChordPro) feature slice
-│   │   │   ├── components/           # SongList, SongCard, SongView, SongKeyPicker, render/*,
+│   │   │   ├── components/           # SongList, SongCard, SongView, SongKeyPicker, SongQuickTools, render/*,
 │   │   │   │                         # SongToolStack, SongInkLayer/Toolbar/ModeBar/Confirm/TextNote/Button (M10)
 │   │   │   ├── hooks/                # useSongs, useSong, useSongSearch, useScrollRestore, useSongViewSettings, useSongKey,
 │   │   │   │                         # useSongInk, useInkInput, useInkStage, useSongAnnotations (M10)
@@ -182,6 +182,7 @@ bible-plan/
 | `src/features/setlists/hooks/useSetlistPlayback.ts` | Навигация между песнями сета в просмотре песни (`/dashboard/song?id=&setlistId=`), обёрнута в `SwipePager` |
 | `src/shared/components/pager/SwipePager.tsx` + `PagerHint.tsx` | Общие примитивы горизонтального свайпа (drag-follow, edge-resistance) и подсказки «N из M» — переиспользуются в песне (`SetlistPagerDock`) и в ридере (свайп по главам). Цель жеста описывается объектом `PagerHintTarget { index, label, atEdge, action? }`: `action:'end'` → ✓ «Завершить», мёртвый край (`atEdge` без `action`) → подсказки нет |
 | `src/features/setlists/components/SetlistPagerDock.tsx` | Нижняя таблетка `‹ N/M ›` навигации по сету в просмотре песни, скрывается вместе с шапкой |
+| `src/features/songs/components/SongQuickTools.tsx` | Тональность и настройки на месте уехавшей шапки — без подложки, в координатах правого слота `PageHeader` (`px-4`/`-mr-2`/полоса 52px). Контролы существуют в ОДНОМ экземпляре (шапка отдаёт их, а не дублирует). Ни `transform`, ни `backdrop-filter`: любой из них делает элемент контейнером для `position: fixed` и схлопывает шторку транспонирования |
 | `src/app/dashboard/song/page.tsx` (шапка) | Шапка песни — ОВЕРЛЕЙ поверх листа, уезжает через `top` на измеренную (`ResizeObserver`) высоту, она же — верхний отступ листа. Схлопывание высоты в потоке двигало текст (скачок при чтении); `transform` использовать нельзя — он делает шапку контейнером для `position: fixed` шторки транспонирования. Прятать не раньше `minScrollTop` = высота шапки. Возврат — скролл вверх или тап (`useTapToReveal`). Обоснование — `docs/song-viewer-spec.md` §4.5 |
 | `src/features/songs/components/SongToolStack.tsx` | Правый нижний край экрана песни — точка входа для инструментов (автоскролл + карандаш пометок). Вместе с шапкой НЕ скрывается: прячут только открытые шторки. Активный инструмент забирает край целиком. Исключение — играющий автоскролл (фокус-режим): в стеке остаётся только его FAB |
 | `src/features/songs/components/SongInkLayer.tsx` + `hooks/useSongInk.ts`, `useInkInput.ts`, `useInkStage.ts` | Рукописные пометки (M10, спека §6): слой ОБОРАЧИВАЕТ поток песни (canvas внутри multicol фрагментируется по колонкам), штрих привязан к строке-якорю, зум/пан живут только в слое и не персистятся. Матрица жестов (палец/перо/«только стилус») — `docs/song-viewer-spec.md` §6 |
@@ -194,6 +195,7 @@ bible-plan/
 | `src/features/songs/hooks/useScrollRestore.ts` | Восстановление позиции скролла + поискового запроса списка песен (`sessionStorage`) |
 | `src/shared/offline/chunkGuard.ts` + `src/components/ChunkGuard.tsx` | ChunkLoadError guard — auto-reload-once с cooldown |
 | `server/src/routes/*` (health route) | 204 no-store ping — гейт online-триггера outbox-синка (`isServerReachable`) |
+| `e2e/gestures/song-autoscroll-touch.spec.ts` | Ручной тач-скролл во время автоскролла: приостанавливает движок и НЕ выключает режим — после жеста лист едет дальше сам (wheel-ветка покрыта в `e2e/layout/song-autoscroll.spec.ts`) |
 | `e2e/gestures/swipe-pager.spec.ts` | Свайп глав/песен настоящим тачем (CDP `Input.dispatchTouchEvent`, контур Pixel 7): ловит регрессии `touch-action`, которые jsdom-тесты `SwipePager` увидеть не могут |
 | `e2e/offline/` + `playwright.config.ts` | Офлайн E2E-регрессия (`npm run e2e:offline`) — cold start, cold-start-any-route (precache), навигация, outbox sync, update-flow, сетлисты, пометки песни (полный круг записи) |
 | `scripts/static-serve.ts` | Локальный static+bff-proxy сервер для e2e (аналог nginx) |

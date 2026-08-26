@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAppShellPortalTarget } from '@/shared/components/layout/AppShellNode';
 import { MoreVertical } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 
@@ -39,6 +40,9 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({ items, ariaLabel, classN
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [rect, setRect] = useState<DOMRect | null>(null);
+  // Меню порталится в оболочку дашборда, а не в body: оболочка — containing
+  // block для fixed (см. AppShellNode), и меню обязано жить в её координатах.
+  const portalTarget = useAppShellPortalTarget();
 
   const isOpen = rect !== null;
 
@@ -114,7 +118,7 @@ export const ActionMenu: React.FC<ActionMenuProps> = ({ items, ariaLabel, classN
       </button>
 
       {isOpen &&
-        typeof document !== 'undefined' &&
+        portalTarget &&
         createPortal(
           <div
             ref={menuRef}

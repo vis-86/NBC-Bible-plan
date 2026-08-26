@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { AppView } from '@/types';
 import BottomNavBar from './BottomNavBar';
 import { ChromeVisibilityProvider, useChromeVisibility } from './ChromeVisibility';
 import { warmAppShellOnceOnline } from '@/shared/offline/appShell';
+import { useAppViewportHeight } from '@/shared/hooks/useAppViewportHeight';
+import { AppShellNodeContext } from './AppShellNode';
 import { cn } from '@/shared/utils/cn';
 
 interface DashboardLayoutProps {
@@ -17,6 +19,15 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, onChangeView, hideBottomNav = false }) => {
   const pathname = usePathname();
+  // Узел оболочки отдаётся вниз через контекст: оверлеи, которые рендерятся
+  // порталом, обязаны попадать внутрь него, иначе они снова окажутся привязаны
+  // к вьюпорту (см. AppShellNode).
+  const [shellNode, setShellNode] = useState<HTMLElement | null>(null);
+
+  // Высота оболочки — измеренный вьюпорт, а не `100dvh` (см. хук): на iOS
+  // после поворота экрана layout viewport залипает смещённым, и низ оболочки
+  // вместе с докнутой навигацией не достаёт до края экрана.
+  useAppViewportHeight();
 
   // Прогрев app-shell документов в HTML-кеш SW при онлайн-загрузке приложения
   // (один раз за сессию). Даёт офлайн-навигацию к маршрутам, куда ходят клиентским
@@ -39,12 +50,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, onChangeVie
 
   return (
     <ChromeVisibilityProvider>
-      <div data-dashboard-layout className="flex flex-col h-dvh min-h-0 bg-app-bg text-app-text font-sans overflow-hidden">
-        <DashboardMain reserveNavSpace={reserveNavSpace}>{children}</DashboardMain>
+      <div
+        ref={setShellNode}
+        data-dashboard-layout
+        className="relative flex flex-col h-app-viewport min-h-0 bg-app-bg text-app-text font-sans overflow-hidden"
+      >
+        <AppShellNodeContext.Provider value={shellNode}>
+          <DashboardMain reserveNavSpace={reserveNavSpace}>{children}</DashboardMain>
 
-        {showBottomNav && (
-          <BottomNavBar onChangeView={onChangeView} />
-        )}
+          {showBottomNav && (
+            <BottomNavBar onChangeView={onChangeView} />
+          )}
+        </AppShellNodeContext.Provider>
       </div>
     </ChromeVisibilityProvider>
   );

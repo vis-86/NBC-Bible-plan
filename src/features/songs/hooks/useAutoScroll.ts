@@ -14,11 +14,18 @@ import { readSpeedStep, subscribeAutoScrollSpeed, writeSpeedStep } from '../lib/
  * берётся из DOM (`getComputedStyle`), перевод — чистой `pixelsPerSecond`. Дробные
  * пиксели аккумулируются между кадрами, чтобы медленные ступени не «залипали» на нуле.
  *
- * Прерывание пользователем (`touchstart`/`wheel` по контейнеру) ставит на паузу;
- * возобновление — только кнопкой (§8). FAB живёт ВНЕ контейнера (Task 4), поэтому тап по
- * нему до этих слушателей не долетает.
+ * Ручной скролл (`touchstart`/`wheel` по контейнеру) НЕ выключает автоскролл, а лишь
+ * приостанавливает его на время жеста (`suspended`): подправить положение листа пальцем —
+ * обычная часть чтения, и каждый раз возвращаться к кнопке было бы издевательством.
+ * Движение продолжается само, когда прокрутка затихла (инерция докатилась). Выключают
+ * автоскролл только кнопкой или доездом до низа (§8). FAB живёт ВНЕ контейнера (Task 4),
+ * поэтому тап по нему до этих слушателей не долетает.
  */
 
+/** Пауза после последнего касания/колеса, прежде чем движок поедет сам. */
+const RESUME_DELAY_MS = 700;
+/** Шаг проверки «прокрутка затихла»: инерция после свайпа катится дольше RESUME_DELAY_MS. */
+const SETTLE_POLL_MS = 120;
 /** Разгон до целевой скорости (ease-in), чтобы старт не был рывком. reduced-motion его снимает. */
 const ACCELERATION_MS = 800;
 /** Допуск «доехали до низа» в px: sub-pixel остатки не должны мешать сработать стопу. */
@@ -44,6 +51,12 @@ export interface UseAutoScrollParams {
 
 export interface UseAutoScrollResult {
   playing: boolean;
+  /**
+   * Пользователь сейчас крутит лист сам: движок стоит, но режим остаётся включённым.
+   * Экран снимает на это время фокус-режим (хром снова слушается жеста) — иначе шапку
+   * было бы не вернуть, не выключив автоскролл.
+   */
+  suspended: boolean;
   /** Есть ли что скроллить (`scrollHeight > clientHeight`) — FAB прячется, если нет. */
   canScroll: boolean;
   /** Индекс текущей ступени скорости — per-song, персист в `autoScrollSpeedStore`. */
@@ -80,6 +93,7 @@ const debug = (...args: unknown[]): void => {
 
 export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgrammaticScroll }: UseAutoScrollParams): UseAutoScrollResult {
   const [playing, setPlaying] = useState(false);
+  const [suspended, setSuspended] = useState(false);
   const [canScrollMeasured, setCanScrollMeasured] = useState(false);
 
   // Внешний источник (localStorage) — не React state, поэтому через useSyncExternalStore,
@@ -94,6 +108,7 @@ export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgramma
   if (tracked.songId !== songId || tracked.enabled !== enabled) {
     setTracked({ songId, enabled });
     setPlaying(false);
+    setSuspended(false);
   }
 
   const reducedMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
@@ -125,6 +140,7 @@ export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgramma
       if (prev) debug('pause');
       return false;
     });
+    setSuspended(false);
   }, []);
 
   const play = useCallback(() => {
@@ -133,6 +149,7 @@ export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgramma
     // На короткой песне скроллить нечего — no-op (FAB Task 4 тоже прячется по canScroll).
     if (!container || container.scrollHeight <= container.clientHeight) return;
     debug('play', { step: stepRef.current });
+    setSuspended(false);
     setPlaying(true);
   }, [enabled, containerRef]);
 
@@ -175,7 +192,7 @@ export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgramma
   // rAF-цикл живёт только пока playing && enabled. Пере-создаётся на смену этих флагов —
   // тогда локальные аккумуляторы (разгон, дробные пиксели) стартуют с чистого листа.
   useEffect(() => {
-    if (!playing || !enabled) return;
+    if (!playing || !enabled || suspended) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -225,25 +242,65 @@ export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgramma
 
     rafId = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafId);
-  }, [playing, enabled, containerRef]);
+  }, [playing, enabled, suspended, containerRef]);
 
-  // Прерывание пользователем: любой тач/колесо по контейнеру → пауза. passive — не мешаем
-  // нативному скроллу. Возобновление только кнопкой (§8).
+  // Ручной скролл: приостановка на время жеста вместо выключения (§8). passive — не мешаем
+  // нативному скроллу. Возобновление — само, как только прокрутка затихла.
   useEffect(() => {
     if (!playing || !enabled) return;
     const container = containerRef.current;
     if (!container) return;
-    const onUserScroll = () => {
-      debug('user interrupt');
-      setPlaying(false);
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let lastScrollTop = container.scrollTop;
+
+    // Инерция после свайпа катится дольше RESUME_DELAY_MS и произвольно долго: поехать
+    // навстречу ей — рывок. Поэтому возобновляем не по таймеру, а когда scrollTop
+    // перестал меняться между проверками.
+    const resumeWhenSettled = () => {
+      const node = containerRef.current;
+      if (!node) return;
+      if (node.scrollTop !== lastScrollTop) {
+        lastScrollTop = node.scrollTop;
+        timer = setTimeout(resumeWhenSettled, SETTLE_POLL_MS);
+        return;
+      }
+      debug('resume after manual scroll');
+      setSuspended(false);
     };
-    container.addEventListener('touchstart', onUserScroll, { passive: true });
-    container.addEventListener('wheel', onUserScroll, { passive: true });
+
+    const scheduleResume = () => {
+      clearTimeout(timer);
+      lastScrollTop = containerRef.current?.scrollTop ?? lastScrollTop;
+      timer = setTimeout(resumeWhenSettled, RESUME_DELAY_MS);
+    };
+
+    const suspend = () => {
+      clearTimeout(timer);
+      debug('suspend (manual scroll)');
+      setSuspended(true);
+    };
+
+    // Палец на экране — держим паузу без таймера: отсчёт стартует только с отпусканием.
+    const onTouchStart = () => suspend();
+    const onTouchEnd = () => scheduleResume();
+    const onWheel = () => {
+      suspend();
+      scheduleResume();
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+    container.addEventListener('wheel', onWheel, { passive: true });
     return () => {
-      container.removeEventListener('touchstart', onUserScroll);
-      container.removeEventListener('wheel', onUserScroll);
+      clearTimeout(timer);
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+      container.removeEventListener('wheel', onWheel);
     };
   }, [playing, enabled, containerRef]);
 
-  return { playing, canScroll, step, setStep, toggle, play, pause };
+  return { playing, suspended, canScroll, step, setStep, toggle, play, pause };
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useAppShellPortalTarget } from '@/shared/components/layout/AppShellNode';
 import { ChevronDown, ChevronUp, Pause, Play } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 import { AUTOSCROLL_STEPS } from '../lib/autoScroll';
@@ -43,6 +44,10 @@ export function SongAutoScroll({ playing, step, canScroll, onToggle, onSetStep }
   // Полупрозрачные кнопки скорости на короткое время «проявляются» после нажатия.
   const [speedActive, setSpeedActive] = useState(false);
   const flashTimer = useRef<number | null>(null);
+  // Панель скорости порталится в оболочку дашборда, а не в body: оболочка —
+  // containing block для fixed (см. AppShellNode), и панель обязана жить в её
+  // координатах. Хук — до раннего выхода по `canScroll`.
+  const portalTarget = useAppShellPortalTarget();
 
   useEffect(
     () => () => {
@@ -121,7 +126,7 @@ export function SongAutoScroll({ playing, step, canScroll, onToggle, onSetStep }
     <div data-song-autoscroll className="contents">
       {/* Гидратации портал не мешает: при первом рендере автоскролл всегда на паузе
           (playing=false ⇒ панели нет), так что пререндеренная разметка совпадает. */}
-      {speedPanel !== null && typeof document !== 'undefined' ? createPortal(speedPanel, document.body) : null}
+      {speedPanel !== null && portalTarget ? createPortal(speedPanel, portalTarget) : null}
 
       {/* Play/pause — компактный круглый FAB: матовый (backdrop-blur), иконка — primary. */}
       <button

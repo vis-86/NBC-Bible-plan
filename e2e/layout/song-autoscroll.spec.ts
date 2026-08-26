@@ -208,24 +208,94 @@ test.describe('Автоскролл — режим scroll', () => {
     await expect(page.locator('[data-song-autoscroll]')).toBeVisible();
   });
 
-  test('пользовательский wheel по контейнеру ставит автоскролл на паузу', async () => {
+  test('пользовательский wheel приостанавливает автоскролл, но не выключает его', async () => {
     await openSong(page, songId, NARROW, {});
     await page.locator('[data-song-autoscroll]').waitFor({ state: 'visible', timeout: 10_000 });
 
     await page.locator('[data-song-autoscroll-toggle]').click();
     await expect.poll(async () => scrollTop(page), { timeout: 5_000, intervals: [200, 200, 300] }).toBeGreaterThan(0);
 
-    // Прерывание: wheel по скролл-контейнеру.
+    // Приостановка: wheel по скролл-контейнеру.
     await page.evaluate(() => {
       const scroller = document.querySelector('[data-song-view]')?.closest<HTMLElement>('.overflow-y-auto');
       scroller?.dispatchEvent(new WheelEvent('wheel', { deltaY: 20, bubbles: true }));
     });
 
-    await expect(page.locator('[data-song-autoscroll-toggle]')).toHaveAttribute('aria-label', 'Запустить автоскролл');
-    const paused = await scrollTop(page);
-    await page.waitForTimeout(700);
-    const after = await scrollTop(page);
-    expect(Math.abs(after - paused), 'после паузы scrollTop не растёт').toBeLessThanOrEqual(1);
+    // Режим остался включённым — кнопка по-прежнему «Пауза».
+    await expect(page.locator('[data-song-autoscroll-toggle]')).toHaveAttribute('aria-label', 'Пауза автоскролла');
+    const suspended = await scrollTop(page);
+    await page.waitForTimeout(300);
+    expect(Math.abs((await scrollTop(page)) - suspended), 'сразу после жеста лист стоит').toBeLessThanOrEqual(1);
+
+    // …и через паузу движок поехал сам, без повторного нажатия кнопки.
+    await expect
+      .poll(async () => scrollTop(page), { timeout: 5_000, intervals: [300, 300, 500] })
+      .toBeGreaterThan(suspended + 1);
+  });
+
+  test('при спрятанной шапке тональность и настройки остаются на месте кнопок шапки', async () => {
+    await openSong(page, songId, NARROW, {});
+    const header = page.locator('[data-song-page-header-collapse]');
+    await expect(header).not.toHaveAttribute('data-song-page-header-hidden', '');
+    await expect(page.locator('[data-song-quick-tools]')).toHaveCount(0);
+
+    const settingsBox = () =>
+      page
+        .locator('[data-song-page-view-settings-button]')
+        .evaluate((el) => {
+          const rect = el.getBoundingClientRect();
+          return { top: rect.top, right: rect.right, height: rect.height };
+        });
+    const headerBox = await settingsBox();
+
+    // Скролл вниз прячет шапку.
+    await page.evaluate(() => {
+      const scroller = document.querySelector('[data-song-view]')?.closest<HTMLElement>('.overflow-y-auto');
+      if (scroller) scroller.scrollTop = 400;
+    });
+    await expect(header).toHaveAttribute('data-song-page-header-hidden', '');
+
+    const quickTools = page.locator('[data-song-quick-tools]');
+    await expect(quickTools).toBeVisible();
+    await expect(quickTools.locator('[data-song-page-view-settings-button]')).toBeVisible();
+    // Кнопки обязаны остаться ровно там же, где стояли в шапке: уход шапки не должен
+    // читаться как перескок управления по экрану. Замер — после проявления
+    // (`margin-top` едет к нулю), иначе меряется промежуточный кадр анимации.
+    await page.waitForTimeout(400);
+    const floatingBox = await settingsBox();
+    expect(Math.abs(floatingBox.right - headerBox.right), 'правый край совпадает с шапкой').toBeLessThanOrEqual(1);
+    expect(Math.abs(floatingBox.top - headerBox.top), 'вертикаль совпадает с шапкой').toBeLessThanOrEqual(1);
+    // Вырез iPhone: `pt-safe` кладёт отступ ВНУТРЬ высоты (border-box), и с жёсткой
+    // `h-[52px]` кнопкам оставалось несколько пикселей — они уезжали под бровь.
+    // Эмулируем вырез тем же классом, которым его получает прод.
+    await page.addStyleTag({ content: '.pt-safe { padding-top: 47px !important; }' });
+    const withNotch = await settingsBox();
+    expect(withNotch.top, 'кнопка ниже брови выреза, а не под ней').toBeGreaterThanOrEqual(47);
+    expect(withNotch.height, 'кнопка не сплющена остатком высоты').toBe(headerBox.height);
+
+    // Контрол ровно один: шапка отдаёт кнопки таблетке, а не дублирует их.
+    await expect(page.locator('[data-song-page-view-settings-button]')).toHaveCount(1);
+    await expect(page.locator('[data-song-key-picker-toggle]')).toHaveCount(1);
+
+    // Шторка транспонирования из таблетки открывается на всю высоту (не схлопывается
+    // в размер таблетки — гейт на `transform` у предка).
+    await page.locator('[data-song-key-picker-toggle]').click();
+    await expect(page.locator('[data-song-key-picker-panel]')).toBeVisible();
+    const panelBox = await page
+      .locator('[data-song-key-picker-panel]')
+      .evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        return { left: rect.left, width: rect.width, viewport: window.innerWidth };
+      });
+    // Шторка обязана лечь на всю ширину экрана. Ловит и transform, и backdrop-filter
+    // на предке: любой из них делает таблетку контейнером для `position: fixed`,
+    // и шторка схлопывается в её габариты (реальный дефект первой версии).
+    // 32px — запас на внутреннее поле шторки (px-6); главное, что панель у левого края
+    // экрана, а не в правом верхнем углу внутри таблетки.
+    expect(panelBox.left, 'шторка прижата к левому краю экрана').toBeLessThanOrEqual(32);
+    expect(panelBox.width, 'шторка во всю ширину, а не в габаритах таблетки').toBeGreaterThan(
+      panelBox.viewport * 0.8,
+    );
   });
 });
 
