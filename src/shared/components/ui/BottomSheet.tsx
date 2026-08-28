@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { useOptionalChromeVisibility } from '@/shared/components/layout/ChromeVisibility';
+import { useAppShellPortalTarget } from '@/shared/components/layout/AppShellNode';
 
 interface BottomSheetProps {
   isOpen: boolean;
@@ -45,6 +47,13 @@ const BottomSheetOpenContent: React.FC<
   const touchStartY = useRef<number | null>(null);
   const chromeVisibility = useOptionalChromeVisibility();
   const setChromeHidden = chromeVisibility?.setChromeHidden;
+  // Шит порталится в оболочку дашборда (см. AppShellNode). Место вызова в дереве
+  // произвольно — шапка песни, карточка списка, — и там по пути попадаются и
+  // `overflow: hidden`, и собственные z-контексты. Оболочка объявлена containing
+  // block'ом для `position: fixed` (transform в `.h-app-viewport`), а WebKit при
+  // таком предке режет fixed-потомка по промежуточным `overflow: hidden` — шторка
+  // транспонирования, живущая внутри 52px шапки песни, схлопывалась именно так.
+  const portalTarget = useAppShellPortalTarget();
 
   useEffect(() => {
     if (LOG_FIX) {
@@ -103,7 +112,7 @@ const BottomSheetOpenContent: React.FC<
     onTouchEnd: handleTouchEnd
   };
 
-  return (
+  const content = (
     <>
       {!disableOverlay && (
         <div
@@ -189,6 +198,9 @@ const BottomSheetOpenContent: React.FC<
       </div>
     </>
   );
+
+  // `null` только на сервере (статический пререндер) — там рендерим на месте.
+  return portalTarget ? createPortal(content, portalTarget) : content;
 };
 
 export const BottomSheet: React.FC<BottomSheetProps> = ({ isOpen, ...openProps }) => {

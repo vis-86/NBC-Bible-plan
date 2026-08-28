@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { BottomSheet } from './BottomSheet';
+import { AppShellNodeContext } from '@/shared/components/layout/AppShellNode';
 
 describe('BottomSheet', () => {
   it('ничего не рендерит, когда закрыт', () => {
@@ -20,6 +21,25 @@ describe('BottomSheet', () => {
       </BottomSheet>
     );
     expect(screen.getByText('Контент')).toBeInTheDocument();
+  });
+
+  it('рендерится в оболочке дашборда, а не под overflow-hidden предком вызова', () => {
+    // Место вызова — 52px шапка песни с `overflow: hidden`. Оболочка — containing
+    // block для fixed (transform), и WebKit режет fixed-потомка по такому предку:
+    // шторка транспонирования схлопывалась в габариты шапки.
+    const shell = document.createElement('div');
+    document.body.appendChild(shell);
+    const { container } = render(
+      <AppShellNodeContext.Provider value={shell}>
+        <div style={{ overflow: 'hidden', height: 52 }}>
+          <BottomSheet isOpen onClose={vi.fn()}>
+            <div>Контент</div>
+          </BottomSheet>
+        </div>
+      </AppShellNodeContext.Provider>
+    );
+    expect(shell.querySelector('[data-bottom-sheet]')).not.toBeNull();
+    expect(container.querySelector('[data-bottom-sheet]')).toBeNull();
   });
 
   it('body получает нижний safe-area padding — кнопки не прячутся под home-indicator', () => {

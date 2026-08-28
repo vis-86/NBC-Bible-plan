@@ -72,7 +72,7 @@ describe('SongKeyPicker — выбор тональности', () => {
   it('слайдер полутонов сдвигает от исходной тональности', () => {
     const picker = renderPicker({ value: 'G', originalKey: 'G' });
     picker.open();
-    fireEvent.change(picker.container.querySelector('[data-song-key-picker-semitone-slider]') as HTMLElement, {
+    fireEvent.change(document.querySelector('[data-song-key-picker-semitone-slider]') as HTMLElement, {
       target: { value: '2' },
     });
     expect(picker.onChange).toHaveBeenCalledWith('A');
@@ -97,7 +97,7 @@ describe('SongKeyPicker — каподастр', () => {
   it('слайдер капо вызывает onCapoChange', () => {
     const picker = renderPicker();
     picker.open();
-    fireEvent.change(picker.container.querySelector('[data-song-key-picker-capo-slider]') as HTMLElement, {
+    fireEvent.change(document.querySelector('[data-song-key-picker-capo-slider]') as HTMLElement, {
       target: { value: '2' },
     });
     expect(picker.onCapoChange).toHaveBeenCalledWith(2);

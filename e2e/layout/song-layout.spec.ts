@@ -190,6 +190,16 @@ test.describe('Раскладка песни — смена тональност
     // клавиатурой, а не `fill` — нужен нативный input-event, который слышит React.
     const semitones = page.locator('[data-song-key-picker-semitone-slider]');
     await semitones.waitFor({ state: 'visible', timeout: 5_000 });
+
+    // Гейт регрессии: шторка обязана жить в оболочке приложения, а не внутри шапки
+    // песни (52px, `overflow: hidden`). Оболочка объявлена containing block'ом для
+    // `position: fixed` (transform в `.h-app-viewport`), а WebKit режет fixed-потомка
+    // по промежуточному `overflow: hidden` — на iPad шторка схлопывалась в габариты
+    // шапки. Chromium так не клиппит, поэтому ассерт структурный, а не по геометрии.
+    const sheetInsideHeader = await page.evaluate(
+      () => !!document.querySelector('[data-bottom-sheet]')?.closest('[data-song-page-header-collapse]'),
+    );
+    expect(sheetInsideHeader, 'шторка транспонирования не должна рендериться внутри шапки песни').toBe(false);
     await semitones.focus();
     // Целый тон: сдвиг заведомо ненулевой и меняет ширину аккордов.
     await page.keyboard.press('ArrowRight');
