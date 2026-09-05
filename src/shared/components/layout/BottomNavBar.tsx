@@ -135,21 +135,21 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
     { id: 'settings', icon: User, label: 'Профиль', href: '/dashboard/settings' },
   ];
 
-  // Парящая таблетка (по мотивам nbc-music-chordpro): по центру, ширина по
-  // контенту, приподнята над низом на safe-area + `--dock-nav-gap`. НЕ приклеена
-  // флешем во всю ширину к точному низу оболочки — поэтому джиттер измеренной
-  // высоты вьюпорта на iOS (после поворота/пинча) больше не рисует пустую полосу
-  // снизу: таблетка просто плавает над контентом. Остаётся внутри оболочки
-  // (`absolute`, оболочка — containing block), а не порталится в body: чистый
-  // `fixed` к вьюпорту iOS как раз и был исходной болью (см. useAppViewportHeight).
-  // Центрирование и скрытие по скроллу — оба через один transform (Tailwind
-  // склеивает translate-x/y в одно свойство).
+  // Плавающий бар (по мотивам YouVersion): почти во всю доступную ширину (с
+  // боковыми полями), приподнят над низом на safe-area + `--dock-nav-gap`, пункты
+  // растянуты `flex-1`. НЕ приклеен флешем к точному низу оболочки — боковые и
+  // нижний отступы делают его терпимым к джиттеру измеренной высоты вьюпорта на
+  // iOS (после поворота/пинча): бар просто плавает над контентом, а не рисует
+  // пустую полосу снизу. Остаётся внутри оболочки (`absolute`, оболочка —
+  // containing block), а не порталится в body: чистый `fixed` к вьюпорту iOS как
+  // раз и был исходной болью (см. useAppViewportHeight). Центрирование и скрытие
+  // по скроллу — оба через один transform (Tailwind склеивает translate-x/y).
   return (
     <nav
       ref={navRef}
       data-dashboard-layout-bottom-nav
       data-dashboard-layout-bottom-nav-hidden={chromeHidden || undefined}
-      className={`absolute left-1/2 bottom-[calc(env(safe-area-inset-bottom)+var(--dock-nav-gap))] z-50 flex max-w-[calc(100%-1.5rem)] items-center gap-0.5 rounded-full border border-app-border glass-nav p-1.5 shadow-app-md transition-transform duration-300 ${
+      className={`absolute left-1/2 bottom-[calc(env(safe-area-inset-bottom)+var(--dock-nav-gap))] z-50 flex w-[calc(100%-1.5rem)] max-w-[32rem] items-stretch gap-1 rounded-3xl border border-app-border glass-nav px-1.5 py-1.5 shadow-app-md transition-transform duration-300 ${
         chromeHidden ? '-translate-x-1/2 translate-y-[calc(100%+env(safe-area-inset-bottom)+var(--dock-nav-gap))] pointer-events-none' : '-translate-x-1/2 translate-y-0'
       }`}
       aria-label="Основная навигация"
@@ -163,22 +163,22 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
             data-dashboard-nav-item={item.id}
             data-dashboard-nav-item-active={isActive || undefined}
             onClick={() => handleNav(item)}
-            className="group relative flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-full px-2.5 py-1.5 transition-transform duration-150 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
+            className="group relative flex min-h-12 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5 transition-transform duration-150 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
             aria-current={isActive ? 'page' : undefined}
           >
             <span
               aria-hidden
-              className={`pointer-events-none absolute inset-0 rounded-full transition-colors ${isActive ? 'bg-app-primary-light' : 'bg-transparent'}`}
+              className={`pointer-events-none absolute inset-0 rounded-2xl transition-colors ${isActive ? 'bg-app-primary-light' : 'bg-transparent'}`}
             />
             <div
               data-dashboard-nav-item-icon={item.id}
               className={`relative ${isActive ? 'text-app-primary' : 'text-app-text-muted group-hover:text-app-text-secondary transition-colors'}`}
             >
-              <Icon size={22} className={isActive && item.isFilled ? 'fill-current' : ''} />
+              <Icon size={26} className={isActive && item.isFilled ? 'fill-current' : ''} />
             </div>
             <span
               data-dashboard-nav-item-label={item.id}
-              className={`relative text-[9px] leading-none whitespace-nowrap ${isActive ? 'font-semibold text-app-primary' : 'font-medium text-app-text-muted group-hover:text-app-text-secondary'}`}
+              className={`relative text-[10px] leading-none whitespace-nowrap ${isActive ? 'font-semibold text-app-primary' : 'font-medium text-app-text-muted group-hover:text-app-text-secondary'}`}
             >
               {item.label}
             </span>
