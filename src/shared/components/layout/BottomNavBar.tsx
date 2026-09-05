@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Suspense, useEffect, useRef } from 'react';
+import React, { Suspense, useEffect } from 'react';
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { BookOpen, Home, User, MessageCircle, Music, ListMusic } from 'lucide-react';
 import { AppView } from '@/types';
@@ -27,43 +27,10 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
   const searchParams = useSearchParams();
   const aiEnabled = isAIEnabled();
   const { chromeHidden } = useChromeVisibility();
-  const navRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     console.debug('[BottomNavBar] chromeHidden', chromeHidden);
   }, [chromeHidden]);
-
-  // Клиренс контента (`.pb-nav`) резервирует место под таблетку по её
-  // РЕАЛЬНОЙ высоте, а не по статичной оценке: высота варьируется по
-  // устройствам/масштабу шрифта (иконка + подпись + внутренние паддинги).
-  // Меряем `<nav>` через ResizeObserver и пишем в `--dock-nav-actual-h` на
-  // :root; `.pb-nav` (globals.css) добавляет к ней нижний отступ таблетки и
-  // safe-area. Так резерв всегда синхронен с фактическим баром.
-  useEffect(() => {
-    const el = navRef.current;
-    if (!el || typeof ResizeObserver === 'undefined') return;
-
-    const root = document.documentElement;
-    const fallbackHeight = parseFloat(getComputedStyle(root).getPropertyValue('--dock-nav-h')) || 56;
-
-    const observer = new ResizeObserver(() => {
-      // getBoundingClientRect (border-box: паддинги + border), а не
-      // entries[0].contentRect — тот по умолчанию считает content-box и
-      // занизил бы высоту ещё сильнее, чем изначальная статичная оценка.
-      const height = el.getBoundingClientRect().height;
-
-      root.style.setProperty('--dock-nav-actual-h', `${height}px`);
-
-      if (height > fallbackHeight + 48) {
-        console.warn('[BottomNavBar] unexpectedly tall', { height, fallbackHeight, innerWidth: window.innerWidth });
-      }
-    });
-    observer.observe(el);
-    return () => {
-      observer.disconnect();
-      root.style.removeProperty('--dock-nav-actual-h');
-    };
-  }, []);
 
   const viewParam = searchParams.get('view');
 
@@ -146,10 +113,9 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
   // по скроллу — оба через один transform (Tailwind склеивает translate-x/y).
   return (
     <nav
-      ref={navRef}
       data-dashboard-layout-bottom-nav
       data-dashboard-layout-bottom-nav-hidden={chromeHidden || undefined}
-      className={`absolute left-1/2 bottom-[calc(env(safe-area-inset-bottom)+var(--dock-nav-gap))] z-50 flex w-[calc(100%-1.5rem)] max-w-[32rem] items-stretch gap-1 rounded-3xl border border-app-border glass-nav px-1.5 py-1.5 shadow-app-md transition-transform duration-300 ${
+      className={`absolute left-1/2 bottom-[calc(env(safe-area-inset-bottom)+var(--dock-nav-gap))] z-50 flex w-[calc(100%-1.5rem)] max-w-[32rem] items-stretch gap-1 rounded-3xl border border-app-border glass-nav backdrop-blur-xl backdrop-saturate-150 px-1.5 py-1.5 shadow-app-md transition-transform duration-300 ${
         chromeHidden ? '-translate-x-1/2 translate-y-[calc(100%+env(safe-area-inset-bottom)+var(--dock-nav-gap))] pointer-events-none' : '-translate-x-1/2 translate-y-0'
       }`}
       aria-label="Основная навигация"
@@ -163,22 +129,26 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
             data-dashboard-nav-item={item.id}
             data-dashboard-nav-item-active={isActive || undefined}
             onClick={() => handleNav(item)}
-            className="group relative flex min-h-12 flex-1 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-1.5 transition-transform duration-150 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
+            className="group flex min-h-12 flex-1 flex-col items-center justify-center gap-1 px-0.5 py-1 transition-transform duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary rounded-2xl"
             aria-current={isActive ? 'page' : undefined}
           >
+            {/* Активный индикатор — «пилюля» под иконкой (Material 3 / YouVersion):
+                чётко выделяет текущий раздел, не перекрашивая весь пункт. */}
             <span
-              aria-hidden
-              className={`pointer-events-none absolute inset-0 rounded-2xl transition-colors ${isActive ? 'bg-app-primary-light' : 'bg-transparent'}`}
-            />
-            <div
               data-dashboard-nav-item-icon={item.id}
-              className={`relative ${isActive ? 'text-app-primary' : 'text-app-text-muted group-hover:text-app-text-secondary transition-colors'}`}
+              className={`flex h-8 w-full max-w-14 items-center justify-center rounded-full transition-colors ${
+                isActive
+                  ? 'bg-app-primary-light text-app-primary'
+                  : 'text-app-text-secondary group-hover:text-app-text'
+              }`}
             >
-              <Icon size={26} className={isActive && item.isFilled ? 'fill-current' : ''} />
-            </div>
+              <Icon size={25} className={isActive && item.isFilled ? 'fill-current' : ''} />
+            </span>
             <span
               data-dashboard-nav-item-label={item.id}
-              className={`relative text-[10px] leading-none whitespace-nowrap ${isActive ? 'font-semibold text-app-primary' : 'font-medium text-app-text-muted group-hover:text-app-text-secondary'}`}
+              className={`text-[11px] leading-none whitespace-nowrap transition-colors ${
+                isActive ? 'font-semibold text-app-primary' : 'font-medium text-app-text-secondary group-hover:text-app-text'
+              }`}
             >
               {item.label}
             </span>
