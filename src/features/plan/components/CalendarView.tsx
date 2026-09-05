@@ -521,7 +521,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         isOpen={showContextMenu && selectedDaysInfo !== null}
         onClose={handleClearSelection}
         title="Действия с выбранными днями"
-        maxHeight="max-h-[60vh]"
+        maxHeight="60vh"
         disableOverlay={true}
       >
         {selectedDaysInfo && (
@@ -618,7 +618,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </button>
             </div>
           }
-          maxHeight="max-h-[70vh]"
+          maxHeight="70vh"
         >
           <CalendarDayDetail
             day={selectedDay}

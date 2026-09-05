@@ -108,7 +108,7 @@ export const BookPicker: React.FC<BookPickerProps> = ({
         isOpen={isOpen} 
         onClose={onClose}
         title={selectedBook.name}
-        maxHeight="max-h-[90vh]"
+        maxHeight="90vh"
       >
         <div className="pb-24">
           {/* Кнопка назад */}
@@ -152,7 +152,7 @@ export const BookPicker: React.FC<BookPickerProps> = ({
       isOpen={isOpen} 
       onClose={onClose}
       title="Выберите книгу"
-      maxHeight="max-h-[90vh]"
+      maxHeight="90vh"
     >
       {loading && (
         <div className="flex items-center justify-center py-12">

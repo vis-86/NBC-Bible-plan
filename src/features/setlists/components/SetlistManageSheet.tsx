@@ -85,6 +85,7 @@ export const SetlistManageSheet: React.FC<SetlistManageSheetProps> = ({
           <SetlistReorderList
             items={reorderable}
             editable={isEditable}
+            scrollable
             currentSongId={currentSongId}
             onReorder={editor.reorder}
             onRemove={isEditable ? (songId) => setConfirmRemove(items.find((i) => i.songId === songId) ?? null) : undefined}

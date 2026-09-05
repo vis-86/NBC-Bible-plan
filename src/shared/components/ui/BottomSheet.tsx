@@ -11,6 +11,13 @@ interface BottomSheetProps {
   onClose: () => void;
   title?: string | React.ReactNode;
   children: React.ReactNode;
+  /**
+   * Желаемый потолок высоты панели как CSS-длина (`'80dvh'`, `'60vh'`), НЕ Tailwind-класс.
+   * Реальный потолок — `min(это, видимая высота оболочки − бровь)`: панель прибита к
+   * `bottom-0` внутри оболочки, чья высота = `--app-vh` (visualViewport, сжимается под
+   * клавиатуру iOS). Без клампа `dvh`/`vh` считаются от полного экрана, и при открытой
+   * клавиатуре верх высокой панели уезжал под бровь (верхние строки было не выбрать).
+   */
   maxHeight?: string;
   disableOverlay?: boolean; // Отключает overlay для возможности взаимодействия с контентом под ним
   /**
@@ -41,7 +48,7 @@ const BottomSheetOpenContent: React.FC<
   Omit<BottomSheetProps, 'isOpen'>
 // dvh, не vh: в Safari с видимым URL-баром 1vh больше видимой области —
 // прибитый к bottom-0 шит с max-h в vh вылезал бы верхом за экран.
-> = ({ onClose, title, children, maxHeight = 'max-h-[80dvh]', disableOverlay = false, hideChromeWhileOpen = false }) => {
+> = ({ onClose, title, children, maxHeight = '80dvh', disableOverlay = false, hideChromeWhileOpen = false }) => {
   const [dragY, setDragY] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const touchStartY = useRef<number | null>(null);
@@ -143,7 +150,11 @@ const BottomSheetOpenContent: React.FC<
           // pointerEvents:none (чтобы тапы проходили к календарю сквозь пустую
           // область над панелью). Без этого сама панель и её кнопки — включая
           // крестик закрытия — тоже становятся некликабельными.
-          className={`pointer-events-auto flex w-full flex-col overflow-hidden rounded-t-3xl bg-app-surface shadow-app-lg ${maxHeight}`}
+          className="pointer-events-auto flex w-full flex-col overflow-hidden rounded-t-3xl bg-app-surface shadow-app-lg"
+          // Жёсткий потолок: не выше видимой оболочки минус бровь (см. maxHeight в
+          // props). Клавиатура iOS сжимает --app-vh — панель ужимается вместе с ней,
+          // и её верх остаётся под бровью, а не уезжает под вырез.
+          style={{ maxHeight: `min(${maxHeight}, calc(var(--app-vh, 100dvh) - env(safe-area-inset-top) - 0.5rem))` }}
         >
           <div
             data-bottom-sheet-handle

@@ -57,7 +57,11 @@ export const AddSongsSheet: React.FC<AddSongsSheetProps> = ({
           role="listbox"
           aria-multiselectable="true"
           data-add-songs-sheet-list
-          className="flex max-h-[50vh] flex-col gap-2 overflow-y-auto"
+          // Потолок списка привязан к видимой оболочке (--app-vh сжимается под
+          // клавиатуру iOS), а не к полному vh: иначе при открытом поиске список
+          // распирал панель и кнопка «Добавить» уходила под клавиатуру. ~11rem —
+          // резерв под ручку/шапку/поиск/кнопку шита.
+          className="flex max-h-[min(50vh,calc(var(--app-vh,100dvh)-11rem))] flex-col gap-2 overflow-y-auto"
         >
           {results.length === 0 ? (
             <p className="py-8 text-center text-app-text-muted">Ничего не найдено</p>
