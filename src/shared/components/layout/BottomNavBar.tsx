@@ -14,7 +14,6 @@ interface NavItem {
   label: string;
   href?: string;
   view?: AppView;
-  isFilled?: boolean;
 }
 
 interface BottomNavBarProps {
@@ -92,7 +91,7 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
   };
 
   const navItems: NavItem[] = [
-    { id: 'home', icon: Home, label: 'Главная', href: '/dashboard', isFilled: true },
+    { id: 'home', icon: Home, label: 'Главная', href: '/dashboard' },
     { id: 'bible', icon: BookOpen, label: 'Библия', href: '/dashboard/read?book=Бытие&chapter=1' },
     { id: 'songs', icon: Music, label: 'Песни', href: '/dashboard/songs' },
     { id: 'setlists', icon: ListMusic, label: 'Сеты', href: '/dashboard/setlists' },
@@ -129,20 +128,20 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
             data-dashboard-nav-item={item.id}
             data-dashboard-nav-item-active={isActive || undefined}
             onClick={() => handleNav(item)}
-            className="group flex min-h-12 flex-1 flex-col items-center justify-center gap-1 px-0.5 py-1 transition-transform duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary rounded-2xl"
+            className={`group flex min-h-12 flex-1 flex-col items-center justify-center gap-1 px-0.5 py-1.5 rounded-2xl transition-[transform,background-color] duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary ${
+              isActive ? 'bg-app-primary-light' : ''
+            }`}
             aria-current={isActive ? 'page' : undefined}
           >
-            {/* Активный индикатор — «пилюля» под иконкой (Material 3 / YouVersion):
-                чётко выделяет текущий раздел, не перекрашивая весь пункт. */}
+            {/* Активный раздел подсвечивается целиком (заливка ячейки + яркие
+                иконка и подпись), а не только чипом под иконкой. */}
             <span
               data-dashboard-nav-item-icon={item.id}
-              className={`flex h-8 w-full max-w-14 items-center justify-center rounded-full transition-colors ${
-                isActive
-                  ? 'bg-app-primary-light text-app-primary'
-                  : 'text-app-text-secondary group-hover:text-app-text'
-              }`}
+              className={
+                isActive ? 'text-app-primary' : 'text-app-text-secondary group-hover:text-app-text transition-colors'
+              }
             >
-              <Icon size={25} className={isActive && item.isFilled ? 'fill-current' : ''} />
+              <Icon size={25} />
             </span>
             <span
               data-dashboard-nav-item-label={item.id}
