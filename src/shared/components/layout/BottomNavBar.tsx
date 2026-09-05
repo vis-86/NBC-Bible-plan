@@ -33,18 +33,12 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
     console.debug('[BottomNavBar] chromeHidden', chromeHidden);
   }, [chromeHidden]);
 
-  // [FIX] Корень бага «карточка песни обрезана навигацией»: `.pb-nav`
-  // (клиренс контента) резервировал статичную оценку `--dock-nav-h` (56px),
-  // а реальная высота бара (иконка + подпись + внутренние паддинги +
-  // safe-area) на практике больше и варьируется по устройствам/масштабу
-  // шрифта — отсюда и «иногда бар больше, чем нужно» (на самом деле оценка
-  // всегда была занижена, просто с разным разрывом). Меряем РЕАЛЬНУЮ высоту
-  // `<nav>` через ResizeObserver и пишем её в CSS-переменную
-  // `--dock-nav-actual-h` на :root — `.pb-nav` (globals.css) берёт клиренс
-  // из неё, так что резерв места всегда синхронен с фактическим баром, а не
-  // с оценкой на глаз. Дополнительно логируем аномально большую высоту —
-  // если после этого фикса бар всё ещё раздувается сильнее разумного, лог
-  // даст конкретные цифры для дальнейшей диагностики.
+  // Клиренс контента (`.pb-nav`) резервирует место под таблетку по её
+  // РЕАЛЬНОЙ высоте, а не по статичной оценке: высота варьируется по
+  // устройствам/масштабу шрифта (иконка + подпись + внутренние паддинги).
+  // Меряем `<nav>` через ResizeObserver и пишем в `--dock-nav-actual-h` на
+  // :root; `.pb-nav` (globals.css) добавляет к ней нижний отступ таблетки и
+  // safe-area. Так резерв всегда синхронен с фактическим баром.
   useEffect(() => {
     const el = navRef.current;
     if (!el || typeof ResizeObserver === 'undefined') return;
@@ -60,16 +54,8 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
 
       root.style.setProperty('--dock-nav-actual-h', `${height}px`);
 
-      // Запас над --dock-nav-h под нормальные pt-1.5 + safe-area-bottom паддинги.
       if (height > fallbackHeight + 48) {
-        const style = getComputedStyle(el);
-        console.warn('[FIX] BottomNavBar unexpectedly tall', {
-          height,
-          fallbackHeight,
-          innerWidth: window.innerWidth,
-          resolvedPaddingBottom: style.paddingBottom,
-          resolvedPaddingTop: style.paddingTop,
-        });
+        console.warn('[BottomNavBar] unexpectedly tall', { height, fallbackHeight, innerWidth: window.innerWidth });
       }
     });
     observer.observe(el);
@@ -149,48 +135,52 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
     { id: 'settings', icon: User, label: 'Профиль', href: '/dashboard/settings' },
   ];
 
+  // Парящая таблетка (по мотивам nbc-music-chordpro): по центру, ширина по
+  // контенту, приподнята над низом на safe-area + `--dock-nav-gap`. НЕ приклеена
+  // флешем во всю ширину к точному низу оболочки — поэтому джиттер измеренной
+  // высоты вьюпорта на iOS (после поворота/пинча) больше не рисует пустую полосу
+  // снизу: таблетка просто плавает над контентом. Остаётся внутри оболочки
+  // (`absolute`, оболочка — containing block), а не порталится в body: чистый
+  // `fixed` к вьюпорту iOS как раз и был исходной болью (см. useAppViewportHeight).
+  // Центрирование и скрытие по скроллу — оба через один transform (Tailwind
+  // склеивает translate-x/y в одно свойство).
   return (
     <nav
       ref={navRef}
       data-dashboard-layout-bottom-nav
       data-dashboard-layout-bottom-nav-hidden={chromeHidden || undefined}
-      className={`absolute bottom-0 left-0 right-0 app-shell-width min-h-[var(--dock-nav-h)] pt-1.5 glass-nav rounded-t-[24px] flex items-center justify-around z-50 border-t border-app-border dock-nav-safe-b dock-nav-safe-x transition-transform duration-300 ${
-        chromeHidden ? 'translate-y-[110%] pointer-events-none' : 'translate-y-0'
+      className={`absolute left-1/2 bottom-[calc(env(safe-area-inset-bottom)+var(--dock-nav-gap))] z-50 flex max-w-[calc(100%-1.5rem)] items-center gap-0.5 rounded-full border border-app-border glass-nav p-1.5 shadow-app-md transition-transform duration-300 ${
+        chromeHidden ? '-translate-x-1/2 translate-y-[calc(100%+env(safe-area-inset-bottom)+var(--dock-nav-gap))] pointer-events-none' : '-translate-x-1/2 translate-y-0'
       }`}
       aria-label="Основная навигация"
     >
       {navItems.map((item) => {
         const isActive = getIsActive(item);
         const Icon = item.icon;
-        // `flex-1 max-w-16` вместо фиксированной `w-16`: с «Сетами» пунктов становится 6
-        // (при включённом AI), и 6×64px не помещаются в 360px — пункты ужимаются вместо
-        // переполнения бара.
         return (
           <button
             key={item.id}
             data-dashboard-nav-item={item.id}
             data-dashboard-nav-item-active={isActive || undefined}
             onClick={() => handleNav(item)}
-            className="flex min-h-11 flex-col items-center justify-center gap-1 p-1.5 flex-1 max-w-16 relative group transition-transform duration-150 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary rounded-app-sm"
+            className="group relative flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-full px-2.5 py-1.5 transition-transform duration-150 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-primary"
             aria-current={isActive ? 'page' : undefined}
           >
+            <span
+              aria-hidden
+              className={`pointer-events-none absolute inset-0 rounded-full transition-colors ${isActive ? 'bg-app-primary-light' : 'bg-transparent'}`}
+            />
             <div
               data-dashboard-nav-item-icon={item.id}
-              className={isActive ? 'text-app-primary' : 'text-app-text-muted group-hover:text-app-text-secondary transition-colors'}
+              className={`relative ${isActive ? 'text-app-primary' : 'text-app-text-muted group-hover:text-app-text-secondary transition-colors'}`}
             >
-              <Icon size={24} className={isActive && item.isFilled ? 'fill-current' : ''} />
+              <Icon size={22} className={isActive && item.isFilled ? 'fill-current' : ''} />
             </div>
             <span
               data-dashboard-nav-item-label={item.id}
-              className={`text-[10px] relative whitespace-nowrap ${isActive ? 'font-bold text-app-primary' : 'font-medium text-app-text-muted group-hover:text-app-text-secondary'}`}
+              className={`relative text-[9px] leading-none whitespace-nowrap ${isActive ? 'font-semibold text-app-primary' : 'font-medium text-app-text-muted group-hover:text-app-text-secondary'}`}
             >
               {item.label}
-              {isActive && (
-                <span
-                  className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-app-primary"
-                  aria-hidden
-                />
-              )}
             </span>
           </button>
         );
