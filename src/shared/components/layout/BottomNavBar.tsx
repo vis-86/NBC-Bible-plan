@@ -101,20 +101,19 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
     { id: 'settings', icon: User, label: 'Профиль', href: '/dashboard/settings' },
   ];
 
-  // Плавающий бар (по мотивам YouVersion): почти во всю доступную ширину (с
-  // боковыми полями), приподнят над низом на safe-area + `--dock-nav-gap`, пункты
-  // растянуты `flex-1`. НЕ приклеен флешем к точному низу оболочки — боковые и
-  // нижний отступы делают его терпимым к джиттеру измеренной высоты вьюпорта на
-  // iOS (после поворота/пинча): бар просто плавает над контентом, а не рисует
-  // пустую полосу снизу. Остаётся внутри оболочки (`absolute`, оболочка —
-  // containing block), а не порталится в body: чистый `fixed` к вьюпорту iOS как
-  // раз и был исходной болью (см. useAppViewportHeight). Центрирование и скрытие
-  // по скроллу — оба через один transform (Tailwind склеивает translate-x/y).
+  // Плавающий бар (по мотивам YouVersion/chordpro): почти во всю ширину (с боковыми
+  // полями), приподнят над низом на safe-area + `--dock-nav-gap`, пункты `flex-1`.
+  // `position: fixed` — привязка к ВЬЮПОРТУ, а не к оболочке: на iOS высота корня
+  // после поворота может «залипать» короткой, но бар всё равно у настоящего низа
+  // экрана (в chordpro так же, поэтому там нет полосы снизу). Работает только без
+  // transform-предка (он снят с `.h-app-viewport`) — иначе fixed считался бы от
+  // оболочки. Центрирование и скрытие по скроллу — через один transform (Tailwind
+  // склеивает translate-x/y).
   return (
     <nav
       data-dashboard-layout-bottom-nav
       data-dashboard-layout-bottom-nav-hidden={chromeHidden || undefined}
-      className={`absolute left-1/2 bottom-[calc(env(safe-area-inset-bottom)+var(--dock-nav-gap))] z-50 flex w-[calc(100%-1.5rem)] max-w-[32rem] items-stretch gap-1 rounded-3xl border border-app-border glass-nav backdrop-blur-xl backdrop-saturate-150 px-1.5 py-1.5 shadow-app-md transition-transform duration-300 ${
+      className={`fixed left-1/2 bottom-[calc(env(safe-area-inset-bottom)+var(--dock-nav-gap))] z-50 flex w-[calc(100%-1.5rem)] max-w-[32rem] items-stretch gap-1 rounded-3xl border border-app-border glass-nav backdrop-blur-xl backdrop-saturate-150 px-1.5 py-1.5 shadow-app-md transition-transform duration-300 ${
         chromeHidden ? '-translate-x-1/2 translate-y-[calc(100%+env(safe-area-inset-bottom)+var(--dock-nav-gap))] pointer-events-none' : '-translate-x-1/2 translate-y-0'
       }`}
       aria-label="Основная навигация"
