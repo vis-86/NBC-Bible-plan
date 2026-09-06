@@ -51,7 +51,7 @@ export default function SettingsPage() {
     <DashboardLayout currentView={AppView.SETTINGS} onChangeView={() => {}}>
       <div className="flex min-h-0 flex-1 flex-col">
         <PageHeader variant="page" title="Настройки" />
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain bg-app-bg px-4 py-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain bg-app-bg px-4 pt-6 pb-nav">
           <ProfileSection className="mb-8" />
 
           <section className="space-y-3">

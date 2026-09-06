@@ -273,7 +273,7 @@ export const PlanView: React.FC<PlanViewProps> = ({
   const headerDate = formatHeaderDate(new Date());
 
   return (
-    <div data-plan-view className="flex flex-col h-full bg-app-bg text-app-text overflow-y-auto">
+    <div data-plan-view className="flex flex-col h-full bg-app-bg text-app-text overflow-y-auto pb-nav">
       {/* У главной нет sticky-шапки — бровь красит fixed-полоска фоном страницы,
           иначе при скролле контент голым подъезжает под статус-бар
           (инвариант «бровь = цвет шапки экрана», см. globals.css .h-safe-top). */}

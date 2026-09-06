@@ -74,7 +74,7 @@ function SongsPageContent() {
       </PageHeader>
 
       {/* pt-3: список не должен липнуть к строке поиска в шапке. */}
-      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-4 pt-3">
+      <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto px-4 pt-3 pb-nav">
         {error ? (
           <ErrorMessage message={error} />
         ) : loading && songs.length === 0 ? (

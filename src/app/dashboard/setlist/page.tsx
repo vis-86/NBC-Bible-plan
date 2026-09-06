@@ -61,7 +61,7 @@ function SetlistPageContent() {
         </div>
       )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-nav">
         {error ? (
           <div className="px-4 pt-4">
             <ErrorMessage message={error} />

@@ -75,7 +75,7 @@ function SetlistsPageContent() {
 
       <PullToRefresh
         onRefresh={handlePullToRefresh}
-        className="px-4 pt-3 pb-6"
+        className="px-4 pt-3 pb-nav"
       >
         {/* Данные на экране валидны — неудачное обновление не подменяет список ошибкой. */}
         {refreshError && (

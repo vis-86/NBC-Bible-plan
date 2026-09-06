@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render } from '@testing-library/react';
 
 let mockPathname = '/dashboard/songs';
 
@@ -15,73 +15,47 @@ vi.mock('@/shared/offline/appShell', () => ({
 }));
 
 import DashboardLayout from './DashboardLayout';
-import { useChromeVisibility } from './ChromeVisibility';
-
-/** Дёргает chromeHidden изнутри дерева DashboardLayout (провайдер живёт внутри него). */
-function ChromeControls() {
-  const { setChromeHidden } = useChromeVisibility();
-  return (
-    <div>
-      <button onClick={() => setChromeHidden(true)}>hide-chrome</button>
-      <button onClick={() => setChromeHidden(false)}>show-chrome</button>
-    </div>
-  );
-}
 
 function getMain(container: HTMLElement) {
   return container.querySelector('[data-dashboard-layout-main]')!;
 }
 
-describe('DashboardLayout — резерв места под bottom nav (pb-nav)', () => {
+describe('DashboardLayout — клиренс под плавающий бар', () => {
   beforeEach(() => {
     mockPathname = '/dashboard/songs';
   });
 
-  it('на докнутой странице резервирует pb-nav, пока chrome виден', () => {
+  // Плавающий бар — position:fixed, парит над контентом. Клиренс (.pb-nav) теперь
+  // живёт ВНУТРИ каждого экрана-скроллера (headroom прокрутки), а не резервируется
+  // на общем main — иначе под баром была бы пустая полоса-«футер», и контент не
+  // уходил бы под полупрозрачный бар.
+  it('main НЕ резервирует место под nav (клиренс — внутри скроллеров экранов)', () => {
     const { container } = render(
       <DashboardLayout>
-        <ChromeControls />
-      </DashboardLayout>
-    );
-
-    expect(getMain(container).className).toContain('pb-nav');
-  });
-
-  it('прячет резерв pb-nav синхронно со скрытием бара по скроллу — иначе внизу остаётся пустой блок', () => {
-    const { container } = render(
-      <DashboardLayout>
-        <ChromeControls />
-      </DashboardLayout>
-    );
-
-    fireEvent.click(screen.getByText('hide-chrome'));
-    expect(getMain(container).className).not.toContain('pb-nav');
-
-    fireEvent.click(screen.getByText('show-chrome'));
-    expect(getMain(container).className).toContain('pb-nav');
-  });
-
-  it('на странице ридера место под nav никогда не резервируется (nav — оверлей)', () => {
-    mockPathname = '/dashboard/read';
-    const { container } = render(
-      <DashboardLayout>
-        <ChromeControls />
+        <div>content</div>
       </DashboardLayout>
     );
 
     expect(getMain(container).className).not.toContain('pb-nav');
-
-    fireEvent.click(screen.getByText('show-chrome'));
-    expect(getMain(container).className).not.toContain('pb-nav');
   });
 
-  it('при hideBottomNav место под nav не резервируется', () => {
+  it('рендерит нижнюю навигацию по умолчанию', () => {
+    const { container } = render(
+      <DashboardLayout>
+        <div>content</div>
+      </DashboardLayout>
+    );
+
+    expect(container.querySelector('[data-dashboard-layout-bottom-nav]')).not.toBeNull();
+  });
+
+  it('при hideBottomNav навигация не рендерится', () => {
     const { container } = render(
       <DashboardLayout hideBottomNav>
-        <ChromeControls />
+        <div>content</div>
       </DashboardLayout>
     );
 
-    expect(getMain(container).className).not.toContain('pb-nav');
+    expect(container.querySelector('[data-dashboard-layout-bottom-nav]')).toBeNull();
   });
 });
