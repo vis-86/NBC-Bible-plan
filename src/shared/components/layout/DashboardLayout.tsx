@@ -41,7 +41,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, onChangeVie
       <div
         ref={setShellNode}
         data-dashboard-layout
-        className="relative flex flex-col h-app-viewport min-h-0 bg-app-bg text-app-text font-sans overflow-hidden"
+        className="flex flex-col h-app-viewport min-h-0 bg-app-bg text-app-text font-sans overflow-hidden"
       >
         <AppShellNodeContext.Provider value={shellNode}>
           <DashboardMain>{children}</DashboardMain>
