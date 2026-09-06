@@ -102,7 +102,9 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
   ];
 
   // Плавающий бар (по мотивам YouVersion/chordpro): почти во всю ширину (с боковыми
-  // полями), приподнят над низом на safe-area + `--dock-nav-gap`, пункты `flex-1`.
+  // полями), приподнят над низом на фиксированный `--dock-nav-gap` (БЕЗ прибавки
+  // env(safe-area-inset-bottom) — иначе при viewport-fit=cover под баром остаётся
+  // полоса фона высотой safe-area; chordpro без cover и без этой прибавки), пункты `flex-1`.
   // `position: fixed` — привязка к ВЬЮПОРТУ, а не к оболочке: на iOS высота корня
   // после поворота может «залипать» короткой, но бар всё равно у настоящего низа
   // экрана (в chordpro так же, поэтому там нет полосы снизу). Работает только без
@@ -113,8 +115,8 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
     <nav
       data-dashboard-layout-bottom-nav
       data-dashboard-layout-bottom-nav-hidden={chromeHidden || undefined}
-      className={`fixed left-1/2 bottom-[calc(env(safe-area-inset-bottom)+var(--dock-nav-gap))] z-50 flex w-[calc(100%-1.5rem)] max-w-[32rem] items-stretch gap-1 rounded-3xl border border-app-border glass-nav backdrop-blur-xl backdrop-saturate-150 px-1.5 py-1.5 shadow-app-md transition-transform duration-300 ${
-        chromeHidden ? '-translate-x-1/2 translate-y-[calc(100%+env(safe-area-inset-bottom)+var(--dock-nav-gap))] pointer-events-none' : '-translate-x-1/2 translate-y-0'
+      className={`fixed left-1/2 bottom-[var(--dock-nav-gap)] z-50 flex w-[calc(100%-1.5rem)] max-w-[32rem] items-stretch gap-1 rounded-3xl border border-app-border glass-nav backdrop-blur-xl backdrop-saturate-150 px-1.5 py-1.5 shadow-app-md transition-transform duration-300 ${
+        chromeHidden ? '-translate-x-1/2 translate-y-[calc(100%+var(--dock-nav-gap))] pointer-events-none' : '-translate-x-1/2 translate-y-0'
       }`}
       aria-label="Основная навигация"
     >
