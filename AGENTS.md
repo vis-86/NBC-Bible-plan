@@ -98,7 +98,7 @@ bible-plan/
 │   │   │   └── ui/                   # Generic UI primitives (shadcn/ui) + UpdateToast.tsx, SearchBar.tsx, RangeSlider.tsx (44px tap zone, 28px thumb), ActionMenu.tsx (kebab-меню действий, портал в body), PullToRefresh.tsx + PullToRefreshIndicator.tsx (жест «потянуть вниз → обновить»)
 │   │   ├── config/
 │   │   │   └── design-tokens.ts      # TS design token constants (maps to CSS vars)
-│   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast), useAutoHideOnScroll (hide-on-scroll обёртка над useScrollDirection), useTapToReveal (тап по контенту возвращает скрытый хром), useAppRole, useIsOnline, useHorizontalSwipe, usePullToRefresh
+│   │   ├── hooks/                    # Shared React hooks + useSwUpdate (registration.waiting → toast), useAutoHideOnScroll (hide-on-scroll обёртка над useScrollDirection), useTapToReveal (тап по контенту возвращает скрытый хром), useAppRole, useIsOnline, useHorizontalSwipe, usePullToRefresh, useScreenWakeLock (экран не гаснет на просмотре песни; подключён в `app/dashboard/song/page.tsx`)
 │   │   ├── offline/                  # IndexedDB layer (idb), read-through (+ readThroughSWR — cache-first), write-ahead outbox, sync, downloadManager (+ дельта-синк), autoDownload, syncVersions, chunkGuard, networkTimeout
 │   │   ├── services/
 │   │   │   └── api/
