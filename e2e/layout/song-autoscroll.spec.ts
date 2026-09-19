@@ -178,6 +178,9 @@ test.describe('Автоскролл — режим scroll', () => {
     // Управление автоскроллом остаётся — иначе режим нечем выключить.
     await expect(page.locator('[data-song-autoscroll-toggle]')).toBeVisible();
     await expect(page.locator('[data-song-autoscroll-speed]')).toBeVisible();
+    // …и вместе с ним тональность с настройками: их правят именно во время пения.
+    await expect(page.locator('[data-song-quick-tools]')).toBeVisible();
+    await expect(page.locator('[data-song-page-view-settings-button]')).toBeVisible();
 
     // Пауза возвращает карандаш.
     await page.locator('[data-song-autoscroll-toggle]').click();
@@ -206,6 +209,33 @@ test.describe('Автоскролл — режим scroll', () => {
     await page.locator('[data-bottom-sheet-close-button]').click();
     // Шторка закрылась, контрол автоскролла вернулся.
     await expect(page.locator('[data-song-autoscroll]')).toBeVisible();
+  });
+
+  test('открытая шторка удерживает лист на месте и не выключает режим, закрытие — возобновляет', async () => {
+    await openSong(page, songId, NARROW, {}, 29);
+    await page.locator('[data-song-autoscroll]').waitFor({ state: 'visible', timeout: 10_000 });
+
+    await page.locator('[data-song-autoscroll-toggle]').click();
+    await expect.poll(async () => scrollTop(page), { timeout: 5_000, intervals: [200, 200, 300] }).toBeGreaterThan(0);
+
+    // Настройки доступны прямо из фокус-режима — через таблетку на месте уехавшей шапки.
+    await page.locator('[data-song-quick-tools] [data-song-page-view-settings-button]').click();
+    await expect(page.locator('[data-song-view-settings]')).toBeVisible();
+
+    // Лист стоит: править кегль на едущем тексте невозможно.
+    const held = await scrollTop(page);
+    await page.waitForTimeout(600);
+    expect(Math.abs((await scrollTop(page)) - held), 'под открытой шторкой лист стоит').toBeLessThanOrEqual(1);
+
+    // Режим при этом остался включённым — закрытие возвращает движение само.
+    await page.locator('[data-bottom-sheet-close-button]').click();
+    await expect(page.locator('[data-song-autoscroll-toggle]')).toHaveAttribute('aria-label', 'Пауза автоскролла');
+    await expect
+      .poll(async () => scrollTop(page), { timeout: 5_000, intervals: [300, 300, 500] })
+      .toBeGreaterThan(held + 1);
+
+    await page.locator('[data-song-autoscroll-toggle]').click();
+    await expect(page.locator('[data-song-autoscroll-toggle]')).toHaveAttribute('aria-label', 'Запустить автоскролл');
   });
 
   test('пользовательский wheel приостанавливает автоскролл, но не выключает его', async () => {

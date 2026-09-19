@@ -207,3 +207,66 @@ describe('useAutoScroll — ручной скролл приостанавлив
     expect(result.current.suspended).toBe(false);
   });
 });
+
+/**
+ * `hold` — внешняя приостановка (экран включает её на время открытых шторок настроек /
+ * тональности / состава сета). Отличие от `suspended`: команду даёт не жест, а UI, и
+ * режим при этом остаётся включённым — закрытие шторки возвращает движение само.
+ * Реальный баг: лист продолжал ехать под открытой шторкой, а FAB паузы в это время
+ * скрыт — остановить автоскролл было нечем.
+ */
+describe('useAutoScroll — hold приостанавливает движок, не выключая режим', () => {
+  /** Счётчик запланированных кадров: rAF-цикл «жив» ровно пока их планируют. */
+  let scheduled: number;
+
+  beforeEach(() => {
+    scheduled = 0;
+    vi.stubGlobal('requestAnimationFrame', () => {
+      scheduled += 1;
+      return scheduled;
+    });
+    vi.stubGlobal('cancelAnimationFrame', () => {});
+  });
+
+  function renderWithHold(node: HTMLElement) {
+    return renderHook(
+      ({ hold }: { hold: boolean }) => {
+        const containerRef = useRef<HTMLElement | null>(node);
+        return useAutoScroll({ containerRef, songId: '1', enabled: true, hold });
+      },
+      { initialProps: { hold: false } },
+    );
+  }
+
+  it('пока hold поднят, кадры не планируются, а playing остаётся true', () => {
+    const { node } = createContainer(1000, 500);
+    const { result, rerender } = renderWithHold(node);
+
+    act(() => result.current.play());
+    expect(scheduled, 'движок поехал').toBeGreaterThan(0);
+
+    const beforeHold = scheduled;
+    act(() => rerender({ hold: true }));
+    expect(scheduled, 'шторка открыта — новых кадров нет').toBe(beforeHold);
+    expect(result.current.playing, 'режим не выключился').toBe(true);
+
+    // Закрытие шторки возвращает движение без повторного нажатия кнопки.
+    act(() => rerender({ hold: false }));
+    expect(scheduled, 'шторка закрыта — движок поехал сам').toBeGreaterThan(beforeHold);
+    expect(result.current.playing).toBe(true);
+  });
+
+  it('кнопка паузы во время hold выключает режим целиком', () => {
+    const { node } = createContainer(1000, 500);
+    const { result, rerender } = renderWithHold(node);
+
+    act(() => result.current.play());
+    act(() => rerender({ hold: true }));
+    act(() => result.current.toggle());
+    expect(result.current.playing).toBe(false);
+
+    // Снятие hold не воскрешает выключенный режим.
+    act(() => rerender({ hold: false }));
+    expect(result.current.playing).toBe(false);
+  });
+});

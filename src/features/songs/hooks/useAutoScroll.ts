@@ -47,6 +47,14 @@ export interface UseAutoScrollParams {
    * программный скролл за пользовательский и шапка задёргается на каждый кадр.
    */
   onBeforeProgrammaticScroll?: () => void;
+  /**
+   * Внешняя приостановка: режим остаётся включённым (`playing`), но лист стоит.
+   * Экран включает её на время открытых шторок (настройки, тональность, сет) —
+   * менять кегль или тональность на едущем под пальцем листе невозможно, а
+   * выключать автоскролл ради этого и включать заново — лишние два действия.
+   * Снятие удержания возвращает движение само, с обычным разгоном.
+   */
+  hold?: boolean;
 }
 
 export interface UseAutoScrollResult {
@@ -91,7 +99,7 @@ const debug = (...args: unknown[]): void => {
   if (process.env.NODE_ENV !== 'production') console.debug('[useAutoScroll]', ...args);
 };
 
-export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgrammaticScroll }: UseAutoScrollParams): UseAutoScrollResult {
+export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgrammaticScroll, hold = false }: UseAutoScrollParams): UseAutoScrollResult {
   const [playing, setPlaying] = useState(false);
   const [suspended, setSuspended] = useState(false);
   const [canScrollMeasured, setCanScrollMeasured] = useState(false);
@@ -192,7 +200,7 @@ export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgramma
   // rAF-цикл живёт только пока playing && enabled. Пере-создаётся на смену этих флагов —
   // тогда локальные аккумуляторы (разгон, дробные пиксели) стартуют с чистого листа.
   useEffect(() => {
-    if (!playing || !enabled || suspended) return;
+    if (!playing || !enabled || suspended || hold) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -242,7 +250,7 @@ export function useAutoScroll({ containerRef, songId, enabled, onBeforeProgramma
 
     rafId = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(rafId);
-  }, [playing, enabled, suspended, containerRef]);
+  }, [playing, enabled, suspended, hold, containerRef]);
 
   // Ручной скролл: приостановка на время жеста вместо выключения (§8). passive — не мешаем
   // нативному скроллу. Возобновление — само, как только прокрутка затихла.

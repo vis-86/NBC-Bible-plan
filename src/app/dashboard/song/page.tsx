@@ -28,6 +28,7 @@ import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
 import { useTapToReveal } from '@/shared/hooks/useTapToReveal';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 import { useDelayedFlag } from '@/shared/hooks/useDelayedFlag';
+import { useScreenWakeLock } from '@/shared/hooks/useScreenWakeLock';
 import { SwipePager } from '@/shared/components/pager/SwipePager';
 import { PagerHint, usePagerHint } from '@/shared/components/pager/PagerHint';
 import { useSetlistPlayback } from '@/features/setlists/hooks/useSetlistPlayback';
@@ -99,6 +100,9 @@ function SongPageContent() {
   const songKeyState = useSongKey(song);
   const playback = useSetlistPlayback(setlistId, id);
   const { canManageSetlists } = useAppRole();
+  // Экран песни — единственное место, где телефон лежит и на него смотрят часами
+  // (служение): держим его включённым. Остальные экраны гаснут по системному таймеру.
+  useScreenWakeLock();
   // Каталог нужен шиту «Добавить песню». Read-through + module-кэш: офлайн отдаёт
   // закешированный список, повторного запроса при переходах между песнями нет.
   const { songs } = useSongs();
@@ -120,11 +124,17 @@ function SongPageContent() {
   // Скорость — per-song device-local настройка (autoScrollSpeedStore).
   // ignoreNextScroll гасит реакцию useScrollDirection на программный сдвиг scrollTop.
   // Объявлен ВЫШЕ headerHidden: фокус-режим читает autoscroll.playing (TDZ).
+  // Открытая шторка (настройки / тональность / состав сета) удерживает лист на месте,
+  // но НЕ выключает режим: выбирать кегль или тональность на едущем листе невозможно,
+  // а требовать «выключи автоскролл → поправь → включи заново» — три действия там, где
+  // хватает нуля. Закрытие шторки возвращает движение само (`hold` снимается).
+  const anySheetOpen = isViewSettingsOpen || isKeyPickerOpen || isSetlistSheetOpen;
   const autoscroll = useAutoScroll({
     containerRef: contentRef,
     songId: song?.id ?? '',
     enabled: mode === 'scroll' && !!song,
     onBeforeProgrammaticScroll: ignoreNextScroll,
+    hold: anySheetOpen,
   });
 
   // Автоскрытие шапки меняет высоту вьюпорта — в постраничных режимах это
@@ -313,10 +323,11 @@ function SongPageContent() {
 
         {/* Шапка уехала — управление песней возвращается плавающей таблеткой на её месте:
             иначе скролл листа отнимает тональность и настройки, а вернуть их можно было
-            только прокруткой вверх. В фокус-режиме (играющий автоскролл) таблетки нет —
-            там хром свёрнут намеренно (§4.5); ручной подскролл снимает фокус-режим на
-            время жеста, и таблетка проявляется вместе с остальным хромом. */}
-        {song && headerHidden && !focusMode && !ink.active && (
+            только прокруткой вверх. Играющий автоскролл таблетку НЕ убирает: тональность
+            и кегль правят именно во время пения (раньше фокус-режим их прятал, и
+            добраться до них можно было только выключив автоскролл). Открытие шторки
+            отсюда удерживает лист (`anySheetOpen` → hold), закрытие — возобновляет. */}
+        {song && headerHidden && !ink.active && (
           <SongQuickTools>{renderSongActions()}</SongQuickTools>
         )}
 
