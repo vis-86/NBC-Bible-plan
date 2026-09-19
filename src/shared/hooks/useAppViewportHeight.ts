@@ -28,10 +28,9 @@ const STABLE_TICKS = 3;
  * и одиночное измерение зафиксировало бы ровно ту высоту, из-за которой баг и
  * возникает. Поэтому опрашиваем до стабилизации.
  *
- * Отдельно от высоты залипают `env(safe-area-inset-*)` — на них висят отступы
- * докнутого бара и «брови». Их пересчёт форсирует переустановка `viewport-fit`
- * (auto → cover) в мете вьюпорта: WebKit перечитывает инсеты без физического
- * поворота устройства.
+ * (Раньше здесь же форсировался пересчёт `env(safe-area-inset-*)` через
+ * переустановку `viewport-fit` cover↔auto. Сейчас вьюпорт — `auto` без cover
+ * (см. layout.tsx), инсеты всегда 0, и форсить нечего.)
  */
 export function useAppViewportHeight() {
   useEffect(() => {
@@ -70,35 +69,15 @@ export function useAppViewportHeight() {
       }, SETTLE_STEP_MS);
     };
 
-    // Переустановка viewport-fit заставляет WebKit перечитать env(safe-area-inset-*),
-    // которые после поворота остаются от прежней ориентации.
-    const refreshSafeAreaInsets = () => {
-      const meta = document.querySelector<HTMLMetaElement>('meta[name="viewport"]');
-      if (!meta) return;
-
-      const original = meta.content;
-      if (!original.includes('viewport-fit=cover')) return;
-
-      meta.content = original.replace('viewport-fit=cover', 'viewport-fit=auto');
-      requestAnimationFrame(() => {
-        meta.content = original;
-      });
-    };
-
-    const onOrientationChange = () => {
-      refreshSafeAreaInsets();
-      settle();
-    };
-
     apply();
     window.addEventListener('resize', settle);
-    window.addEventListener('orientationchange', onOrientationChange);
+    window.addEventListener('orientationchange', settle);
     window.visualViewport?.addEventListener('resize', settle);
 
     return () => {
       window.clearInterval(settleTimer);
       window.removeEventListener('resize', settle);
-      window.removeEventListener('orientationchange', onOrientationChange);
+      window.removeEventListener('orientationchange', settle);
       window.visualViewport?.removeEventListener('resize', settle);
       root.style.removeProperty(APP_VIEWPORT_HEIGHT_VAR);
     };

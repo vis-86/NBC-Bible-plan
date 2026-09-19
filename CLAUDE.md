@@ -99,7 +99,23 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
 
 - Только семантические токены `bg-app-*` / `text-app-*` / `border-app-*` / `shadow-app-*` (источник — CSS-переменные в `globals.css`, TS-константы в `src/shared/config/design-tokens.ts`). Хардкод-шейды Tailwind (`stone-`, `red-`…) и `dark:`-варианты запрещены; тёмная тема — автоматически через переменные. Исключение: `theme-light|dark|sepia` в ридере — пользовательский выбор, не тема приложения.
 - DOM-якоря для e2e/аналитики: kebab-case `data-{component-kebab}-{зона}` (`TodayReadingCard` → `data-today-reading-card-day-counter`), не `data-component`.
-- Оболочка дашборда (`.h-app-viewport`) намеренно `transform`-ится — она containing block для всех `position: fixed` оверлеев. Обратная сторона: WebKit режет такого fixed-потомка по ЛЮБОМУ промежуточному `overflow: hidden`, а Chromium — нет (баг виден только на iPad/iPhone). Поэтому оверлеи не рендерятся на месте вызова, а порталятся в оболочку (`useAppShellPortalTarget`): так уже живут `BottomSheet`, `ActionMenu` и панель скорости автоскролла. Шторка транспонирования, лежавшая внутри 52px шапки песни с `overflow: hidden`, схлопывалась именно так. Гейт — структурный ассерт в `e2e/layout/song-layout.spec.ts` (по геометрии в Chromium регрессия не ловится).
+- Оболочка дашборда (`.h-app-viewport`) — `position: fixed; inset: 0` БЕЗ `transform`
+  (раньше был `translateZ(0)`; убран вместе с переходом на no-cover, см. пункт про полосу ниже).
+  Плоский `fixed` НЕ создаёт containing block, поэтому fixed-оверлеи резолвятся к вьюпорту.
+  Оверлеи всё равно порталятся в оболочку (`useAppShellPortalTarget`): `BottomSheet`,
+  `ActionMenu`, панель скорости автоскролла — держит стекинг/overflow предсказуемым.
+  ИСТОРИЧЕСКИ портал был обязателен из-за transform-containing-block: WebKit резал fixed-потомка
+  такого предка по ЛЮБОМУ промежуточному `overflow: hidden` (шторка транспонирования в 52px шапке
+  песни схлопывалась так), Chromium — нет. Убрав transform, этот механизм отключился, но портал
+  оставлен как безопасный дефолт; при правках оверлеев перепроверяй на РЕАЛЬНОМ iPad/iPhone
+  (в Chromium регрессия не ловится). Гейт — структурный ассерт в `e2e/layout/song-layout.spec.ts`.
+- **iOS-полоса снизу под нижним баром решена снятием `viewport-fit=cover`** (`layout.tsx`
+  → `viewport-fit=auto`). Cover растягивал layout viewport под home-indicator, и под плавающим
+  баром вылезала полоса фона, разной высоты портрет/ландшафт. Замеры с реального iPhone: с auto
+  оболочка `fixed;inset:0` точно совпадает с visualViewport в обеих ориентациях. Цена: без cover
+  `env(safe-area-inset-*)` = 0 везде → своей «брови» под цвет шапки нет (рисует система, статус-бар
+  `black-translucent`); `pt-safe-*`/`h-safe-top` и прочие `env()` стали no-op'ами, оставлены как
+  ссылки. **Не возвращать cover, не решив полосу снизу.**
 - `touch-action` считается браузером по цепочке до БЛИЖАЙШЕГО скролл-контейнера: `pan-y` на `[data-swipe-pager]` до вложенного `.overflow-y-auto` НЕ доходит, и Chrome на Android забирает горизонтальный жест себе (`pointercancel` через ~20px) — свайп глав/песен молча умирает. Скролл-контейнеры внутри пейджера обязаны сами быть `pan-y` (правило в `globals.css`). Гейт — `e2e/gestures/swipe-pager.spec.ts`; jsdom-тесты `SwipePager` этот класс багов не ловят.
 - Тот же класс багов у вертикали: на `scrollTop === 0` Chrome на Android всё равно опознаёт протягивание вниз как свой скролл (уходит в overscroll) и присылает `pointercancel` — pointer-жест pull-to-refresh умирает, не добрав порога. CSS тут не спасает: нужен нативный не-passive `touchmove` с `preventDefault()`, пока тянут вниз от верха (`usePullToRefresh`), React вешает свои слушатели passive'ными. Гейт — `e2e/gestures/pull-to-refresh.spec.ts`.
 - Скриншоты на dev-сборке: перед КАЖДЫМ снимком прячь Next dev-индикатор (`nextjs-portal{display:none!important}` через evaluate). DevTools-пресет «Offline» не переключает `navigator.onLine` — событийную UI-логику проверяй `window.dispatchEvent(new Event('offline'))`.

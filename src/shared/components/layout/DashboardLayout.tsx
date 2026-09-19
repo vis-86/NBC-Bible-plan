@@ -20,9 +20,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, onChangeVie
   // порталом, обязаны попадать внутрь него (см. AppShellNode).
   const [shellNode, setShellNode] = useState<HTMLElement | null>(null);
 
-  // Высоту оболочки держит CSS (`100dvh`, см. globals.css) — JS-замер убран.
-  // Хук оставлен только ради пересчёта `env(safe-area-inset-*)` на повороте
-  // (иначе инсеты, от которых зависит нижний отступ плавающего бара, залипают).
+  // Высоту оболочки держит CSS (`.h-app-viewport` = fixed;inset:0, см. globals.css).
+  // Хук лишь синхронизирует `--app-vh` (visualViewport) для шитов/панелей, которые
+  // жмутся под клавиатуру iOS (BottomSheet, AddSongsSheet, SetlistReorderList).
   useAppViewportHeight();
 
   // Прогрев app-shell документов в HTML-кеш SW при онлайн-загрузке приложения

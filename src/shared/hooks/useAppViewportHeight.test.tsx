@@ -7,14 +7,6 @@ function readVar() {
   return document.documentElement.style.getPropertyValue(APP_VIEWPORT_HEIGHT_VAR);
 }
 
-function setViewportMeta(content: string) {
-  const meta = document.createElement('meta');
-  meta.name = 'viewport';
-  meta.content = content;
-  document.head.appendChild(meta);
-  return meta;
-}
-
 beforeEach(() => {
   vi.useFakeTimers();
 });
@@ -102,26 +94,6 @@ describe('useAppViewportHeight', () => {
     });
 
     expect(readVar()).toBe('812px');
-  });
-
-  it('передёргивает viewport-fit, чтобы WebKit перечитал env(safe-area-inset-*)', () => {
-    vi.stubGlobal('visualViewport', undefined);
-    window.innerHeight = 812;
-    const original = 'width=device-width, initial-scale=1, viewport-fit=cover';
-    const meta = setViewportMeta(original);
-
-    renderHook(() => useAppViewportHeight());
-    act(() => {
-      window.dispatchEvent(new Event('orientationchange'));
-    });
-
-    expect(meta.content).toContain('viewport-fit=auto');
-
-    act(() => {
-      vi.advanceTimersByTime(50);
-    });
-
-    expect(meta.content).toBe(original);
   });
 
   it('убирает переменную при размонтировании', () => {

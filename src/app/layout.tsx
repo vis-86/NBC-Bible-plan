@@ -35,8 +35,11 @@ export const metadata: Metadata = {
   manifest: `${basePath}/manifest.webmanifest`,
   appleWebApp: {
     capable: true,
-    // black-translucent: контент уходит под статус-бар, фон брови красят сами
-    // шапки через pt-safe (см. globals.css) — инвариант «бровь = цвет шапки».
+    // black-translucent: статус-бар прозрачный, белый текст поверх контента.
+    // Проверяли переход на непрозрачный black (чтобы iOS отодвинул контент от
+    // Dynamic Island без cover) — визуально хуже (постоянная чёрная полоса
+    // сверху, режет на светлой теме), а под островком по факту ничего важного не
+    // перекрывалось. Остаёмся на translucent.
     statusBarStyle: "black-translucent",
     title: "Bible Plan",
   },
@@ -47,8 +50,16 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // env(safe-area-inset-*) наполняются только при viewport-fit=cover.
-  viewportFit: "cover",
+  // viewport-fit=auto (НЕ cover) — сознательно. При cover в standalone-PWA на iOS
+  // layout viewport растягивается под home-indicator, и под плавающим нижним баром
+  // вылезала пустая полоса фона, разной высоты в портрете/ландшафте («растёт при
+  // повороте»). Эталон-сосед chordpro тоже без cover и без этой полосы. Замеры с
+  // реального iPhone подтвердили: с auto оболочка (`.h-app-viewport`, fixed;inset:0)
+  // точно совпадает с visualViewport в обеих ориентациях, полосы нет.
+  // Расплата: env(safe-area-inset-*) при auto = 0, поэтому своей «брови» под цвет
+  // экрана нет — статус-бар (black-translucent) рисует система. Не возвращать cover
+  // без решения проблемы полосы снизу.
+  viewportFit: "auto",
   // Нативный зум страницы запрещён: приложение — PWA с фиксированной высотой,
   // после пинча и возврата к 1× layout-viewport оставался смещённым (пустая полоса
   // снизу). Свой зум есть только в режиме пометок песни (useInkStage).
