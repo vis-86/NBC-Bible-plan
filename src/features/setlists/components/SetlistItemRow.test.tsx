@@ -39,7 +39,8 @@ describe('SetlistItemRow / SetlistReorderList', () => {
 
     expect(row.style.touchAction).toBe('');
     expect(row.getAttribute('role')).toBeNull();
-    expect(handle.className).toContain('touch-none');
+    // Именно inline: класс проигрывает глобальному `button { touch-action: manipulation }`.
+    expect(handle.style.touchAction).toBe('none');
     expect(handle.getAttribute('aria-roledescription')).toBe('sortable');
   });
 

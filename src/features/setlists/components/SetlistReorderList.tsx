@@ -105,7 +105,11 @@ const SortableRow: React.FC<{
             aria-label={`Перетащить «${song.title}»`}
             {...attributes}
             {...listeners}
-            className="flex h-11 w-10 shrink-0 cursor-grab touch-none items-center justify-center text-app-text-muted active:cursor-grabbing"
+            // Inline, не класс `touch-none`: глобальное `button { touch-action: manipulation }`
+            // из globals.css лежит вне @layer и перебивает утилиты Tailwind — телефон
+            // забирал жест под скролл, и drag с ручки не стартовал.
+            style={{ touchAction: 'none' }}
+            className="flex h-11 w-10 shrink-0 cursor-grab items-center justify-center text-app-text-muted active:cursor-grabbing"
           >
             <GripVertical size={18} />
           </button>
