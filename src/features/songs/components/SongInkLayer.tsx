@@ -329,7 +329,10 @@ export function SongInkLayer({
         aria-hidden
         // Canvas стоит на видимом окне листа, а не на всём потоке: холст шириной во
         // весь поток пришлось бы держать в памяти по копии на каждый лист.
-        className="pointer-events-none absolute top-0 h-full w-full"
+        // В режиме он же — зона касаний: со второго листа хост уехал `translateX` за
+        // экран, и видимые колонки — лишь переполнение потока. Без холста касание
+        // ловилось только поверх строк: пустая колонка и место под текстом не рисовались.
+        className={cn('absolute top-0 h-full w-full', ink.active ? 'pointer-events-auto' : 'pointer-events-none')}
         style={{ left: contentOffsetX }}
       />
 

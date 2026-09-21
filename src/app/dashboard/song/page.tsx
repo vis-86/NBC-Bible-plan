@@ -18,7 +18,8 @@ import { SongQuickTools } from '@/features/songs/components/SongQuickTools';
 import { SongFreshBanner } from '@/features/songs/components/SongFreshBanner';
 import { SongInkButton } from '@/features/songs/components/SongInkButton';
 import { SongInkToolbar } from '@/features/songs/components/SongInkToolbar';
-import { SongInkModeBar } from '@/features/songs/components/SongInkModeBar';
+import { INK_MODEBAR_RESERVE_PX, SongInkModeBar } from '@/features/songs/components/SongInkModeBar';
+import { inkSpacerScrollTop } from '@/features/songs/lib/inkModeSpacer';
 import { useSongInk } from '@/features/songs/hooks/useSongInk';
 import { useInkStage } from '@/features/songs/hooks/useInkStage';
 import { useSongAnnotations } from '@/features/songs/hooks/useSongAnnotations';
@@ -196,6 +197,19 @@ function SongPageContent() {
     active: ink.active,
     penOnly: INK_PEN_ONLY,
   });
+
+  // Отступ под плашку режима пометок. Прокрутка правится в layout-эффекте — в том же
+  // кадре, что и новый paddingTop, иначе лист мелькнёт сдвинутым.
+  const inkSpacer = ink.active ? INK_MODEBAR_RESERVE_PX : 0;
+  const inkWasActive = useRef(ink.active);
+  useLayoutEffect(() => {
+    if (inkWasActive.current === ink.active) return;
+    inkWasActive.current = ink.active;
+    const viewport = contentRef.current;
+    if (!viewport) return;
+    ignoreNextScroll();
+    viewport.scrollTop = inkSpacerScrollTop(viewport.scrollTop, INK_MODEBAR_RESERVE_PX, ink.active);
+  }, [ink.active, ignoreNextScroll]);
 
   /**
    * Тап по листу возвращает хром. Скролл вверх остаётся вторым способом, но когда
@@ -392,6 +406,7 @@ function SongPageContent() {
                   // Сдвиг постоянный, а не по headerHidden: автоскрытие шапки во время
                   // рисования иначе дёргало бы плашку вверх-вниз.
                   topOffset={headerHeight}
+                  drawing={ink.draft !== null}
                   onDone={() => ink.exit(true)}
                   onCancel={() => ink.exit(false)}
                 />
@@ -420,7 +435,7 @@ function SongPageContent() {
             // paddingTop — место под оверлейную шапку: собственный отступ листа
             // (py-4/py-2 прежней раскладки) прибавляется к её измеренной высоте.
             style={{
-              paddingTop: `calc(${headerHeight}px + ${mode === 'scroll' ? '1rem' : '0.5rem'})`,
+              paddingTop: `calc(${headerHeight + inkSpacer}px + ${mode === 'scroll' ? '1rem' : '0.5rem'})`,
               ...(ink.active && INK_PEN_ONLY ? { touchAction: 'pan-x pan-y' } : {}),
             }}
           >
@@ -475,6 +490,7 @@ function SongPageContent() {
                 // на широком экране с одной колонкой (второго брейкпоинта нет).
                 wideLayout={isWideLayout}
                 viewportRef={contentRef}
+                viewportExtraTop={inkSpacer}
                 ink={ink}
                 inkPenOnly={INK_PEN_ONLY}
                 inkInstant={INK_INSTANT}

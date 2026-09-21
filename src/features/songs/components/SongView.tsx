@@ -65,6 +65,12 @@ interface SongViewProps {
   /** Скролл-контейнер страницы — из его высоты берётся высота листа (§4.2). */
   viewportRef?: RefObject<HTMLElement | null>;
   /**
+   * Лишний верхний отступ скролл-контейнера, px (место под плашку режима пометок).
+   * В высоту листа он не входит: иначе вход в режим переразбивал бы страницы — и
+   * перелом приезжал посреди первого штриха.
+   */
+  viewportExtraTop?: number;
+  /**
    * Режим рукописных пометок (M10). Не задан ⇒ слой не монтируется вовсе и лист
    * рендерится ровно как раньше.
    */
@@ -104,6 +110,7 @@ export const SongView: React.FC<SongViewProps> = ({
   columns = 1,
   wideLayout = false,
   viewportRef,
+  viewportExtraTop = 0,
   ink,
   inkPenOnly = false,
   inkInstant = false,
@@ -152,7 +159,7 @@ export const SongView: React.FC<SongViewProps> = ({
     layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}|${semitones}|${chordDisplay}|${chordScale ?? 0}|${pairLines ? 'pair' : 'solo'}`,
     fontSize: fontSize ?? 0,
     // PAGE_PADDING — нижнее поле корня: `chromeAboveFlow` меряет только то, что над потоком.
-    reservedHeight: SHEET_PADDING_TOP + PAGE_PADDING,
+    reservedHeight: SHEET_PADDING_TOP + PAGE_PADDING - viewportExtraTop,
   });
 
   // Плашка показывает ЗВУЧАЩУЮ тональность (metaKey), а не форму (songKey): при капо это

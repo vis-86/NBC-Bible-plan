@@ -14,6 +14,7 @@
  */
 import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
+import { cn } from '@/shared/utils/cn';
 import { INK_TOOL_LABELS, inkSwatchColor, type InkToolChoice } from '../lib/inkTools';
 import { SongInkConfirm } from './SongInkConfirm';
 
@@ -35,10 +36,23 @@ export interface SongInkModeBarProps {
    * Спека §6: плашка стоит под шапкой, а не поверх неё.
    */
   topOffset?: number;
+  /**
+   * Идёт штрих: плашка растворяется и пропускает касания — пером у верхнего края
+   * иначе рисуешь вслепую под ней.
+   */
+  drawing?: boolean;
 }
 
 /** Зазор между шапкой и плашкой. */
 const TOP_GAP_PX = 8;
+
+/**
+ * Место, которое плашка занимает под шапкой: зазор + таблетка (кнопки `h-9`, `py-1`,
+ * рамка) + зазор до текста. Страница добавляет его отступом над листом, чтобы первые
+ * строки можно было опустить под плашку. Подсказку и подтверждение не резервируем —
+ * они временные.
+ */
+export const INK_MODEBAR_RESERVE_PX = TOP_GAP_PX + 46 + TOP_GAP_PX;
 
 /** Подсказка о двухпальцевом жесте: сам его никто не найдёт. */
 const HINT_TEXT = 'Два пальца — прокрутка и масштаб';
@@ -53,6 +67,7 @@ export function SongInkModeBar({
   onDone,
   onCancel,
   topOffset = 0,
+  drawing = false,
 }: SongInkModeBarProps) {
   const [hintVisible, setHintVisible] = useState(true);
   const [confirming, setConfirming] = useState(false);
@@ -72,10 +87,20 @@ export function SongInkModeBar({
     <div
       data-song-ink-ui
       data-song-ink-modebar
-      className="pointer-events-none absolute inset-x-0 z-30 flex flex-col items-center gap-1.5 px-3"
+      data-song-ink-modebar-drawing={drawing ? '' : undefined}
+      className={cn(
+        'pointer-events-none absolute inset-x-0 z-30 flex flex-col items-center gap-1.5 px-3 transition-opacity',
+        // Уходит быстро, возвращается не спеша: мигание между штрихами отвлекает.
+        drawing ? 'opacity-0 duration-150' : 'opacity-100 duration-500'
+      )}
       style={{ top: topOffset + TOP_GAP_PX }}
     >
-      <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border border-app-border bg-app-surface-elevated/95 py-1 pr-1 pl-3 shadow-app-md backdrop-blur-md">
+      <div
+        className={cn(
+          'flex max-w-full items-center gap-2 rounded-full border border-app-border bg-app-surface-elevated/95 py-1 pr-1 pl-3 shadow-app-md backdrop-blur-md',
+          drawing ? 'pointer-events-none' : 'pointer-events-auto'
+        )}
+      >
         <span
           aria-hidden
           data-song-ink-modebar-color
