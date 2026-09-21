@@ -18,6 +18,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
 import { SetlistItemRow } from './SetlistItemRow';
 
 /** Минимум, который нужен строке порядка. `id` — id ПЕСНИ, не строки сета. */
@@ -56,9 +57,9 @@ const CURRENT_CLASS = 'border-app-primary bg-app-primary-muted';
 const DND_MODIFIERS = [restrictToVerticalAxis];
 
 /**
- * Строка в editable-режиме: @dnd-kit `useSortable`. Перетаскивается ЦЕЛИКОМ (listeners
- * на всём `<li>`) — ручка-`⠿` только визуальный аффорданс. `touch-action: none` обязателен,
- * иначе браузер заберёт вертикальный тач под скролл и drag не стартует на телефоне.
+ * Строка в editable-режиме: @dnd-kit `useSortable`. Перетаскивается только за ручку `⠿`
+ * (`setActivatorNodeRef` + listeners на ней): при drag за всю строку список нельзя было
+ * проскроллить — любой свайп хватал песню. `touch-action: none` — только на ручке.
  *
  * Без `DragOverlay`: строку двигает её собственный `transform` (относительное
  * позиционирование). Оверлей здесь нельзя — он `position: fixed`, а оболочка дашборда
@@ -72,14 +73,13 @@ const SortableRow: React.FC<{
   onOpen?: () => void;
   onRemove?: () => void;
 }> = ({ song, index, current, onOpen, onRemove }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({
     id: String(song.id),
   });
 
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    touchAction: 'none',
     // Поднимаем взятую строку над соседями (тень — в className).
     zIndex: isDragging ? 20 : undefined,
     position: isDragging ? 'relative' : undefined,
@@ -92,14 +92,24 @@ const SortableRow: React.FC<{
       data-setlist-builder-item
       aria-current={current ? 'true' : undefined}
       className={`${current ? `${ROW_CLASS} ${CURRENT_CLASS}` : ROW_CLASS} select-none ${isDragging ? 'shadow-app-lg' : ''}`}
-      {...attributes}
-      {...listeners}
     >
       <SetlistItemRow
         song={song}
         index={index}
         editable
-        isDragging={isDragging}
+        dragHandle={
+          <button
+            type="button"
+            ref={setActivatorNodeRef}
+            data-setlist-builder-item-handle
+            aria-label={`Перетащить «${song.title}»`}
+            {...attributes}
+            {...listeners}
+            className="flex h-11 w-10 shrink-0 cursor-grab touch-none items-center justify-center text-app-text-muted active:cursor-grabbing"
+          >
+            <GripVertical size={18} />
+          </button>
+        }
         onOpen={onOpen}
         onRemove={onRemove}
       />
@@ -117,7 +127,7 @@ export const SetlistReorderList: React.FC<SetlistReorderListProps> = ({
   currentSongId,
   scrollable = false,
 }) => {
-  // Порог 6px разводит тап (открыть песню) и перетаскивание; клавиатурный сенсор — a11y.
+  // Порог 6px отсекает случайное касание ручки; клавиатурный сенсор — a11y.
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import { SetlistReorderList } from './SetlistReorderList';
 
 const ITEMS = [
@@ -32,9 +32,43 @@ describe('SetlistItemRow / SetlistReorderList', () => {
     expect(onOpen).toHaveBeenCalledWith(1);
   });
 
+  it('drag стартует только с ручки: строка не забирает тач у скролла', () => {
+    const { container } = render(<SetlistReorderList items={ITEMS} onReorder={vi.fn()} onRemove={vi.fn()} />);
+    const row = container.querySelector('[data-setlist-builder-item]') as HTMLElement;
+    const handle = row.querySelector('[data-setlist-builder-item-handle]') as HTMLElement;
+
+    expect(row.style.touchAction).toBe('');
+    expect(row.getAttribute('role')).toBeNull();
+    expect(handle.className).toContain('touch-none');
+    expect(handle.getAttribute('aria-roledescription')).toBe('sortable');
+  });
+
+  it('протяжка по строке не тащит песню, протяжка за ручку — тащит', () => {
+    const { container } = render(<SetlistReorderList items={ITEMS} onReorder={vi.fn()} onRemove={vi.fn()} />);
+    const row = container.querySelector('[data-setlist-builder-item]') as HTMLElement;
+    const title = row.querySelector('[data-setlist-view-item]') ?? row.querySelector('p');
+    const handle = row.querySelector('[data-setlist-builder-item-handle]') as HTMLElement;
+
+    const drag = (el: Element) => {
+      act(() => {
+        fireEvent.pointerDown(el, { isPrimary: true, button: 0, clientX: 10, clientY: 10 });
+      });
+      act(() => {
+        fireEvent.pointerMove(document, { isPrimary: true, clientX: 10, clientY: 60 });
+      });
+    };
+
+    drag(title as Element);
+    expect(row.className).not.toContain('shadow-app-lg');
+
+    drag(handle);
+    expect(row.className).toContain('shadow-app-lg');
+  });
+
   it('editable=false: без drag-группы, ручки и крестика', () => {
     const { container } = render(<SetlistReorderList items={ITEMS} editable={false} onOpen={vi.fn()} />);
     expect(container.querySelector('[data-setlist-builder-reorder-list]')).toBeNull();
+    expect(container.querySelector('[data-setlist-builder-item-handle]')).toBeNull();
     expect(container.querySelector('[data-setlist-builder-item-remove]')).toBeNull();
     expect(container.querySelector('[data-setlist-view-items]')).toBeTruthy();
   });
