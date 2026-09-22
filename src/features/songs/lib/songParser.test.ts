@@ -49,6 +49,32 @@ describe('parseSongBlocks', () => {
     expect(joined).not.toContain('{end_of_chorus}');
     expect(joined).not.toContain('{key:');
   });
+
+  it('keeps a song without any section label as one unlabelled block', () => {
+    // M9: музыкант вставит короткую песню без «Куплет:» — лист не должен выйти пустым.
+    expect(parseSongBlocks('[G]Слава [D]Богу\nАллилуйя\n')).toEqual([
+      { comment: '', content: '[G]Слава [D]Богу\nАллилуйя', commentType: 'normal', kind: 'other' },
+    ]);
+  });
+
+  it('keeps text before the first label as a leading unlabelled block', () => {
+    const parsed = parseSongBlocks('\n{title: X}\nВступление [Am]\n\n{comment: Припев}\nАллилуйя');
+    expect(parsed.map(({ comment, content, kind }) => ({ comment, content, kind }))).toEqual([
+      { comment: '', content: 'Вступление [Am]', kind: 'other' },
+      { comment: 'Припев', content: 'Аллилуйя', kind: 'chorus' },
+    ]);
+  });
+
+  it('does not add a leading block when only blanks and directives precede the first label', () => {
+    // Так начинаются все песни каталога: индексы секций (якоря пометок) не сдвигаются.
+    const parsed = parseSongBlocks('\n{key: D}\n{start_of_chorus}\n\n{comment: Куплет 1}\nтекст');
+    expect(parsed.map((b) => b.comment)).toEqual(['Куплет 1']);
+  });
+
+  it('returns no blocks for empty content', () => {
+    expect(parseSongBlocks('')).toEqual([]);
+    expect(parseSongBlocks('\n  \n{title: X}\n')).toEqual([]);
+  });
 });
 
 describe('parseLine', () => {
