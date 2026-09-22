@@ -7,9 +7,11 @@
  * Маппит поле `song_key` (Directus) → `key` (доменный тип Song).
  * Клиент в Directus напрямую не ходит — только через эти функции + API-роуты (arch: proxy).
  */
-import { readItem, readItems } from '@directus/sdk';
+import { createItem, readItem, readItems, updateItem } from '@directus/sdk';
 import { getDirectusAdminClient } from '@/lib/directus';
+import type { CreateSongInput, UpdateSongInput } from '@/lib/validators/songs.schemas';
 import { chordProToPlainText } from '../lib/searchText';
+import { buildSongSlug, nextFreeSlug } from '../lib/songSlug';
 import type { Song, SongSummary } from '../types';
 
 const LOG = '[Songs API]';
@@ -111,4 +113,88 @@ export async function getSongVersions(): Promise<Array<[string, string]>> {
   // Песня, ни разу не правленная после импорта, имеет пустой date_updated — берём
   // date_created, иначе все такие песни делили бы одну «версию» и не обновлялись.
   return rows.map((row) => [String(row.id), String(row.date_updated ?? row.date_created ?? '')]);
+}
+
+/** Песни нет: отдельный класс, чтобы роут отличил 404 от отказа Directus. */
+export class SongNotFoundError extends Error {
+  constructor(id: number) {
+    super(`song ${id} not found`);
+    this.name = 'SongNotFoundError';
+  }
+}
+
+/** Поля тела запроса → колонки Directus. Undefined-поля в патч не попадают. */
+function toRow(input: Partial<CreateSongInput & UpdateSongInput>): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (input.title !== undefined) row.title = input.title;
+  if (input.subtitle !== undefined) row.subtitle = input.subtitle;
+  if (input.songKey !== undefined) row.song_key = input.songKey;
+  if (input.defaultKey !== undefined) row.default_key = input.defaultKey;
+  if (input.tempo !== undefined) row.tempo = input.tempo;
+  if (input.time !== undefined) row.time = input.time;
+  if (input.content !== undefined) row.content = input.content;
+  return row;
+}
+
+/**
+ * Создание песни (M9). Сервер сам задаёт три поля, которых нет в теле запроса:
+ *
+ * - `sort` = max + 1 — новая песня встаёт в конец каталога; в проде пустых `sort` нет;
+ * - `slug` — NOT NULL + UNIQUE без дефолта, формат корпуса `{sort}-{название кебабом}`;
+ * - `status: 'published'` — черновиков в модели нет (решение 1), а `draft` не попал бы
+ *   ни в каталог, ни в sync-манифест: оба фильтруют по `published`.
+ *
+ * Версию песни поднимать не нужно: манифест считает её по `date_updated`/`date_created`.
+ */
+export async function createSong(input: CreateSongInput): Promise<number> {
+  const client = getDirectusAdminClient();
+
+  const [last]: Array<{ sort?: number | null }> = await client.request(
+    readItems('songs', { fields: ['sort'], sort: ['-sort'], limit: 1 }),
+  );
+  const sort = (last?.sort ?? 0) + 1;
+
+  const base = buildSongSlug(sort, input.title);
+  const siblings: Array<{ slug: string }> = await client.request(
+    readItems('songs', { fields: ['slug'], filter: { slug: { _starts_with: base } }, limit: -1 }),
+  );
+  const slug = nextFreeSlug(base, siblings.map((row) => row.slug));
+
+  const created: { id: number } = await client.request(
+    createItem('songs', { ...toRow(input), slug, sort, status: 'published' }),
+  );
+
+  console.debug(`${LOG} create: song ${created.id} (${slug})`);
+  return created.id;
+}
+
+/**
+ * Правка песни (M9). Патч частичный; `slug` не пересчитывается даже при смене
+ * названия — это идентичность записи, по ней upsert'ит импортёр корпуса.
+ * Конфликт двух редакторов — last-write-wins (решение 1).
+ */
+export async function updateSong(id: number, input: UpdateSongInput): Promise<void> {
+  const client = getDirectusAdminClient();
+  const row = toRow(input);
+
+  try {
+    await client.request(updateItem('songs', id, row));
+  } catch (error) {
+    // Directus отдаёт 403/404 на отсутствующий id — для клиента это «не найдено».
+    if (isNotFound(error)) throw new SongNotFoundError(id);
+    throw error;
+  }
+
+  console.debug(`${LOG} update: song ${id}, fields [${Object.keys(row).join(', ')}]`);
+}
+
+function isNotFound(error: unknown): boolean {
+  const status = (error as { response?: { status?: number }; status?: number })?.response?.status
+    ?? (error as { status?: number })?.status;
+  if (status === 403 || status === 404) return true;
+
+  const text = `${JSON.stringify((error as { errors?: unknown })?.errors ?? '')} ${
+    error instanceof Error ? error.message : String(error)
+  }`.toLowerCase();
+  return text.includes('not found') || text.includes('forbidden');
 }
