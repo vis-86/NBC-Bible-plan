@@ -21,6 +21,10 @@ const StrokeSchema = z.object({
   anchor: z.object({
     section: z.number().int().min(0),
     line: z.number().int().min(0),
+    // Хэш содержимого строки (M9, `inkLineHash.ts`). Без явного поля `z.object` молча
+    // вырезал бы его на каждой записи, и после перезагрузки с сервера пометки снова
+    // держались бы только за индекс.
+    hash: z.string().min(1).max(16).optional(),
   }),
   points: z.array(PointSchema).min(1).max(MAX_POINTS),
   color: z.string().min(1).max(32),

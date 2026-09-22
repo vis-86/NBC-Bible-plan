@@ -184,6 +184,9 @@ function SongPageContent() {
     // сессия рисования получает его стартовым и возвращает выбор обратно.
     initialColor: viewSettings.inkColor,
     onColorChange: (inkColor) => setViewSettings({ inkColor }),
+    // Тот же текст, что уходит в SongView: по нему якоря пометок пересаживаются на
+    // свои строки после правки песни (M9). После «Песня обновлена» — уже новая версия.
+    content: song?.content,
   });
   const {
     setStage,

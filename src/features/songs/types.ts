@@ -71,8 +71,12 @@ export interface SongStroke {
   id: string;
   /** `arrow` — прямой отрезок с наконечником: ровно две точки (начало, остриё). */
   tool: SongInkTool;
-  /** Якорь: индексы секции и строки в распарсенной песне (§6). */
-  anchor: { section: number; line: number };
+  /**
+   * Якорь: индексы секции и строки в распарсенной песне (§6) плюс хэш содержимого
+   * строки (M9) — по нему позиция восстанавливается после правки текста.
+   * `hash` необязателен: штрихи, сохранённые до M9, его не имеют (`inkLineHash.ts`).
+   */
+  anchor: { section: number; line: number; hash?: string };
   /** px относительно bounding box строки-якоря. Для `text` — одна точка. */
   points: Array<[x: number, y: number, pressure: number]>;
   color: string;
