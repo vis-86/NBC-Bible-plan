@@ -260,3 +260,72 @@ describe('SongEditor — знаки в цепочке аккордов', () => {
     expect((screen.getByLabelText('Убрать аккорд') as HTMLButtonElement).disabled).toBe(false);
   });
 });
+
+describe('SongEditor — перетаскивание аккорда (логика жеста; настоящий тач — e2e/gestures)', () => {
+  const SONG: SongEditorDraft = { ...EXISTING, content: '[Am]Слово Тво[C]ё' };
+
+  beforeEach(() => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+    // jsdom без захвата указателя; в браузере он держит жест за аккордом.
+    HTMLElement.prototype.setPointerCapture = vi.fn();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function sourceOf(container: Element): string {
+    fireEvent.click(screen.getByText('Исходник'));
+    return (container.querySelector('[data-song-editor-source-input]') as HTMLTextAreaElement).value;
+  }
+
+  function chip(container: Element, text: string): HTMLElement {
+    return Array.from(container.querySelectorAll<HTMLElement>('[data-song-chord-canvas-chip]')).find((c) => c.textContent === text)!;
+  }
+
+  it('протянутый за порог аккорд встаёт на точку отпускания и остаётся выбранным', () => {
+    const { container } = render(<SongEditor songId="7" initial={SONG} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    const c = chip(container, 'C');
+
+    fireEvent.pointerDown(c, { pointerId: 1, clientX: 100, clientY: 10 });
+    fireEvent.pointerMove(c, { pointerId: 1, clientX: 60, clientY: 10 });
+    expect(container.querySelector('[data-song-chord-canvas-guide]')).toBeTruthy();
+    fireEvent.pointerUp(c, { pointerId: 1, clientX: 60, clientY: 10 });
+    // click после отпускания не должен снять только что выставленный выбор.
+    fireEvent.click(chip(container, 'C'));
+
+    expect(container.querySelector('[data-song-chord-keyboard-hint]')?.textContent).toBe('Выбран C');
+    expect(container.querySelector('[data-song-chord-keyboard-undo]')).toBeTruthy();
+    // jsdom: все точки вставки в (0,0) — цель всегда начало строки.
+    expect(sourceOf(container)).toBe('[Am][C]Слово Твоё');
+  });
+
+  it('движение меньше порога — это тап: выбор, без правки', () => {
+    const { container } = render(<SongEditor songId="7" initial={SONG} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    const c = chip(container, 'C');
+
+    fireEvent.pointerDown(c, { pointerId: 1, clientX: 100, clientY: 10 });
+    fireEvent.pointerMove(c, { pointerId: 1, clientX: 104, clientY: 12 });
+    fireEvent.pointerUp(c, { pointerId: 1, clientX: 104, clientY: 12 });
+    fireEvent.click(c);
+
+    expect(container.querySelector('[data-song-chord-keyboard-hint]')?.textContent).toBe('Выбран C');
+    expect(container.querySelector('[data-song-chord-keyboard-undo]')).toBeNull();
+  });
+
+  it('pointercancel (браузер забрал жест) — аккорд возвращается, песня не меняется', () => {
+    const { container } = render(<SongEditor songId="7" initial={SONG} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    const c = chip(container, 'C');
+
+    fireEvent.pointerDown(c, { pointerId: 1, clientX: 100, clientY: 10 });
+    fireEvent.pointerMove(c, { pointerId: 1, clientX: 40, clientY: 10 });
+    fireEvent.pointerCancel(c, { pointerId: 1 });
+
+    expect(container.querySelector('[data-song-chord-canvas-guide]')).toBeNull();
+    expect(sourceOf(container)).toBe('[Am]Слово Тво[C]ё');
+  });
+
+  it('аккорды жестом тянутся без системной прокрутки: touch-action none инлайном', () => {
+    const { container } = render(<SongEditor songId="7" initial={SONG} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    expect(chip(container, 'C').style.touchAction).toBe('none');
+  });
+});

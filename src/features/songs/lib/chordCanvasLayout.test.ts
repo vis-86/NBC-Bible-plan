@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nearestCaretPoint, resolveChipOverlaps, type CaretPoint } from './chordCanvasLayout';
+import { nearestCaretPoint, resolveChipOverlaps, rubberBand, springFrames, type CaretPoint } from './chordCanvasLayout';
 
 // Две визуальные строки переносимой строки текста: ряд 0 (top 20) и ряд 1 (top 74).
 const POINTS: CaretPoint[] = [
@@ -47,5 +47,34 @@ describe('resolveChipOverlaps', () => {
         { x: 0, top: 54, width: 20 },
       ])
     ).toEqual([50, 0]);
+  });
+});
+
+describe('rubberBand', () => {
+  it('внутри границ — как есть', () => {
+    expect(rubberBand(50, 0, 100, 300)).toBe(50);
+  });
+
+  it('за границей идёт медленнее пальца, но идёт', () => {
+    const over = rubberBand(160, 0, 100, 300);
+    expect(over).toBeGreaterThan(100);
+    expect(over).toBeLessThan(160);
+    expect(rubberBand(-60, 0, 100, 300)).toBeCloseTo(-(over - 100), 5);
+  });
+});
+
+describe('springFrames', () => {
+  it('приходит в 0 и не зацикливается', () => {
+    const frames = springFrames(80, 0);
+    expect(frames[0]).toBe(80);
+    expect(frames[frames.length - 1]).toBe(0);
+    expect(frames.length).toBeLessThan(92);
+  });
+
+  it('скорость отпускания продолжает движение, а не обрывается', () => {
+    // Отпустили на 20px левее нового места, но рука двигалась влево: первый кадр уходит дальше влево.
+    const frames = springFrames(-20, -600);
+    expect(frames[1]).toBeLessThan(-20);
+    expect(frames[frames.length - 1]).toBe(0);
   });
 });

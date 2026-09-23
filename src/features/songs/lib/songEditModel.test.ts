@@ -7,6 +7,7 @@ import {
   isChordOnlyLine,
   lyricAt,
   moveChordToLine,
+  moveChordWithinLine,
   neighbourTextLine,
   parseEditModel,
   removeChord,
@@ -116,5 +117,18 @@ describe('neighbourTextLine / moveChordToLine', () => {
     expect(out[1]).toBe('[Am]Слово Твоё');
     expect(out[6]).toBe('Аллил[F]уйя[C]');
     expect(chordAt(lines, ref)).toEqual({ pos: 8, chord: 'C' });
+  });
+});
+
+describe('moveChordWithinLine', () => {
+  it('переставляет аккорд вдоль строки с сохранением порядка', () => {
+    const { lines, ref } = moveChordWithinLine(parseEditModel('[Am]Слово Тво[C]ё'), { line: 0, index: 0 }, 10);
+    expect(serializeEditModel(lines)).toBe('Слово Тво[C]ё[Am]');
+    expect(ref).toEqual({ line: 0, index: 1 });
+  });
+
+  it('на позицию соседа — встаёт рядом, соседа не заменяет', () => {
+    const { lines } = moveChordWithinLine(parseEditModel('[Am]Слово Тво[C]ё'), { line: 0, index: 0 }, 9);
+    expect(serializeEditModel(lines)).toBe('Слово Тво[C][Am]ё');
   });
 });

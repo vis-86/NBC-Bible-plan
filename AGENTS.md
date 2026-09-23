@@ -197,6 +197,7 @@ bible-plan/
 | `src/shared/offline/chunkGuard.ts` + `src/components/ChunkGuard.tsx` | ChunkLoadError guard — auto-reload-once с cooldown |
 | `server/src/routes/*` (health route) | 204 no-store ping — гейт online-триггера outbox-синка (`isServerReachable`) |
 | `e2e/gestures/song-autoscroll-touch.spec.ts` | Ручной тач-скролл во время автоскролла: приостанавливает движок и НЕ выключает режим — после жеста лист едет дальше сам (wheel-ветка покрыта в `e2e/layout/song-autoscroll.spec.ts`) |
+| `e2e/gestures/chord-drag.spec.ts` | Перетаскивание аккорда в редакторе песни настоящим тачем (CDP, Pixel 7): аккорд доезжает, `pointercancel` нет, вертикальная прокрутка текста жива. Роль `musician_editor` и запись песни подменяются `route` (SW заблокирован) |
 | `e2e/gestures/swipe-pager.spec.ts` | Свайп глав/песен настоящим тачем (CDP `Input.dispatchTouchEvent`, контур Pixel 7): ловит регрессии `touch-action`, которые jsdom-тесты `SwipePager` увидеть не могут |
 | `e2e/offline/` + `playwright.config.ts` | Офлайн E2E-регрессия (`npm run e2e:offline`) — cold start, cold-start-any-route (precache), навигация, outbox sync, update-flow, сетлисты, пометки песни (полный круг записи) |
 | `scripts/static-serve.ts` | Локальный static+bff-proxy сервер для e2e (аналог nginx) |

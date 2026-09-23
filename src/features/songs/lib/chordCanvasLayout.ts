@@ -60,3 +60,49 @@ export function resolveChipOverlaps(chips: ChipBox[], gap = 3): number[] {
   });
   return lefts;
 }
+
+/**
+ * Резиновый край: за границей `[min, max]` элемент идёт за пальцем всё медленнее,
+ * но идёт — жёсткий упор ощущается как зависание. Формула — классическая
+ * rubber-band из UIScrollView: `(over·dim·c) / (dim + c·over)`.
+ */
+export function rubberBand(value: number, min: number, max: number, dimension: number, c = 0.55): number {
+  const band = (over: number) => (over * dimension * c) / (dimension + c * over);
+  if (value < min) return min - band(min - value);
+  if (value > max) return max + band(value - max);
+  return value;
+}
+
+export interface SpringOptions {
+  /** Жёсткость, 1/с². */
+  stiffness?: number;
+  /** Демпфирование, 1/с. Критическое — `2·√stiffness`; меньше — лёгкий перелёт. */
+  damping?: number;
+  /** Шаг интегрирования = кадр. */
+  frameMs?: number;
+  /** Страховка от бесконечного колебания при кривых параметрах. */
+  maxFrames?: number;
+}
+
+/**
+ * Смещения по кадрам для посадки аккорда: из `offset` (где его отпустили относительно
+ * нового места) в 0, с начальной скоростью отпускания. Скорость НЕ проецирует цель
+ * (решено в плане M9: расстановка — точная задача), она только убирает шов между
+ * пальцем и анимацией. Последний кадр всегда 0.
+ */
+export function springFrames(offset: number, velocity: number, options: SpringOptions = {}): number[] {
+  const { stiffness = 400, damping = 34, frameMs = 1000 / 60, maxFrames = 90 } = options;
+  const dt = frameMs / 1000;
+  const frames: number[] = [offset];
+  let x = offset;
+  let v = velocity;
+  for (let i = 0; i < maxFrames; i++) {
+    // Полунеявный Эйлер: устойчив на шаге кадра, в отличие от явного.
+    v += (-stiffness * x - damping * v) * dt;
+    x += v * dt;
+    if (Math.abs(x) < 0.5 && Math.abs(v) < 20) break;
+    frames.push(x);
+  }
+  frames.push(0);
+  return frames;
+}

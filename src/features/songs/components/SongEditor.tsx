@@ -23,6 +23,7 @@ import {
   chordAt,
   insertChord,
   moveChordToLine,
+  moveChordWithinLine,
   neighbourTextLine,
   parseEditModel,
   removeChord,
@@ -65,7 +66,7 @@ function importSummary(imported: ImportedSong): string {
  * Редактор песни (M9): метаданные, вставка «аккорды над строкой», холст «Аккорды»
  * (тап ставит курсор, клавиатура ставит и правит аккорд) и ChordPro-исходник.
  * Все вкладки пишут в один `draft.content`; предпросмотр — тем же `SongView`, что и
- * на экране песни. Перетаскивание аккорда вдоль строки — T3c.
+ * на экране песни. Аккорд двигается вдоль строки перетаскиванием, между строками — ↑/↓.
  *
  * Запись online-only (решение 4): без сети кнопка неактивна и видна причина.
  */
@@ -149,6 +150,13 @@ export function SongEditor({ songId, initial, onSaved, onCancel }: SongEditorPro
     const result = moveChordToLine(lines, selected, target);
     commitLines(result.lines);
     setSelected(result.ref);
+  };
+
+  const handleDragChord = (ref: ChordRef, pos: number) => {
+    const result = moveChordWithinLine(lines, ref, pos);
+    commitLines(result.lines);
+    setSelected(result.ref);
+    setCursor(null);
   };
 
   const handleRemove = () => {
@@ -285,6 +293,7 @@ export function SongEditor({ songId, initial, onSaved, onCancel }: SongEditorPro
                     selected={selected}
                     onPlaceCursor={handlePlaceCursor}
                     onSelectChord={handleSelectChord}
+                    onMoveChord={handleDragChord}
                   />
                 ) : (
                   <p className="text-sm text-app-text-muted">

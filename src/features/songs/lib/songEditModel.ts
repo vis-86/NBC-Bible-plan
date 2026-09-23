@@ -162,3 +162,19 @@ export function moveChordToLine(lines: EditLine[], ref: ChordRef, target: number
   const chords = [...targetLine.chords.slice(0, index), { pos, chord: source.chord }, ...targetLine.chords.slice(index)];
   return { lines: withLyric(without, target, { ...targetLine, chords }), ref: { line: target, index } };
 }
+
+/**
+ * Перестановка аккорда вдоль его строки (перетаскивание, T3c). Порядок по `pos` сохраняется:
+ * аккорд встаёт после стоящих на той же позиции, соседа не заменяет — он просто рядом,
+ * раскладка холста раздвинет их.
+ */
+export function moveChordWithinLine(lines: EditLine[], ref: ChordRef, pos: number): { lines: EditLine[]; ref: ChordRef } {
+  const line = lyricAt(lines, ref.line);
+  const moving = line?.chords[ref.index];
+  if (!line || !moving) return { lines, ref };
+  const clamped = Math.max(0, Math.min(pos, line.text.length));
+  const rest = line.chords.filter((_, i) => i !== ref.index);
+  const index = insertionIndex(rest, clamped);
+  const chords = [...rest.slice(0, index), { pos: clamped, chord: moving.chord }, ...rest.slice(index)];
+  return { lines: withLyric(lines, ref.line, { ...line, chords }), ref: { line: ref.line, index } };
+}
