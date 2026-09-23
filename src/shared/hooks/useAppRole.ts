@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { canManageSetlists, type AppRole } from '@/lib/app-roles';
+import { canEditSongs, canManageSetlists, type AppRole } from '@/lib/app-roles';
 import { useAuth } from '@/hooks/useAuth';
 import { readThroughSWR } from '@/shared/offline/readThrough';
 import { userApi } from '@/shared/services/api/endpoints';
@@ -70,7 +70,7 @@ function initialLoading(userId: string | null): boolean {
   return !(cachedForUserId === userId && cachedRole);
 }
 
-export function useAppRole(): { role: AppRole; canManageSetlists: boolean; loading: boolean } {
+export function useAppRole(): { role: AppRole; canManageSetlists: boolean; canEditSongs: boolean; loading: boolean } {
   const { user } = useAuth();
   const userId = user?.directus_id ?? null;
   const [role, setRole] = useState<AppRole>(() => initialRole(userId));
@@ -93,5 +93,5 @@ export function useAppRole(): { role: AppRole; canManageSetlists: boolean; loadi
     };
   }, [userId]);
 
-  return { role, canManageSetlists: canManageSetlists(role), loading };
+  return { role, canManageSetlists: canManageSetlists(role), canEditSongs: canEditSongs(role), loading };
 }

@@ -55,6 +55,21 @@ export interface SongResponse {
   song: Song;
 }
 
+/**
+ * Тело `POST /api/songs` (M9). Зеркало `CreateSongSchema` BFF: `content` — готовый
+ * ChordPro, `slug`/`sort`/`status` ставит сервер.
+ */
+export interface CreateSongPayload {
+  title: string;
+  songKey: string | null;
+  tempo: number | null;
+  time: string | null;
+  content: string;
+}
+
+/** Тело `PUT /api/songs/:id` — только изменённые поля (пустой патч BFF отвергает). */
+export type UpdateSongPayload = Partial<CreateSongPayload>;
+
 /** Инструменты рукописных пометок (M10, §6). */
 export type SongInkTool = 'pen' | 'highlighter' | 'arrow' | 'text';
 

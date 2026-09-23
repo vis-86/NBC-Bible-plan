@@ -27,6 +27,7 @@ const APP_SHELL_ROUTES = [
   '/dashboard/setlists',
   '/dashboard/setlist',
   '/dashboard/setlist-edit',
+  '/dashboard/song-edit',
 ];
 
 /** Прогрев уже запускался в этой сессии страницы — не долбим сеть на каждый рендер. */

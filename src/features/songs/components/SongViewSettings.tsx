@@ -16,6 +16,8 @@ export interface SongViewSettingsProps {
   onClose: () => void;
   settings: SongViewSettingsValue;
   onSettingsChange: (patch: Partial<SongViewSettingsValue>) => void;
+  /** Переход в редактор песни. Передаётся только при `canEditSongs` — иначе пункта нет. */
+  onEditSong?: () => void;
 }
 
 function ToggleRow({ label, checked, onChange, dataAttr }: { label: string; checked: boolean; onChange: () => void; dataAttr?: string }) {
@@ -194,7 +196,7 @@ const COLUMNS_LABELS: Record<SongViewColumns, string> = { 1: '1 колонка',
  * Три смысловые группы вместо плоского списка (§UX-решения плана
  * feature-song-settings-ux): «Текст» → «Раскладка» → «Отображение».
  */
-export const SongViewSettings: React.FC<SongViewSettingsProps> = ({ isOpen, onClose, settings, onSettingsChange }) => {
+export const SongViewSettings: React.FC<SongViewSettingsProps> = ({ isOpen, onClose, settings, onSettingsChange, onEditSong }) => {
   // На телефоне вторая колонка не имеет смысла — контрол скрыт целиком, а не
   // задизейблен: настройка, которая ни на что не влияет, только шумит.
   const isWideLayout = useMediaQuery(SONG_WIDE_LAYOUT_QUERY);
@@ -274,6 +276,19 @@ export const SongViewSettings: React.FC<SongViewSettingsProps> = ({ isOpen, onCl
             <ToggleRow label="Заголовок песни" checked={settings.showHeader} onChange={() => onSettingsChange({ showHeader: !settings.showHeader })} dataAttr="data-section-show-header" />
           </div>
         </SettingsGroup>
+
+        {onEditSong && (
+          <SettingsGroup title="Песня">
+            <button
+              type="button"
+              data-song-view-settings-edit-song
+              onClick={onEditSong}
+              className="flex min-h-11 w-full items-center justify-center rounded-app-md border-2 border-app-border px-4 py-2 text-sm font-medium text-app-text-secondary transition-transform active:scale-[0.98]"
+            >
+              Редактировать песню
+            </button>
+          </SettingsGroup>
+        )}
 
         {/* Группа «Пометки» («только стилусом» и «перо сразу рисует») временно убрана —
             см. INK_PEN_ONLY / INK_INSTANT в src/app/dashboard/song/page.tsx. */}

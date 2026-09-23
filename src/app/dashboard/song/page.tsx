@@ -100,7 +100,7 @@ function SongPageContent() {
   const [isSetlistSheetOpen, setIsSetlistSheetOpen] = useState(false);
   const songKeyState = useSongKey(song);
   const playback = useSetlistPlayback(setlistId, id);
-  const { canManageSetlists } = useAppRole();
+  const { canManageSetlists, canEditSongs } = useAppRole();
   // Экран песни — единственное место, где телефон лежит и на него смотрят часами
   // (служение): держим его включённым. Остальные экраны гаснут по системному таймеру.
   useScreenWakeLock();
@@ -580,6 +580,14 @@ function SongPageContent() {
         onClose={() => setIsViewSettingsOpen(false)}
         settings={viewSettings}
         onSettingsChange={setViewSettings}
+        onEditSong={
+          canEditSongs && id
+            ? () => {
+                setIsViewSettingsOpen(false);
+                router.push(`/dashboard/song-edit?id=${encodeURIComponent(id)}`);
+              }
+            : undefined
+        }
       />
 
       {playback.inSetlist && setlistId && (

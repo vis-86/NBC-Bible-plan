@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/shared/components/layout/DashboardLayout';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
@@ -11,6 +12,7 @@ import { SongList } from '@/features/songs/components/SongList';
 import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
 import { useChromeVisibility } from '@/shared/components/layout/ChromeVisibility';
 import { useScrollRestore } from '@/features/songs/hooks/useScrollRestore';
+import { useAppRole } from '@/shared/hooks/useAppRole';
 
 const LIST_SCROLL_KEY = 'songs:list-scroll';
 const LIST_QUERY_KEY = 'songs:list-query';
@@ -33,7 +35,9 @@ function readInitialQuery(): string {
  * который живёт внутри DashboardLayout — вызов хука в самой SongsPage упал бы.
  */
 function SongsPageContent() {
+  const router = useRouter();
   const { songs, loading, error } = useSongs();
+  const { canEditSongs } = useAppRole();
   const [query, setQuery] = useState(readInitialQuery);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -69,7 +73,22 @@ function SongsPageContent() {
 
   return (
     <div data-songs-page className="flex min-h-0 flex-1 flex-col">
-      <PageHeader variant="page" title="Песни">
+      <PageHeader
+        variant="page"
+        title="Песни"
+        right={
+          canEditSongs ? (
+            <button
+              type="button"
+              data-songs-create-button
+              onClick={() => router.push('/dashboard/song-edit')}
+              className="rounded-app-md border-2 border-app-primary px-3 py-1.5 text-sm font-medium text-app-primary transition-transform active:scale-95"
+            >
+              Добавить
+            </button>
+          ) : undefined
+        }
+      >
         <SearchBar onSearch={handleSearch} initialValue={query} />
       </PageHeader>
 
