@@ -18,12 +18,29 @@ import {
   type SongEditorDraft,
 } from '../lib/songEditorDraft';
 import type { ImportedSong } from '../lib/importChordsOverLyrics';
+import { setChordBass, toggleChordMod, type ChordMod } from '../lib/chordQuality';
+import {
+  chordAt,
+  insertChord,
+  moveChordToLine,
+  neighbourTextLine,
+  parseEditModel,
+  removeChord,
+  replaceChord,
+  serializeEditModel,
+  type ChordRef,
+  type EditLine,
+} from '../lib/songEditModel';
+import { SongChordCanvas, type ChordCursor } from './SongChordCanvas';
+import { SongChordKeyboard } from './SongChordKeyboard';
 import { SONG_EDITOR_INPUT_CLASS, SongEditorFields } from './SongEditorFields';
 import { SongView } from './SongView';
 
-type EditorTab = 'paste' | 'source';
+type EditorTab = 'paste' | 'chords' | 'source';
 
-const TAB_LABELS: Record<EditorTab, string> = { paste: 'Вставить', source: 'Исходник' };
+const TAB_LABELS: Record<EditorTab, string> = { paste: 'Вставить', chords: 'Аккорды', source: 'Исходник' };
+/** Глубина отмены на холсте: правки мелкие, 50 шагов хватает с запасом. */
+const UNDO_LIMIT = 50;
 const NOTATION_LABELS: Record<PasteNotation, string> = { auto: 'Авто', ru: 'H = си', en: 'B = си' };
 
 // wrap="off": «аккорды над строкой» держатся на моноширинных колонках — перенос строки
@@ -45,9 +62,10 @@ function importSummary(imported: ImportedSong): string {
 }
 
 /**
- * Редактор песни, шаг T3a плана M9: метаданные, вставка «аккорды над строкой» и
- * ChordPro-исходник, предпросмотр тем же `SongView`, что и на экране песни. Холст
- * расстановки аккордов — следующий шаг (T3b), сюда он встанет третьей вкладкой.
+ * Редактор песни (M9): метаданные, вставка «аккорды над строкой», холст «Аккорды»
+ * (тап ставит курсор, клавиатура ставит и правит аккорд) и ChordPro-исходник.
+ * Все вкладки пишут в один `draft.content`; предпросмотр — тем же `SongView`, что и
+ * на экране песни. Перетаскивание аккорда вдоль строки — T3c.
  *
  * Запись online-only (решение 4): без сети кнопка неактивна и видна причина.
  */
@@ -57,11 +75,16 @@ export function SongEditor({ songId, initial, onSaved, onCancel }: SongEditorPro
   const { create, update, submitting, error } = useSaveSong();
 
   const [draft, setDraft] = useState<SongEditorDraft>(initial);
-  const [tab, setTab] = useState<EditorTab>(isNew ? 'paste' : 'source');
+  const [tab, setTab] = useState<EditorTab>(isNew ? 'paste' : 'chords');
   const [paste, setPaste] = useState<PasteState>({ raw: '', notation: 'auto', titleIsAuto: false, baseContent: '' });
   const [imported, setImported] = useState<ImportedSong | null>(null);
   // Ошибки полей показываем после первой попытки сохранить — не кричим на пустую форму.
   const [showErrors, setShowErrors] = useState(false);
+  // Холст: курсор и выбор адресуют строки модели — структура строк правками аккордов не меняется.
+  const [cursor, setCursor] = useState<ChordCursor | null>(null);
+  const [selected, setSelected] = useState<ChordRef | null>(null);
+  // Отмена — снимки ChordPro до каждой правки холста; живёт, пока открыта вкладка.
+  const [history, setHistory] = useState<string[]>([]);
 
   const errors = useMemo(() => validateSongDraft(draft), [draft]);
   const patch = useMemo(() => (isNew ? null : toUpdateSongPayload(initial, draft)), [isNew, initial, draft]);
@@ -71,6 +94,9 @@ export function SongEditor({ songId, initial, onSaved, onCancel }: SongEditorPro
   // Предпросмотр парсит песню целиком — на длинной вставке пусть отстаёт от ввода, а не тормозит его.
   const previewContent = useDeferredValue(draft.content);
   const previewKey = normalizeSongKey(draft.key) || undefined;
+
+  const lines = useMemo(() => parseEditModel(draft.content), [draft.content]);
+  const selectedChord = selected ? (chordAt(lines, selected)?.chord ?? null) : null;
 
   const updateDraft = (next: Partial<SongEditorDraft>) => {
     setDraft((prev) => ({ ...prev, ...next }));
@@ -83,6 +109,72 @@ export function SongEditor({ songId, initial, onSaved, onCancel }: SongEditorPro
     setDraft(result.draft);
     setPaste(result.paste);
     setImported(result.imported);
+  };
+
+  const switchTab = (next: EditorTab) => {
+    setTab(next);
+    // Правки в других вкладках меняют строки — старые курсор, выбор и отмена стали бы враньём.
+    setCursor(null);
+    setSelected(null);
+    setHistory([]);
+  };
+
+  const commitLines = (next: EditLine[]) => {
+    setHistory((prev) => [...prev.slice(-(UNDO_LIMIT - 1)), draft.content]);
+    updateDraft({ content: serializeEditModel(next) });
+  };
+
+  const handleChord = (chord: string) => {
+    if (selected) {
+      commitLines(replaceChord(lines, selected, chord));
+      return;
+    }
+    if (!cursor) return;
+    const result = insertChord(lines, cursor.line, cursor.pos, chord);
+    commitLines(result.lines);
+    // Новый аккорд сразу выбран: качество правится тут же, без второго прицеливания.
+    setSelected(result.ref);
+    setCursor(null);
+  };
+
+  const editSelected = (edit: (chord: string) => string) => {
+    if (!selected || selectedChord === null) return;
+    commitLines(replaceChord(lines, selected, edit(selectedChord)));
+  };
+
+  const handleMove = (direction: -1 | 1) => {
+    if (!selected) return;
+    const target = neighbourTextLine(lines, selected.line, direction);
+    if (target === null) return;
+    const result = moveChordToLine(lines, selected, target);
+    commitLines(result.lines);
+    setSelected(result.ref);
+  };
+
+  const handleRemove = () => {
+    if (!selected) return;
+    commitLines(removeChord(lines, selected));
+    setSelected(null);
+  };
+
+  const handleUndo = () => {
+    const previous = history[history.length - 1];
+    if (previous === undefined) return;
+    setHistory(history.slice(0, -1));
+    updateDraft({ content: previous });
+    setSelected(null);
+    setCursor(null);
+  };
+
+  const handleSelectChord = (ref: ChordRef) => {
+    const same = selected?.line === ref.line && selected.index === ref.index;
+    setSelected(same ? null : ref);
+    setCursor(null);
+  };
+
+  const handlePlaceCursor = (line: number, pos: number) => {
+    setCursor({ line, pos });
+    setSelected(null);
   };
 
   const handleSave = async () => {
@@ -141,11 +233,11 @@ export function SongEditor({ songId, initial, onSaved, onCancel }: SongEditorPro
 
           <div className="space-y-3">
             <ChoiceGroup
-              options={['paste', 'source'] as const}
+              options={['paste', 'chords', 'source'] as const}
               value={tab}
-              onChange={setTab}
+              onChange={switchTab}
               labelFor={(t) => TAB_LABELS[t]}
-              columns={2}
+              columns={3}
             />
 
             {tab === 'paste' ? (
@@ -184,6 +276,22 @@ export function SongEditor({ songId, initial, onSaved, onCancel }: SongEditorPro
                   </p>
                 )}
               </div>
+            ) : tab === 'chords' ? (
+              <div data-song-editor-chords>
+                {lines.some((line) => line.kind === 'lyric') ? (
+                  <SongChordCanvas
+                    lines={lines}
+                    cursor={cursor}
+                    selected={selected}
+                    onPlaceCursor={handlePlaceCursor}
+                    onSelectChord={handleSelectChord}
+                  />
+                ) : (
+                  <p className="text-sm text-app-text-muted">
+                    Здесь расставляются аккорды над текстом. Сначала вставьте песню или наберите её во вкладке «Исходник».
+                  </p>
+                )}
+              </div>
             ) : (
               <div data-song-editor-source className="space-y-2">
                 <p className="text-sm text-app-text-muted">
@@ -206,18 +314,37 @@ export function SongEditor({ songId, initial, onSaved, onCancel }: SongEditorPro
             {visibleErrors.content && <p className="text-sm text-app-missed-text">{visibleErrors.content}</p>}
           </div>
 
-          <section data-song-editor-preview aria-label="Предпросмотр" className="border-t border-app-border pt-5">
-            <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-app-text-muted">
-              Как будет выглядеть
-            </h2>
-            {previewContent.trim() ? (
-              <SongView content={previewContent} songKey={previewKey} showHeader={false} />
-            ) : (
-              <p className="text-sm text-app-text-muted">Здесь появится песня, когда вы добавите текст.</p>
-            )}
-          </section>
+          {tab !== 'chords' && (
+            <section data-song-editor-preview aria-label="Предпросмотр" className="border-t border-app-border pt-5">
+              <h2 className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-app-text-muted">
+                Как будет выглядеть
+              </h2>
+              {previewContent.trim() ? (
+                <SongView content={previewContent} songKey={previewKey} showHeader={false} />
+              ) : (
+                <p className="text-sm text-app-text-muted">Здесь появится песня, когда вы добавите текст.</p>
+              )}
+            </section>
+          )}
         </div>
       </div>
+
+      {tab === 'chords' && (
+        <SongChordKeyboard
+          songKey={previewKey}
+          selectedChord={selectedChord}
+          hasTarget={cursor !== null || selectedChord !== null}
+          canUndo={history.length > 0}
+          canMoveUp={selected !== null && neighbourTextLine(lines, selected.line, -1) !== null}
+          canMoveDown={selected !== null && neighbourTextLine(lines, selected.line, 1) !== null}
+          onChord={handleChord}
+          onToggleMod={(mod: ChordMod) => editSelected((chord) => toggleChordMod(chord, mod))}
+          onBass={(bass) => editSelected((chord) => setChordBass(chord, bass))}
+          onMove={handleMove}
+          onRemove={handleRemove}
+          onUndo={handleUndo}
+        />
+      )}
     </div>
   );
 }
