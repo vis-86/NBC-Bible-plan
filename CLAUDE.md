@@ -75,12 +75,18 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
 
 - Роли: `reader` (дефолт), `musician` (CRUD сетлистов), `musician_editor` (CRUD сетлистов
   + создание и редактирование песен). Обе музыкантские роли проходят `canManageSetlists`;
-  `canEditSongs` — только `musician_editor` и пока нигде не вызывается: фича правки песен
-  (M9) ещё не реализована. Маппинг Directus-роль → `AppRole` — `src/lib/app-roles.ts`.
+  `canEditSongs` — только `musician_editor` (редактор песен M9). Маппинг Directus-роль →
+  `AppRole` — `src/lib/app-roles.ts`.
 - **Реальный гейт — BFF, не Directus.** Приложение ходит в Directus админ-токеном через
   BFF, поэтому Directus-права — второй рубеж, а не защита. Каждый мутирующий роут
-  сетлистов обязан пройти через `requireSetlistWrite` (`server/src/middleware/requireRole.ts`).
-  Клиентский `useAppRole`/`canManageSetlists` управляет только видимостью кнопок.
+  сетлистов обязан пройти через `requireSetlistWrite`, песен — через `requireSongWrite`
+  (`server/src/middleware/requireRole.ts`). Клиентский `useAppRole`/`canManageSetlists`/
+  `canEditSongs` управляет только видимостью кнопок.
+- **Прав на `songs` в Directus у политик пользователей НЕТ — и выдавать их нельзя**
+  (решение Игоря 2026-09-24). Ни чтения, ни записи: BFF читает и пишет песни админ-токеном.
+  Прокси `/api/directus/*` ходит под учёткой самого пользователя, а в Directus музыкант может
+  войти и напрямую — выданная запись `songs` стала бы путём правки мимо BFF (без zod, генерации
+  slug, с произвольным `status`). «Второй рубеж» для песен — полный запрет, а не права роли.
 - Роль резолвится отдельным эндпоинтом `GET /api/user/role` — в iron-session cookie её
   НЕ класть (кэш в cookie требует refresh-пути, см. инвариант выше; отдельный эндпоинт
   этой проблемы не создаёт).
