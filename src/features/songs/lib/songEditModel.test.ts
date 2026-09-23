@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import {
   chordAt,
   insertChord,
+  insertAfter,
+  insertChords,
   isChordOnlyLine,
   lyricAt,
   moveChordToLine,
@@ -12,7 +14,9 @@ import {
   parseEditModel,
   removeChord,
   replaceChord,
+  replaceChordWithMany,
   serializeEditModel,
+  splitMarkerInput,
   type LyricLine,
 } from './songEditModel';
 
@@ -130,5 +134,53 @@ describe('moveChordWithinLine', () => {
   it('на позицию соседа — встаёт рядом, соседа не заменяет', () => {
     const { lines } = moveChordWithinLine(parseEditModel('[Am]Слово Тво[C]ё'), { line: 0, index: 0 }, 9);
     expect(serializeEditModel(lines)).toBe('Слово Тво[C][Am]ё');
+  });
+});
+
+describe('splitMarkerInput', () => {
+  it('разбирает группу на маркеры, ремарку с пробелами держит целиком', () => {
+    expect(splitMarkerInput('| Am ///')).toEqual(['|', 'Am', '///']);
+    expect(splitMarkerInput('  Am (тихо, без баса) x2 ')).toEqual(['Am', '(тихо, без баса)', 'x2']);
+    expect(splitMarkerInput('   ')).toEqual([]);
+  });
+});
+
+describe('replaceChordWithMany', () => {
+  it('окружает выбранный аккорд знаками на той же позиции и выбирает сам аккорд', () => {
+    const { lines, ref } = replaceChordWithMany(parseEditModel('[Am]Слово Тво[C]ё'), { line: 0, index: 1 }, ['|', 'C', '///'], 1);
+    expect(serializeEditModel(lines)).toBe('[Am]Слово Тво[|][C][///]ё');
+    expect(chordAt(lines, ref)?.chord).toBe('C');
+  });
+});
+
+describe('insertChords', () => {
+  it('группа над словом с аккордом встаёт после него, не стирая', () => {
+    const { lines, ref } = insertChords(parseEditModel('[Am]Слово'), 0, 0, ['|', 'D'], 1);
+    expect(serializeEditModel(lines)).toBe('[Am][|][D]Слово');
+    expect(chordAt(lines, ref)?.chord).toBe('D');
+  });
+
+  it('в строке без слов — в конец цепочки', () => {
+    const { lines } = insertChords(parseEditModel('[G][|]'), 0, 0, ['///', 'x2']);
+    expect(serializeEditModel(lines)).toBe('[G][|][///][x2]');
+  });
+
+  it('одиночный маркер ведёт себя как insertChord (замена на занятой позиции)', () => {
+    const { lines } = insertChords(parseEditModel('[Am]Слово'), 0, 0, ['A']);
+    expect(serializeEditModel(lines)).toBe('[A]Слово');
+  });
+});
+
+describe('знаки такта и ударов', () => {
+  it('insertAfter дописывает знак за выбранным аккордом и выбирает его', () => {
+    const first = insertAfter(parseEditModel('[Am]Слово Тво[C]ё'), { line: 0, index: 0 }, '///');
+    const second = insertAfter(first.lines, first.ref, '|');
+    expect(serializeEditModel(second.lines)).toBe('[Am][///][|]Слово Тво[C]ё');
+    expect(chordAt(second.lines, second.ref)?.chord).toBe('|');
+  });
+
+  it('знак в курсор на слове с аккордом не стирает аккорд', () => {
+    const { lines } = insertChords(parseEditModel('[Am]Слово'), 0, 0, ['|'], 0, false);
+    expect(serializeEditModel(lines)).toBe('[Am][|]Слово');
   });
 });

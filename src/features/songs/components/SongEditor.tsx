@@ -21,13 +21,17 @@ import type { ImportedSong } from '../lib/importChordsOverLyrics';
 import { setChordBass, toggleChordMod, type ChordMod } from '../lib/chordQuality';
 import {
   chordAt,
-  insertChord,
+  insertAfter,
+  insertChords,
+  isChordOnlyLine,
+  lyricAt,
   moveChordToLine,
   moveChordWithinLine,
   neighbourTextLine,
   parseEditModel,
   removeChord,
   replaceChord,
+  replaceChordWithMany,
   serializeEditModel,
   type ChordRef,
   type EditLine,
@@ -125,18 +129,45 @@ export function SongEditor({ songId, initial, onSaved, onCancel }: SongEditorPro
     updateDraft({ content: serializeEditModel(next) });
   };
 
-  const handleChord = (chord: string) => {
+  /** Группа маркеров (`| Am ///`) или один аккорд: заменяет выбранный либо встаёт в курсор. */
+  const handleMarkers = (markers: string[], focus: number) => {
     if (selected) {
-      commitLines(replaceChord(lines, selected, chord));
+      const result = replaceChordWithMany(lines, selected, markers, focus);
+      commitLines(result.lines);
+      setSelected(result.ref);
       return;
     }
+    placeAtCursor(markers, focus, true);
+  };
+
+  /** Такт `|` или удары `///`: ничего не заменяют — дописываются за выбранным или в курсор. */
+  const handleInsertMarker = (marker: string) => {
+    if (selected) {
+      const result = insertAfter(lines, selected, marker);
+      commitLines(result.lines);
+      setSelected(result.ref);
+      return;
+    }
+    placeAtCursor([marker], 0, false);
+  };
+
+  const placeAtCursor = (markers: string[], focus: number, replaceSingle: boolean) => {
     if (!cursor) return;
-    const result = insertChord(lines, cursor.line, cursor.pos, chord);
+    const result = insertChords(lines, cursor.line, cursor.pos, markers, focus, replaceSingle);
     commitLines(result.lines);
-    // Новый аккорд сразу выбран: качество правится тут же, без второго прицеливания.
+    const target = lyricAt(result.lines, cursor.line);
+    if (target && isChordOnlyLine(target)) {
+      // Цепочку (вступление, проигрыш) набирают подряд: `G | /// | C`. Курсор остаётся
+      // в её конце, следующий знак дописывается, а не заменяет только что поставленный.
+      setCursor({ line: cursor.line, pos: target.text.length });
+      return;
+    }
+    // Новый аккорд над словами сразу выбран: качество правится тут же, без второго прицеливания.
     setSelected(result.ref);
     setCursor(null);
   };
+
+  const handleChord = (chord: string) => handleMarkers([chord], 0);
 
   const editSelected = (edit: (chord: string) => string) => {
     if (!selected || selectedChord === null) return;
@@ -342,11 +373,14 @@ export function SongEditor({ songId, initial, onSaved, onCancel }: SongEditorPro
         <SongChordKeyboard
           songKey={previewKey}
           selectedChord={selectedChord}
+          selectionKey={selected && selectedChord !== null ? `${selected.line}:${selected.index}:${selectedChord}` : null}
           hasTarget={cursor !== null || selectedChord !== null}
           canUndo={history.length > 0}
           canMoveUp={selected !== null && neighbourTextLine(lines, selected.line, -1) !== null}
           canMoveDown={selected !== null && neighbourTextLine(lines, selected.line, 1) !== null}
           onChord={handleChord}
+          onMarkers={handleMarkers}
+          onInsertMarker={handleInsertMarker}
           onToggleMod={(mod: ChordMod) => editSelected((chord) => toggleChordMod(chord, mod))}
           onBass={(bass) => editSelected((chord) => setChordBass(chord, bass))}
           onMove={handleMove}

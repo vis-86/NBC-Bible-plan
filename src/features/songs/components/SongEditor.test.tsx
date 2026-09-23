@@ -329,3 +329,112 @@ describe('SongEditor — перетаскивание аккорда (логик
     expect(chip(container, 'C').style.touchAction).toBe('none');
   });
 });
+
+describe('SongEditor — свой знак из «Ещё»', () => {
+  beforeEach(() => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function put(container: Element, value: string) {
+    fireEvent.click(screen.getByText('Ещё'));
+    fireEvent.change(screen.getByLabelText('Свой аккорд'), { target: { value } });
+    return container;
+  }
+
+  it('удары и повторы встают в цепочку на уровне аккордов', () => {
+    const song: SongEditorDraft = { ...EXISTING, content: '[|][Em]' };
+    const { container } = render(<SongEditor songId="7" initial={song} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.click(screen.getByLabelText('Добавить аккорд в конец строки'));
+    put(container, '///');
+    fireEvent.click(screen.getByText('Поставить'));
+    fireEvent.change(screen.getByLabelText('Свой аккорд'), { target: { value: 'x2' } });
+    fireEvent.click(screen.getByText('Поставить'));
+
+    fireEvent.click(screen.getByText('Исходник'));
+    expect((container.querySelector('[data-song-editor-source-input]') as HTMLTextAreaElement).value).toBe('[|][Em][///][x2]');
+  });
+
+  it('квадратные скобки в своём знаке не пропускаются — они сломали бы маркер', () => {
+    const { container } = render(<SongEditor songId="7" initial={EXISTING} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.click(container.querySelector('[data-song-chord-canvas-chip]') as HTMLElement);
+    put(container, 'A]B');
+    expect((screen.getByLabelText('Заменить') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('выбранный аккорд попадает в поле — его можно окружить знаками', () => {
+    const song: SongEditorDraft = { ...EXISTING, content: '[Am]Слово Твоё' };
+    const { container } = render(<SongEditor songId="7" initial={song} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.click(container.querySelector('[data-song-chord-canvas-chip]') as HTMLElement);
+
+    const input = screen.getByLabelText('Свой аккорд') as HTMLInputElement;
+    expect(input.value).toBe('Am');
+    // Без правки заменять нечем — кнопка не должна плодить пустую запись в отмене.
+    expect((screen.getByLabelText('Заменить') as HTMLButtonElement).disabled).toBe(true);
+
+    fireEvent.change(input, { target: { value: '| Am ///' } });
+    fireEvent.click(screen.getByLabelText('Заменить'));
+
+    // Выбранным остаётся сам аккорд группы, а поле показывает уже его.
+    expect(container.querySelector('[data-song-chord-keyboard-hint]')?.textContent).toBe('Выбран Am');
+    expect((screen.getByLabelText('Свой аккорд') as HTMLInputElement).value).toBe('Am');
+    fireEvent.click(screen.getByText('Исходник'));
+    expect((container.querySelector('[data-song-editor-source-input]') as HTMLTextAreaElement).value).toBe('[|][Am][///]Слово Твоё');
+  });
+
+  it('выбор другого аккорда заменяет содержимое поля', () => {
+    const song: SongEditorDraft = { ...EXISTING, content: '[Am]Слово Тво[C]ё' };
+    const { container } = render(<SongEditor songId="7" initial={song} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    const chips = () => container.querySelectorAll<HTMLElement>('[data-song-chord-canvas-chip]');
+    fireEvent.click(chips()[0]);
+    fireEvent.change(screen.getByLabelText('Свой аккорд'), { target: { value: 'недописанное' } });
+    fireEvent.click(chips()[1]);
+    expect((screen.getByLabelText('Свой аккорд') as HTMLInputElement).value).toBe('C');
+  });
+});
+
+describe('SongEditor — клавиши такта и ударов', () => {
+  beforeEach(() => {
+    vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(true);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function source(container: Element): string {
+    fireEvent.click(screen.getByText('Исходник'));
+    return (container.querySelector('[data-song-editor-source-input]') as HTMLTextAreaElement).value;
+  }
+
+  it('при выбранном аккорде | и /// дописываются за ним по очереди, аккорд не заменяется', () => {
+    const song: SongEditorDraft = { ...EXISTING, content: '[Am]Слово Твоё' };
+    const { container } = render(<SongEditor songId="7" initial={song} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.click(container.querySelector('[data-song-chord-canvas-chip]') as HTMLElement);
+
+    fireEvent.click(screen.getByLabelText('Удары'));
+    fireEvent.click(screen.getByLabelText('Тактовая черта'));
+
+    expect(container.querySelector('[data-song-chord-keyboard-hint]')?.textContent).toBe('Выбран |');
+    expect(source(container)).toBe('[Am][///][|]Слово Твоё');
+  });
+
+  it('в цепочке знаки набираются подряд с курсора «+»', () => {
+    const song: SongEditorDraft = { ...EXISTING, content: '[G]' };
+    const { container } = render(<SongEditor songId="7" initial={song} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    fireEvent.click(screen.getByLabelText('Добавить аккорд в конец строки'));
+
+    fireEvent.click(screen.getByLabelText('Удары'));
+    fireEvent.click(screen.getByLabelText('Тактовая черта'));
+    const degrees = container.querySelector('[data-song-chord-keyboard-degrees]') as HTMLElement;
+    fireEvent.click(within(degrees).getByText('Dm'));
+
+    expect(source(container)).toBe('[G][///][|][Dm]');
+  });
+
+  it('без курсора и выбора клавиши знаков неактивны', () => {
+    render(<SongEditor songId="7" initial={EXISTING} onSaved={vi.fn()} onCancel={vi.fn()} />);
+    expect((screen.getByLabelText('Тактовая черта') as HTMLButtonElement).disabled).toBe(true);
+  });
+});

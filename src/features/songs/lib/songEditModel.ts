@@ -178,3 +178,68 @@ export function moveChordWithinLine(lines: EditLine[], ref: ChordRef, pos: numbe
   const chords = [...rest.slice(0, index), { pos: clamped, chord: moving.chord }, ...rest.slice(index)];
   return { lines: withLyric(lines, ref.line, { ...line, chords }), ref: { line: ref.line, index } };
 }
+
+/**
+ * Разбор ввода «своего знака» на маркеры: `| Am ///` → `|`, `Am`, `///`. Один маркер на
+ * всё (`[| Am ///]`) сломал бы транспозицию — такой маркер уже не аккорд. Ремарка
+ * в скобках (`(тихо, без баса)`) остаётся одним токеном, несмотря на пробелы.
+ */
+export function splitMarkerInput(input: string): string[] {
+  return input.match(/\([^)]*\)|[^\s(]+/g) ?? [];
+}
+
+/**
+ * Замена выбранного аккорда группой маркеров на той же позиции (`Am` → `| Am ///`).
+ * `focus` — индекс внутри группы, который станет выбранным (обычно сам аккорд).
+ */
+export function replaceChordWithMany(
+  lines: EditLine[],
+  ref: ChordRef,
+  chords: string[],
+  focus = 0
+): { lines: EditLine[]; ref: ChordRef } {
+  const line = lyricAt(lines, ref.line);
+  const current = line?.chords[ref.index];
+  if (!line || !current || chords.length === 0) return { lines, ref };
+  const group = chords.map((chord) => ({ pos: current.pos, chord }));
+  const next = [...line.chords.slice(0, ref.index), ...group, ...line.chords.slice(ref.index + 1)];
+  return { lines: withLyric(lines, ref.line, { ...line, chords: next }), ref: { line: ref.line, index: ref.index + focus } };
+}
+
+/**
+ * Вставка группы маркеров в курсор. Одиночный маркер — прежний `insertChord` (замена
+ * стоящего на той же позиции); группа встаёт ПОСЛЕ стоящих там: `| Am ///`, набранное
+ * над словом с аккордом, не должно молча его стирать. В строке без слов — в конец цепочки.
+ */
+export function insertChords(
+  lines: EditLine[],
+  lineIndex: number,
+  pos: number,
+  chords: string[],
+  focus = 0,
+  /** Одиночный маркер на занятой позиции заменяет стоящий. Знаки (`|`, `///`) — никогда. */
+  replaceSingle = true
+): { lines: EditLine[]; ref: ChordRef } {
+  if (chords.length === 1 && replaceSingle) return insertChord(lines, lineIndex, pos, chords[0]);
+  const line = lyricAt(lines, lineIndex);
+  if (!line) throw new Error(`insertChords: line ${lineIndex} is not a lyric line`);
+  const at = isChordOnlyLine(line) ? line.text.length : Math.max(0, Math.min(pos, line.text.length));
+  const index = isChordOnlyLine(line) ? line.chords.length : insertionIndex(line.chords, at);
+  const group = chords.map((chord) => ({ pos: at, chord }));
+  const next = [...line.chords.slice(0, index), ...group, ...line.chords.slice(index)];
+  return { lines: withLyric(lines, lineIndex, { ...line, chords: next }), ref: { line: lineIndex, index: index + focus } };
+}
+
+/**
+ * Знак сразу после выбранного аккорда, на той же позиции (`Am` → `Am ///`). Кнопки
+ * `|` и `///` ничего не заменяют: такт или удары дописываются к выбранному, и новый
+ * знак становится выбранным — следующий встанет уже за ним.
+ */
+export function insertAfter(lines: EditLine[], ref: ChordRef, marker: string): { lines: EditLine[]; ref: ChordRef } {
+  const line = lyricAt(lines, ref.line);
+  const current = line?.chords[ref.index];
+  if (!line || !current) return { lines, ref };
+  const index = ref.index + 1;
+  const next = [...line.chords.slice(0, index), { pos: current.pos, chord: marker }, ...line.chords.slice(index)];
+  return { lines: withLyric(lines, ref.line, { ...line, chords: next }), ref: { line: ref.line, index } };
+}

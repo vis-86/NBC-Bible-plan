@@ -165,11 +165,17 @@ export function detectNotation(text: string): ChordNotation {
   return 'en';
 }
 
-/** Маркер ChordPro для токена аккордовой строки. */
+/**
+ * Маркер ChordPro для токена аккордовой строки. В скобки уходит ВСЁ: удары `///`,
+ * повторы `x2`, ремарки `(тихо)` — голым текстом они рисовались бы на уровне слов,
+ * а строка без слов переставала бы быть строкой аккордов. Транспозиция и свёртка
+ * баса не-аккорды не трогают. Тактовые черты сворачиваются в `[|]` — другой черты
+ * рендер не знает (`markers.ts`).
+ */
 function toMarker(token: string, notation: ChordNotation): string {
   if (isChordToken(token)) return `[${convertChordNotation(token, notation)}]`;
   if (/^:?\|+:?$/.test(token)) return '[|]';
-  return token;
+  return `[${token}]`;
 }
 
 /**
@@ -182,7 +188,7 @@ function mergeChordsIntoLyric(tokens: Token[], lyric: string, notation: ChordNot
   let result = lyric;
   for (let i = tokens.length - 1; i >= 0; i--) {
     const { text, column } = tokens[i];
-    const marker = isChordToken(text) ? `[${convertChordNotation(text, notation)}]` : `${text} `;
+    const marker = toMarker(text, notation);
     // Аккорд за концом строки прижимается к её концу: в исходнике он часто висит
     // над пробелом после последнего слова.
     const at = Math.min(column, result.length);
