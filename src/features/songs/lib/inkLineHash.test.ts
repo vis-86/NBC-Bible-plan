@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SongStroke } from '../types';
 import {
+  addMissingAnchorHashes,
   anchorWithHash,
   buildLineHashIndex,
   lineIdentity,
@@ -159,5 +160,32 @@ describe('anchorWithHash', () => {
   it('без индекса или за концом песни — только индексы, без ключа hash', () => {
     expect(anchorWithHash(0, 1, null)).toEqual({ section: 0, line: 1 });
     expect(anchorWithHash(9, 9, buildLineHashIndex(SONG))).toEqual({ section: 9, line: 9 });
+  });
+});
+
+describe('addMissingAnchorHashes (миграция хранилища T4.1)', () => {
+  it('дописывает хэш по индексу и больше ничего не меняет', () => {
+    const index = buildLineHashIndex(SONG);
+    const hashed = stroke(1, 0, 'чужой-хэш', 'h');
+    const result = addMissingAnchorHashes([stroke(0, 1, undefined, 'a'), hashed, stroke(9, 9, undefined, 'x')], index);
+
+    expect(result.strokes.map((s) => s.id)).toEqual(['a', 'h', 'x']);
+    expect(result.strokes[0].anchor).toEqual({ section: 0, line: 1, hash: index[0][1] });
+    // Уже хэшированный штрих не перепроверяется и не двигается — даже с «неверным» хэшем.
+    expect(result.strokes[1]).toBe(hashed);
+    // Штрих без строки остаётся без хэша: придумывать ему личность не из чего.
+    expect(result.strokes[2].anchor).toEqual({ section: 9, line: 9 });
+    expect({ added: result.added, alreadyHashed: result.alreadyHashed, noLine: result.noLine }).toEqual({
+      added: 1,
+      alreadyHashed: 1,
+      noLine: 1,
+    });
+  });
+
+  it('после миграции разрешение якорей держит штрих на месте и после правки соседней строки', () => {
+    const migrated = addMissingAnchorHashes([stroke(0, 1, undefined, 'a')], buildLineHashIndex(SONG)).strokes;
+    const edited = SONG.replace('Пер[A]вая строка', 'Новая первая строка\nПер[A]вая строка');
+    const resolved = resolveStrokeAnchors(migrated, buildLineHashIndex(edited));
+    expect(resolved.strokes[0].anchor.line).toBe(2);
   });
 });

@@ -5,8 +5,12 @@
 /**
  * Импорт песен ChordPro в Directus-коллекцию `songs`.
  *
- * Читает `data/songs/*.chordpro`, парсит ported-парсером и upsert'ит по `slug`
- * (идемпотентно: повторный запуск обновляет существующие, не плодит дубли).
+ * Читает `data/songs/*.chordpro`, парсит ported-парсером и upsert'ит по `slug`.
+ *
+ * ОДНОРАЗОВЫЙ: только для ПУСТОЙ коллекции (первое наполнение, восстановление после
+ * пересборки Directus). С M9 песни правят музыканты в приложении, и повторный прогон
+ * молча откатил бы их правки к `data/songs/*.chordpro` — поэтому на непустой коллекции
+ * скрипт отказывается работать. Источник истины каталога теперь Directus, не репозиторий.
  *
  * Запуск: `npm run songs:import` (предварительно `npm run songs:bootstrap`).
  * Требует env (.env.local): NEXT_PUBLIC_DIRECTUS_URL, DIRECTUS_ADMIN_TOKEN.
@@ -59,6 +63,16 @@ async function main(): Promise<void> {
 
   const { getDirectusAdminClient } = await import('../../src/lib/directus');
   const client = getDirectusAdminClient();
+
+  const present = await client.request(readItems('songs', { fields: ['id'], limit: 1 }));
+  if (present.length > 0) {
+    console.error(
+      `${LOG} REFUSED: collection "songs" is not empty. The import is one-time only — ` +
+        'since M9 songs are edited in the app, and re-importing would silently revert those edits. ' +
+        'To restore a rebuilt Directus, run it against an empty collection.'
+    );
+    process.exit(1);
+  }
 
   let created = 0;
   let updated = 0;

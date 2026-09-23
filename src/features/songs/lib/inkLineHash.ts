@@ -148,3 +148,40 @@ export function resolveStrokeAnchors(strokes: SongStroke[], index: LineHashIndex
 
   return resolved;
 }
+
+export interface AnchorHashMigration {
+  strokes: SongStroke[];
+  /** Получили хэш по своему индексу. */
+  added: number;
+  /** Уже были с хэшем — не тронуты. */
+  alreadyHashed: number;
+  /** Без хэша и без строки на своей позиции: оставлены как есть (их и сейчас не рисуют). */
+  noLine: number;
+}
+
+/**
+ * Одноразовая миграция хранилища (T4.1 плана M9): штриху без хэша дописать хэш строки
+ * на его позиции в ТЕКУЩЕМ тексте. Корректно ровно до первой правки песни — поэтому
+ * запускается до включения редактора. В отличие от `resolveStrokeAnchors`, ничего кроме
+ * хэша не меняет: ни позиций, ни порядка, ни уже хэшированных штрихов.
+ */
+export function addMissingAnchorHashes(strokes: SongStroke[], index: LineHashIndex): AnchorHashMigration {
+  const result: AnchorHashMigration = { strokes: [], added: 0, alreadyHashed: 0, noLine: 0 };
+  for (const stroke of strokes) {
+    const { section, line, hash } = stroke.anchor;
+    if (hash !== undefined) {
+      result.alreadyHashed++;
+      result.strokes.push(stroke);
+      continue;
+    }
+    const current = index[section]?.[line];
+    if (current === undefined) {
+      result.noLine++;
+      result.strokes.push(stroke);
+      continue;
+    }
+    result.added++;
+    result.strokes.push({ ...stroke, anchor: { section, line, hash: current } });
+  }
+  return result;
+}
