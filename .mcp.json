@@ -32,6 +32,13 @@
         "-y",
         "@playwright/mcp@latest"
       ]
+    },
+    "directus": {
+      "type": "http",
+      "url": "https://bible.baptistnn.ru/directus/mcp",
+      "headers": {
+        "Authorization": "Bearer ${DIRECTUS_MCP_TOKEN_BIBLE}"
+      }
     }
   }
 }

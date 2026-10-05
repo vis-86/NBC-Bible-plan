@@ -75,19 +75,27 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
 
 - Роли: `reader` (дефолт), `musician` (CRUD сетлистов), `musician_editor` (CRUD сетлистов
   + создание и редактирование песен). Обе музыкантские роли проходят `canManageSetlists`;
-  `canEditSongs` — только `musician_editor` и пока нигде не вызывается: фича правки песен
-  (M9) ещё не реализована. Маппинг Directus-роль → `AppRole` — `src/lib/app-roles.ts`.
+  `canEditSongs` — только `musician_editor` (редактор песен M9). Маппинг Directus-роль →
+  `AppRole` — `src/lib/app-roles.ts`.
 - **Реальный гейт — BFF, не Directus.** Приложение ходит в Directus админ-токеном через
   BFF, поэтому Directus-права — второй рубеж, а не защита. Каждый мутирующий роут
-  сетлистов обязан пройти через `requireSetlistWrite` (`server/src/middleware/requireRole.ts`).
-  Клиентский `useAppRole`/`canManageSetlists` управляет только видимостью кнопок.
+  сетлистов обязан пройти через `requireSetlistWrite`, песен — через `requireSongWrite`
+  (`server/src/middleware/requireRole.ts`). Клиентский `useAppRole`/`canManageSetlists`/
+  `canEditSongs` управляет только видимостью кнопок.
+- **Прав на `songs` в Directus у политик пользователей НЕТ — и выдавать их нельзя**
+  (решение Игоря 2026-09-24). Ни чтения, ни записи: BFF читает и пишет песни админ-токеном.
+  Прокси `/api/directus/*` ходит под учёткой самого пользователя, а в Directus музыкант может
+  войти и напрямую — выданная запись `songs` стала бы путём правки мимо BFF (без zod, генерации
+  slug, с произвольным `status`). «Второй рубеж» для песен — полный запрет, а не права роли.
 - Роль резолвится отдельным эндпоинтом `GET /api/user/role` — в iron-session cookie её
   НЕ класть (кэш в cookie требует refresh-пути, см. инвариант выше; отдельный эндпоинт
   этой проблемы не создаёт).
-- **Осознанное исключение из offline-first:** запись сетлистов (создание/редактирование/
-  удаление) — online-only, с явным UI «нужен интернет». Чтение — полноценно офлайн
+- **Осознанные исключения из offline-first:** запись сетлистов (создание/редактирование/
+  удаление) и запись песен (редактор M9) — online-only, с явным UI «нужен интернет».
+  Песня для правки грузится ТОЛЬКО из сети, мимо read-through (правка поверх кеша откатила бы
+  чужую), а после записи IDB песни и список обновляются явно. Чтение — полноценно офлайн
   (read-through + IDB), как и все остальные ресурсы. Подробности и обоснование —
-  `docs/offline-pwa.md`.
+  `docs/offline-pwa.md`, редактор — `docs/song-viewer-spec.md` §15.
 
 ## Прод и деплой
 
@@ -118,6 +126,7 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
   ссылки. **Не возвращать cover, не решив полосу снизу.**
 - `touch-action` считается браузером по цепочке до БЛИЖАЙШЕГО скролл-контейнера: `pan-y` на `[data-swipe-pager]` до вложенного `.overflow-y-auto` НЕ доходит, и Chrome на Android забирает горизонтальный жест себе (`pointercancel` через ~20px) — свайп глав/песен молча умирает. Скролл-контейнеры внутри пейджера обязаны сами быть `pan-y` (правило в `globals.css`). Гейт — `e2e/gestures/swipe-pager.spec.ts`; jsdom-тесты `SwipePager` этот класс багов не ловят.
 - Тот же класс багов у вертикали: на `scrollTop === 0` Chrome на Android всё равно опознаёт протягивание вниз как свой скролл (уходит в overscroll) и присылает `pointercancel` — pointer-жест pull-to-refresh умирает, не добрав порога. CSS тут не спасает: нужен нативный не-passive `touchmove` с `preventDefault()`, пока тянут вниз от верха (`usePullToRefresh`), React вешает свои слушатели passive'ными. Гейт — `e2e/gestures/pull-to-refresh.spec.ts`.
+- Перетаскивание аккорда в редакторе песни (`SongChordCanvas`): `touch-action: none` стоит ИНЛАЙНОМ на самом аккорде (класс `touch-none` на кнопке перебивает неслоёное правило `globals.css`) — иначе тот же `pointercancel` на ~20px. На тексте строки `none` нет, чтобы вертикальная прокрутка редактора жила. Гейт — `e2e/gestures/chord-drag.spec.ts` (проверено: с `manipulation` на аккорде падает).
 - Скриншоты на dev-сборке: перед КАЖДЫМ снимком прячь Next dev-индикатор (`nextjs-portal{display:none!important}` через evaluate). DevTools-пресет «Offline» не переключает `navigator.onLine` — событийную UI-логику проверяй `window.dispatchEvent(new Event('offline'))`.
 - Компоненты `'use client'`, named exports, props-интерфейс `<Name>Props` в том же файле, `cn()` для классов.
 

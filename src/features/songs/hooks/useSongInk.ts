@@ -20,6 +20,7 @@ import {
 import { ERASER_TOLERANCE } from '../lib/inkStroke';
 import { hitTestStroke } from '../lib/inkGeometry';
 import { INK_COLOR_THEME, INK_WIDTH_RANGE, type InkToolChoice } from '../lib/inkTools';
+import { anchorWithHash, buildLineHashIndex, resolveStrokeAnchors, type ResolvedAnchors } from '../lib/inkLineHash';
 
 /** Пауза бездействия, после которой instant annotation сохраняет и выходит (§7). */
 export const INSTANT_ANNOTATION_IDLE_MS = 4000;
@@ -52,6 +53,12 @@ export interface UseSongInkOptions {
   initialColor?: string;
   /** Выбор цвета уходит в настройки — там он и переживает песню и перезапуск. */
   onColorChange?: (color: string) => void;
+  /**
+   * Сырой ChordPro песни — тот же, что уходит в `SongView`. По нему якоря сохранённых
+   * штрихов приводятся к текущему тексту (M9, `inkLineHash.ts`). Не передан — якоря
+   * используются как есть, без хэшей (так живут тесты слоя без песни).
+   */
+  content?: string;
 }
 
 let strokeCounter = 0;
@@ -85,7 +92,26 @@ export function useSongInk({
   onEnter,
   initialColor = INK_COLOR_THEME,
   onColorChange,
+  content,
 }: UseSongInkOptions) {
+  // Якоря приводятся к текущему тексту ДО того, как штрихи попадут в состояние:
+  // всё ниже по течению (`toAbsolute`, `strokeIndex`, рендер) работает с индексами
+  // и о хэшах не знает.
+  const lineIndex = useMemo(() => (content === undefined ? null : buildLineHashIndex(content)), [content]);
+  const resolved = useMemo<ResolvedAnchors>(
+    () =>
+      lineIndex
+        ? resolveStrokeAnchors(initialStrokes, lineIndex)
+        : { strokes: initialStrokes, orphans: [], moved: 0, migrated: 0 },
+    [initialStrokes, lineIndex]
+  );
+  useEffect(() => {
+    const { moved, migrated, orphans } = resolved;
+    if (moved || migrated || orphans.length) {
+      console.debug('[useSongInk] anchors resolved', { moved, migrated, orphans: orphans.length });
+    }
+  }, [resolved]);
+
   const [active, setActive] = useState(false);
   const [tool, setToolState] = useState<InkToolChoice>('pen');
   const [color, setColorState] = useState<string>(initialColor);
@@ -95,7 +121,7 @@ export function useSongInk({
     arrow: INK_WIDTH_RANGE.arrow.default,
     text: INK_WIDTH_RANGE.text.default,
   }));
-  const [strokes, setStrokes] = useState<SongStroke[]>(() => cloneStrokes(initialStrokes));
+  const [strokes, setStrokes] = useState<SongStroke[]>(() => cloneStrokes(resolved.strokes));
   const [draft, setDraft] = useState<InkDraft | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [undoStack, setUndoStack] = useState<SongStroke[][]>([]);
@@ -110,6 +136,8 @@ export function useSongInk({
   const onSaveRef = useRef(onSave);
   const onEnterRef = useRef(onEnter);
   const onColorChangeRef = useRef(onColorChange);
+  const lineIndexRef = useRef(lineIndex);
+  const orphansRef = useRef(resolved.orphans);
   // Ref-зеркало актуальных значений: запись в ref во время рендера запрещена
   // (React Compiler), а обработчики жестов обязаны видеть свежее состояние.
   useEffect(() => {
@@ -120,16 +148,20 @@ export function useSongInk({
     onSaveRef.current = onSave;
     onEnterRef.current = onEnter;
     onColorChangeRef.current = onColorChange;
+    lineIndexRef.current = lineIndex;
+    orphansRef.current = resolved.orphans;
   });
 
   // Синхронизация с пропом — в рендер-фазе (официальный паттерн «adjusting state when
   // props change»), а не эффектом: setState внутри эффекта даёт каскадный ререндер.
-  const [seenInitial, setSeenInitial] = useState(initialStrokes);
-  if (seenInitial !== initialStrokes) {
-    setSeenInitial(initialStrokes);
+  // Сравнивается `resolved`, а не сырые штрихи: новая версия текста песни тоже должна
+  // пересадить пометки на их строки.
+  const [seenResolved, setSeenResolved] = useState(resolved);
+  if (seenResolved !== resolved) {
+    setSeenResolved(resolved);
     // Пока есть несохранённые правки, внешние данные их не перетирают.
     if (!dirty) {
-      setStrokes(cloneStrokes(initialStrokes));
+      setStrokes(cloneStrokes(resolved.strokes));
       setUndoStack([]);
       setSelectedId(null);
     }
@@ -192,7 +224,7 @@ export function useSongInk({
       const stroke: SongStroke = {
         id: nextStrokeId(),
         tool: current.tool,
-        anchor: { section: anchorRect.section, line: anchorRect.line },
+        anchor: anchorWithHash(anchorRect.section, anchorRect.line, lineIndexRef.current),
         points: current.points.map((point) => toAnchored(point, anchorRect)),
         color: current.color,
         width: current.width,
@@ -238,7 +270,7 @@ export function useSongInk({
       const stroke: SongStroke = {
         id: nextStrokeId(),
         tool: 'text',
-        anchor: { section: anchorRect.section, line: anchorRect.line },
+        anchor: anchorWithHash(anchorRect.section, anchorRect.line, lineIndexRef.current),
         points: [toAnchored(point, anchorRect)],
         color,
         width: widths.text,
@@ -300,7 +332,7 @@ export function useSongInk({
       const anchorRect = nearestLine(point, rects);
       if (!anchorRect) return;
       updateStroke(id, {
-        anchor: { section: anchorRect.section, line: anchorRect.line },
+        anchor: anchorWithHash(anchorRect.section, anchorRect.line, lineIndexRef.current),
         points: [toAnchored(point, anchorRect)],
       });
     },
@@ -345,16 +377,18 @@ export function useSongInk({
       setDraft(null);
       setSelectedId(null);
       if (save && dirtyRef.current) {
-        onSaveRef.current(cloneStrokes(strokesRef.current));
+        // Сироты не рисуются и не правятся, но записываются обратно: без этого первое же
+        // сохранение удалило бы пометки строк, которые правку ещё могут вернуть.
+        onSaveRef.current([...cloneStrokes(strokesRef.current), ...cloneStrokes(orphansRef.current)]);
       } else if (!save) {
-        setStrokes(cloneStrokes(initialStrokes));
+        setStrokes(cloneStrokes(resolved.strokes));
       }
       setUndoStack([]);
       setDirty(false);
       setActive(false);
       console.debug('[useSongInk] draw mode off', { saved: save });
     },
-    [initialStrokes]
+    [resolved]
   );
 
   // ---- Instant annotation ----------------------------------------------------

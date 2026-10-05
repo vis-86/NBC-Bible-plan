@@ -7,9 +7,9 @@
 SQLite в проекте **не используется**: `better-sqlite3`/`@lucia-auth/adapter-sqlite`
 были мёртвыми зависимостями и удалены при миграции на static export + Hono BFF.
 
-Всего в базе 39 таблиц: 29 системных (`directus_*`, ими управляет сам Directus) и 10
-прикладных, описанных ниже. Приложение ходит в них только через `@directus/sdk`
-admin-клиентом из `src/lib/directus-*.ts` (см. [Аутентификация](authentication.md),
+Всего в базе 43 таблицы: 29 системных (`directus_*`, ими управляет сам Directus) и 14
+прикладных, описанных ниже (проверено 22.09.2026 на проде). Приложение ходит в них
+только через `@directus/sdk` admin-клиентом из `src/lib/directus-*.ts` (см. [Аутентификация](authentication.md),
 раздел «Доступ к данным»), а не напрямую по SQL.
 
 Посмотреть схему на проде:
@@ -98,6 +98,7 @@ docker exec nbc-bible-postgres-1 psql -U directus -d directus -c '\d reading'
 | `title` | `varchar` | Название |
 | `subtitle` | `varchar` NULL | Подзаголовок |
 | `song_key` | `varchar` NULL | Тональность (директива `{key}`). Названо `song_key`, т.к. `key` зарезервировано |
+| `default_key` | `varchar` NULL | Основная тональность, в которой команда обычно играет (уровень 2, см. `docs/song-viewer-spec.md` §10) |
 | `tempo` | `integer` NULL | Темп |
 | `time` | `varchar` NULL | Размер |
 | `content` | `text` | Сырой ChordPro |
@@ -155,6 +156,14 @@ Stateful токены (`src/lib/invite.ts`). Подробнее — [Аутен�
 | `text_align` | `varchar` NULL | Выравнивание |
 | `theme` | `varchar` NULL | Тема читалки |
 | `verse_numbers_visible` | `boolean` NULL | Показывать номера стихов |
+| `verse_per_line` | `boolean` NULL | Каждый стих с новой строки |
+| `ot_translation` | `varchar` NULL | Перевод Ветхого Завета |
+| `nt_translation` | `varchar` NULL | Перевод Нового Завета |
+
+> Поля `ot_translation`/`nt_translation`/`verse_per_line` добавлены скриптами
+> `scripts/add-translation-fields.ts` и `scripts/add-verse-per-line-field.ts`. Если
+> пересборка прода снова обнулит схему, их надо прогнать заново: Directus молча
+> отбрасывает поля, которых нет в коллекции, и сохранение настроек становится no-op.
 
 ### 8. `user_app_settings` — Настройки приложения
 
@@ -183,6 +192,59 @@ Telegram только **привязывает** `tg_id` к существующ
 | `id` | `integer` | Первичный ключ |
 | `num_1` … `num_7` | `integer` NULL | Номера дней (`plan.numbers`), входящих в неделю |
 
+### 11. `setlists` — Сетлисты (наборы песен на служение)
+
+| Поле | Тип | Описание |
+| :--- | :--- | :--- |
+| `id` | `uuid` | Первичный ключ. Генерирует клиент (офлайн-outbox) |
+| `title` | `varchar` NOT NULL | Название |
+| `date` | `date` NULL | Дата служения |
+| `created_by` | `uuid` NULL | m2o → `directus_users` |
+| `date_created` | `timestamptz` NULL | Служебная метка Directus |
+| `date_updated` | `timestamptz` NULL | Служебная метка Directus (`special: date-updated`, скрыто в формах). Добавлено 2026-09-24; у сетов, не правленных с тех пор, — `NULL` |
+
+> Версия сета для офлайн-синка (`server/src/routes/sync.ts`) — хеш от
+> `date_updated ?? date_created` плюс отсортированного состава: правка одних только
+> `setlist_items` метку сета не трогает и иначе не попала бы в манифест.
+>
+> ⚠️ До 2026-09-24 поля `date_updated` не было, и это была поломка, а не «ожидаемый
+> `undefined»: Directus v11 на запрос несуществующего поля отвечает ошибкой, манифест
+> синка отдавал 503 на каждом запуске, и дельта-синк на проде не работал. Не удалять
+> поле — `setlistsServer.ts` его запрашивает.
+
+### 12. `setlist_items` — Состав сетлиста
+
+| Поле | Тип | Описание |
+| :--- | :--- | :--- |
+| `id` | `uuid` | Первичный ключ |
+| `setlist` | `uuid` | m2o → `setlists` |
+| `song` | `integer` | m2o → `songs` (integer, т.к. `songs.id` — не uuid) |
+| `sort` | `integer` NULL | Порядок песни в сете |
+| `key` | `varchar` NULL | Заведено на будущее, приложением **не читается** |
+| `capo` | `integer` NULL | Заведено на будущее, приложением **не читается** |
+
+### 13. `song_user_state` — Личные пометки музыканта к песне
+
+| Поле | Тип | Описание |
+| :--- | :--- | :--- |
+| `id` | `uuid` | UUIDv5 от `"{user_id}:{song}"` — так обеспечена уникальность пары без составного индекса |
+| `user_id` | `uuid` NOT NULL | m2o → `directus_users`. Названо `user_id`, т.к. `user` зарезервировано в Postgres |
+| `song` | `integer` NOT NULL | m2o → `songs` |
+| `key` | `varchar` NULL | Рабочая тональность музыканта |
+| `strokes` | `json` NULL | Рукописные пометки (десятки КБ) |
+| `scroll_speed` | `integer` NULL | Сохранённая скорость автоскролла |
+| `updated_at` | `timestamptz` NULL | LWW-метка. Пишет **приложение** (время правки на устройстве), не Directus: серверная метка сломала бы разрешение конфликтов при отложенном replay офлайн-правок |
+
+`accountability` коллекции — `activity` (не `all`): при `all` Directus писал бы полный
+снимок `strokes` в `directus_revisions` на каждое изменение.
+
+### 14. `ai_prompts` — Промпты MCP (служебная)
+
+Создана самим Directus при включении MCP-сервера (Settings → AI). К приложению отношения
+не имеет, кодом не читается. Поля: `id` (uuid), `name`, `status`, `description`,
+`system_prompt`, `messages` (json), `sort`, `date_created`/`user_created`,
+`date_updated`/`user_updated`. См. [Directus MCP](directus-mcp-system-prompt.md).
+
 ## Чего в базе нет
 
 Прежние версии этого документа описывали таблицы `users`, `reminder`, `plan24` и
@@ -205,3 +267,4 @@ gunzip -t /opt/nbc/backups/directus-db-<TS>.sql.gz
 - [ИИ-интеграция](AI_INTEGRATION_GUIDE.md) — таблица `chat_history`
 - [История чата](CHAT_HISTORY_SETUP.md) — настройка хранения чата
 - [Деплой](deployment.md) — сервис `postgres`, тома, бэкапы
+- [Directus MCP](directus-mcp-system-prompt.md) — подключение MCP и системный промпт агента

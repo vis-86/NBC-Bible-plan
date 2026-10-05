@@ -8,16 +8,16 @@ vi.mock('../../../src/lib/directus', () => ({
 }));
 
 import { sealSession, SESSION_COOKIE_NAME } from '../../../src/lib/session-core';
-import { requireSetlistWrite } from './requireRole';
+import { requireSetlistWrite, requireSongWrite } from './requireRole';
 
 async function sessionCookie(): Promise<string> {
   const sealed = await sealSession({ directus_id: 'user-1', first_name: 'Test' });
   return `${SESSION_COOKIE_NAME}=${sealed}`;
 }
 
-function testApp() {
+function testApp(gate = requireSetlistWrite) {
   const app = new Hono();
-  app.post('/write', requireSetlistWrite, (c) => c.json({ role: c.get('appRole') }));
+  app.post('/write', gate, (c) => c.json({ role: c.get('appRole') }));
   return app;
 }
 
@@ -48,5 +48,35 @@ describe('requireSetlistWrite', () => {
     const res = await app.request('/write', { method: 'POST', headers: { Cookie: cookie } });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ role: 'musician' });
+  });
+});
+
+describe('requireSongWrite', () => {
+  beforeEach(() => {
+    process.env.SESSION_SECRET = 'test-session-secret-at-least-32-chars-long';
+    adminRequestMock.mockReset();
+  });
+
+  it('без сессии -> 401', async () => {
+    const app = testApp(requireSongWrite);
+    const res = await app.request('/write', { method: 'POST' });
+    expect(res.status).toBe(401);
+  });
+
+  it('роль "musician" правит сетлисты, но не песни -> 403', async () => {
+    adminRequestMock.mockResolvedValueOnce({ role: { name: 'musician' } });
+    const cookie = await sessionCookie();
+    const app = testApp(requireSongWrite);
+    const res = await app.request('/write', { method: 'POST', headers: { Cookie: cookie } });
+    expect(res.status).toBe(403);
+  });
+
+  it('роль "musician_editor" -> проходит', async () => {
+    adminRequestMock.mockResolvedValueOnce({ role: { name: 'musician_editor' } });
+    const cookie = await sessionCookie();
+    const app = testApp(requireSongWrite);
+    const res = await app.request('/write', { method: 'POST', headers: { Cookie: cookie } });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ role: 'musician_editor' });
   });
 });

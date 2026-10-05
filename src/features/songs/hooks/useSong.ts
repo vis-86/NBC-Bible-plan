@@ -112,3 +112,11 @@ export function useSong(id: string | number | null) {
 
   return { song, loading, error, freshAvailable, applyFresh };
 }
+
+/**
+ * Кладёт песню в память сессии — следующее открытие нарисует её синхронно. После записи
+ * песни: иначе `seen` отдал бы старую версию до прихода фоновой ревалидации.
+ */
+export function rememberSong(song: Song): void {
+  seen.set(String(song.id), song);
+}

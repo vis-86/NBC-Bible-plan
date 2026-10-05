@@ -56,13 +56,17 @@ bible-plan/
 │   │   │   └── bible-text-cache.ts   # Client-side cache for bible text
 │   │   ├── songs/                    # Songs (ChordPro) feature slice
 │   │   │   ├── components/           # SongList, SongCard, SongView, SongKeyPicker, SongQuickTools, render/*,
-│   │   │   │                         # SongToolStack, SongInkLayer/Toolbar/ModeBar/Confirm/TextNote/Button (M10)
+│   │   │   │                         # SongToolStack, SongInkLayer/Toolbar/ModeBar/Confirm/TextNote/Button (M10),
+│   │   │   │                         # SongEditor, SongEditorFields, SongChordCanvas, SongChordKeyboard (M9)
 │   │   │   ├── hooks/                # useSongs, useSong, useSongSearch, useScrollRestore, useSongViewSettings, useSongKey,
-│   │   │   │                         # useSongInk, useInkInput, useInkStage, useSongAnnotations (M10)
+│   │   │   │                         # useSongInk, useInkInput, useInkStage, useSongAnnotations (M10),
+│   │   │   │                         # useSaveSong, useSongForEdit (M9)
 │   │   │   ├── lib/                  # ChordPro parser, offlineSongs (read-through), markers/transpose/songKey (§10), personalKeyStore,
 │   │   │   │                         # songSectionKind (классификация секции по метке {comment:}, §3.6),
 │   │   │   │                         # searchText (plain-текст ChordPro + нормализация для поиска, §14),
-│   │   │   │                         # inkAnchor/inkGeometry/inkStroke/inkTools, songAnnotationsStore (M10)
+│   │   │   │                         # inkAnchor/inkGeometry/inkStroke/inkTools, songAnnotationsStore (M10),
+│   │   │   │                         # inkLineHash (якорь пометки по хэшу строки), importChordsOverLyrics, chordQuality,
+│   │   │   │                         # songEditorDraft, songEditModel, chordKeyboard, chordCanvasLayout, songSlug (M9)
 │   │   │   ├── services/             # songsServer, songStateServer (Directus admin-client; только для server/)
 │   │   │   └── types.ts              # Song-specific types (+ SongStroke/SongAnnotations)
 │   │   ├── setlists/                 # Setlists feature slice (M7)
@@ -137,7 +141,9 @@ bible-plan/
 ├── scripts/
 │   ├── build-manifest.ts             # Generates public/manifest.webmanifest (build-time)
 │   ├── build-sw.ts                   # esbuild + @serwist/build injectManifest → out/sw.js
-│   └── static-serve.ts               # Local static+bff-proxy server for e2e (mimics nginx)
+│   ├── static-serve.ts               # Local static+bff-proxy server for e2e (mimics nginx)
+│   ├── migrate-ink-anchor-hashes.ts  # M9 T4.1: одноразовая миграция якорей пометок (прод применён 2026-09-24)
+│   └── songs-import/                 # Импорт корпуса data/songs → Directus — ОДНОРАЗОВЫЙ, на непустой коллекции отказывает
 ├── deploy/                           # Dockerfile (build/bff/static stages), compose.yml, nginx/, deploy.sh
 ├── .ai-factory/                      # AI Factory context
 │   ├── DESCRIPTION.md                # Project specification
@@ -173,7 +179,9 @@ bible-plan/
 | `server/src/routes/sync.ts` | `GET /api/sync/manifest` — пер-элементные версии песен/сетов/плана, ETag + 304, in-memory кеш 60 с. Версия сета учитывает состав (`setlist_items`), не только `date_updated`. Сбой Directus → 503, НИКОГДА не пустой манифест |
 | `src/features/setlists/lib/warmSetlistSongs.ts` | Фоновый прогрев всех песен открытого сета тем же вызовом, которым их читает экран (`readSongThroughSWR`) |
 | `src/features/songs/components/SongFreshBanner.tsx` | Плашка «Песня обновлена» — свежая версия открытой песни применяется только по явному тапу (`useSong().applyFresh`) |
-| `src/lib/app-roles.ts` + `src/shared/hooks/useAppRole.ts` | `AppRole` (reader/musician/musician_editor), `GET /api/user/role` — гейт кнопок сетлистов (реальный гейт — BFF `requireSetlistWrite`, см. `CLAUDE.md`) |
+| `src/app/dashboard/song-edit/page.tsx` + `src/features/songs/components/SongEditor.tsx` | Редактор песни (M9 T3a): создание (без `id`) и правка (`?id=`), в `APP_SHELL_ROUTES`. Вкладки «Вставить» (конвертер «аккорды над строкой»), «Аккорды» (`SongChordCanvas` + `SongChordKeyboard`, модель без потерь — `lib/songEditModel.ts`) и «Исходник» (ChordPro), предпросмотр `SongView`. Запись online-only (`useSaveSong` → после записи обновляет IDB песни и список), песня для правки — только из сети (`useSongForEdit`), логика черновика — `lib/songEditorDraft.ts`. Вход — только при `canEditSongs` |
+| `src/lib/app-roles.ts` + `src/shared/hooks/useAppRole.ts` | `AppRole` (reader/musician/musician_editor), `GET /api/user/role` — гейт кнопок сетлистов и правки песен (реальный гейт — BFF `requireSetlistWrite`/`requireSongWrite`, см. `CLAUDE.md`). Роль кешируется cache-first на 5 мин: смена роли в Directus видна после истечения и повторного входа на экран |
+| `server/src/routes/songs.ts` (`POST /`, `PUT /:id`) + `src/lib/validators/songs.schemas.ts` | Запись песни (M9) под `requireSongWrite`: тело — готовый ChordPro, `slug`/`sort`/`status` ставит сервер (`createSong`/`updateSong` в `songsServer.ts`). Прав на `songs` у политик пользователей в Directus нет и не выдавать |
 | `server/src/routes/setlists.ts` + `src/features/setlists/services/setlistsServer.ts` | CRUD сетлистов (Directus admin-client), `requireSetlistWrite` на мутирующих роутах |
 | `src/app/dashboard/setlists/page.tsx`, `.../setlist/page.tsx`, `.../setlist-edit/page.tsx` | Список / read-only просмотр / создание сета — все три в `APP_SHELL_ROUTES`. Карточка списка показывает состав и ведёт на первую песню сета (`/dashboard/song?id=&setlistId=`); `setlist-edit` — ТОЛЬКО создание (два шага: выбор песен → название/дата/порядок) |
 | `src/features/setlists/components/SetlistManageSheet.tsx` + `hooks/useSetlistEditor.ts` | Единственная точка правки состава (порядок/добавление/удаление сета) — шит из шапки просмотра песни («n/m»), со страницы сета и с карточки списка (kebab-меню «Изменить»/«Удалить» → `initialAction`). Экраны read-only; удаление песни и сета — через подтверждение |
@@ -197,8 +205,9 @@ bible-plan/
 | `src/shared/offline/chunkGuard.ts` + `src/components/ChunkGuard.tsx` | ChunkLoadError guard — auto-reload-once с cooldown |
 | `server/src/routes/*` (health route) | 204 no-store ping — гейт online-триггера outbox-синка (`isServerReachable`) |
 | `e2e/gestures/song-autoscroll-touch.spec.ts` | Ручной тач-скролл во время автоскролла: приостанавливает движок и НЕ выключает режим — после жеста лист едет дальше сам (wheel-ветка покрыта в `e2e/layout/song-autoscroll.spec.ts`) |
+| `e2e/gestures/chord-drag.spec.ts` | Перетаскивание аккорда в редакторе песни настоящим тачем (CDP, Pixel 7): аккорд доезжает, `pointercancel` нет, вертикальная прокрутка текста жива. Роль `musician_editor` и запись песни подменяются `route` (SW заблокирован) |
 | `e2e/gestures/swipe-pager.spec.ts` | Свайп глав/песен настоящим тачем (CDP `Input.dispatchTouchEvent`, контур Pixel 7): ловит регрессии `touch-action`, которые jsdom-тесты `SwipePager` увидеть не могут |
-| `e2e/offline/` + `playwright.config.ts` | Офлайн E2E-регрессия (`npm run e2e:offline`) — cold start, cold-start-any-route (precache), навигация, outbox sync, update-flow, сетлисты, пометки песни (полный круг записи) |
+| `e2e/offline/` + `playwright.config.ts` | Офлайн E2E-регрессия (`npm run e2e:offline`) — cold start, cold-start-any-route (precache), навигация, outbox sync, update-flow, сетлисты, пометки песни (полный круг записи), офлайн-старт редактора песни |
 | `scripts/static-serve.ts` | Локальный static+bff-proxy сервер для e2e (аналог nginx) |
 | `next.config.ts` | Next.js config — basePath, `output: 'export'` |
 

@@ -3,7 +3,12 @@ import { getApiPath } from '@/shared/utils/api';
 import { BibleReference, ReadingPlanDay, PlanItem } from '@/types';
 import type { AppRole } from '@/lib/app-roles';
 // Type-only import (стирается при компиляции) — доменные типы фичи songs.
-import type { SongListResponse, SongResponse } from '@/features/songs/types';
+import type {
+  CreateSongPayload,
+  SongListResponse,
+  SongResponse,
+  UpdateSongPayload,
+} from '@/features/songs/types';
 import type {
   CreateSetlistPayload,
   SetlistResponse,
@@ -115,6 +120,12 @@ export const songsApi = {
   },
   getSong: async (id: string | number): Promise<SongResponse> => {
     return apiClient.get<SongResponse>(`/api/songs/${id}`);
+  },
+  create: async (payload: CreateSongPayload): Promise<{ id: number }> => {
+    return apiClient.post<{ id: number }>('/api/songs', payload);
+  },
+  update: async (id: string | number, patch: UpdateSongPayload): Promise<void> => {
+    await apiClient.put(`/api/songs/${id}`, patch);
   },
 };
 

@@ -3,6 +3,7 @@ import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSongInk } from './useSongInk';
 import { indexLineRects, type LineRect } from '../lib/inkGeometry';
+import { buildLineHashIndex } from '../lib/inkLineHash';
 import type { SongStroke } from '../types';
 
 const LINES: LineRect[] = [
@@ -312,5 +313,69 @@ describe('цвет пометок', () => {
 
     expect(result.current.color).toBe('#0284c7');
     expect(onColorChange).toHaveBeenCalledWith('#0284c7');
+  });
+});
+
+describe('якоря по содержимому строки (M9)', () => {
+  // Две строки в одной секции — совпадает с геометрией LINES (section 0, line 0/1).
+  // Метка секции обязательна: без неё `parseSongBlocks` не создаёт ни одного блока
+  // (см. план M9, T0.4), и индекс хэшей был бы пуст.
+  const CONTENT = ['{comment: Куплет}', 'Пер[A]вая строка', 'Вто[D]рая строка'].join('\n');
+
+  function setupWithContent(initial: SongStroke[], content: string, onSave = vi.fn()) {
+    const view = renderHook(
+      ({ strokes, text }) => useSongInk({ initialStrokes: strokes, onSave, content: text }),
+      { initialProps: { strokes: initial, text: content } }
+    );
+    return { ...view, onSave };
+  }
+
+  it('новый штрих получает хэш своей строки', () => {
+    const { result } = setupWithContent([], CONTENT);
+    draw(result, 10, 45);
+    expect(result.current.strokes[0].anchor).toEqual({
+      section: 0,
+      line: 1,
+      hash: buildLineHashIndex(CONTENT)[0][1],
+    });
+  });
+
+  it('сирота не рисуется, но переживает сохранение', () => {
+    const orphan: SongStroke = {
+      id: 'orphan',
+      tool: 'pen',
+      anchor: { section: 0, line: 0, hash: 'nosuchline' },
+      points: [[1, 1, 0.5]],
+      color: '#000',
+      width: 2,
+    };
+    const { result, onSave } = setupWithContent([orphan], CONTENT);
+    expect(result.current.strokes).toEqual([]);
+
+    act(() => result.current.enter());
+    draw(result, 10, 45);
+    act(() => result.current.exit(true));
+
+    const saved = onSave.mock.calls[0][0] as SongStroke[];
+    expect(saved.map((s) => s.id)).toContain('orphan');
+    expect(saved).toHaveLength(2);
+  });
+
+  it('новая версия текста пересаживает пометку на её строку', () => {
+    const index = buildLineHashIndex(CONTENT);
+    const stored: SongStroke = {
+      id: 'kept',
+      tool: 'pen',
+      anchor: { section: 0, line: 1, hash: index[0][1] },
+      points: [[1, 1, 0.5]],
+      color: '#000',
+      width: 2,
+    };
+    const { result, rerender } = setupWithContent([stored], CONTENT);
+    expect(result.current.strokes[0].anchor).toMatchObject({ section: 0, line: 1 });
+
+    // «Песня обновлена»: редактор вставил строку в начало.
+    rerender({ strokes: [stored], text: CONTENT.replace('{comment: Куплет}', '{comment: Куплет}\nНовая строка') });
+    expect(result.current.strokes[0].anchor).toMatchObject({ section: 0, line: 2 });
   });
 });

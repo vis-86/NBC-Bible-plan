@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { songsApi } from '@/shared/services/api/endpoints';
-import { SONGS_LIST_CACHE_KEY, readThroughSWR } from '@/shared/offline/readThrough';
+import { SONGS_LIST_CACHE_KEY, persistApiCache, readThroughSWR } from '@/shared/offline/readThrough';
 import type { SongSummary } from '../types';
 
 /**
@@ -87,4 +87,15 @@ export function useSongs() {
 export function resetSongsCache() {
   cache = null;
   inflight = null;
+}
+
+/**
+ * Свежий список из сети — в apiCache (тот же ключ, что читает `fetchSongsOnce`) и всем
+ * подписчикам. Нужен после записи песни: без него cache-first ещё до 5 минут отдавал бы
+ * каталог без новой песни или со старым названием.
+ */
+export async function refreshSongsList(): Promise<void> {
+  const res = await songsApi.getSongs();
+  await persistApiCache(SONGS_LIST_CACHE_KEY, res);
+  publish(res.songs);
 }

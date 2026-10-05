@@ -21,7 +21,10 @@ export interface SongBlock {
 
 /**
  * Разбиение контента песни на логические блоки (куплеты/припевы и т.п.)
- * Поддерживает старый формат для обратной совместимости
+ * Поддерживает старый формат для обратной совместимости.
+ *
+ * Текст до первой метки `{comment:}` (и песня без меток целиком) — отдельный блок
+ * без метки (`kind: 'other'`), а не выброшенный текст (M9, T0.4).
  */
 export const parseSongBlocks = (content: string): SongBlock[] => {
   const blocks: SongBlock[] = [];
@@ -30,7 +33,17 @@ export const parseSongBlocks = (content: string): SongBlock[] => {
   let currentComment = '';
   let currentCommentType: 'normal' | 'italic' | 'box' = 'normal';
   let currentContent = '';
-  let hasStartedFirstBlock = false;
+
+  const flush = () => {
+    if (currentContent.trim() || currentComment) {
+      blocks.push({
+        comment: currentComment,
+        content: currentContent.trim(),
+        commentType: currentCommentType,
+        kind: classifySection(currentComment),
+      });
+    }
+  };
 
   lines.forEach((line) => {
     // Проверяем директивы
@@ -39,18 +52,10 @@ export const parseSongBlocks = (content: string): SongBlock[] => {
       if (directive) {
         // Обрабатываем комментарии
         if (isComment(directive.type) || isCommentItalic(directive.type) || isCommentBox(directive.type)) {
-          if ((currentContent.trim() || currentComment) && hasStartedFirstBlock) {
-            blocks.push({
-              comment: currentComment,
-              content: currentContent.trim(),
-              commentType: currentCommentType,
-              kind: classifySection(currentComment),
-            });
-          }
+          flush();
           currentContent = '';
           currentComment = directive.value || '';
           currentCommentType = isCommentItalic(directive.type) ? 'italic' : isCommentBox(directive.type) ? 'box' : 'normal';
-          hasStartedFirstBlock = true;
           return;
         }
 
@@ -66,41 +71,19 @@ export const parseSongBlocks = (content: string): SongBlock[] => {
       }
     }
 
-    const isEmptyLine = line.trim() === '';
-
     // Старый формат комментариев для обратной совместимости
     const commentMatch = line.match(/^\s*\{\s*comment:\s*(.+?)\s*\}\s*$/i);
     if (commentMatch) {
-      if ((currentContent.trim() || currentComment) && hasStartedFirstBlock) {
-        blocks.push({
-          comment: currentComment,
-          content: currentContent.trim(),
-          commentType: currentCommentType,
-          kind: classifySection(currentComment),
-        });
-      }
+      flush();
       currentContent = '';
       currentComment = commentMatch[1];
       currentCommentType = 'normal';
-      hasStartedFirstBlock = true;
-    } else if (isEmptyLine && !hasStartedFirstBlock) {
-      return;
     } else {
       currentContent += `${line}\n`;
-      if (!hasStartedFirstBlock && line.trim() && currentComment) {
-        hasStartedFirstBlock = true;
-      }
     }
   });
 
-  if ((currentContent.trim() || currentComment) && hasStartedFirstBlock) {
-    blocks.push({
-      comment: currentComment,
-      content: currentContent.trim(),
-      commentType: currentCommentType,
-      kind: classifySection(currentComment),
-    });
-  }
+  flush();
 
   return blocks.filter((block) => block.content.trim() || block.comment);
 };

@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Редактор песен — прототип</title>
+<style>
+:root{
+  --bg:#faf8f5; --surface:#fff; --surface-2:#f2ede7; --text:#1c1917; --text-2:#57534e;
+  --text-3:#8b8378; --border:#e3ddd5; --primary:#b4342c; --accent:#c2761a; --ok:#3f7d4e;
+  --chord:#b4342c; --radius:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#17150f; --surface:#211e18; --surface-2:#2b2720; --text:#f0ece5; --text-2:#b8b0a4;
+    --text-3:#8a8376; --border:#39342b; --primary:#e0685e; --accent:#e0a054; --ok:#7bbd8c; --chord:#e0685e; }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:16px}
+.wrap{max-width:1180px;margin:0 auto}
+h1{font-size:19px;margin:0 0 4px}
+.sub{color:var(--text-2);font-size:13px;margin:0 0 16px}
+.cols{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.phone{flex:0 0 380px;max-width:100%;background:var(--surface);border:1px solid var(--border);border-radius:24px;overflow:hidden;display:flex;flex-direction:column;height:760px;box-shadow:0 8px 28px rgba(0,0,0,.10)}
+@media (max-width:820px){.phone{flex:1 1 100%;height:640px}}
+.side{flex:1 1 300px;min-width:280px}
+/* header */
+.hdr{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;background:var(--surface)}
+.hdr .t{font-weight:600;font-size:15px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn{border:1px solid var(--border);background:var(--surface-2);color:var(--text);border-radius:10px;padding:7px 12px;font-size:13px;cursor:pointer;font-family:inherit}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+.btn.ghost{background:transparent}
+.tabs{display:flex;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border);background:var(--surface)}
+.tab{flex:1;text-align:center;padding:9px 4px;border-radius:10px;font-size:13px;color:var(--text-2);cursor:pointer;border:1px solid transparent;user-select:none}
+.tab[aria-selected=true]{background:var(--surface-2);color:var(--text);font-weight:600;border-color:var(--border)}
+.body{flex:1;overflow:auto;padding:14px;-webkit-overflow-scrolling:touch}
+.pane{display:none}.pane.on{display:block}
+label.f{display:block;font-size:12px;color:var(--text-3);margin:12px 0 5px;text-transform:uppercase;letter-spacing:.04em}
+textarea,input[type=text]{width:100%;background:var(--surface-2);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:10px 12px;font:inherit}
+textarea{min-height:200px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;line-height:1.45;white-space:pre;overflow-wrap:normal;overflow-x:auto}
+.note{font-size:12.5px;color:var(--text-2);background:var(--surface-2);border-left:3px solid var(--accent);padding:8px 10px;border-radius:0 8px 8px 0;margin:12px 0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--text-2);padding:7px 11px;font:inherit;font-size:12.5px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--primary);color:#fff}
+/* preview */
+.song{font-size:16px}
+.sec{margin:0 0 16px}
+.sec-h{font-size:12px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--accent);margin:0 0 6px}
+.sec.mark{background:var(--surface-2);border-radius:10px;padding:10px 12px}
+.ln{display:flex;flex-wrap:wrap;align-items:flex-end;margin:0 0 2px;min-height:2.4em}
+.tk{display:inline-flex;flex-direction:column;white-space:pre}
+.tk .c{color:var(--chord);font-weight:700;font-size:13px;line-height:1.25;min-height:1.25em;font-family:ui-monospace,Menlo,monospace}
+.tk .w{line-height:1.3}
+/* editor canvas — аккорд живёт НАД строкой и не двигает текст при перетаскивании */
+.ln2{position:relative;margin:0 0 2px}
+.ln2 .lyr{font-size:17px;line-height:3.2;white-space:pre-wrap;word-break:break-word;
+  -webkit-user-select:none;user-select:none;cursor:text}
+.ch{position:absolute;color:var(--chord);font-weight:700;font-size:12.5px;letter-spacing:-.01em;
+  font-family:ui-monospace,Menlo,monospace;background:color-mix(in srgb,var(--chord) 13%,var(--surface));
+  border-radius:7px;padding:1px 5px;white-space:nowrap;touch-action:none;
+  user-select:none;-webkit-user-select:none;cursor:grab;will-change:transform;z-index:2}
+.ch.sel{box-shadow:0 0 0 2px var(--chord)}
+.ch.lift{z-index:6;cursor:grabbing;background:var(--chord);color:#fff;
+  box-shadow:0 10px 22px rgba(0,0,0,.24)}
+.caret2{position:absolute;width:2px;background:var(--primary);border-radius:1px;z-index:1;
+  animation:bl 1.05s steps(2,end) infinite}
+.guide{position:absolute;width:2px;background:var(--primary);border-radius:1px;z-index:5;opacity:.9}
+@keyframes bl{50%{opacity:.15}}
+/* плавающая панель выбранного аккорда — translucent material, растёт из самого аккорда */
+.selbar{position:absolute;z-index:8;display:flex;gap:2px;padding:4px;border-radius:13px;
+  background:color-mix(in srgb,var(--surface) 70%,transparent);
+  backdrop-filter:blur(20px) saturate(180%);-webkit-backdrop-filter:blur(20px) saturate(180%);
+  border:1px solid var(--border);box-shadow:0 10px 24px rgba(0,0,0,.20)}
+.selbar button{border:0;background:transparent;color:var(--text);font:inherit;font-size:15px;
+  font-weight:600;padding:7px 10px;border-radius:9px;cursor:pointer;line-height:1}
+.selbar button:active{background:var(--surface-2)}
+.selname{align-self:center;padding:0 8px 0 4px;font-family:ui-monospace,Menlo,monospace;
+  font-weight:700;font-size:13px;color:var(--chord);border-right:1px solid var(--border);margin-right:2px}
+.selbar button[disabled]{opacity:.28;cursor:default}
+@media (prefers-reduced-motion:reduce){ .caret2{animation:none} }
+@media (prefers-reduced-transparency:reduce){ .selbar{background:var(--surface);backdrop-filter:none} }
+/* chord keyboard */
+.kb{border-top:1px solid var(--border);background:var(--surface);padding:8px 10px 10px}
+.kbrow{display:flex;gap:6px;margin-bottom:6px;overflow-x:auto;padding-bottom:2px}
+.key{flex:1 0 auto;min-width:52px;padding:11px 6px;border-radius:11px;border:1px solid var(--border);background:var(--surface-2);color:var(--text);font-weight:700;font-family:ui-monospace,Menlo,monospace;font-size:15px;cursor:pointer;text-align:center}
+.key.deg{color:var(--chord)}
+.key small{display:block;font-weight:400;font-size:9.5px;color:var(--text-3);font-family:inherit}
+.mod{flex:0 0 auto;min-width:0;padding:8px 10px;font-size:12.5px;font-weight:600;border-radius:9px;border:1px solid var(--border);background:transparent;color:var(--text-2);cursor:pointer;font-family:ui-monospace,Menlo,monospace}
+.mod[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:#1c1917}
+.kbhint{font-size:11.5px;color:var(--text-3);margin:2px 2px 6px}
+pre.src{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:10px;font-size:12px;line-height:1.5;overflow:auto;white-space:pre;margin:0}
+.side h2{font-size:15px;margin:18px 0 6px}
+.side h2:first-child{margin-top:0}
+.side p,.side li{font-size:13.5px;color:var(--text-2)}
+.side ul{padding-left:18px;margin:6px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:12px}
+code{font-family:ui-monospace,Menlo,monospace;background:var(--surface-2);padding:1px 5px;border-radius:5px;font-size:12.5px}
+.badge{display:inline-block;font-size:11px;padding:2px 7px;border-radius:99px;background:var(--surface-2);color:var(--text-2);border:1px solid var(--border)}
+.warn{color:var(--accent)}
+.okc{color:var(--ok)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Редактор песен — прототип «холста аккордов»</h1>
+<p class="sub">Три входа в одну и ту же песню: вставка монospace-текста → авто-конвертация, тап-редактор аккордов, ChordPro-исходник для технарей.</p>
+
+<div class="cols">
+<!-- PHONE -->
+<div class="phone">
+  <div class="hdr">
+    <button class="btn ghost" onclick="alert('Назад к списку песен')">‹</button>
+    <div class="t" id="hdrTitle">Новая песня</div>
+    <button class="btn primary" onclick="alert('Сохранить → PUT /api/songs/:id (online-only)')">Готово</button>
+  </div>
+  <div class="tabs" role="tablist">
+    <div class="tab" role="tab" data-p="paste" aria-selected="true">Вставить</div>
+    <div class="tab" role="tab" data-p="edit" aria-selected="false">Аккорды</div>
+    <div class="tab" role="tab" data-p="src" aria-selected="false">Исходник</div>
+  </div>
+  <div class="body">
+
+    <!-- PASTE -->
+    <div class="pane on" id="p-paste">
+      <div class="note">Вставьте текст с холихордса или из блокнота «аккорды над строкой» — приложение разберёт его само. Русская нотация <code>H</code> определяется автоматически.</div>
+      <label class="f">Текст песни</label>
+      <textarea id="raw" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:10px">
+        <span class="badge" id="detect">—</span>
+        <div class="seg" id="notation">
+          <button data-n="auto" aria-pressed="true">Авто</button>
+          <button data-n="ru" aria-pressed="false">H = Си</button>
+          <button data-n="en" aria-pressed="false">B = Си</button>
+        </div>
+      </div>
+      <label class="f">Название</label>
+      <input type="text" id="mTitle" placeholder="Название песни">
+      <label class="f">Автор / группа</label>
+      <input type="text" id="mArtist" placeholder="Напр. группа прославления">
+      <label class="f">Тональность</label>
+      <input type="text" id="mKey" placeholder="A, Em, F#m…">
+      <div class="row" style="margin-top:14px">
+        <button class="btn primary" id="toEdit">Разобрать и посмотреть →</button>
+      </div>
+      <label class="f">Что получилось</label>
+      <div class="song" id="prevPaste"></div>
+    </div>
+
+    <!-- EDIT -->
+    <div class="pane" id="p-edit">
+      <div class="note"><b>Поставить:</b> тап по строке — курсор встаёт над ней, дальше тап по аккорду на клавиатуре.<br>
+      <b>Подвинуть:</b> тяните аккорд вдоль его строки.<br>
+      <b>Изменить:</b> тап по аккорду — он выбран: ступень на клавиатуре заменит его,
+      <code>m · 7 · sus4</code> меняют качество на месте, панель переносит строкой выше/ниже и убирает.</div>
+      <div class="row" style="justify-content:flex-end;margin:6px 0 2px">
+        <button class="btn ghost" id="undoBtn" style="visibility:hidden">↩ Отменить</button>
+      </div>
+      <div class="song" id="canvas"></div>
+    </div>
+
+    <!-- SRC -->
+    <div class="pane" id="p-src">
+      <div class="note">Формат хранения — ChordPro. Этот экран нужен одному-двум людям, остальные его не увидят.</div>
+      <pre class="src" id="srcOut"></pre>
+    </div>
+
+  </div>
+
+  <!-- CHORD KEYBOARD -->
+  <div class="kb" id="kb" style="display:none">
+    <div class="kbhint" id="kbHint">Тональность A — ступени тональности вынесены вперёд</div>
+    <div class="kbrow" id="kbDeg"></div>
+    <div class="kbrow" id="kbMod"></div>
+  </div>
+</div>
+
+<!-- SIDE -->
+<div class="side">
+  <div class="card">
+    <h2>Ключевая идея</h2>
+    <p>Музыкант <b>никогда не видит квадратных скобок</b>. ChordPro остаётся форматом хранения, а вводом служат две вещи, которые он уже умеет: вставить готовый текст и ткнуть пальцем.</p>
+  </div>
+  <div class="card">
+    <h2>1. Вставка (90 % случаев)</h2>
+    <p>Песни берут с холихордса — это «аккорды над строкой» в monospace. Конвертер ловит аккордовую строку по правилу <i>«все токены строки — валидные аккорды или служебные символы»</i> и переносит каждый аккорд в колонку символа строки ниже.</p>
+    <ul>
+      <li><code>H → B</code>, <code>B → Bb</code> при русской нотации (автоопределение по наличию <code>H</code>);</li>
+      <li><code>Куплет 1:</code> → <code>{comment: Куплет 1}</code>, дальше <code>classifySection()</code> красит припев;</li>
+      <li><code>х2</code> уезжает в метку секции: <code>{comment: Проигрыш (x2)}</code>;</li>
+      <li>такты <code>| F#m /// | D /// |</code> → <code>[|][F#m] /// [|][D] ///</code> — маркер <code>[|]</code> в <code>markers.ts</code> уже есть;</li>
+      <li>репризы <code>||: :||</code> остаются текстом строки, рендер их не трогает.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h2>2. Клавиатура аккордов</h2>
+    <p>Главный барьер мобильного ввода — набрать <code>F#m</code> на русской раскладке. Поэтому системной клавиатуры для аккордов нет вообще: семь ступеней тональности песни лежат готовыми кнопками, остальное — модификаторы-переключатели (<code>7 · sus4 · sus2 · maj7 · add9 · /бас</code>) и лист хроматики за «Ещё».</p>
+    <p>Побочный эффект: 95 % аккордов песни — диатоника, значит типичная правка это один тап.</p>
+  </div>
+  <div class="card">
+    <h2>3. Drag — для правки, не для ввода</h2>
+    <p>Тап <b>ставит</b> аккорд, drag его <b>двигает</b>. После импорта главная работа — не расставить аккорды заново, а подвинуть съехавшие на полслова.</p>
+    <p><b>Аккорд — слой НАД строкой, а не внутри неё.</b> Инлайн-аккорд при перетаскивании переливал бы текст прямо под пальцем; абсолютный слой не двигает ни один глиф. Побочная выгода: палец почти не закрывает текст, потому что аккордный ряд выше строки.</p>
+    <p><b>Аккорд заперт в своей строке.</b> Одна ось — один смысл: потерять аккорд невозможно, промахнуться мимо строки невозможно. Перенос на соседнюю строку — дискретными ↑/↓ в панели выбранного аккорда, без прицеливания.</p>
+    <p>Что даёт ощущение «живого», по пунктам <i>Designing Fluid Interfaces</i>:</p>
+    <ul>
+      <li><b>Отклик на нажатие, не на отпускание</b> — аккорд поднимается (scale 1.14 + тень) в момент касания.</li>
+      <li><b>1:1-трекинг</b> с уважением точки захвата: палец и аккорд не расходятся ни на пиксель.</li>
+      <li><b>Курсор-волосок</b> идёт от аккордного ряда вниз сквозь глиф — видно ровно ту букву, к которой привяжется аккорд.</li>
+      <li><b>Щелчок на каждой привязке</b> (<code>navigator.vibrate(4)</code>) — позиция считывается пальцем, без разглядывания.</li>
+      <li><b>Rubber-band на краях строки</b>: край не «замерзает», а сопротивляется.</li>
+      <li><b>Пружина с передачей скорости</b> на посадке (damping 0.8, response 0.35) — шва между жестом и анимацией нет.</li>
+      <li><b>Отмена вместо подтверждения</b>: любое изменение откатывается одной кнопкой, диалогов «вы уверены?» нет.</li>
+      <li><code>prefers-reduced-motion</code> убирает пружины и мигание курсора, поведение сохраняется.</li>
+    </ul>
+    <p class="warn"><b>Проекции импульса здесь нет — и это находка теста.</b> Формула Apple рассчитана на бросок шторки через экран: на 560 px/s она даёт +280 px, и аккорд улетал в конец строки. Расстановка аккорда — точная задача, как курсор в тексте, поэтому цель выбирается по точке отпускания. Скорость не выброшена: она уходит в пружину.</p>
+  </div>
+  <div class="card">
+    <h2>4. Чего НЕ делать</h2>
+    <ul>
+      <li><b>Не</b> давать редактировать сам монospace-холст с пробелами: на телефоне выровнять аккорд пробелами невозможно, это главная причина, почему «просто textarea» проваливается.</li>
+      <li><b>Не</b> делать drag единственным способом ввода — им ставят только то, что уже существует.</li>
+      <li><b>Не</b> хранить «как вставили»: один формат хранения — ChordPro, иначе транспозиция, поиск и пометки разъедутся.</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h2>Как ложится на проект</h2>
+    <ul>
+      <li>роль <code>musician_editor</code> и <code>canEditSongs</code> уже есть в <code>app-roles.ts</code> и пока никем не вызываются — это и есть M9;</li>
+      <li>гейт записи — BFF (<code>requireSongWrite</code> рядом с <code>requireSetlistWrite</code>), а не Directus;</li>
+      <li>запись — <b>online-only с явным UI</b>, по образцу сетлистов: общий каталог + LWW-outbox = чужая правка молча затирается;</li>
+      <li>конвертер — чистая функция в <code>features/songs/lib/importChordsOverLyrics.ts</code>, тестируется корпусом как <code>transpose.corpus.test.ts</code>.</li>
+    </ul>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+/* ---------- chord grammar ---------- */
+const CHORD_RE = /^[A-H][#b]?(?:maj|min|m|sus|add|dim|aug|°|\+|\d)*(?:\/[A-H][#b]?)?$/;
+const STRUCT = new Set(['|','||','/','//','///','////','||:',':||','|||:',':|||','x2','х2','x3','х3','x4','х4','-']);
+const isChord = t => CHORD_RE.test(t) && /[A-H]/.test(t[0]);
+const isStruct = t => STRUCT.has(t) || /^\(.*\)$/.test(t) || /^[/|]+$/.test(t);
+
+function tokensOf(line){
+  const out=[]; const re=/\S+/g; let m;
+  while((m=re.exec(line))) out.push({t:m[0],col:m.index});
+  return out;
+}
+function isChordLine(line){
+  const tk=tokensOf(line); if(!tk.length) return false;
+  let chords=0;
+  for(const {t} of tk){ if(isChord(t)) chords++; else if(!isStruct(t)) return false; }
+  return chords>0;
+}
+function isSectionLine(line){
+  const s=line.trim();
+  if(!s.endsWith(':')&&!/:\s*(х|x)\d\s*$/.test(s)) return false;
+  return s.length<42 && !isChordLine(line);
+}
+/* ---------- notation ---------- */
+function convNote(root,mode){
+  if(mode!=='ru') return root;
+  if(/^H/.test(root)) return 'B'+root.slice(1);
+  if(/^B(?![b#])/.test(root)) return 'Bb'+root.slice(1);
+  if(/^Bb/.test(root)) return 'Bb'+root.slice(2);
+  return root;
+}
+function convChord(c,mode){
+  return c.replace(/([A-H][#b]?)/g,(m,p,off)=> (off===0||c[off-1]==='/')?convNote(p,mode):m);
+}
+function detectNotation(text){ return /(^|\s)H[#b]?(m|maj|sus|add|dim|\d|\b)/.test(text)?'ru':'en'; }
+
+/* ---------- converter ---------- */
+function convert(text,mode){
+  const lines=text.replace(/\r/g,'').split('\n');
+  const out=[]; let meta={title:'',artist:'',source:''};
+  let i=0;
+  // первая непустая строка — заголовок
+  while(i<lines.length && !lines[i].trim()) i++;
+  if(i<lines.length && !isChordLine(lines[i]) && !isSectionLine(lines[i])){ meta.title=lines[i].trim(); i++; }
+  for(;i<lines.length;i++){
+    const line=lines[i];
+    const s=line.trim();
+    if(!s){ out.push(''); continue; }
+    if(/^https?:\/\/\S+$/.test(s)){ meta.source=s; continue; }
+    if(isSectionLine(line)){
+      let label=s.replace(/:\s*$/,'');
+      const rep=label.match(/[:\s]*(х|x)(\d)\s*$/);
+      if(rep){ label=label.replace(/[:\s]*(х|x)\d\s*$/,'').replace(/:\s*$/,'')+' (x'+rep[2]+')'; }
+      out.push('{comment: '+label.trim()+'}'); continue;
+    }
+    if(isChordLine(line)){
+      const tk=tokensOf(line);
+      const next=lines[i+1];
+      // Тактовая схема (`| F#m /// | D /// |`) — самостоятельная строка, лирики под ней нет.
+      const isBarLine = tk.some(({t})=>/^\|+:?$/.test(t)||/^:?\|+$/.test(t));
+      const hasLyric = !isBarLine && next!==undefined && next.trim()
+        && !isChordLine(next) && !isSectionLine(next) && !/^https?:\/\/\S+$/.test(next.trim());
+      if(hasLyric){
+        let lyric=next;
+        // вставляем справа налево, чтобы не сдвигать индексы
+        for(let k=tk.length-1;k>=0;k--){
+          const {t,col}=tk[k];
+          const marker = isChord(t) ? '['+convChord(t,mode)+']' : (t==='|'?'[|]':t+' ');
+          const at=Math.min(col,lyric.length);
+          lyric=lyric.slice(0,at)+marker+lyric.slice(at);
+        }
+        out.push(lyric.trimEnd()); i++; continue;
+      }
+      out.push(tk.map(({t})=> isChord(t)?'['+convChord(t,mode)+']' : (/^\|+$/.test(t)?'[|]':t)).join(' '));
+      continue;
+    }
+    out.push(line.trimEnd());
+  }
+  const head=[];
+  if(meta.title) head.push('{title: '+meta.title+'}');
+  const body=out.join('\n').replace(/\n{3,}/g,'\n\n').trim();
+  return {head,body,meta};
+}
+
+/* ---------- render preview ---------- */
+function splitMarkers(line){
+  const parts=line.split(/(\[[^\]]*\])/g).filter(x=>x!=='');
+  const seg=[]; let pend=null;
+  for(const p of parts){
+    if(p.startsWith('[')&&p.endsWith(']')){
+      if(pend!==null) seg.push({c:pend,t:''});
+      pend=p.slice(1,-1);
+    } else { seg.push({c:pend,t:p}); pend=null; }
+  }
+  if(pend!==null) seg.push({c:pend,t:''});
+  return seg;
+}
+const MARKED=/припев|бридж|мост|предприпев/i;
+function renderSong(chordpro,host){
+  host.innerHTML='';
+  let sec=null;
+  const newSec=(label)=>{
+    sec=document.createElement('div'); sec.className='sec'+(label&&MARKED.test(label)?' mark':'');
+    if(label){const h=document.createElement('div');h.className='sec-h';h.textContent=label;sec.appendChild(h);}
+    host.appendChild(sec);
+  };
+  newSec(null);
+  for(const line of chordpro.split('\n')){
+    const c=line.match(/^\{comment:\s*(.+?)\}$/);
+    if(c){ newSec(c[1]); continue; }
+    if(/^\{/.test(line)) continue;
+    if(!line.trim()){ continue; }
+    const ln=document.createElement('div'); ln.className='ln';
+    for(const {c:ch,t} of splitMarkers(line)){
+      const words = t.length ? t.split(/(?=\s)/) : [''];
+      words.forEach((w,idx)=>{
+        const tk=document.createElement('span'); tk.className='tk';
+        const cc=document.createElement('span'); cc.className='c'; cc.textContent=(idx===0&&ch)?ch:'';
+        const ww=document.createElement('span'); ww.className='w'; ww.textContent=w||' ';
+        tk.append(cc,ww); ln.appendChild(tk);
+      });
+    }
+    sec.appendChild(ln);
+  }
+}
+
+/* ---------- tap editor ---------- */
+let model=[]; // [{label} | {text, chords:{pos:chord}}]
+function buildModel(chordpro){
+  model=[];
+  for(const line of chordpro.split('\n')){
+    const c=line.match(/^\{comment:\s*(.+?)\}$/);
+    if(c){ model.push({label:c[1]}); continue; }
+    if(/^\{/.test(line)||!line.trim()) continue;
+    const seg=splitMarkers(line); let text=''; const chords={};
+    for(const s of seg){ if(s.c!==null&&s.c!==undefined) chords[text.length]=s.c; text+=s.t; }
+    model.push({text,chords});
+  }
+}
+function modelToChordPro(){
+  return model.map(m=>{
+    if(m.label) return '{comment: '+m.label+'}';
+    let out=''; const pos=Object.keys(m.chords).map(Number).sort((a,b)=>a-b);
+    let prev=0;
+    for(const p of pos){ out+=m.text.slice(prev,p)+'['+m.chords[p]+']'; prev=p; }
+    return out+m.text.slice(prev);
+  }).join('\n');
+}
+/* ============================================================
+   Редактор аккордов. Правила взяты из Designing Fluid Interfaces:
+   отклик на pointerdown, 1:1-трекинг, передача скорости в пружину,
+   проекция импульса, rubber-band на краях, прерываемость.
+
+   Ключевое решение раскладки: аккорд — АБСОЛЮТНО спозиционированный слой
+   НАД строкой, а не инлайн-элемент внутри неё. Инлайн-аккорд при перетаскивании
+   переливал бы текст под пальцем — самый неприятный вид дрожания.
+
+   Второе решение: аккорд заперт в своей строке. Перенос на другую строку —
+   дискретными кнопками ↑/↓, без прицеливания. Так аккорд невозможно потерять.
+   ============================================================ */
+const REDUCED = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const GLYPH = 17 * 1.2;   // высота глифа при font-size:17px
+const CHIP_H = 24;        // подъём над глифом: высота чипа (20.8) + 3px воздуха
+const HYST = 8;           // порог, за которым тап превращается в перетаскивание
+
+let cur = {line:null,pos:0};
+let sel = null;
+let undoStack = [];
+const snaps = new Map();
+
+function haptic(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(_){ } }
+function pushUndo(){ undoStack.push(JSON.stringify(model)); if(undoStack.length>40) undoStack.shift(); }
+function refreshUndo(){ const b=document.getElementById('undoBtn'); if(b) b.style.visibility=undoStack.length?'visible':'hidden'; }
+function doUndo(){
+  if(!undoStack.length) return;
+  model=JSON.parse(undoStack.pop()); sel=null; cur={line:null,pos:0};
+  haptic(10); drawCanvas(); syncSrc();
+}
+
+/* --- физика --- */
+function rubber(over,dim,c){ c=c||0.55; return (over*dim*c)/(dim+c*Math.abs(over)); }
+function springTo(from,to,vel,damping,response,onFrame){
+  if(REDUCED){ onFrame(to,true); return; }
+  const w=2*Math.PI/response; let x=from,v=vel,last=performance.now();
+  requestAnimationFrame(function step(t){
+    const dt=Math.min((t-last)/1000,1/30); last=t;
+    v += (-w*w*(x-to) - 2*damping*w*v)*dt;
+    x += v*dt;
+    if(Math.abs(x-to)<0.15 && Math.abs(v)<2){ onFrame(to,true); return; }
+    onFrame(x,false); requestAnimationFrame(step);
+  });
+}
+
+/* --- геометрия строки: точки привязки по символам --- */
+function measureLine(li,lyrEl){
+  const text=model[li].text, node=lyrEl.firstChild;
+  const base=lyrEl.getBoundingClientRect(), pts=[];
+  if(!node || !text.length){ snaps.set(li,[{p:0,x:0,y:0,h:GLYPH}]); return; }
+  const r=document.createRange();
+  for(let p=0;p<=text.length;p++){
+    const a=Math.min(p,text.length-1);
+    r.setStart(node,a); r.setEnd(node,a+1);
+    const rc=r.getBoundingClientRect();
+    pts.push({p, x:(p<text.length?rc.left:rc.right)-base.left, y:rc.top-base.top, h:rc.height});
+  }
+  snaps.set(li,pts);
+}
+function glyphTop(pt){ return pt.y + (pt.h-GLYPH)/2; }
+function rowOf(li,rowY){ return (snaps.get(li)||[]).filter(pt=>Math.abs(pt.y-rowY)<2); }
+function nearestIn(pts,x){
+  let best=pts[0],bd=Infinity;
+  for(const pt of pts){ const d=Math.abs(pt.x-x); if(d<bd){bd=d;best=pt;} }
+  return best;
+}
+function nearestAny(li,x,y){
+  const pts=snaps.get(li)||[]; let best=null,bd=Infinity;
+  for(const pt of pts){ const d=Math.abs(pt.x-x)+Math.abs(pt.y-y)*4; if(d<bd){bd=d;best=pt;} }
+  return best;
+}
+
+/* --- направляющая: тонкий волосок ровно в точке вставки --- */
+let guideEl=null;
+function showGuide(li,pt){
+  const ln=document.querySelector('.ln2[data-l="'+li+'"]'); if(!ln) return;
+  if(!guideEl) guideEl=document.createElement('div');
+  guideEl.className='guide';
+  if(guideEl.parentElement!==ln) ln.appendChild(guideEl);
+  guideEl.style.left=(pt.x-1)+'px';
+  guideEl.style.top=glyphTop(pt)+'px';
+  guideEl.style.height=GLYPH+'px';
+}
+function hideGuide(){ if(guideEl && guideEl.parentElement) guideEl.remove(); }
+
+/* --- перетаскивание --- */
+let drag=null;
+function onChipDown(e,li,p,chip){
+  e.preventDefault(); e.stopPropagation();
+  try{ chip.setPointerCapture(e.pointerId); }catch(_){ }
+  const base=(snaps.get(li)||[]).find(x=>x.p===p);
+  if(!base) return;
+  drag={li,p,chip,base,rowY:base.y,x0:e.clientX,dx:0,moved:false,
+        target:base,samples:[{t:performance.now(),x:e.clientX}]};
+  // Отклик на НАЖАТИЕ, а не на отпускание.
+  chip.classList.add('lift');
+  if(!REDUCED) chip.style.transition='transform 130ms cubic-bezier(.2,.85,.25,1)';
+  chip.style.transform='translateX(0px) scale(1.14)';
+  haptic(5);
+}
+function onChipMove(e){
+  if(!drag) return;
+  e.preventDefault();
+  const raw=e.clientX-drag.x0;
+  if(!drag.moved){
+    if(Math.abs(raw)<HYST) return;            // гистерезис: ещё может оказаться тапом
+    drag.moved=true; drag.chip.style.transition='';
+  }
+  drag.samples.push({t:performance.now(),x:e.clientX});
+  if(drag.samples.length>5) drag.samples.shift();
+
+  const pts=rowOf(drag.li,drag.rowY);
+  const minX=pts[0].x, maxX=pts[pts.length-1].x;
+  let left=drag.base.x+raw, dx=raw;
+  if(left<minX)      dx = raw - (left-minX) + rubber(left-minX,240);   // мягкий край
+  else if(left>maxX) dx = raw - (left-maxX) + rubber(left-maxX,240);
+  drag.dx=dx;
+  drag.chip.style.transform='translateX('+dx+'px) scale(1.14)';
+
+  const t=nearestIn(pts,drag.base.x+dx);
+  if(t && t.p!==drag.target.p){ drag.target=t; haptic(4); }             // щелчок на каждой привязке
+  showGuide(drag.li,drag.target);
+}
+function onChipUp(){
+  if(!drag) return;
+  const d=drag; drag=null;
+
+  if(!d.moved){                                    // это был тап — выбрать аккорд
+    d.chip.classList.remove('lift'); d.chip.style.transform='';
+    hideGuide(); sel={li:d.li,p:d.p}; cur={line:d.li,pos:d.p};
+    haptic(5); drawCanvas(); return;
+  }
+  const s=d.samples, dt=(s[s.length-1].t-s[0].t)/1000;
+  const vel = dt>0 ? (s[s.length-1].x-s[0].x)/dt : 0;                   // px/s на отпускании
+
+  // Проекции импульса здесь СОЗНАТЕЛЬНО нет. Формула Apple (v/1000·d/(1-d))
+  // рассчитана на бросок шторки через экран: на 560 px/s она даёт +280 px,
+  // то есть аккорд улетает в конец строки. Расстановка аккорда — точная задача,
+  // как курсор в тексте: цель выбирается по ТОЧКЕ ОТПУСКАНИЯ.
+  // Скорость при этом не выбрасывается — она уходит в пружину ниже, чтобы
+  // между жестом и посадкой не было шва.
+  const pts=rowOf(d.li,d.rowY);
+  const tgt=nearestIn(pts, d.base.x+d.dx);
+  showGuide(d.li,tgt);
+
+  // Пружина с передачей скорости: шва между жестом и анимацией нет.
+  springTo(d.dx, tgt.x-d.base.x, vel, 0.8, 0.35, (x,done)=>{
+    d.chip.style.transform='translateX('+x+'px)'+(done?'':' scale(1.14)');
+    if(!done) return;
+    d.chip.classList.remove('lift'); hideGuide();
+    if(tgt.p!==d.p){
+      pushUndo();
+      const chord=model[d.li].chords[d.p];
+      delete model[d.li].chords[d.p];
+      const dst=model[d.li].chords[tgt.p];
+      model[d.li].chords[tgt.p]= dst ? dst+'-'+chord : chord;           // стык → цепочка A-E
+      haptic(9);
+    }
+    drawCanvas(); syncSrc();
+  });
+}
+
+/* --- перенос на соседнюю строку: дискретно, без прицеливания --- */
+function prevTextLine(li){ for(let i=li-1;i>=0;i--) if(!model[i].label) return i; return null; }
+function nextTextLine(li){ for(let i=li+1;i<model.length;i++) if(!model[i].label) return i; return null; }
+function moveToLine(li,p,to){
+  if(to===null) return;
+  pushUndo();
+  const chord=model[li].chords[p];
+  delete model[li].chords[p];
+  const np=Math.min(p, Math.max(0,model[to].text.length));
+  const dst=model[to].chords[np];
+  model[to].chords[np]= dst ? dst+'-'+chord : chord;
+  sel={li:to,p:np}; cur={line:to,pos:np};
+  haptic(9); drawCanvas(); syncSrc();
+}
+function renderSelBar(ln,li,p,pt){
+  const bar=document.createElement('div'); bar.className='selbar';
+  const tag=document.createElement('span'); tag.className='selname';
+  tag.textContent=model[li].chords[p];          // что именно выбрано — видно без догадок
+  bar.appendChild(tag);
+  const prev=prevTextLine(li), next=nextTextLine(li);
+  const mk=(txt,title,fn,dis)=>{
+    const b=document.createElement('button'); b.textContent=txt; b.title=title; b.disabled=!!dis;
+    b.onclick=ev=>{ ev.stopPropagation(); fn(); };
+    return b;
+  };
+  bar.append(
+    mk('↑','Перенести строкой выше',()=>moveToLine(li,p,prev), prev===null),
+    mk('↓','Перенести строкой ниже',()=>moveToLine(li,p,next), next===null),
+    mk('⌫','Убрать аккорд',()=>{ pushUndo(); delete model[li].chords[p]; sel=null; haptic(9); drawCanvas(); syncSrc(); })
+  );
+  ln.appendChild(bar);
+  const w=bar.offsetWidth||120, h=bar.offsetHeight||38, GAP=8;
+  bar.style.left=Math.max(2,pt.x-w/2+10)+'px';
+
+  /* Панель предпочитает верх — как меню выделения в iOS. Но у аккорда на верхней
+     кромке экрана места сверху нет, и панель уезжала за край.
+
+     Решение принимается в координатах СКРОЛЛ-КОНТЕЙНЕРА, а не строки: строка
+     не знает, где кончается видимая область, и `top<0` относительно неё —
+     совершенно нормальное состояние (панель штатно заходит на строку выше).
+     Если не помещается ни туда ни сюда — выбираем сторону, где места больше,
+     чтобы обрезало по минимуму. */
+  const scr=document.querySelector('.body').getBoundingClientRect();
+  const lnTop=ln.getBoundingClientRect().top;
+  const aboveTop=glyphTop(pt)-CHIP_H-GAP-h;
+  const belowTop=glyphTop(pt)+GLYPH+GAP;
+  const roomAbove=(lnTop+glyphTop(pt)-CHIP_H)-scr.top;
+  const roomBelow=scr.bottom-(lnTop+glyphTop(pt)+GLYPH);
+  const fitsAbove=lnTop+aboveTop>=scr.top+GAP;
+  const fitsBelow=lnTop+belowTop+h<=scr.bottom-GAP;
+  const below=!fitsAbove && (fitsBelow || roomBelow>roomAbove);
+
+  bar.style.top=(below?belowTop:aboveTop)+'px';
+  bar.classList.toggle('below',below);
+  // Растёт из самого аккорда в обе стороны — путь появления совпадает с тем,
+  // где панель оказалась.
+  bar.style.transformOrigin=(w/2)+'px '+(below?'-30%':'130%');
+  if(!REDUCED) bar.animate(
+    [{transform:'scale(.84)',opacity:0},{transform:'scale(1)',opacity:1}],
+    {duration:220,easing:'cubic-bezier(.2,.9,.25,1)'});
+}
+
+/* --- отрисовка --- */
+function drawCanvas(){
+  const host=document.getElementById('canvas');
+  host.innerHTML=''; snaps.clear(); guideEl=null;
+  model.forEach((m,li)=>{
+    if(m.label){
+      const h=document.createElement('div'); h.className='sec-h';
+      h.style.marginTop='18px'; h.textContent=m.label; host.appendChild(h); return;
+    }
+    const ln=document.createElement('div'); ln.className='ln2'; ln.dataset.l=li;
+    const lyr=document.createElement('div'); lyr.className='lyr'; lyr.textContent=m.text||' ';
+    ln.appendChild(lyr); host.appendChild(ln);
+    measureLine(li,lyr);
+
+    lyr.addEventListener('pointerdown',e=>{
+      const b=lyr.getBoundingClientRect();
+      const pt=nearestAny(li,e.clientX-b.left,e.clientY-b.top);
+      if(!pt) return;
+      sel=null; cur={line:li,pos:pt.p}; haptic(3); drawCanvas();
+    });
+
+    const pts=snaps.get(li)||[];
+    for(const key of Object.keys(m.chords).map(Number).sort((a,b)=>a-b)){
+      const pt=pts.find(x=>x.p===key)||pts[pts.length-1];
+      const chip=document.createElement('div'); chip.className='ch'; chip.textContent=m.chords[key];
+      chip.style.left=pt.x+'px';
+      chip.style.top=(glyphTop(pt)-CHIP_H)+'px';
+      chip.addEventListener('pointerdown',e=>onChipDown(e,li,key,chip));
+      chip.addEventListener('pointermove',onChipMove);
+      chip.addEventListener('pointerup',onChipUp);
+      chip.addEventListener('pointercancel',onChipUp);
+      ln.appendChild(chip);
+      if(sel && sel.li===li && sel.p===key){ chip.classList.add('sel'); renderSelBar(ln,li,key,pt); }
+    }
+    // Курсор идёт от аккордного ряда вниз сквозь глиф — видно, куда именно встанет аккорд.
+    if(cur.line===li && !sel){
+      const pt=pts.find(x=>x.p===cur.pos);
+      if(pt){
+        const c=document.createElement('div'); c.className='caret2';
+        c.style.left=(pt.x-1)+'px'; c.style.top=(glyphTop(pt)-CHIP_H)+'px';
+        c.style.height=(GLYPH+CHIP_H)+'px'; ln.appendChild(c);
+      }
+    }
+  });
+  refreshUndo();
+  buildKb();   // клавиатура следует за выбором
+}
+/* keyboard */
+/* --- качество аккорда: разбор и переключение ---------------------------
+   Модификатор — это ПЕРЕКЛЮЧАТЕЛЬ на самом аккорде, а не режим ввода:
+   нажал `m` на выбранном A — он стал Am, нажал ещё раз — вернулся в A.
+   Взаимоисключающие пары гасят друг друга (sus4↔sus2, 7↔maj7), иначе
+   накопился бы мусор вида `Asus4sus2`. */
+const MODS = ['m','7','sus4','sus2','maj7','add9','/бас'];
+
+function splitChord(c){
+  const m=/^([A-H][#b]?)(.*)$/.exec(c||'');
+  return m ? [m[1],m[2]] : [c||'',''];
+}
+
+/* Аккорд разбирается на составляющие. Строковая замена внутри суффикса давала
+   и неверный порядок (`Asus47` вместо `A7sus4`), и несуществующие сочетания
+   (`Amsus4`: sus убирает терцию, минор её задаёт). Нераспознанный хвост
+   (`dim`, `aug`, `9`, `11`) сохраняется дословно — корпус важнее теории. */
+function parseQuality(chord){
+  const [root,rest]=splitChord(chord);
+  const slash=rest.indexOf('/');
+  let s = slash<0 ? rest : rest.slice(0,slash);
+  const q={root, bass: slash<0 ? '' : rest.slice(slash),
+           minor:false, seventh:null, add9:false, sus:null, extra:''};
+  if(/^m(?!aj)/.test(s)){ q.minor=true; s=s.slice(1); }
+  if(s.includes('maj7')){ q.seventh='maj7'; s=s.replace('maj7',''); }
+  else if(s.includes('7')){ q.seventh='7'; s=s.replace('7',''); }
+  if(s.includes('add9')){ q.add9=true; s=s.replace('add9',''); }
+  if(s.includes('sus4')){ q.sus='sus4'; s=s.replace('sus4',''); }
+  else if(s.includes('sus2')){ q.sus='sus2'; s=s.replace('sus2',''); }
+  else if(s.includes('sus')){ q.sus='sus4'; s=s.replace('sus',''); }   // авторское `Gsus`
+  q.extra=s;
+  return q;
+}
+/* Канонический порядок записи — один на всё приложение. */
+function formatQuality(q){
+  return q.root + (q.minor?'m':'') + (q.seventh||'') + (q.add9?'add9':'') +
+         (q.sus||'') + q.extra + q.bass;
+}
+function hasMod(chord,mod){
+  const q=parseQuality(chord);
+  switch(mod){
+    case 'm':     return q.minor;
+    case '7':     return q.seventh==='7';
+    case 'maj7':  return q.seventh==='maj7';
+    case 'sus4':  return q.sus==='sus4';
+    case 'sus2':  return q.sus==='sus2';
+    case 'add9':  return q.add9;
+    case '/бас':  return q.bass!=='';
+    default:      return false;
+  }
+}
+function applyMod(chord,mod){
+  const q=parseQuality(chord);
+  switch(mod){
+    case 'm':    q.minor=!q.minor; if(q.minor) q.sus=null; break;   // sus убирает терцию
+    case '7':    q.seventh = q.seventh==='7' ? null : '7'; break;
+    case 'maj7': q.seventh = q.seventh==='maj7' ? null : 'maj7'; break;
+    case 'add9': q.add9=!q.add9; break;
+    case 'sus4': q.sus = q.sus==='sus4' ? null : 'sus4'; if(q.sus) q.minor=false; break;
+    case 'sus2': q.sus = q.sus==='sus2' ? null : 'sus2'; if(q.sus) q.minor=false; break;
+  }
+  return formatQuality(q);
+}
+
+/* Нажатие модификатора. Выбран аккорд — правим его немедленно (прямая
+   манипуляция). Ничего не выбрано — копим флаги для следующей вставки. */
+function onMod(mod){
+  if(sel){
+    const chord=model[sel.li].chords[sel.p];
+    if(chord===undefined){ sel=null; drawCanvas(); return; }
+    let next;
+    if(mod==='/бас'){
+      const q=parseQuality(chord);
+      if(q.bass){ q.bass=''; }
+      else {
+        const b=prompt('Басовая нота, напр. D');
+        if(!b) return;
+        q.bass='/'+b.trim();
+      }
+      next=formatQuality(q);
+    } else next=applyMod(chord,mod);
+    pushUndo();
+    model[sel.li].chords[sel.p]=next;
+    haptic(6); drawCanvas(); syncSrc();
+    return;
+  }
+  if(mods.has(mod)) mods.delete(mod); else mods.add(mod);
+  buildKb();
+}
+
+const SCALE_MAJ=[0,2,4,5,7,9,11], QUAL=['','m','m','','','m','dim'];
+const SHARP=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const DEG=['I','II','III','IV','V','VI','VII'];
+let mods=new Set();
+function keyToChroma(k){const m=/^([A-H][#b]?)/.exec(k||'A');if(!m)return 9;let r=m[1];if(r[0]==='H')r='B'+r.slice(1);const i=SHARP.indexOf(r);return i<0?9:i;}
+function buildKb(){
+  const key=document.getElementById('mKey').value.trim()||'A';
+  const minor=/m$/.test(key)&&!/maj/.test(key);
+  const root=keyToChroma(key);
+  const chosen = sel ? model[sel.li].chords[sel.p] : null;
+  document.getElementById('kbHint').textContent = chosen
+    ? 'Выбран ' + chosen + ' — ступень заменит его целиком, модификаторы меняют на месте'
+    : 'Тональность ' + key + ' — ступени вынесены вперёд, остальное за «Ещё»';
+  const deg=document.getElementById('kbDeg'); deg.innerHTML='';
+  const shift=minor?5:0; // минор = ступени параллельного мажора, начиная с VI
+  for(let d=0;d<7;d++){
+    const idx=(d+shift)%7;
+    const name=SHARP[(root+SCALE_MAJ[idx]-(minor?SCALE_MAJ[5]:0)+24)%12]+QUAL[idx];
+    const b=document.createElement('button'); b.className='key deg';
+    b.innerHTML=name+'<small>'+DEG[d]+'</small>';
+    b.onclick=()=>insert(name);
+    deg.appendChild(b);
+  }
+  const more=document.createElement('button'); more.className='key'; more.innerHTML='Ещё<small>хроматика</small>';
+  more.onclick=()=>{const v=prompt('Аккорд целиком, напр. Bb/D');if(v)insert(v,true);};
+  deg.appendChild(more);
+  const mrow=document.getElementById('kbMod'); mrow.innerHTML='';
+  for(const m of MODS){
+    const b=document.createElement('button'); b.className='mod'; b.textContent=m;
+    // Тумблер показывает РЕАЛЬНОЕ состояние: качество выбранного аккорда либо
+    // накопленные флаги. Раньше он всегда рисовался погашенным и врал.
+    b.setAttribute('aria-pressed', String(chosen ? hasMod(chosen,m) : mods.has(m)));
+    b.onclick=()=>onMod(m);
+    mrow.appendChild(b);
+  }
+}
+function insert(name,raw){
+  if(cur.line===null){ alert('Сначала тапните по строке — курсор встанет над ней'); return; }
+  pushUndo();
+  let n=name;
+  // Накопленные флаги — только для НОВОГО аккорда. У выбранного качество
+  // уже показано тумблерами, и подмешивать флаги поверх было бы сюрпризом.
+  if(!raw && !sel){
+    if(mods.has('m')&&!/m/.test(n)) n=n.replace(/^([A-H][#b]?)(dim)?/, '$1m');
+    for(const m of ['sus4','sus2','maj7','add9','7']) if(mods.has(m)&&!n.includes(m)) { n+=m; break; }
+    if(mods.has('/бас')){ const b=prompt('Басовая нота (напр. D)'); if(b) n+='/'+b.trim(); }
+  }
+  model[cur.line].chords[cur.pos]=n;
+  // Новый аккорд сразу становится выбранным: качество правится тут же,
+  // без второго прицеливания. Замена выбранного сохраняет выбор.
+  sel={li:cur.line,p:cur.pos};
+  haptic(9); drawCanvas(); syncSrc();
+}
+
+/* ---------- wiring ---------- */
+const SAMPLE = [
+ 'Новая песня   Наша группа',
+ '',
+ 'Куплет 1:',
+ '   A            Asus4  A',
+ 'Первая строка песни здесь',
+ '      E                 D          A',
+ 'Вторая строка чуть длиннее первой',
+ '',
+ 'Припев:',
+ '       F#m  D        A          E',
+ 'Слова припева поются громче',
+ '',
+ 'Проигрыш: х2',
+ '| F#m /// | D /// | A /// | E /// |'
+].join('\n');
+
+let mode='auto';
+function currentMode(){ return mode==='auto' ? detectNotation(document.getElementById('raw').value) : mode; }
+function runConvert(){
+  const txt=document.getElementById('raw').value;
+  const m=currentMode();
+  document.getElementById('detect').textContent = mode==='auto'
+    ? 'Определено: '+(m==='ru'?'русская (H = Си)':'английская (B = Си)') : 'Вручную';
+  const r=convert(txt,m);
+  if(!document.getElementById('mTitle').value && r.meta.title) document.getElementById('mTitle').value=r.meta.title;
+  const head=[];
+  const t=document.getElementById('mTitle').value.trim(), a=document.getElementById('mArtist').value.trim(), k=document.getElementById('mKey').value.trim();
+  if(t) head.push('{title: '+t+'}');
+  if(a) head.push('{subtitle: '+a+'}');
+  if(k) head.push('{key: '+k+'}');
+  const full=(head.join('\n')+'\n\n'+r.body).trim();
+  document.getElementById('hdrTitle').textContent=t||'Новая песня';
+  renderSong(r.body,document.getElementById('prevPaste'));
+  buildModel(r.body);
+  document.getElementById('srcOut').textContent=full;
+  return full;
+}
+function syncSrc(){
+  const head=[];
+  const t=document.getElementById('mTitle').value.trim(), a=document.getElementById('mArtist').value.trim(), k=document.getElementById('mKey').value.trim();
+  if(t) head.push('{title: '+t+'}'); if(a) head.push('{subtitle: '+a+'}'); if(k) head.push('{key: '+k+'}');
+  document.getElementById('srcOut').textContent=(head.join('\n')+'\n\n'+modelToChordPro()).trim();
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected',String(x===t)));
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('on'));
+  document.getElementById('p-'+t.dataset.p).classList.add('on');
+  const kb=document.getElementById('kb');
+  if(t.dataset.p==='edit'){ buildKb(); drawCanvas(); kb.style.display='block'; }
+  else { kb.style.display='none'; if(t.dataset.p==='src') syncSrc(); }
+});
+document.querySelectorAll('#notation button').forEach(b=>b.onclick=()=>{
+  mode=b.dataset.n;
+  document.querySelectorAll('#notation button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));
+  runConvert();
+});
+document.getElementById('raw').addEventListener('input',runConvert);
+['mTitle','mArtist','mKey'].forEach(id=>document.getElementById(id).addEventListener('input',()=>{runConvert();buildKb();}));
+document.getElementById('undoBtn').onclick=doUndo;
+document.getElementById('toEdit').onclick=()=>document.querySelector('.tab[data-p=edit]').click();
+
+document.getElementById('raw').value=SAMPLE;
+document.getElementById('mKey').value='A';
+runConvert();
+</script>
+</body>
+</html>

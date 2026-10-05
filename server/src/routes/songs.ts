@@ -2,10 +2,18 @@
  * Порт группы songs из src/app/api/songs/* (1:1 по поведению).
  */
 import { Hono } from 'hono';
-import { getSongById, getSongsList } from '../../../src/features/songs/services/songsServer';
+import {
+  createSong,
+  getSongById,
+  getSongsList,
+  SongNotFoundError,
+  updateSong,
+} from '../../../src/features/songs/services/songsServer';
 import { getSongAnnotations, putSongAnnotations } from '../../../src/features/songs/services/songStateServer';
 import { firstZodError } from '../../../src/lib/validators/setlists.schemas';
+import { CreateSongSchema, UpdateSongSchema } from '../../../src/lib/validators/songs.schemas';
 import { SongAnnotationsSchema } from '../../../src/lib/validators/songState.schemas';
+import { requireSongWrite } from '../middleware/requireRole';
 import { logger } from '../logger';
 import { getSession } from '../session';
 
@@ -105,5 +113,51 @@ songsRoutes.put('/:id/state', async (c) => {
   } catch (error) {
     logger.error(`[SongState] write failed for song=${songId}:`, error);
     return c.json({ error: 'Upstream unavailable' }, 502);
+  }
+});
+
+/**
+ * POST /songs — создание песни (M9). Только `musician_editor` (`requireSongWrite`):
+ * реальный гейт здесь, Directus-права — второй рубеж, ходим туда админ-токеном.
+ *
+ * Тело — готовый ChordPro; `slug`, `sort` и `status` задаёт сервер (см. `createSong`).
+ * Запись online-only, поэтому outbox в этом пути не участвует.
+ */
+songsRoutes.post('/', requireSongWrite, async (c) => {
+  const body = await c.req.json().catch(() => null);
+  const parsed = CreateSongSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: firstZodError(parsed.error) }, 400);
+
+  try {
+    const id = await createSong(parsed.data);
+    logger.debug(`[Songs API] created song ${id}`);
+    return c.json({ id }, 201);
+  } catch (error) {
+    logger.error('[Songs API] create error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+/**
+ * PUT /songs/:id — правка песни (M9). Патч частичный, конфликт двух редакторов —
+ * last-write-wins (решение 1 плана). Версию в sync-манифесте поднимает сам Directus
+ * через `date_updated`, поэтому отдельной инвалидации кэша здесь нет.
+ */
+songsRoutes.put('/:id', requireSongWrite, async (c) => {
+  const songId = parseSongId(c.req.param('id'));
+  if (songId === null) return c.json({ error: 'Invalid song id' }, 400);
+
+  const body = await c.req.json().catch(() => null);
+  const parsed = UpdateSongSchema.safeParse(body);
+  if (!parsed.success) return c.json({ error: firstZodError(parsed.error) }, 400);
+
+  try {
+    await updateSong(songId, parsed.data);
+    logger.debug(`[Songs API] updated song ${songId}`);
+    return c.json({ success: true });
+  } catch (error) {
+    if (error instanceof SongNotFoundError) return c.json({ error: 'Not found' }, 404);
+    logger.error(`[Songs API] update error for song=${songId}:`, error);
+    return c.json({ error: 'Internal server error' }, 500);
   }
 });
