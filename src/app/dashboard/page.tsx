@@ -15,6 +15,7 @@ import { useProgress } from '@/features/plan/hooks/useProgress';
 import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { FullScreenLoader } from '@/shared/components/ui/FullScreenLoader';
 import { OfflineIndicator } from '@/shared/components/ui/OfflineIndicator';
+import { InstallBanner } from '@/shared/components/pwa/InstallBanner';
 import { preloadChapters } from '@/features/reading/bible-text-cache';
 
 function DashboardPageInner() {
@@ -227,6 +228,8 @@ function DashboardPageInner() {
       {/* Индикатор офлайна показываем только на главной (фидбек: не должен
           висеть поверх ридера и других разделов). */}
       <OfflineIndicator />
+      {/* Плашка установки — только на плане: на чате/справочнике она мешала бы вводу. */}
+      {currentView === AppView.PLAN && <InstallBanner />}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {renderContent()}
       </div>

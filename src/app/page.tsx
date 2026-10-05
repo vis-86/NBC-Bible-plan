@@ -45,8 +45,8 @@ export default function Home() {
           <Hero />
           <About />
           <FeatureShowcase />
-          <HowToStart />
           <InstallGuide />
+          <HowToStart />
           <FinalCta />
         </main>
         <Footer />

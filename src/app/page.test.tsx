@@ -59,6 +59,16 @@ describe('Лендинг (page.tsx)', () => {
     // Секция установки PWA (canInstall=false → пошаговая инструкция)
     expect(screen.getByText('Установите на телефон')).toBeInTheDocument();
 
+    // Акцент «это приложение» в первом экране — ДО кнопок регистрации/входа,
+    // и секция установки идёт раньше «Как начать».
+    const heroInstall = document.querySelector('[data-landing-hero-install]');
+    const heroLogin = document.querySelector('[data-landing-hero] [data-landing-login-btn]');
+    expect(heroInstall).toBeInTheDocument();
+    expect(heroInstall!.compareDocumentPosition(heroLogin!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const install = document.querySelector('[data-landing-install]');
+    const howTo = document.querySelector('[data-landing-how-to-start]');
+    expect(install!.compareDocumentPosition(howTo!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
     // Кнопки «Войти» (header + hero + finalCta)
     expect(screen.getAllByText('Войти').length).toBeGreaterThan(0);
   });

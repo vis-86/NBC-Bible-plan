@@ -2,9 +2,9 @@
 
 import React from 'react';
 import { motion, useReducedMotion, type Variants } from 'motion/react';
-import { Check } from 'lucide-react';
 import { PhoneMockup } from './PhoneMockup';
 import { PrimaryCta, LoginButton } from './cta';
+import { HeroInstall } from './HeroInstall';
 import { isRegisterEnabled } from '@/shared/utils/constants';
 
 const container: Variants = {
@@ -19,14 +19,15 @@ const rise: Variants = {
 
 /**
  * Hero в духе apple.com: всё по центру — крупный serif-заголовок с плотным
- * трекингом, короткий подзаголовок, две CTA и телефон с реальным экраном ниже.
+ * трекингом, короткий подзаголовок, блок «это приложение — установите с сайта»
+ * (HeroInstall, виден в первые секунды), две CTA и телефон с реальным экраном ниже.
  * Без декоративных блобов и градиентного текста — акцент делает типографика.
  */
 export const Hero: React.FC = () => {
   const reduceMotion = useReducedMotion() ?? false;
 
   return (
-    <section className="flex flex-col items-center pb-4 pt-12 text-center sm:pt-20" data-landing-hero>
+    <section className="flex flex-col items-center pb-4 pt-8 text-center sm:pt-20" data-landing-hero>
       <motion.div
         className="flex max-w-4xl flex-col items-center"
         variants={container}
@@ -43,7 +44,7 @@ export const Hero: React.FC = () => {
 
         <motion.h1
           variants={rise}
-          className="mt-7 font-serif text-[clamp(42px,7vw,76px)] font-medium leading-[1.03] tracking-[-0.025em] text-app-text"
+          className="mt-7 font-serif first:mt-0 text-[clamp(42px,7vw,76px)] font-medium leading-[1.03] tracking-[-0.025em] text-app-text"
         >
           План чтения Библии
           <span className="block italic text-app-primary">всегда под рукой</span>
@@ -57,20 +58,15 @@ export const Hero: React.FC = () => {
           Работает без интернета — дома, в дороге, где угодно.
         </motion.p>
 
-        <motion.div variants={rise} className="mt-9 flex flex-wrap justify-center gap-3.5">
+        {/* Установка — до регистрации: на iPhone вход из Safari не переезжает в приложение. */}
+        <motion.div variants={rise} className="mt-8 flex w-full justify-center">
+          <HeroInstall />
+        </motion.div>
+
+        <motion.div variants={rise} className="mt-7 flex flex-wrap justify-center gap-3.5">
           <PrimaryCta />
           <LoginButton />
         </motion.div>
-
-        <motion.p variants={rise} className="mt-6 flex items-center justify-center gap-2.5 text-sm text-app-text-muted">
-          <Check size={17} strokeWidth={2.4} className="shrink-0 text-app-success" />
-          <span>
-            {'Работает онлайн и офлайн — офлайн стабильно после '}
-            <a href="#install" className="underline underline-offset-2 transition-colors hover:text-app-text">
-              установки на телефон
-            </a>
-          </span>
-        </motion.p>
       </motion.div>
 
       {/* Телефон по центру, «выходит» из мягкого свечения */}
