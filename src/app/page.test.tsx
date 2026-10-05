@@ -104,12 +104,12 @@ describe('Лендинг при включённой регистрации (NEX
     pushMock.mockReset();
   });
 
-  it('показывает CTA «Зарегистрироваться» и шаги по коду церкви вместо invite', () => {
+  it('показывает CTA «Создать аккаунт» и шаги по коду церкви вместо invite', () => {
     process.env.NEXT_PUBLIC_REGISTER_ENABLED = 'true';
     render(<Home />);
 
-    // Primary CTA заменён на «Зарегистрироваться»; «Получить доступ» больше нет.
-    expect(screen.getAllByText('Зарегистрироваться').length).toBeGreaterThan(0);
+    // Primary CTA заменён на «Создать аккаунт»; «Получить доступ» больше нет.
+    expect(screen.getAllByText('Создать аккаунт').length).toBeGreaterThan(0);
     expect(screen.queryByRole('link', { name: /Получить доступ/ })).not.toBeInTheDocument();
 
     // Шаги по коду церкви, а не invite.
@@ -118,11 +118,11 @@ describe('Лендинг при включённой регистрации (NEX
     expect(screen.queryByText('Напишите нам')).not.toBeInTheDocument();
   });
 
-  it('кнопка «Зарегистрироваться» ведёт на /register', () => {
+  it('кнопка «Создать аккаунт» ведёт на /register', () => {
     process.env.NEXT_PUBLIC_REGISTER_ENABLED = 'true';
     render(<Home />);
 
-    fireEvent.click(screen.getAllByText('Зарегистрироваться')[0]);
+    fireEvent.click(screen.getAllByText('Создать аккаунт')[0]);
     expect(pushMock).toHaveBeenCalledWith('/register');
   });
 });

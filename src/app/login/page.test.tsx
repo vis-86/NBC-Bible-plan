@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeAll, afterEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 
 const pushMock = vi.hoisted(() => vi.fn());
 const installMock = vi.hoisted(() => vi.fn());
@@ -73,5 +73,51 @@ describe('/login — форма обычного входа', () => {
       expect(screen.getByLabelText('Логин')).toBeInTheDocument();
     });
     expect(document.querySelector('[data-install-app-hint]')).not.toBeInTheDocument();
+  });
+});
+
+describe('/login — путь для нового пользователя', () => {
+  const fetchMock = vi.fn();
+
+  beforeAll(() => {
+    vi.stubGlobal('fetch', fetchMock);
+  });
+
+  afterEach(() => {
+    delete process.env.NEXT_PUBLIC_REGISTER_ENABLED;
+    fetchMock.mockReset();
+  });
+
+  it('регистрация включена → заметная кнопка «Создать аккаунт» ведёт на /register', async () => {
+    process.env.NEXT_PUBLIC_REGISTER_ENABLED = 'true';
+    render(<LoginPage />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Создать аккаунт' }));
+    expect(pushMock).toHaveBeenCalledWith('/register');
+  });
+
+  it('регистрация выключена → вместо кнопки ссылка за приглашением в поддержку', async () => {
+    render(<LoginPage />);
+
+    expect(await screen.findByRole('link', { name: 'Получить приглашение' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Создать аккаунт' })).not.toBeInTheDocument();
+  });
+
+  it('401 → подсказка «ещё не регистрировались?», сетевая ошибка → без неё', async () => {
+    process.env.NEXT_PUBLIC_REGISTER_ENABLED = 'true';
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 401, json: async () => ({ error: 'Неверный логин или пароль' }) });
+    render(<LoginPage />);
+
+    fireEvent.change(await screen.findByLabelText('Логин'), { target: { value: 'nobody' } });
+    fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'whatever1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(/Ещё не регистрировались/);
+
+    fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).not.toHaveTextContent(/Ещё не регистрировались/);
+    });
   });
 });

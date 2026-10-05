@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LOGIN_HANDLE_MAX, LOGIN_HANDLE_MIN, LOGIN_HANDLE_PATTERN } from './login-handle';
 
 /**
  * Логин (handle) — псевдоним, НЕ настоящие имя/телефон (ФЗ-152).
@@ -6,9 +7,9 @@ import { z } from 'zod';
  */
 export const LoginHandleSchema = z
   .string()
-  .min(3, 'Логин: минимум 3 символа')
-  .max(32, 'Логин: максимум 32 символа')
-  .regex(/^[a-zA-Z0-9._-]+$/, 'Логин: только латиница, цифры, точка, дефис, подчёркивание');
+  .min(LOGIN_HANDLE_MIN, `Логин: минимум ${LOGIN_HANDLE_MIN} символа`)
+  .max(LOGIN_HANDLE_MAX, `Логин: максимум ${LOGIN_HANDLE_MAX} символа`)
+  .regex(LOGIN_HANDLE_PATTERN, 'Логин: только латиница, цифры, точка, дефис, подчёркивание');
 
 export const PasswordSchema = z
   .string()

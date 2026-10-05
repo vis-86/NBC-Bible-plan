@@ -18,6 +18,8 @@ function LoginForm() {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  // Неверные логин/пароль у новичка часто значат «аккаунта ещё нет» — подсказываем путь.
+  const [badCredentials, setBadCredentials] = useState(false);
   const [loading, setLoading] = useState(false);
   const [telegramLoading, setTelegramLoading] = useState(true);
   const [telegramVerificationFailed, setTelegramVerificationFailed] = useState(false);
@@ -85,6 +87,7 @@ function LoginForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setBadCredentials(false);
     setLoading(true);
 
     try {
@@ -99,6 +102,7 @@ function LoginForm() {
 
       if (!res.ok) {
         setError(data?.error || 'Ошибка входа. Проверьте данные.');
+        setBadCredentials(res.status === 401);
         return;
       }
 
@@ -183,14 +187,19 @@ function LoginForm() {
             Вход
           </h2>
           <p className="mt-2 text-sm text-app-text-secondary">
-            Войдите в свой аккаунт
+            Логин и пароль — те, что вы придумали при регистрации
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="rounded-md bg-app-missed border border-app-missed-text/20 p-3 text-sm text-app-accent">
+            <div role="alert" className="rounded-md bg-app-missed border border-app-missed-text/20 p-3 text-sm text-app-accent">
               {error}
+              {badCredentials && isRegisterEnabled() && (
+                <p className="mt-1 text-app-text-secondary">
+                  Ещё не регистрировались? Создайте аккаунт кнопкой ниже.
+                </p>
+              )}
             </div>
           )}
 
@@ -207,6 +216,7 @@ function LoginForm() {
               value={login}
               onChange={(e) => setLogin(e.target.value)}
               className={inputClass}
+              autoComplete="username"
               placeholder="ваш логин"
             />
           </div>
@@ -219,6 +229,7 @@ function LoginForm() {
               id="password"
               type="password"
               required
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={inputClass}
@@ -235,26 +246,38 @@ function LoginForm() {
           </button>
         </form>
 
-        <div className="space-y-2 text-center text-sm text-app-text-secondary">
-          {isRegisterEnabled() && (
-            <p>
-              Нет аккаунта?{' '}
-              <button
-                type="button"
-                onClick={() => router.push('/register')}
-                className="font-medium text-app-text hover:underline"
-              >
-                Зарегистрироваться
-              </button>
-            </p>
-          )}
-          <p>
-            Забыли пароль или логин?{' '}
-            <a href={SUPPORT_CONTACT} className="font-medium text-app-text hover:underline">
-              Напишите в поддержку
+        {/* Новичок, открывший установленное приложение, попадает сюда (start_url → гейт →
+            /login), поэтому путь «нет аккаунта» — отдельная заметная кнопка, а не ссылка. */}
+        <div className="border-t border-app-border pt-6 text-center" data-login-new-user>
+          <p className="text-sm font-medium text-app-text">Впервые здесь?</p>
+          {isRegisterEnabled() ? (
+            <button
+              type="button"
+              onClick={() => router.push('/register')}
+              className="mt-3 w-full rounded-md border border-app-border-strong bg-app-surface px-4 py-2 text-sm font-semibold text-app-text transition-colors hover:bg-app-surface-muted"
+              data-login-new-user-register-btn
+            >
+              Создать аккаунт
+            </button>
+          ) : (
+            <a
+              href={SUPPORT_CONTACT}
+              className="mt-3 block w-full rounded-md border border-app-border-strong bg-app-surface px-4 py-2 text-sm font-semibold text-app-text transition-colors hover:bg-app-surface-muted"
+            >
+              Получить приглашение
             </a>
+          )}
+          <p className="mt-2 text-xs text-app-text-muted">
+            {isRegisterEnabled() ? 'Займёт минуту, почта и телефон не нужны' : 'Аккаунты выдаём по личной ссылке через поддержку'}
           </p>
         </div>
+
+        <p className="text-center text-sm text-app-text-secondary">
+          Забыли пароль или логин?{' '}
+          <a href={SUPPORT_CONTACT} className="font-medium text-app-text hover:underline">
+            Напишите в поддержку
+          </a>
+        </p>
       </div>
       <InstallAppHint />
       </div>

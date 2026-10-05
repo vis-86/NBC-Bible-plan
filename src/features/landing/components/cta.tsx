@@ -60,7 +60,7 @@ interface RegisterButtonProps {
  * регистрация по коду церкви). Стиль совпадает с AccessButton, но это `<button>`
  * с router.push (внутренний маршрут), а не внешняя ссылка.
  */
-export const RegisterButton: React.FC<RegisterButtonProps> = ({ className = '', label = 'Зарегистрироваться' }) => {
+export const RegisterButton: React.FC<RegisterButtonProps> = ({ className = '', label = 'Создать аккаунт' }) => {
   const router = useRouter();
   return (
     <button
@@ -89,7 +89,7 @@ interface PrimaryCtaProps {
 
 /**
  * Первичная CTA лендинга, зависящая от флага самостоятельной регистрации:
- * включена — «Зарегистрироваться» (→ /register); выключена — «Получить доступ»
+ * включена — «Создать аккаунт» (→ /register); выключена — «Получить доступ»
  * (→ поддержка, invite-fallback). Используется в Hero и FinalCta.
  */
 export const PrimaryCta: React.FC<PrimaryCtaProps> = ({ className = '' }) =>

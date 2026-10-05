@@ -1,7 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { getApiPath, getBasePath } from '@/lib/utils';
+import { isRegisterEnabled } from '@/shared/utils/constants';
 
 const inputClass =
   'mt-1 block w-full rounded-md border border-app-border bg-app-surface-muted px-3 py-2 text-app-text placeholder-app-text-subtle focus:border-app-primary/50 focus:outline-none focus:ring-1 focus:ring-app-primary/30';
@@ -16,6 +18,7 @@ interface TelegramLinkFormProps {
  * После успеха mini-app входит без логина/пароля.
  */
 export default function TelegramLinkForm({ initData }: TelegramLinkFormProps) {
+  const router = useRouter();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -86,6 +89,20 @@ export default function TelegramLinkForm({ initData }: TelegramLinkFormProps) {
           {loading ? 'Привязка...' : 'Привязать и войти'}
         </button>
       </form>
+
+      {/* Без этого новичок в Telegram упирается в форму привязки, которую нечем заполнить. */}
+      {isRegisterEnabled() && (
+        <div className="border-t border-app-border pt-6 text-center" data-telegram-link-form-new-user>
+          <p className="text-sm font-medium text-app-text">Ещё нет аккаунта?</p>
+          <button
+            type="button"
+            onClick={() => router.push('/register')}
+            className="mt-3 w-full rounded-md border border-app-border-strong bg-app-surface px-4 py-2 text-sm font-semibold text-app-text transition-colors hover:bg-app-surface-muted"
+          >
+            Создать аккаунт
+          </button>
+        </div>
+      )}
     </div>
   );
 }
