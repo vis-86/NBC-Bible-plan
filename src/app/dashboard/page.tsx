@@ -16,6 +16,8 @@ import { ErrorMessage } from '@/shared/components/ui/ErrorMessage';
 import { FullScreenLoader } from '@/shared/components/ui/FullScreenLoader';
 import { OfflineIndicator } from '@/shared/components/ui/OfflineIndicator';
 import { InstallBanner } from '@/shared/components/pwa/InstallBanner';
+import { WelcomeCard } from '@/features/onboarding/WelcomeCard';
+import { useWelcome } from '@/features/onboarding/welcomeStore';
 import { preloadChapters } from '@/features/reading/bible-text-cache';
 
 function DashboardPageInner() {
@@ -34,6 +36,7 @@ function DashboardPageInner() {
 
   const { plan, readChapters, loading, error, fetchPlan, setReadChapters } = usePlan();
   const { toggleItem, toggleComplete } = useProgress();
+  const [showWelcome, dismissWelcome] = useWelcome();
 
   useEffect(() => {
     if (authLoading) return;
@@ -228,8 +231,12 @@ function DashboardPageInner() {
       {/* Индикатор офлайна показываем только на главной (фидбек: не должен
           висеть поверх ридера и других разделов). */}
       <OfflineIndicator />
-      {/* Плашка установки — только на плане: на чате/справочнике она мешала бы вводу. */}
-      {currentView === AppView.PLAN && <InstallBanner />}
+      {/* Плашки — только на плане: на чате/справочнике они мешали бы вводу. Приветствие
+          новичка важнее установки и не стопкой с ней: установка покажется после «Понятно». */}
+      {currentView === AppView.PLAN && showWelcome && (
+        <WelcomeCard userName={user.first_name || undefined} onDismiss={dismissWelcome} />
+      )}
+      {currentView === AppView.PLAN && !showWelcome && <InstallBanner />}
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {renderContent()}
       </div>

@@ -214,6 +214,36 @@ authRoutes.get('/session', async (c) => {
 });
 
 /**
+ * Привязка tg_id к только что созданному аккаунту (регистрация из mini-app).
+ * Best-effort: аккаунт и сессия уже есть, поэтому сбой здесь не валит регистрацию —
+ * в худшем случае при следующем запуске из Telegram откроется форма однократной привязки.
+ */
+async function linkTelegramAfterRegister(directusUserId: string, initData: string): Promise<boolean> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if (!botToken) {
+    logger.error('register: TELEGRAM_BOT_TOKEN is not set, telegram link skipped');
+    return false;
+  }
+  const result = verifyTelegramInitData(initData, botToken);
+  if (!result.valid || !result.user) {
+    logger.warn(`register: invalid telegram initData, link skipped user=${directusUserId}`);
+    return false;
+  }
+  try {
+    await linkTelegramToUser(directusUserId, result.user.id);
+    logger.debug(`register: linked tg_id=${result.user.id} -> user=${directusUserId}`);
+    return true;
+  } catch (error) {
+    if (error instanceof TelegramAlreadyLinkedError) {
+      logger.warn(`register: tg_id=${result.user.id} already linked to another account`);
+    } else {
+      logger.error('register: telegram link error:', error);
+    }
+    return false;
+  }
+}
+
+/**
  * POST /auth/register — самостоятельная регистрация.
  * Барьеры по порядку: rate-limit → 503(выключено) → zod → 403(код) → 409(дубль).
  */
@@ -237,7 +267,7 @@ authRoutes.post('/register', async (c) => {
   if (!parsed.success) {
     return c.json({ error: firstZodError(parsed.error) }, 400);
   }
-  const { login, displayName, password, churchCode } = parsed.data;
+  const { login, displayName, password, churchCode, telegramInitData } = parsed.data;
 
   if (isChurchCodeRequired()) {
     if (!verifyChurchCode(churchCode ?? '')) {
@@ -260,8 +290,12 @@ authRoutes.post('/register', async (c) => {
     };
 
     await createSession(c, sessionData);
+    const telegramLinked = telegramInitData
+      ? await linkTelegramAfterRegister(directusUserId, telegramInitData)
+      : false;
     return c.json({
       success: true,
+      telegramLinked,
       user: { directus_id: directusUserId, first_name: sessionData.first_name },
     });
   } catch (error) {

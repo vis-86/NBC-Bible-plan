@@ -61,6 +61,8 @@ export const RegisterSchema = z.object({
   displayName: DisplayNameSchema.optional(),
   password: PasswordSchema,
   churchCode: z.string().max(128).optional(),
+  /** initData mini-app: регистрация из Telegram сразу привязывает tg_id (best-effort). */
+  telegramInitData: z.string().max(4096).optional(),
 });
 
 export type LoginInput = z.infer<typeof LoginSchema>;

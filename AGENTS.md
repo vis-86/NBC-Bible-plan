@@ -84,6 +84,7 @@ bible-plan/
 │   │   └── offline/                  # Offline data settings UI
 │   │       ├── components/           # OfflineDataSection
 │   │       └── hooks/                # useOfflineData
+│   │   └── onboarding/               # Приветствие новичка на главной (WelcomeCard + флаг welcomeStore, ставит /register)
 │   │   └── profile/                  # Профиль пользователя (секция настроек)
 │   │       └── components/           # ProfileSection (логин read-only + инлайн-правка имени)
 │   ├── sw/

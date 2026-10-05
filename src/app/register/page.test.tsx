@@ -15,11 +15,14 @@ vi.mock('@/hooks/usePWAInstall', () => ({
 vi.mock('@/shared/hooks/useIsStandalone', () => ({
   useIsStandalone: () => false,
 }));
+const telegramState = vi.hoisted(() => ({ initData: '' }));
 vi.mock('@/lib/telegram', () => ({
-  isTelegramWebApp: () => false,
+  isTelegramWebApp: () => telegramState.initData !== '',
+  getTelegramInitData: () => telegramState.initData || undefined,
 }));
 
 import RegisterPage from './page';
+import { WELCOME_PENDING_KEY } from '@/features/onboarding/welcomeStore';
 
 beforeAll(() => {
   window.matchMedia = vi.fn().mockImplementation((query: string) => ({
@@ -41,6 +44,8 @@ afterEach(() => {
   pushMock.mockReset();
   installMock.mockReset();
   fetchMock.mockReset();
+  telegramState.initData = '';
+  window.localStorage.clear();
 });
 
 describe('/register — register включён, код НЕ требуется', () => {
@@ -126,6 +131,33 @@ describe('/register — register включён, код НЕ требуется'
     fireEvent.click(screen.getByRole('button', { name: 'Показать пароль' }));
     expect(screen.getByText('password123')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Начать читать/ })).toBeInTheDocument();
+    // Флаг приветствия на главной ставится только успешной регистрацией.
+    expect(window.localStorage.getItem(WELCOME_PENDING_KEY)).toBe('1');
+  });
+
+  it('из Telegram mini-app → initData уходит в запрос для автопривязки', async () => {
+    telegramState.initData = 'tg-init-data';
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ success: true }) });
+    render(<RegisterPage />);
+
+    fireEvent.change(screen.getByLabelText('Логин'), { target: { value: 'brother_ivan' } });
+    fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'password123' } });
+    fireEvent.click(screen.getByRole('button', { name: /Создать аккаунт/ }));
+
+    await screen.findByText('Аккаунт создан');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toMatchObject({ telegramInitData: 'tg-init-data' });
+  });
+
+  it('в обычном браузере initData не отправляется', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ success: true }) });
+    render(<RegisterPage />);
+
+    fireEvent.change(screen.getByLabelText('Логин'), { target: { value: 'brother_ivan' } });
+    fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'password123' } });
+    fireEvent.click(screen.getByRole('button', { name: /Создать аккаунт/ }));
+
+    await screen.findByText('Аккаунт создан');
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body).telegramInitData).toBeUndefined();
   });
 
   it('409 «логин занят» → ошибка у поля логина, форма остаётся', async () => {

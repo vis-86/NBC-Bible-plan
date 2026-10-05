@@ -9,6 +9,8 @@ import { isRegisterEnabled, isRegisterCodeRequired } from '@/shared/utils/consta
 import { InstallAppHint } from '@/shared/components/pwa/InstallAppHint';
 import { Atmosphere } from '@/features/landing';
 import { LOGIN_HANDLE_HINT, loginHandleError } from '@/lib/validators/login-handle';
+import { getTelegramInitData, isTelegramWebApp } from '@/lib/telegram';
+import { markWelcomePending } from '@/features/onboarding/welcomeStore';
 
 const inputClass =
   'mt-1 block w-full rounded-xl border border-app-border bg-app-surface-muted px-3.5 py-2.5 text-app-text placeholder-app-text-subtle focus:border-app-primary/50 focus:outline-none focus:ring-1 focus:ring-app-primary/30';
@@ -65,6 +67,8 @@ function RegisterForm() {
           displayName: displayName.trim() || undefined,
           password,
           churchCode: codeRequired ? churchCode.trim() : undefined,
+          // Из mini-app сервер сразу привяжет Telegram — без повторного входа в форме привязки.
+          telegramInitData: isTelegramWebApp() ? getTelegramInitData() : undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -75,6 +79,7 @@ function RegisterForm() {
         else setError(message);
         return;
       }
+      markWelcomePending();
       setCreated({ login: trimmedLogin, password });
     } catch {
       setError('Ошибка сети. Проверьте интернет и попробуйте ещё раз.');

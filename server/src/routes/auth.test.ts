@@ -5,8 +5,12 @@ const {
   adminRequestMock,
   getUserByTelegramIdMock,
   verifyTelegramMock,
+  createLocalUserMock,
+  linkTelegramToUserMock,
   registrationState,
 } = vi.hoisted(() => ({
+  createLocalUserMock: vi.fn(),
+  linkTelegramToUserMock: vi.fn(),
   checkRateLimitMock: vi.fn(),
   adminRequestMock: vi.fn(),
   getUserByTelegramIdMock: vi.fn(),
@@ -23,7 +27,12 @@ vi.mock('../../../src/lib/directus', () => ({
 }));
 vi.mock('../../../src/lib/directus-user', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../src/lib/directus-user')>();
-  return { ...actual, getUserByTelegramId: getUserByTelegramIdMock };
+  return {
+    ...actual,
+    getUserByTelegramId: getUserByTelegramIdMock,
+    createLocalUser: createLocalUserMock,
+    linkTelegramToUser: linkTelegramToUserMock,
+  };
 });
 vi.mock('../../../src/lib/telegram-server', () => ({
   verifyTelegramInitData: verifyTelegramMock,
@@ -73,7 +82,10 @@ describe('bff auth routes', () => {
     adminRequestMock.mockReset();
     getUserByTelegramIdMock.mockReset();
     verifyTelegramMock.mockReset();
+    createLocalUserMock.mockReset().mockResolvedValue('user-new');
+    linkTelegramToUserMock.mockReset().mockResolvedValue(undefined);
     registrationState.open = true;
+    vi.stubEnv('TELEGRAM_BOT_TOKEN', 'test-bot-token');
   });
 
   it('login happy-path: 200, Set-Cookie, имя из admin-клиента', async () => {
@@ -113,6 +125,61 @@ describe('bff auth routes', () => {
       displayName: 'Новый',
     });
     expect(res.status).toBe(503);
+  });
+
+  describe('register + привязка Telegram', () => {
+    beforeEach(() => {
+      adminRequestMock.mockResolvedValue([{ first_name: 'Новый' }]);
+    });
+
+    it('без initData → 200 + сессия, привязку не трогает', async () => {
+      const res = await post('/app/api/auth/register', { login: 'newuser', password: 'secret123' });
+      expect(res.status).toBe(200);
+      expect(res.headers.get('set-cookie') ?? '').toContain(SESSION_COOKIE);
+      expect((await res.json()) as object).toMatchObject({ success: true, telegramLinked: false });
+      expect(linkTelegramToUserMock).not.toHaveBeenCalled();
+    });
+
+    it('валидный initData → tg_id привязан к новому аккаунту', async () => {
+      verifyTelegramMock.mockReturnValue({ valid: true, user: { id: 777, first_name: 'Tg' } });
+
+      const res = await post('/app/api/auth/register', {
+        login: 'newuser',
+        password: 'secret123',
+        telegramInitData: 'tg-init-data',
+      });
+      expect(res.status).toBe(200);
+      expect((await res.json()) as object).toMatchObject({ telegramLinked: true });
+      expect(linkTelegramToUserMock).toHaveBeenCalledWith('user-new', 777);
+    });
+
+    it('невалидный initData → регистрация успешна, без привязки', async () => {
+      verifyTelegramMock.mockReturnValue({ valid: false, error: 'bad hash' });
+
+      const res = await post('/app/api/auth/register', {
+        login: 'newuser',
+        password: 'secret123',
+        telegramInitData: 'forged',
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get('set-cookie') ?? '').toContain(SESSION_COOKIE);
+      expect((await res.json()) as object).toMatchObject({ telegramLinked: false });
+      expect(linkTelegramToUserMock).not.toHaveBeenCalled();
+    });
+
+    it('сбой привязки → регистрация всё равно 200 + сессия', async () => {
+      verifyTelegramMock.mockReturnValue({ valid: true, user: { id: 777, first_name: 'Tg' } });
+      linkTelegramToUserMock.mockRejectedValue(new Error('directus down'));
+
+      const res = await post('/app/api/auth/register', {
+        login: 'newuser',
+        password: 'secret123',
+        telegramInitData: 'tg-init-data',
+      });
+      expect(res.status).toBe(200);
+      expect(res.headers.get('set-cookie') ?? '').toContain(SESSION_COOKIE);
+      expect((await res.json()) as object).toMatchObject({ telegramLinked: false });
+    });
   });
 
   it('telegram unlinked -> 200 { linked: false } без Set-Cookie', async () => {
