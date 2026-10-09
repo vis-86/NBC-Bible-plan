@@ -14,6 +14,11 @@ import { useSwUpdate } from '@/shared/hooks/useSwUpdate';
  * «Позже» скрывает тост до конца сессии компонента (не персистится — новый
  * updateReady в этой же вкладке всё равно один и тот же waiting-воркер).
  */
+/** `usePathname()` отдаёт путь без basePath. */
+function isAppRoute(pathname: string | null): boolean {
+  return pathname === '/dashboard' || (pathname?.startsWith('/dashboard/') ?? false);
+}
+
 export function UpdateToast() {
   const { updateReady, applyUpdate } = useSwUpdate();
   const [dismissed, setDismissed] = useState(false);
@@ -21,7 +26,11 @@ export function UpdateToast() {
   const reduceMotion = useReducedMotion();
   const pathname = usePathname();
 
-  if (!updateReady || dismissed || pathname === '/') return null;
+  // Только внутри приложения: на публичных страницах (лендинг, вход, регистрация, ссылка
+  // на песню `/s`) тост адресован гостю, которому обновлять нечего. Белый список, а не
+  // перечень исключений — новая публичная страница не потребует правки здесь.
+  // Waiting-воркер никуда не девается: тост покажется при входе в дашборд.
+  if (!updateReady || dismissed || !isAppRoute(pathname)) return null;
 
   const handleApply = () => {
     console.debug('[UpdateToast] apply clicked');

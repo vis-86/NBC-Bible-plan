@@ -51,8 +51,27 @@ describe('UpdateToast', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
-  it('на лендинге («/») не рендерится, даже если обновление готово', () => {
-    mockPathname = '/';
+  it.each(['/', '/login', '/register', '/activate', '/s'])(
+    'на публичной странице %s не рендерится, даже если обновление готово',
+    (pathname) => {
+      mockPathname = pathname;
+      setWaitingWorker(makeFakeWorker());
+      render(<UpdateToast />);
+
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    }
+  );
+
+  it('внутри приложения (вложенный маршрут дашборда) показывается', () => {
+    mockPathname = '/dashboard/song';
+    setWaitingWorker(makeFakeWorker());
+    render(<UpdateToast />);
+
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  it('маршрут, лишь начинающийся с /dashboard, приложением не считается', () => {
+    mockPathname = '/dashboard-preview';
     setWaitingWorker(makeFakeWorker());
     render(<UpdateToast />);
 
