@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 
 const replaceMock = vi.hoisted(() => vi.fn());
 const getPublicSongMock = vi.hoisted(() => vi.fn());
@@ -33,6 +33,7 @@ beforeAll(() => {
 });
 
 afterEach(() => {
+  cleanup();
   replaceMock.mockReset();
   getPublicSongMock.mockReset();
   auth.user = null;
@@ -41,20 +42,29 @@ afterEach(() => {
 });
 
 describe('/s — ссылка на песню', () => {
-  it('вошедший уходит в дашборд, публичный эндпоинт не дёргается', async () => {
+  it('вошедший уходит в дашборд', async () => {
     auth.user = { directus_id: 'u1' };
     render(<PublicSongPage />);
 
     await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/dashboard/song?id=7'));
-    expect(getPublicSongMock).not.toHaveBeenCalled();
   });
 
-  it('пока сессия проверяется — ни редиректа, ни запроса', () => {
+  it('пользователь из last-known-user — редирект сразу, не дожидаясь ответа сети', async () => {
+    auth.user = { directus_id: 'u1' };
     auth.loading = true;
     render(<PublicSongPage />);
 
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledWith('/dashboard/song?id=7'));
+  });
+
+  it('пока сессия проверяется — без редиректа, но песня уже запрошена (параллельно)', async () => {
+    auth.loading = true;
+    getPublicSongMock.mockResolvedValue({ song: { id: '7', title: 'Песня', content: '[G]Слава' } });
+    render(<PublicSongPage />);
+
+    await waitFor(() => expect(getPublicSongMock).toHaveBeenCalledWith('7'));
     expect(replaceMock).not.toHaveBeenCalled();
-    expect(getPublicSongMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('song-view')).not.toBeInTheDocument();
   });
 
   it('гость видит открытую песню', async () => {

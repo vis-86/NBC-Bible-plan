@@ -94,6 +94,38 @@ describe('AuthProvider offline last-known-user fallback', () => {
     expect(screen.getByTestId('user').textContent).toBe('none');
   });
 
+  it('оптимистичный старт: last-known-user виден ДО ответа сети, loading ещё true', async () => {
+    await setLastKnownUser({ directus_id: 'u1', first_name: 'Игорь' });
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<never>(() => {}))); // сеть ещё не ответила
+
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>
+    );
+
+    await waitFor(() => expect(screen.getByTestId('user').textContent).toBe('Игорь'));
+    expect(screen.getByTestId('loading').textContent).toBe('true');
+  });
+
+  it('оптимистичный старт: сервер ответил «сессии нет» -> пользователь снят', async () => {
+    await setLastKnownUser({ directus_id: 'u1', first_name: 'Игорь' });
+    let respond: (res: Response) => void = () => {};
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>((resolve) => (respond = resolve))));
+
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('user').textContent).toBe('Игорь'));
+
+    respond(new Response(JSON.stringify({ user: null }), { status: 200 }));
+
+    await waitFor(() => expect(screen.getByTestId('loading').textContent).toBe('false'));
+    expect(screen.getByTestId('user').textContent).toBe('none');
+  });
+
   it('logout() чистит last-known-user из IDB', async () => {
     await setLastKnownUser({ directus_id: 'u1', first_name: 'Игорь' });
 

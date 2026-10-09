@@ -27,10 +27,15 @@ function PublicSongContent() {
   const router = useRouter();
   const id = useSearchParams().get('id') ?? '';
   const { user, loading: authLoading } = useAuth();
+  // Песня гостю запрашивается сразу, параллельно с проверкой сессии: ожидание — max двух
+  // запросов, а не сумма. У вошедшего ответ просто не пригодится (он уходит в дашборд).
+  const publicSong = usePublicSong(id);
 
+  // Не ждём `!authLoading`: `user` из last-known-user появляется до ответа сети, и
+  // песня открывается из IDB сразу. Протухшую сессию поймает гард дашборда.
   useEffect(() => {
-    if (!authLoading && user && id) router.replace(`/dashboard/song?id=${encodeURIComponent(id)}`);
-  }, [authLoading, user, id, router]);
+    if (user && id) router.replace(`/dashboard/song?id=${encodeURIComponent(id)}`);
+  }, [user, id, router]);
 
   if (!id) {
     return (
@@ -40,12 +45,11 @@ function PublicSongContent() {
     );
   }
   if (authLoading || user) return <FullScreenLoader label="Открываем песню…" />;
-  return <GuestSong id={id} />;
+  return <GuestSong id={id} {...publicSong} />;
 }
 
-function GuestSong({ id }: { id: string }) {
+function GuestSong({ id, state, retry }: { id: string } & ReturnType<typeof usePublicSong>) {
   const router = useRouter();
-  const { state, retry } = usePublicSong(id);
   const song = state.status === 'ready' ? state.song : null;
   const songKeyState = useSongKey(song);
   const [viewSettings, setViewSettings] = useSongViewSettings();

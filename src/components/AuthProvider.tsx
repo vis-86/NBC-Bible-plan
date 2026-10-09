@@ -57,6 +57,22 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     // (router.push после логина не ждёт refreshAuth() — гонка).
     setLoading(true);
     console.debug('[AuthProvider] session check requested');
+
+    // Оптимистичный старт: последний подтверждённый пользователь подставляется сразу,
+    // не дожидаясь сети, — экран (песня по ссылке `/s`, план) открывается мгновенно,
+    // а не после round-trip'а сессии. Источник истины по-прежнему сервер: его ответ
+    // «сессии нет» снимает пользователя, и гард уводит на логин. `confirmed` не даёт
+    // позднему чтению IDB перетереть уже пришедший ответ сервера.
+    let confirmed = false;
+    const settle = (next: User | null) => {
+      confirmed = true;
+      setUser(next);
+    };
+    void getLastKnownUser<User>()
+      .then((known) => {
+        if (known && !confirmed) setUser((current) => current ?? known);
+      })
+      .catch((err) => console.debug('[AuthProvider] last-known-user read failed', err));
     try {
       // Race с таймаутом: реальный «офлайн» (сеть есть, интернета нет) вешает fetch на
       // минуты, а не роняет его — без таймаута authLoading никогда не снимался и
@@ -74,7 +90,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           const lastKnownUser = await getLastKnownUser<User>();
           if (lastKnownUser) {
             console.debug('[FIX][AuthProvider] session check timed out — falling back to last-known-user');
-            setUser(lastKnownUser);
+            settle(lastKnownUser);
             return;
           }
           // Фолбэка нет — дожидаемся медленную сеть (лучше, чем выкинуть на логин).
@@ -87,18 +103,18 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       if (response.ok) {
         const data = await response.json();
         if (data.user) {
-          setUser(data.user);
+          settle(data.user);
           void setLastKnownUser(data.user);
           // Только server-confirmed вход (не last-known-user фолбэк ниже) — иначе
           // офлайн-вход пытается качать данные без сети.
           scheduleEnsureOfflineData();
         } else {
           // Сервер явно ответил «сессии нет» — это НЕ повод для офлайн-фолбэка.
-          setUser(null);
+          settle(null);
         }
       } else {
         // response.ok === false — тоже реальное «сессии нет» (напр. 401), а не сетевая ошибка.
-        setUser(null);
+        settle(null);
       }
     } catch (error) {
       // fetch() упал (сеть недоступна) — единственный случай, где уместен офлайн-вход
@@ -107,9 +123,9 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       const lastKnownUser = await getLastKnownUser<User>();
       if (lastKnownUser) {
         console.debug('[AuthProvider] offline — falling back to last-known-user');
-        setUser(lastKnownUser);
+        settle(lastKnownUser);
       } else {
-        setUser(null);
+        settle(null);
       }
     } finally {
       setLoading(false);
