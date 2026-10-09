@@ -8,6 +8,7 @@ import { warmAppShell } from './appShell';
 import { planApi, progressApi, songsApi, weeklyPlanApi, setlistsApi } from '@/shared/services/api/endpoints';
 import { SETLISTS_LIST_CACHE_KEY, setlistCacheKey } from '@/features/setlists/lib/offlineSetlists';
 import type { BibleTranslationId } from '@/lib/bible-translations';
+import { forEachWithConcurrency } from './concurrency';
 
 /**
  * Download manager: opt-in загрузка Писания/песен/плана в IDB + navigator.storage.persist()
@@ -148,7 +149,15 @@ export async function downloadBibleTranslation(
 }
 
 /**
- * Список песен отдаёт только карточки — контент качается по одной песне за раз
+ * Песни качаются по одной (деталь + пометки) — последовательно это ~250 мс × размер
+ * каталога, и первый запуск новичка тянулся на десятки секунд. 6 — столько соединений
+ * на хост держит браузер по HTTP/1.1: больше параллелить бессмысленно.
+ */
+const SONG_DOWNLOAD_CONCURRENCY = 6;
+
+/**
+ * Список песен отдаёт только карточки — контент качается запросом на песню (пулом
+ * `SONG_DOWNLOAD_CONCURRENCY`)
  * (`/api/songs/[id]`) и пишется в IDB `songs`.
  *
  * Сам список тоже кладётся в apiCache под ключом, который читает `useSongs`. Без этого
@@ -167,7 +176,7 @@ export async function downloadSongs(onProgress?: (done: number, total: number) =
   const now = Date.now();
   let done = 0;
 
-  for (const summary of list.songs) {
+  await forEachWithConcurrency(list.songs, SONG_DOWNLOAD_CONCURRENCY, async (summary) => {
     const full = await songsApi.getSong(summary.id);
     await db.put('songs', { id: full.song.id, data: full.song, updatedAt: now });
     // Личные пометки греются ТЕМ ЖЕ вызовом, которым их читает экран песни
@@ -176,7 +185,7 @@ export async function downloadSongs(onProgress?: (done: number, total: number) =
     await readAnnotations(full.song.id).catch(() => undefined);
     done++;
     onProgress?.(done, list.songs.length);
-  }
+  });
 
   await writeManifestEntry('songs', { downloadedAt: now, itemCount: list.songs.length });
   debug('downloaded songs', { itemCount: list.songs.length });
@@ -311,8 +320,8 @@ export async function syncSongsDelta(
 
   const manifestIds = new Set(manifestSongs.map(([id]) => id));
 
-  for (const [id, version] of manifestSongs) {
-    if (storedVersions[id] === version) continue;
+  const changed = manifestSongs.filter(([id, version]) => storedVersions[id] !== version);
+  await forEachWithConcurrency(changed, SONG_DOWNLOAD_CONCURRENCY, async ([id, version]) => {
     debug('delta: песня изменилась', { id, from: storedVersions[id] ?? '—', to: version });
     const full = await songsApi.getSong(id);
     await db.put('songs', { id: full.song.id, data: full.song, updatedAt: Date.now() });
@@ -320,7 +329,7 @@ export async function syncSongsDelta(
     await readAnnotations(full.song.id).catch(() => undefined);
     versions[id] = version;
     stats.updated++;
-  }
+  });
 
   // Снятая с публикации песня иначе живёт в IDB вечно.
   const localIds = await db.getAllKeys('songs');

@@ -164,6 +164,62 @@ describe('respondToNavigation', () => {
   });
 });
 
+describe('respondToNavigation — промах прекеша онлайн (маршрут новее установленного SW)', () => {
+  const net = (fetchImpl: () => Promise<Response>, offline = false, timeoutMs = 50) => ({
+    fetch: vi.fn(fetchImpl),
+    offline,
+    timeoutMs,
+  });
+
+  it('промах + сеть есть -> документ из сети, а не заглушка', async () => {
+    const network = net(async () => new Response('<html>s</html>', { status: 200 }));
+
+    const res = await respondToNavigation(new FakePrecache(), '/app/s', '/app', OFFLINE_FALLBACK_HTML, network);
+
+    expect(await res.text()).toBe('<html>s</html>');
+    expect(network.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('попадание в прекеш -> сеть не трогается', async () => {
+    const cache = new FakePrecache();
+    cache.set('/app/s.html', new Response('<html>cached</html>'));
+    const network = net(async () => new Response('<html>net</html>'));
+
+    const res = await respondToNavigation(cache, '/app/s', '/app', OFFLINE_FALLBACK_HTML, network);
+
+    expect(await res.text()).toBe('<html>cached</html>');
+    expect(network.fetch).not.toHaveBeenCalled();
+  });
+
+  it('onLine === false -> заглушка сразу, без похода в сеть', async () => {
+    const network = net(async () => new Response('<html>net</html>'), true);
+
+    const res = await respondToNavigation(new FakePrecache(), '/app/s', '/app', OFFLINE_FALLBACK_HTML, network);
+
+    expect(res.status).toBe(503);
+    expect(network.fetch).not.toHaveBeenCalled();
+  });
+
+  it('сеть упала -> заглушка', async () => {
+    const network = net(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+
+    const res = await respondToNavigation(new FakePrecache(), '/app/s', '/app', OFFLINE_FALLBACK_HTML, network);
+
+    expect(res.status).toBe(503);
+    expect(await res.text()).toBe(OFFLINE_FALLBACK_HTML);
+  });
+
+  it('сеть висит (lie-fi) -> заглушка по таймауту', async () => {
+    const network = net(() => new Promise<Response>(() => {}), false, 20);
+
+    const res = await respondToNavigation(new FakePrecache(), '/app/s', '/app', OFFLINE_FALLBACK_HTML, network);
+
+    expect(res.status).toBe(503);
+  });
+});
+
 describe('respondToStaticAsset', () => {
   it('попадание в precache -> сеть не запрашивается', async () => {
     const cache = new FakePrecache();

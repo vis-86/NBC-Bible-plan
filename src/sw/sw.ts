@@ -88,15 +88,52 @@ export interface PrecacheReader {
   match(key: string): Promise<Response | undefined>;
 }
 
-/** Cache-first по точному ключу `{basePath}/{pathname}.html`; промах → статическая офлайн-заглушка. */
+/**
+ * Реальный офлайн вешает fetch, а не роняет — без таймаута навигация на маршрут вне
+ * прекеша висела бы бесконечно вместо офлайн-заглушки.
+ */
+export const NAVIGATION_NETWORK_TIMEOUT_MS = 8000;
+
+export interface NavigationNetwork {
+  fetch: () => Promise<Response>;
+  /** `navigator.onLine === false` — ждать сеть бессмысленно, сразу заглушка. */
+  offline: boolean;
+  timeoutMs: number;
+}
+
+/**
+ * Cache-first по точному ключу `{basePath}/{pathname}.html`; промах → сеть, и только
+ * при её недоступности — статическая офлайн-заглушка.
+ *
+ * Промах онлайн — штатная ситуация: у установивших PWA старый SW держит прекеш прошлой
+ * сборки, пока новый ждёт в `waiting` («Обновить» в тосте). Маршрут, появившийся в новой
+ * сборке (`/s` — ссылка «Поделиться»), без похода в сеть показывал заглушку даже онлайн.
+ * Ответ сети в кеш НЕ кладётся: прекеш версионирован, документ приедет со следующим SW.
+ */
 export async function respondToNavigation(
   cache: PrecacheReader,
   pathname: string,
   basePath: string,
-  offlineFallbackHtml: string
+  offlineFallbackHtml: string,
+  network?: NavigationNetwork
 ): Promise<Response> {
   const cached = await cache.match(pathnameToHtmlKey(pathname, basePath));
   if (cached) return cached;
+
+  if (network && !network.offline) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error('navigation network timeout')), network.timeoutMs);
+      });
+      return await Promise.race([network.fetch(), timeout]);
+    } catch (err) {
+      console.debug(`[SW] navigation ${pathname}: precache miss, network failed`, err);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   return new Response(offlineFallbackHtml, {
     status: 503,
     statusText: 'Offline',
@@ -229,7 +266,15 @@ if (typeof self !== 'undefined' && typeof self.addEventListener === 'function') 
     const cache = caches.open(PRECACHE_NAME);
 
     if (strategy === 'precache-navigation') {
-      event.respondWith(cache.then((c) => respondToNavigation(c, url.pathname, BASE_PATH, OFFLINE_FALLBACK_HTML)));
+      event.respondWith(
+        cache.then((c) =>
+          respondToNavigation(c, url.pathname, BASE_PATH, OFFLINE_FALLBACK_HTML, {
+            fetch: () => fetch(req),
+            offline: self.navigator.onLine === false,
+            timeoutMs: NAVIGATION_NETWORK_TIMEOUT_MS,
+          })
+        )
+      );
       return;
     }
 
