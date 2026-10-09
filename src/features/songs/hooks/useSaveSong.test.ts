@@ -18,7 +18,14 @@ import { ApiClientError } from '@/shared/services/api/client';
 import { NetworkTimeoutError } from '@/shared/offline/networkTimeout';
 import { saveErrorMessage, useSaveSong } from './useSaveSong';
 
-const PAYLOAD = { title: 'Песня', songKey: null, tempo: null, time: null, content: '[G]Слово' };
+const PAYLOAD = {
+  title: 'Песня',
+  songKey: null,
+  tempo: null,
+  time: null,
+  content: '[G]Слово',
+  visibility: 'public' as const,
+};
 const FRESH = { id: '42', title: 'Песня', content: '[G]Слово' };
 
 describe('useSaveSong', () => {

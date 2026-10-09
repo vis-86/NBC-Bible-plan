@@ -29,6 +29,9 @@ function parseSongId(raw: string | undefined): number | null {
  * GET /songs — список песен (краткие карточки).
  */
 songsRoutes.get('/', async (c) => {
+  // Каталог — только вошедшим: песни, закрытые от гостей (`visibility = members`),
+  // иначе утекали бы списком. Гостю — `/public/songs/:id` по одной песне.
+  if (!(await getSession(c))) return c.json({ error: 'Unauthorized' }, 401);
   try {
     const songs = await getSongsList();
     return c.json({ songs });
@@ -42,6 +45,7 @@ songsRoutes.get('/', async (c) => {
  * GET /songs/:id — одна песня с полным ChordPro-контентом. 404 если не найдена.
  */
 songsRoutes.get('/:id', async (c) => {
+  if (!(await getSession(c))) return c.json({ error: 'Unauthorized' }, 401);
   try {
     const songId = parseSongId(c.req.param('id'));
     if (songId === null) {

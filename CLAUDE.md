@@ -96,6 +96,10 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
   чужую), а после записи IDB песни и список обновляются явно. Чтение — полноценно офлайн
   (read-through + IDB), как и все остальные ресурсы. Подробности и обоснование —
   `docs/offline-pwa.md`, редактор — `docs/song-viewer-spec.md` §15.
+- **Ссылка на песню `/s?id=`** — гостю online-only (осознанное исключение, 2026-10-09);
+  вошедшего страница уводит в `/dashboard/song` (офлайн). Кому открыта песня — поле
+  `songs.visibility` (`public`/`members`), гейт — `GET /api/public/songs/:id` в BFF.
+  `GET /api/songs*` — только с сессией. Подробности — `docs/offline-pwa.md`.
 
 ## Прод и деплой
 

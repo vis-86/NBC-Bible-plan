@@ -1,6 +1,6 @@
 import { importChordsOverLyrics, type ChordNotation, type ImportedSong } from './importChordsOverLyrics';
 import { splitKey } from './songKey';
-import type { CreateSongPayload, Song, UpdateSongPayload } from '../types';
+import type { CreateSongPayload, Song, SongVisibility, UpdateSongPayload } from '../types';
 
 /**
  * Черновик редактора песни (M9, T3a) — сырые значения полей формы, как их ввёл человек.
@@ -14,11 +14,20 @@ export interface SongEditorDraft {
   time: string;
   /** ChordPro — единственный источник истины текста; «Вставить» и «Исходник» пишут сюда. */
   content: string;
+  /** Кому открыта песня по ссылке «Поделиться». */
+  visibility: SongVisibility;
 }
 
 export type SongEditorErrors = Partial<Record<keyof SongEditorDraft, string>>;
 
-export const EMPTY_SONG_DRAFT: SongEditorDraft = { title: '', key: '', tempo: '', time: '', content: '' };
+export const EMPTY_SONG_DRAFT: SongEditorDraft = {
+  title: '',
+  key: '',
+  tempo: '',
+  time: '',
+  content: '',
+  visibility: 'public',
+};
 
 /** Лимиты зеркалят `src/lib/validators/songs.schemas.ts` — BFF всё равно проверит сам. */
 const TITLE_MAX = 200;
@@ -56,6 +65,7 @@ export function draftFromSong(song: Song): SongEditorDraft {
     tempo: song.tempo ?? '',
     time: song.time ?? '',
     content: song.content,
+    visibility: song.visibility ?? 'public',
   };
 }
 
@@ -103,6 +113,7 @@ export function toCreateSongPayload(draft: SongEditorDraft): CreateSongPayload {
     tempo: tempo ? Number(tempo) : null,
     time: time || null,
     content: normalizeSongContent(draft.content),
+    visibility: draft.visibility,
   };
 }
 

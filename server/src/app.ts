@@ -15,6 +15,7 @@ import { graphqlRoutes } from './routes/graphql';
 import { planRoutes } from './routes/plan';
 import { setlistsRoutes } from './routes/setlists';
 import { songsRoutes } from './routes/songs';
+import { publicSongsRoutes } from './routes/publicSongs';
 import { syncRoutes } from './routes/sync';
 import { userRoutes } from './routes/user';
 
@@ -44,6 +45,7 @@ export function createApp() {
   app.route('/bible', bibleRoutes);
   app.route('/plan', planRoutes);
   app.route('/songs', songsRoutes);
+  app.route('/public/songs', publicSongsRoutes);
   app.route('/setlists', setlistsRoutes);
   app.route('/sync', syncRoutes);
   app.route('/user', userRoutes);

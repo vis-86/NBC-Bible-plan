@@ -19,6 +19,7 @@ const valid: SongEditorDraft = {
   tempo: '72',
   time: '4/4',
   content: '{comment: Куплет}\n[Am]Слово\r\n',
+  visibility: 'public',
 };
 
 describe('normalizeSongKey', () => {
@@ -83,6 +84,7 @@ describe('toCreateSongPayload', () => {
       tempo: null,
       time: null,
       content: '{comment: Куплет}\n[Am]Слово',
+      visibility: 'public',
     });
   });
 });
@@ -113,6 +115,15 @@ describe('toUpdateSongPayload', () => {
   it('очищенное необязательное поле уходит как null', () => {
     const original = draftFromSong(song);
     expect(toUpdateSongPayload(original, { ...original, key: '' })).toEqual({ songKey: null });
+  });
+
+  it('песня без visibility (кеш до появления поля) читается как public', () => {
+    expect(draftFromSong(song).visibility).toBe('public');
+  });
+
+  it('смена видимости уходит в патч одна', () => {
+    const original = draftFromSong(song);
+    expect(toUpdateSongPayload(original, { ...original, visibility: 'members' })).toEqual({ visibility: 'members' });
   });
 });
 

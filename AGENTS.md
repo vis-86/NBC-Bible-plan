@@ -38,6 +38,7 @@ bible-plan/
 │   │   │   └── settings/             # User settings
 │   │   ├── login/                    # Login page
 │   │   ├── activate/                 # Invite activation + password reset (invite model)
+│   │   ├── s/                        # Публичная ссылка на песню (?id=) — гость/редирект вошедшего
 │   │   ├── register/                 # Self-registration по коду церкви (gated by NEXT_PUBLIC_REGISTER_ENABLED)
 │   │   ├── page.tsx                  # Landing page
 │   │   ├── layout.tsx                # Root layout
@@ -181,6 +182,7 @@ bible-plan/
 | `src/features/setlists/lib/warmSetlistSongs.ts` | Фоновый прогрев всех песен открытого сета тем же вызовом, которым их читает экран (`readSongThroughSWR`) |
 | `src/features/songs/components/SongFreshBanner.tsx` | Плашка «Песня обновлена» — свежая версия открытой песни применяется только по явному тапу (`useSong().applyFresh`) |
 | `src/app/dashboard/song-edit/page.tsx` + `src/features/songs/components/SongEditor.tsx` | Редактор песни (M9 T3a): создание (без `id`) и правка (`?id=`), в `APP_SHELL_ROUTES`. Вкладки «Вставить» (конвертер «аккорды над строкой»), «Аккорды» (`SongChordCanvas` + `SongChordKeyboard`, модель без потерь — `lib/songEditModel.ts`) и «Исходник» (ChordPro), предпросмотр `SongView`. Запись online-only (`useSaveSong` → после записи обновляет IDB песни и список), песня для правки — только из сети (`useSongForEdit`), логика черновика — `lib/songEditorDraft.ts`. Вход — только при `canEditSongs` |
+| `src/app/s/page.tsx` + `server/src/routes/publicSongs.ts` | Ссылка «Поделиться» на песню (`SongShareButton` в шапке песни, `lib/songShare.ts`). Вошедший → `/dashboard/song`, гость → read-only лист из `GET /api/public/songs/:id` (только `songs.visibility = public`, online-only). Видимость правит `musician_editor` в редакторе. Миграция поля — `scripts/add-song-visibility-field.ts` |
 | `src/lib/app-roles.ts` + `src/shared/hooks/useAppRole.ts` | `AppRole` (reader/musician/musician_editor), `GET /api/user/role` — гейт кнопок сетлистов и правки песен (реальный гейт — BFF `requireSetlistWrite`/`requireSongWrite`, см. `CLAUDE.md`). Роль кешируется cache-first на 5 мин: смена роли в Directus видна после истечения и повторного входа на экран |
 | `server/src/routes/songs.ts` (`POST /`, `PUT /:id`) + `src/lib/validators/songs.schemas.ts` | Запись песни (M9) под `requireSongWrite`: тело — готовый ChordPro, `slug`/`sort`/`status` ставит сервер (`createSong`/`updateSong` в `songsServer.ts`). Прав на `songs` у политик пользователей в Directus нет и не выдавать |
 | `server/src/routes/setlists.ts` + `src/features/setlists/services/setlistsServer.ts` | CRUD сетлистов (Directus admin-client), `requireSetlistWrite` на мутирующих роутах |

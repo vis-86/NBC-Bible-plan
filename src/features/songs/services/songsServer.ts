@@ -25,7 +25,10 @@ type SongRow = {
   tempo?: number | null;
   time?: string | null;
   content?: string;
+  visibility?: 'public' | 'members' | null;
 };
+
+const DETAIL_FIELDS = ['id', 'title', 'subtitle', 'song_key', 'default_key', 'tempo', 'time', 'content'];
 
 function toSummary(row: SongRow): SongSummary {
   return {
@@ -44,6 +47,7 @@ function toSong(row: SongRow): Song {
     // Основная тональность (§10.1) — только в детали: в списке она не запрашивается.
     defaultKey: row.default_key ?? undefined,
     content: row.content ?? '',
+    visibility: row.visibility ?? 'public',
   };
 }
 
@@ -82,7 +86,7 @@ export async function getSongById(id: number): Promise<Song | null> {
   const client = getDirectusAdminClient();
   try {
     const row: SongRow = await client.request(
-      readItem('songs', id, { fields: ['id', 'title', 'subtitle', 'song_key', 'default_key', 'tempo', 'time', 'content'] }),
+      readItem('songs', id, { fields: [...DETAIL_FIELDS, 'visibility'] }),
     );
     return row ? toSong(row) : null;
   } catch (error) {
@@ -90,6 +94,29 @@ export async function getSongById(id: number): Promise<Song | null> {
     console.debug(`${LOG} detail: song ${id} not found`, error instanceof Error ? error.message : error);
     return null;
   }
+}
+
+/**
+ * Песня для публичной ссылки `/s?id=` — без сессии. Отдаётся только опубликованная и
+ * открытая всем; иначе null, и роут отвечает тем же 404, что на несуществующий id, —
+ * гость не должен отличать «закрыта» от «нет такой». `visibility` наружу не уходит.
+ */
+export async function getPublicSong(id: number): Promise<Song | null> {
+  const client = getDirectusAdminClient();
+  const rows: SongRow[] = await client.request(
+    readItems('songs', {
+      fields: DETAIL_FIELDS,
+      filter: { id: { _eq: id }, status: { _eq: 'published' }, visibility: { _eq: 'public' } },
+      limit: 1,
+    }),
+  );
+  if (rows.length === 0) {
+    console.debug(`${LOG} public: song ${id} not public or missing`);
+    return null;
+  }
+  const song = toSong(rows[0]);
+  delete song.visibility;
+  return song;
 }
 
 /**
@@ -133,6 +160,7 @@ function toRow(input: Partial<CreateSongInput & UpdateSongInput>): Record<string
   if (input.tempo !== undefined) row.tempo = input.tempo;
   if (input.time !== undefined) row.time = input.time;
   if (input.content !== undefined) row.content = input.content;
+  if (input.visibility !== undefined) row.visibility = input.visibility;
   return row;
 }
 

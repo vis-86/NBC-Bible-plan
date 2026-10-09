@@ -121,6 +121,13 @@ export const songsApi = {
   getSong: async (id: string | number): Promise<SongResponse> => {
     return apiClient.get<SongResponse>(`/api/songs/${id}`);
   },
+  /**
+   * Песня по публичной ссылке — без сессии. skipAuth: страница гостя не должна
+   * уводить на логин, закрытая песня приходит 404, а не 401.
+   */
+  getPublicSong: async (id: string | number): Promise<SongResponse> => {
+    return apiClient.get<SongResponse>(`/api/public/songs/${id}`, { skipAuth: true });
+  },
   create: async (payload: CreateSongPayload): Promise<{ id: number }> => {
     return apiClient.post<{ id: number }>('/api/songs', payload);
   },

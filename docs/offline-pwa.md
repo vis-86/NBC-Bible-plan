@@ -162,6 +162,22 @@ T8) SW больше не runtime-кеширует посещённые стра�
 оправдывает сложность LWW/outbox для этого пути; при росте числа муз. редакторов это
 можно пересмотреть (`M6` — обобщение outbox).
 
+### Песни: публичная ссылка `/s?id=` — гостю online-only (исключение)
+
+Ссылка «Поделиться» (`SongShareButton` → `src/features/songs/lib/songShare.ts`) ведёт на
+`/s?id=` (`src/app/s/page.tsx`). Согласовано с Игорем 2026-10-09.
+
+- **Вошедший** (в т.ч. офлайн по last-known-user) сразу уходит `router.replace` в
+  `/dashboard/song?id=` — офлайн-чтение из IDB как обычно. `/s` в прекеше SW и в
+  `APP_SHELL_ROUTES`, поэтому холодный офлайн-старт по ссылке работает.
+- **Гость** — только из сети (`usePublicSong`, таймаут + fail fast при `onLine === false`):
+  у него нет ни сессии, ни IDB с песнями. Это осознанное исключение.
+- **Видимость решает BFF:** `GET /api/public/songs/:id` отдаёт песню только при
+  `status = published` и `songs.visibility = public` (поле правит `musician_editor` в
+  редакторе, дефолт колонки — `public`). Закрытая и несуществующая — одинаковый 404.
+  `GET /api/songs*` требуют сессию — иначе `members`-песни утекали бы каталогом.
+- Гейт — `e2e/offline/song-share-link.spec.ts`.
+
 ### Песни: правка — online-only (исключение, M9)
 
 Редактор `/dashboard/song-edit[?id=]` (`src/app/dashboard/song-edit/page.tsx`) — второе

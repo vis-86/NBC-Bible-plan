@@ -18,6 +18,7 @@ const EXISTING: SongEditorDraft = {
   tempo: '72',
   time: '4/4',
   content: '{comment: Куплет}\n[Am]Слово Твоё',
+  visibility: 'public',
 };
 
 const PASTED = ['Свят Господь', '', 'Куплет 1:', 'G         D', 'Свят Господь'].join('\n');

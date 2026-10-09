@@ -26,7 +26,15 @@ export interface Song {
   time?: string;
   /** Сырой ChordPro-контент без метадиректив в шапке. */
   content: string;
+  /**
+   * Кому открыта песня по ссылке `/s?id=` (`songs.visibility`). Приходит только в детали;
+   * у закешированных до появления поля песен его нет — читать как `public`.
+   */
+  visibility?: SongVisibility;
 }
+
+/** `public` — открыта всем по ссылке, `members` — только вошедшим (права, лицензии). */
+export type SongVisibility = 'public' | 'members';
 
 /**
  * Краткая карточка песни для списка/поиска (без тяжёлого `content`).
@@ -65,6 +73,7 @@ export interface CreateSongPayload {
   tempo: number | null;
   time: string | null;
   content: string;
+  visibility: SongVisibility;
 }
 
 /** Тело `PUT /api/songs/:id` — только изменённые поля (пустой патч BFF отвергает). */

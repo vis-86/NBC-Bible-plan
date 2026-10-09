@@ -1,6 +1,8 @@
 'use client';
 
 import { cn } from '@/shared/utils/cn';
+import { ChoiceGroup } from '@/shared/components/ui/ChoiceGroup';
+import type { SongVisibility } from '../types';
 import type { SongEditorDraft, SongEditorErrors } from '../lib/songEditorDraft';
 
 // text-base (16px), а не text-sm: iOS зумит страницу при фокусе поля мельче 16px.
@@ -56,6 +58,11 @@ function Field({ id, label, value, error, placeholder, inputMode = 'text', disab
   );
 }
 
+const VISIBILITY_LABELS: Record<SongVisibility, string> = {
+  public: 'Открыта всем',
+  members: 'Только своим',
+};
+
 /** Метаданные песни. `subtitle` и `defaultKey` намеренно не показаны — шум для редактора. */
 export function SongEditorFields({ draft, errors, onChange, disabled }: SongEditorFieldsProps) {
   return (
@@ -97,6 +104,19 @@ export function SongEditorFields({ draft, errors, onChange, disabled }: SongEdit
           placeholder="4/4"
           disabled={disabled}
           onChange={(time) => onChange({ time })}
+        />
+      </div>
+      <div data-song-editor-visibility>
+        <p id="song-editor-visibility-label" className="mb-1.5 text-sm font-medium text-app-text-secondary">
+          Ссылка «Поделиться»
+        </p>
+        <ChoiceGroup<SongVisibility>
+          options={['public', 'members'] as const}
+          value={draft.visibility}
+          onChange={(visibility) => onChange({ visibility })}
+          labelFor={(option) => VISIBILITY_LABELS[option]}
+          columns={2}
+          disabled={disabled}
         />
       </div>
     </div>

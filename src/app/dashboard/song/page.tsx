@@ -16,6 +16,7 @@ import { SongAutoScroll } from '@/features/songs/components/SongAutoScroll';
 import { SongToolStack } from '@/features/songs/components/SongToolStack';
 import { SongQuickTools } from '@/features/songs/components/SongQuickTools';
 import { SongFreshBanner } from '@/features/songs/components/SongFreshBanner';
+import { SongShareButton } from '@/features/songs/components/SongShareButton';
 import { SongInkButton } from '@/features/songs/components/SongInkButton';
 import { SongInkToolbar } from '@/features/songs/components/SongInkToolbar';
 import { INK_MODEBAR_RESERVE_PX, SongInkModeBar } from '@/features/songs/components/SongInkModeBar';
@@ -242,8 +243,10 @@ function SongPageContent() {
    * `SongKeyPicker` дали бы два одинаковых DOM-якоря и две независимые шторки.
    * Поэтому фабрика, а не готовый узел.
    */
-  const renderSongActions = () => (
+  // «Поделиться» — только в шапке: в таблетке SongQuickTools живут инструменты служения.
+  const renderSongActions = (withShare = false) => (
     <div className="flex items-center gap-1">
+      {song && withShare && <SongShareButton songId={song.id} title={song.title} />}
       {song && showKeyPicker && (
         <SongKeyPicker
           value={songKeyState.effectiveKey as string}
@@ -333,7 +336,7 @@ function SongPageContent() {
               onBack={handleBack}
               backAriaLabel="Назад к списку"
               density="compact"
-              right={headerHidden ? undefined : renderSongActions()}
+              right={headerHidden ? undefined : renderSongActions(true)}
             />
           </div>
         </div>

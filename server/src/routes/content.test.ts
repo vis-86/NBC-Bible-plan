@@ -17,7 +17,14 @@ vi.mock('../../../src/features/songs/services/songsServer', () => ({
   getSongById: getSongByIdMock,
 }));
 
+import { sealSession, SESSION_COOKIE_NAME } from '../../../src/lib/session-core';
 import { createApp } from '../app';
+
+/** Песни отдаются только вошедшим — запросы ниже идут с валидной сессией. */
+async function withSession(): Promise<RequestInit> {
+  const sealed = await sealSession({ directus_id: 'user-1', first_name: 'Test' });
+  return { headers: { Cookie: `${SESSION_COOKIE_NAME}=${sealed}` } };
+}
 
 beforeEach(() => {
   process.env.SESSION_SECRET = 'test-session-secret-at-least-32-chars-long';
@@ -114,7 +121,7 @@ describe('GET /app/api/songs', () => {
   it('отдаёт список песен', async () => {
     getSongsListMock.mockResolvedValue([{ id: 1, title: 'Song' }]);
     const app = createApp();
-    const res = await app.request('/app/api/songs');
+    const res = await app.request('/app/api/songs', await withSession());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.songs).toEqual([{ id: 1, title: 'Song' }]);
@@ -124,21 +131,21 @@ describe('GET /app/api/songs', () => {
 describe('GET /app/api/songs/:id', () => {
   it('400 для невалидного id', async () => {
     const app = createApp();
-    const res = await app.request('/app/api/songs/abc');
+    const res = await app.request('/app/api/songs/abc', await withSession());
     expect(res.status).toBe(400);
   });
 
   it('404 если песня не найдена', async () => {
     getSongByIdMock.mockResolvedValue(null);
     const app = createApp();
-    const res = await app.request('/app/api/songs/999');
+    const res = await app.request('/app/api/songs/999', await withSession());
     expect(res.status).toBe(404);
   });
 
   it('200 с песней, если найдена', async () => {
     getSongByIdMock.mockResolvedValue({ id: 1, title: 'Song', content: 'lyrics' });
     const app = createApp();
-    const res = await app.request('/app/api/songs/1');
+    const res = await app.request('/app/api/songs/1', await withSession());
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.song.id).toBe(1);
