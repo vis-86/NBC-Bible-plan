@@ -64,10 +64,13 @@ export const FloatingChapterNav: React.FC<FloatingChapterNavProps> = ({
     onNext();
   };
 
+  // Геометрия от того же `--dock-nav-gap`, что и у BottomNavBar (safe-area тут 0 —
+  // viewport-fit=auto): со скрытым баром кнопки на 16px выше его места (не на
+  // зоне home-indicator), с видимым — подняты на высоту бара, т.е. те же 16px над ним.
   return (
     <div
-      className={`fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+16px)] z-40 app-shell-width flex items-center justify-between px-4 pointer-events-none transition-transform duration-300 ${
-        chromeHidden ? 'translate-y-0' : 'translate-y-[calc(-1*(var(--dock-nav-h)-4px))]'
+      className={`fixed inset-x-0 bottom-[calc(var(--dock-nav-gap)+16px)] z-40 app-shell-width flex items-center justify-between px-4 pointer-events-none transition-transform duration-300 ${
+        chromeHidden ? 'translate-y-0' : 'translate-y-[calc(-1*var(--dock-nav-h))]'
       }`}
     >
       <button
