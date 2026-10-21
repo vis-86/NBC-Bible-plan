@@ -2,7 +2,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { SongInkToolbar } from './SongInkToolbar';
-import { SongInkModeBar } from './SongInkModeBar';
 
 function renderToolbar(overrides: Partial<React.ComponentProps<typeof SongInkToolbar>> = {}) {
   const props = {
@@ -16,20 +15,27 @@ function renderToolbar(overrides: Partial<React.ComponentProps<typeof SongInkToo
     onWidthChange: vi.fn(),
     onUndo: vi.fn(),
     onClearAll: vi.fn(),
+    dirty: false,
+    zoom: 1,
+    onResetZoom: vi.fn(),
+    onDone: vi.fn(),
+    onCancel: vi.fn(),
     ...overrides,
   };
-  render(<SongInkToolbar {...props} />);
-  return props;
+  const view = render(<SongInkToolbar {...props} />);
+  return { ...props, rerender: (next: Partial<typeof props>) => view.rerender(<SongInkToolbar {...props} {...next} />) };
 }
 
 describe('SongInkToolbar', () => {
-  it('рисует все инструменты одним вертикальным рельсом', () => {
+  it('держит все инструменты и оба выхода в одной панели', () => {
     renderToolbar();
     const rail = document.querySelector('[data-song-ink-toolbar]');
     expect(rail).not.toBeNull();
     for (const tool of ['pen', 'highlighter', 'arrow', 'text', 'eraser']) {
       expect(rail?.querySelector(`[data-song-ink-tool="${tool}"]`)).not.toBeNull();
     }
+    expect(rail?.querySelector('[data-song-ink-done]')).not.toBeNull();
+    expect(rail?.querySelector('[data-song-ink-cancel]')).not.toBeNull();
   });
 
   it('карточка цвета и толщины открывается образцом и закрывается им же', () => {
@@ -73,49 +79,32 @@ describe('SongInkToolbar', () => {
   });
 });
 
-describe('SongInkModeBar', () => {
-  const base = {
-    tool: 'highlighter' as const,
-    color: '#dc2626',
-    dirty: false,
-    zoom: 1,
-    onResetZoom: vi.fn(),
-    onDone: vi.fn(),
-    onCancel: vi.fn(),
-  };
-
-  it('показывает название инструмента и цвет', () => {
-    render(<SongInkModeBar {...base} />);
-    expect(document.querySelector('[data-song-ink-modebar-tool]')?.textContent).toBe('Маркер');
-    expect((document.querySelector('[data-song-ink-modebar-color]') as HTMLElement).style.backgroundColor).toBe(
-      'rgb(220, 38, 38)'
-    );
-  });
-
-  it('встаёт под шапкой: top = высота шапки + зазор', () => {
-    // Регрессия: с фиксированным top-2 плашка стояла под шапкой песни и под
-    // непрозрачной бровью safe-area (z-40) — на телефоне с вырезом невидима.
-    render(<SongInkModeBar {...base} topOffset={96} />);
-    expect((document.querySelector('[data-song-ink-modebar]') as HTMLElement).style.top).toBe('104px');
+describe('SongInkToolbar — выходы и масштаб', () => {
+  it('«Готово» сохраняет и выходит', () => {
+    const props = renderToolbar();
+    fireEvent.click(document.querySelector('[data-song-ink-done]') as HTMLElement);
+    expect(props.onDone).toHaveBeenCalledTimes(1);
   });
 
   it('чип масштаба появляется только при зуме', () => {
-    const { rerender } = render(<SongInkModeBar {...base} />);
+    const props = renderToolbar();
     expect(document.querySelector('[data-song-ink-zoom-reset]')).toBeNull();
-    rerender(<SongInkModeBar {...base} zoom={1.5} />);
-    expect(document.querySelector('[data-song-ink-zoom-reset]')?.textContent).toContain('×1.5');
+    props.rerender({ zoom: 1.5 });
+    const chip = document.querySelector('[data-song-ink-zoom-reset]') as HTMLElement;
+    expect(chip.textContent).toContain('×1.5');
+    fireEvent.click(chip);
+    expect(props.onResetZoom).toHaveBeenCalledTimes(1);
   });
 
   it('выход без правок не спрашивает подтверждения, с правками — спрашивает', () => {
-    const onCancel = vi.fn();
-    const { rerender } = render(<SongInkModeBar {...base} onCancel={onCancel} />);
+    const props = renderToolbar();
     fireEvent.click(screen.getByLabelText('Выйти без сохранения'));
-    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(props.onCancel).toHaveBeenCalledTimes(1);
 
-    rerender(<SongInkModeBar {...base} dirty onCancel={onCancel} />);
+    props.rerender({ dirty: true });
     fireEvent.click(screen.getByLabelText('Выйти без сохранения'));
-    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(props.onCancel).toHaveBeenCalledTimes(1);
     fireEvent.click(document.querySelector('[data-song-ink-confirm-accept]') as HTMLElement);
-    expect(onCancel).toHaveBeenCalledTimes(2);
+    expect(props.onCancel).toHaveBeenCalledTimes(2);
   });
 });

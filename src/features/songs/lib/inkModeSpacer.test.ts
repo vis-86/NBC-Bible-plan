@@ -1,22 +1,21 @@
 import { describe, expect, it } from 'vitest';
-import { inkSpacerScrollTop } from './inkModeSpacer';
+import { inkModeScrollTop } from './inkModeSpacer';
 
-describe('inkSpacerScrollTop', () => {
-  it('в начале песни на входе не компенсирует — лист отъезжает под плашку', () => {
-    expect(inkSpacerScrollTop(0, 62, true)).toBe(0);
-    expect(inkSpacerScrollTop(30, 62, true)).toBe(30);
+describe('inkModeScrollTop', () => {
+  it('в середине песни компенсирует снятый отступ — текст стоит на месте', () => {
+    expect(inkModeScrollTop(500, 52, true)).toBe(448);
   });
 
-  it('в середине песни на входе компенсирует — текст стоит на месте', () => {
-    expect(inkSpacerScrollTop(62, 62, true)).toBe(124);
-    expect(inkSpacerScrollTop(500, 62, true)).toBe(562);
+  it('в начале песни лист поднимается на место шапки', () => {
+    expect(inkModeScrollTop(0, 52, true)).toBe(0);
+    expect(inkModeScrollTop(30, 52, true)).toBe(0);
   });
 
-  it('на выходе снимает отступ с прокрутки', () => {
-    expect(inkSpacerScrollTop(562, 62, false)).toBe(500);
+  it('выход возвращает прокрутку туда, где текст стоял до входа', () => {
+    expect(inkModeScrollTop(inkModeScrollTop(500, 52, true), 52, false)).toBe(500);
   });
 
-  it('на выходе у верха не уходит в минус', () => {
-    expect(inkSpacerScrollTop(20, 62, false)).toBe(0);
+  it('выход из начала песни оставляет лист в начале, а не под шапкой', () => {
+    expect(inkModeScrollTop(0, 52, false)).toBe(0);
   });
 });

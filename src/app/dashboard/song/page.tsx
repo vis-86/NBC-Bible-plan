@@ -18,9 +18,8 @@ import { SongQuickTools } from '@/features/songs/components/SongQuickTools';
 import { SongFreshBanner } from '@/features/songs/components/SongFreshBanner';
 import { SongShareButton } from '@/features/songs/components/SongShareButton';
 import { SongInkButton } from '@/features/songs/components/SongInkButton';
-import { SongInkToolbar } from '@/features/songs/components/SongInkToolbar';
-import { INK_MODEBAR_RESERVE_PX, SongInkModeBar } from '@/features/songs/components/SongInkModeBar';
-import { inkSpacerScrollTop } from '@/features/songs/lib/inkModeSpacer';
+import { INK_TOOLBAR_RESERVE_PX, SongInkToolbar } from '@/features/songs/components/SongInkToolbar';
+import { inkModeScrollTop } from '@/features/songs/lib/inkModeSpacer';
 import { useSongInk } from '@/features/songs/hooks/useSongInk';
 import { useInkStage } from '@/features/songs/hooks/useInkStage';
 import { useSongAnnotations } from '@/features/songs/hooks/useSongAnnotations';
@@ -149,10 +148,8 @@ function SongPageContent() {
   // Ручной подскролл во время автоскролла снимает фокус-режим на время жеста
   // (`suspended`): иначе хром было бы не вернуть, не выключив автоскролл.
   const focusMode = autoscroll.playing && !autoscroll.suspended;
-  const headerHidden = mode === 'scroll' && (hidden || focusMode);
-  if (process.env.NODE_ENV !== 'production') {
-    console.debug('[SongPage] chrome hidden', { headerHidden, playing: autoscroll.playing, suspended: autoscroll.suspended });
-  }
+  // Итог с учётом режима пометок — `headerHidden` ниже, после `useSongInk`.
+  const readingHeaderHidden = mode === 'scroll' && (hidden || focusMode);
 
   /**
    * Старт автоскролла переводит и состояние жеста в «спрятано». Без этого стоп у низа
@@ -202,9 +199,20 @@ function SongPageContent() {
     penOnly: INK_PEN_ONLY,
   });
 
-  // Отступ под плашку режима пометок. Прокрутка правится в layout-эффекте — в том же
-  // кадре, что и новый paddingTop, иначе лист мелькнёт сдвинутым.
-  const inkSpacer = ink.active ? INK_MODEBAR_RESERVE_PX : 0;
+  // Режим пометок забирает экран под холст: шапка уезжает в любом режиме раскладки,
+  // а её отступ над листом снимается. Снизу вместо него — отступ под панель
+  // инструментов, чтобы последние строки можно было поднять над ней.
+  const headerHidden = readingHeaderHidden || ink.active;
+  if (process.env.NODE_ENV !== 'production') {
+    console.debug('[SongPage] chrome hidden', { headerHidden, playing: autoscroll.playing, suspended: autoscroll.suspended });
+  }
+  const headerPadding = ink.active ? 0 : headerHeight;
+  const inkBottomPadding = ink.active ? INK_TOOLBAR_RESERVE_PX : 0;
+  // Высоту листа отступы режима менять не должны (переразбивка посреди штриха) —
+  // SongView вычтет эту разницу из резерва.
+  const inkExtraPadding = inkBottomPadding + headerPadding - headerHeight;
+  // Прокрутка правится в layout-эффекте — в том же кадре, что и новый paddingTop,
+  // иначе лист мелькнёт сдвинутым.
   const inkWasActive = useRef(ink.active);
   useLayoutEffect(() => {
     if (inkWasActive.current === ink.active) return;
@@ -212,7 +220,9 @@ function SongPageContent() {
     const viewport = contentRef.current;
     if (!viewport) return;
     ignoreNextScroll();
-    viewport.scrollTop = inkSpacerScrollTop(viewport.scrollTop, INK_MODEBAR_RESERVE_PX, ink.active);
+    viewport.scrollTop = inkModeScrollTop(viewport.scrollTop, headerHeight, ink.active);
+    // headerHeight — значение на момент переключения: эффект реагирует только на вход/выход.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ink.active, ignoreNextScroll]);
 
   /**
@@ -397,26 +407,6 @@ function SongPageContent() {
                 atEdge={pagerHint.state.atEdge}
                 action={pagerHint.state.action}
               />
-              {/* Слой оверлея живёт ВНЕ сдвигаемого узла — плашка не едет за жестом. */}
-              {ink.active && (
-                <SongInkModeBar
-                  tool={ink.tool}
-                  color={ink.selectedStroke?.color ?? ink.color}
-                  dirty={ink.dirty}
-                  zoom={stageZoom}
-                  onResetZoom={resetStageZoom}
-                  // Оверлей SwipePager начинается у верхнего края экрана (шапка —
-                  // оверлей вне потока), поэтому плашку сдвигаем на измеренную высоту
-                  // шапки: без этого она стоит ПОД шапкой и под непрозрачной бровью
-                  // safe-area (z-40) — на телефоне с вырезом её не видно вообще.
-                  // Сдвиг постоянный, а не по headerHidden: автоскрытие шапки во время
-                  // рисования иначе дёргало бы плашку вверх-вниз.
-                  topOffset={headerHeight}
-                  drawing={ink.draft !== null}
-                  onDone={() => ink.exit(true)}
-                  onCancel={() => ink.exit(false)}
-                />
-              )}
             </>
           }
           className="relative min-h-0 flex-1 overflow-hidden"
@@ -433,6 +423,9 @@ function SongPageContent() {
               // лист двигают двумя пальцами. При «только стилусом» палец скроллит
               // штатно — заморозка там не нужна и только мешала бы.
               ink.active && !INK_PEN_ONLY ? 'overflow-hidden' : 'overflow-y-auto',
+              // Протяжка вне холста (заголовок над листами, «стол» между ними) иначе
+              // выделяет текст песни — в режиме рисования выделять нечего.
+              ink.active && 'select-none',
               mode === 'scroll' ? 'px-4 pb-4' : 'pb-2'
             )}
             // pan-x тоже нужен: на увеличенном листе правый край иначе недостижим.
@@ -440,8 +433,13 @@ function SongPageContent() {
             // страницы песни живёт только в useInkStage.
             // paddingTop — место под оверлейную шапку: собственный отступ листа
             // (py-4/py-2 прежней раскладки) прибавляется к её измеренной высоте.
+            // В режиме пометок шапки нет (headerPadding = 0), зато снизу — место под
+            // панель инструментов.
             style={{
-              paddingTop: `calc(${headerHeight + inkSpacer}px + ${mode === 'scroll' ? '1rem' : '0.5rem'})`,
+              paddingTop: `calc(${headerPadding}px + ${mode === 'scroll' ? '1rem' : '0.5rem'})`,
+              ...(ink.active
+                ? { paddingBottom: `calc(${inkBottomPadding}px + ${mode === 'scroll' ? '1rem' : '0.5rem'})` }
+                : {}),
               ...(ink.active && INK_PEN_ONLY ? { touchAction: 'pan-x pan-y' } : {}),
             }}
           >
@@ -496,7 +494,7 @@ function SongPageContent() {
                 // на широком экране с одной колонкой (второго брейкпоинта нет).
                 wideLayout={isWideLayout}
                 viewportRef={contentRef}
-                viewportExtraTop={inkSpacer}
+                viewportExtraPadding={inkExtraPadding}
                 ink={ink}
                 inkPenOnly={INK_PEN_ONLY}
                 inkInstant={INK_INSTANT}
@@ -532,9 +530,8 @@ function SongPageContent() {
           </SongToolStack>
         )}
 
-        {/* Рельс инструментов встаёт ровно туда, где вне режима живёт карандаш. Плашка
-            режима (состояние + выходы) — сверху по центру, внутри SwipePager: там она
-            под шапкой, а не поверх неё. */}
+        {/* Единственная поверхность режима — панель снизу по центру: инструменты,
+            история, масштаб и выходы. Шапка в режиме уехала, весь экран над панелью — холст. */}
         {ink.active && (
           <SongInkToolbar
             tool={ink.tool}
@@ -550,6 +547,11 @@ function SongPageContent() {
             onWidthChange={ink.setWidth}
             onUndo={ink.undo}
             onClearAll={ink.clearAll}
+            dirty={ink.dirty}
+            zoom={stageZoom}
+            onResetZoom={resetStageZoom}
+            onDone={() => ink.exit(true)}
+            onCancel={() => ink.exit(false)}
           />
         )}
 

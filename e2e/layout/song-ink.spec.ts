@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import { appPath, login } from '../offline/helpers';
 
 /**
@@ -52,15 +52,38 @@ async function openSheets(fontSize: number, showHeader = true): Promise<void> {
 
 async function enterInk(): Promise<void> {
   await page.locator('[data-song-ink-open]').click();
-  await expect(page.locator('[data-song-ink-modebar]')).toBeVisible();
+  await expect(page.locator('[data-song-ink-toolbar]')).toBeVisible();
 }
 
-/** Выход без сохранения: при правках плашка спрашивает подтверждение. */
+/** Выход без сохранения: при правках панель спрашивает подтверждение. */
 async function cancelInk(): Promise<void> {
   await page.locator('[data-song-ink-cancel]').click();
   const confirm = page.getByRole('button', { name: 'Выйти', exact: true });
   if (await confirm.isVisible().catch(() => false)) await confirm.click();
-  await expect(page.locator('[data-song-ink-modebar]')).toHaveCount(0);
+  await expect(page.locator('[data-song-ink-toolbar]')).toHaveCount(0);
+}
+
+/** Горизонтальный штрих мышью от (x, y) влево на 60px. */
+async function strokeLeft(x: number, y: number): Promise<void> {
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x - 30, y, { steps: 5 });
+  await page.mouse.move(x - 60, y, { steps: 5 });
+  await page.mouse.up();
+}
+
+/** Сколько непрозрачных пикселей холста вокруг экранной точки. */
+async function paintedAt(canvas: Locator, x: number, y: number): Promise<number> {
+  return canvas.evaluate((el: HTMLCanvasElement, at) => {
+    const rect = el.getBoundingClientRect();
+    const dpr = el.width / rect.width;
+    const ctx = el.getContext('2d');
+    if (!ctx) return 0;
+    const data = ctx.getImageData((at.x - rect.left) * dpr - 4, (at.y - rect.top) * dpr - 4, 8, 8).data;
+    let painted = 0;
+    for (let i = 3; i < data.length; i += 4) if (data[i] > 0) painted++;
+    return painted;
+  }, { x, y });
 }
 
 test('штрих в пустом месте последнего листа рисуется', async () => {
@@ -79,7 +102,8 @@ test('штрих в пустом месте последнего листа ри
   const last = page.locator('[data-song-view-sheet]').last();
   await last.scrollIntoViewIfNeeded();
   await enterInk();
-  // Отступ под плашку не входит в высоту листа: вход в режим страницы не переразбивает.
+  // Снятая шапка и отступ под панель не входят в высоту листа: вход в режим страницы
+  // не переразбивает.
   // Раньше перелом приезжал с задержкой — посреди первого штриха.
   await page.waitForTimeout(800);
   await expect(page.locator('[data-song-view-sheet]')).toHaveCount(sheetCount);
@@ -98,7 +122,7 @@ test('штрих в пустом месте последнего листа ри
       for (let x = box.right - 60; x > box.left + box.width / 2; x -= 20) {
         const free = (px: number) =>
           !inside(px, y) && !document.elementFromPoint(px, y)?.closest('[data-song-ink-ui]');
-        // Рельс инструментов и плашка — тоже UI режима, штрих там не начинается.
+        // Панель инструментов — UI режима, штрих там не начинается.
         if (free(x) && free(x - 30) && free(x - 60)) return { x, y };
       }
     }
@@ -107,52 +131,55 @@ test('штрих в пустом месте последнего листа ри
   test.skip(point === null, 'на последнем листе нет пустого места');
   const { x, y } = point as { x: number; y: number };
 
-  await page.mouse.move(x, y);
-  await page.mouse.down();
-  // Во время штриха плашка растворяется и пропускает касания.
-  await page.mouse.move(x - 30, y, { steps: 5 });
-  await expect(page.locator('[data-song-ink-modebar]')).toHaveAttribute('data-song-ink-modebar-drawing', '');
-  await page.mouse.move(x - 60, y, { steps: 5 });
-  await page.mouse.up();
-  await expect(page.locator('[data-song-ink-modebar]')).not.toHaveAttribute('data-song-ink-modebar-drawing', '');
+  await strokeLeft(x, y);
 
   // Штрих закоммичен и отрисован на холсте последнего листа.
   await expect
-    .poll(
-      () =>
-        last.locator('[data-song-ink-canvas]').evaluate((canvas: HTMLCanvasElement, at) => {
-          const rect = canvas.getBoundingClientRect();
-          const dpr = canvas.width / rect.width;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) return 0;
-          const data = ctx.getImageData((at.x - 30 - rect.left) * dpr - 4, (at.y - rect.top) * dpr - 4, 8, 8).data;
-          let painted = 0;
-          for (let i = 3; i < data.length; i += 4) if (data[i] > 0) painted++;
-          return painted;
-        }, { x, y }),
-      { timeout: 3_000 },
-    )
+    .poll(() => paintedAt(last.locator('[data-song-ink-canvas]'), x - 30, y), { timeout: 3_000 })
     .toBeGreaterThan(0);
 
   await cancelInk();
 });
 
-test('в начале песни режим пометок опускает первые строки под плашку', async () => {
-  // Без заголовка песни первая строка стоит у самого верха листа — худший случай.
+test('режим пометок прячет шапку и отдаёт её место листу, панель — внизу', async () => {
   await openSheets(20, false);
+  const sheetCount = await page.locator('[data-song-view-sheet]').count();
+  const firstLine = page.locator('[data-song-view-sheet] [data-song-line-section]').first();
+  const topBefore = (await firstLine.boundingBox())?.y ?? 0;
+
+  await enterInk();
+  await expect(page.locator('[data-song-page-header-hidden]')).toHaveCount(1);
+  // Освободившийся верх отдан листу: первая строка поднялась на место шапки.
+  await expect.poll(async () => (await firstLine.boundingBox())?.y ?? 0).toBeLessThan(topBefore - 20);
+  // …а листы не переразбились.
+  await page.waitForTimeout(800);
+  await expect(page.locator('[data-song-view-sheet]')).toHaveCount(sheetCount);
+
+  // Панель — горизонтальная полоса у нижнего края.
+  const bar = await page.locator('[data-song-ink-toolbar]').boundingBox();
+  expect(bar).not.toBeNull();
+  const { width: barWidth, height: barHeight, y: barTop } = bar as { width: number; height: number; y: number };
+  expect(barWidth).toBeGreaterThan(barHeight * 3);
+  expect(barTop + barHeight).toBeGreaterThan(WIDE.height - 40);
+
+  await cancelInk();
+  await expect(page.locator('[data-song-page-header-hidden]')).toHaveCount(0);
+});
+
+test('штрих в верхнем поле листа (вне строк потока) рисуется', async () => {
+  await openSheets(20);
   await enterInk();
 
+  const sheet = page.locator('[data-song-view-sheet]').first();
+  const box = (await sheet.boundingBox()) as { x: number; y: number; width: number; height: number };
+  // Верхнее поле листа (SHEET_PADDING_TOP) лежит над хостом слоя — до вылета холста
+  // касание здесь не доходило до слоя.
+  const x = box.x + box.width / 2;
+  const y = box.y + 6;
+  await strokeLeft(x, y);
   await expect
-    .poll(async () =>
-      page.evaluate(() => {
-        const bar = document.querySelector('[data-song-ink-modebar] > div')?.getBoundingClientRect();
-        const firstLine = document
-          .querySelector('[data-song-view-sheet] [data-song-line-section]')
-          ?.getBoundingClientRect();
-        return bar && firstLine ? Math.round(firstLine.top - bar.bottom) : -999;
-      }),
-    )
-    .toBeGreaterThanOrEqual(0);
+    .poll(() => paintedAt(sheet.locator('[data-song-ink-canvas]'), x - 30, y), { timeout: 3_000 })
+    .toBeGreaterThan(0);
 
   await cancelInk();
 });

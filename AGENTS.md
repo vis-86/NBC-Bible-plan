@@ -57,7 +57,7 @@ bible-plan/
 │   │   │   └── bible-text-cache.ts   # Client-side cache for bible text
 │   │   ├── songs/                    # Songs (ChordPro) feature slice
 │   │   │   ├── components/           # SongList, SongCard, SongView, SongKeyPicker, SongQuickTools, render/*,
-│   │   │   │                         # SongToolStack, SongInkLayer/Toolbar/ModeBar/Confirm/TextNote/Button (M10),
+│   │   │   │                         # SongToolStack, SongInkLayer/Toolbar/Confirm/TextNote/Button (M10),
 │   │   │   │                         # SongEditor, SongEditorFields, SongChordCanvas, SongChordKeyboard (M9)
 │   │   │   ├── hooks/                # useSongs, useSong, useSongSearch, useScrollRestore, useSongViewSettings, useSongKey,
 │   │   │   │                         # useSongInk, useInkInput, useInkStage, useSongAnnotations (M10),
@@ -197,7 +197,7 @@ bible-plan/
 | `src/app/dashboard/song/page.tsx` (шапка) | Шапка песни — ОВЕРЛЕЙ поверх листа, уезжает через `top` на измеренную (`ResizeObserver`) высоту, она же — верхний отступ листа. Схлопывание высоты в потоке двигало текст (скачок при чтении); `transform` использовать нельзя — он делает шапку контейнером для `position: fixed` шторки транспонирования. Прятать не раньше `minScrollTop` = высота шапки. Возврат — скролл вверх или тап (`useTapToReveal`). Обоснование — `docs/song-viewer-spec.md` §4.5 |
 | `src/features/songs/components/SongToolStack.tsx` | Правый нижний край экрана песни — точка входа для инструментов (автоскролл + карандаш пометок). Вместе с шапкой НЕ скрывается: прячут только открытые шторки. Активный инструмент забирает край целиком. Исключение — играющий автоскролл (фокус-режим): в стеке остаётся только его FAB |
 | `src/features/songs/components/SongInkLayer.tsx` + `hooks/useSongInk.ts`, `useInkInput.ts`, `useInkStage.ts` | Рукописные пометки (M10, спека §6): слой ОБОРАЧИВАЕТ поток песни (canvas внутри multicol фрагментируется по колонкам), штрих привязан к строке-якорю, зум/пан живут только в слое и не персистятся. Матрица жестов (палец/перо/«только стилус») — `docs/song-viewer-spec.md` §6 |
-| `src/features/songs/components/SongInkToolbar.tsx` + `SongInkModeBar.tsx` | UI режима пометок: вертикальный рельс инструментов у правого нижнего края (там же, где карандаш вне режима) и плашка состояния сверху по центру (цвет, инструмент, масштаб, «Отменить»/«Готово»). Раскладка и обоснование — `docs/song-viewer-spec.md` §6 |
+| `src/features/songs/components/SongInkToolbar.tsx` | UI режима пометок — единственная поверхность: горизонтальная панель снизу по центру (стиль, инструменты, история, масштаб, «Отменить»/«Готово»). Шапка песни в режиме уезжает, холст вылетает за поток до краёв листа/области прокрутки (`lib/inkCanvasBleed.ts`). Раскладка и обоснование — `docs/song-viewer-spec.md` §6 |
 | `src/features/songs/lib/inkAnchor.ts` | Единственный источник имён DOM-атрибутов строки-якоря (`data-song-line-section`/`-index`) — импортируется и writer'ом (`LineRenderer`), и reader'ом (`inkGeometry`) |
 | `src/features/songs/lib/songAnnotationsStore.ts` + `server/src/routes/songs.ts` (`/state`) | Персист пометок: чтение — read-through (сеть → IDB `songState`, ответ сети применяется по LWW), запись — через outbox. Владелец записи — ТОЛЬКО `directus_id` из сессии, никогда из тела запроса |
 | `src/sw/sw.ts` + `scripts/build-sw.ts` | Build-time precache service worker (Serwist `injectManifest` → `out/sw.js`) |

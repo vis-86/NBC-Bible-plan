@@ -65,11 +65,12 @@ interface SongViewProps {
   /** Скролл-контейнер страницы — из его высоты берётся высота листа (§4.2). */
   viewportRef?: RefObject<HTMLElement | null>;
   /**
-   * Лишний верхний отступ скролл-контейнера, px (место под плашку режима пометок).
-   * В высоту листа он не входит: иначе вход в режим переразбивал бы страницы — и
-   * перелом приезжал посреди первого штриха.
+   * На сколько отступы скролл-контейнера (верх + низ) в режиме пометок больше
+   * обычных, px: шапка снята сверху, панель инструментов добавлена снизу. Может быть
+   * отрицательной. В высоту листа разница не входит: иначе вход в режим переразбивал
+   * бы страницы — и перелом приезжал посреди первого штриха.
    */
-  viewportExtraTop?: number;
+  viewportExtraPadding?: number;
   /**
    * Режим рукописных пометок (M10). Не задан ⇒ слой не монтируется вовсе и лист
    * рендерится ровно как раньше.
@@ -110,7 +111,7 @@ export const SongView: React.FC<SongViewProps> = ({
   columns = 1,
   wideLayout = false,
   viewportRef,
-  viewportExtraTop = 0,
+  viewportExtraPadding = 0,
   ink,
   inkPenOnly = false,
   inkInstant = false,
@@ -159,7 +160,7 @@ export const SongView: React.FC<SongViewProps> = ({
     layoutSignature: `${mode}|${effectiveColumns}|${density}|${hideChords ? 'off' : 'on'}|${sections.length}|${semitones}|${chordDisplay}|${chordScale ?? 0}|${pairLines ? 'pair' : 'solo'}`,
     fontSize: fontSize ?? 0,
     // PAGE_PADDING — нижнее поле корня: `chromeAboveFlow` меряет только то, что над потоком.
-    reservedHeight: SHEET_PADDING_TOP + PAGE_PADDING - viewportExtraTop,
+    reservedHeight: SHEET_PADDING_TOP + PAGE_PADDING - viewportExtraPadding,
   });
 
   // Плашка показывает ЗВУЧАЩУЮ тональность (metaKey), а не форму (songKey): при капо это
@@ -182,6 +183,8 @@ export const SongView: React.FC<SongViewProps> = ({
     children: React.ReactNode,
     /** Сдвиг «окна» листа — тот же, что и у потока: слой живёт в координатах всего потока. */
     contentOffsetX = 0,
+    /** До каких границ холст вылетает за поток (см. `SongInkLayer.surface`). */
+    surface?: 'sheet' | 'viewport',
   ) =>
     ink ? (
       <SongInkLayer
@@ -191,6 +194,8 @@ export const SongView: React.FC<SongViewProps> = ({
         onGesture={onInkGesture}
         layoutSignature={inkLayoutSignature}
         contentOffsetX={contentOffsetX}
+        surface={surface}
+        viewportRef={viewportRef}
         className={className}
         style={style}
       >
@@ -249,6 +254,9 @@ export const SongView: React.FC<SongViewProps> = ({
           <div ref={sourceRef} className="cproColumn" data-song-view-flow>
             <ChordProHtmlColumn sections={sections} />
           </div>,
+          0,
+          // В `sheets` этот поток — схлопнутая линейка, холст ему ни к чему.
+          mode === 'scroll' ? 'viewport' : undefined,
         )}
       </div>
 
@@ -277,6 +285,7 @@ export const SongView: React.FC<SongViewProps> = ({
                   <ChordProHtmlColumn sections={sections} />
                 </div>,
                 index * sheets.pitch,
+                'sheet',
               )}
               <span className="sheet-num" data-song-view-sheet-number>
                 {index + 1} / {sheets.count}

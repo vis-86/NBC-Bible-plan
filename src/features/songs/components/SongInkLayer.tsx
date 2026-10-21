@@ -10,7 +10,16 @@
  * Черновик рисуется на том же canvas, отдельного слоя нет: песен 97, штрихов единицы —
  * перерисовать всё за кадр дешевле, чем поддерживать два холста.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import { cn } from '@/shared/utils/cn';
 import {
   collectLineRects,
@@ -20,6 +29,7 @@ import {
   type LineRect,
 } from '../lib/inkGeometry';
 import { drawStroke } from '../lib/inkStroke';
+import { NO_BLEED, canvasBleed, sameBleed, viewportSurface, type InkBleed, type ScreenBox } from '../lib/inkCanvasBleed';
 import { INK_COLOR_THEME, resolveInkColor } from '../lib/inkTools';
 import { useInkInput, type InkGesture } from '../hooks/useInkInput';
 import type { SongInkSession } from '../hooks/useSongInk';
@@ -48,6 +58,13 @@ export interface SongInkLayerProps {
    * потока за пределы листа, и всё нарисованное на второй странице становится невидимым.
    */
   contentOffsetX?: number;
+  /**
+   * До каких границ холст вылетает за поток строк (`lib/inkCanvasBleed.ts`):
+   * `sheet` — до краёв своего листа, `viewport` — на всю область прокрутки
+   * `viewportRef`. Не задано — холст совпадает с потоком.
+   */
+  surface?: 'sheet' | 'viewport';
+  viewportRef?: RefObject<HTMLElement | null>;
   /** Двухпальцевый жест уходит наверх — прокруткой и зумом владеет страница. */
   onGesture?: (gesture: InkGesture) => void;
   className?: string;
@@ -64,6 +81,8 @@ export function SongInkLayer({
   instantAnnotation = false,
   layoutSignature,
   contentOffsetX = 0,
+  surface,
+  viewportRef,
   onGesture,
   className,
   style,
@@ -73,6 +92,7 @@ export function SongInkLayer({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [rects, setRects] = useState<LineRect[]>([]);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [bleed, setBleed] = useState<InkBleed>(NO_BLEED);
   /**
    * Цвет «чернил по теме», снятый с CSS-переменной при измерении. Держим в state,
    * а не читаем из DOM в рендере: обращение к ref во время рендера запрещено, и
@@ -121,6 +141,13 @@ export function SongInkLayer({
 
   // ---- Измерение строк и размера слоя ---------------------------------------
 
+  /** Элемент-поверхность, до краёв которой вылетает холст. */
+  const surfaceElement = useCallback((): HTMLElement | null => {
+    if (surface === 'viewport') return viewportRef?.current ?? null;
+    if (surface === 'sheet') return hostRef.current?.closest<HTMLElement>('[data-song-view-sheet]') ?? null;
+    return null;
+  }, [surface, viewportRef]);
+
   const measure = useCallback(() => {
     const el = hostRef.current;
     if (!el) return;
@@ -129,7 +156,25 @@ export function SongInkLayer({
     setSize({ width: el.offsetWidth, height: el.offsetHeight });
     setThemeInk(resolveInkColor(INK_COLOR_THEME, el));
     setRects(collectLineRects(el, { left: box.left, top: box.top }, scale));
-  }, [currentScale]);
+
+    const surfaceEl = surfaceElement();
+    let nextBleed = NO_BLEED;
+    if (surfaceEl) {
+      // Окно потока на экране: хост может быть сдвинут (лист N), видимая часть —
+      // `[offset, offset + width]` в координатах слоя.
+      const windowLeft = box.left + contentOffsetX * scale;
+      const windowBox: ScreenBox = {
+        left: windowLeft,
+        top: box.top,
+        right: windowLeft + el.offsetWidth * scale,
+        bottom: box.bottom,
+      };
+      const surfaceBox: ScreenBox =
+        surface === 'viewport' ? viewportSurface(surfaceEl) : surfaceEl.getBoundingClientRect();
+      nextBleed = canvasBleed(windowBox, surfaceBox, scale);
+    }
+    setBleed((prev) => (sameBleed(prev, nextBleed) ? prev : nextBleed));
+  }, [currentScale, surfaceElement, surface, contentOffsetX]);
 
   useEffect(() => {
     const el = hostRef.current;
@@ -137,8 +182,15 @@ export function SongInkLayer({
     measure();
     const observer = new ResizeObserver(() => measure());
     observer.observe(el);
+    // Поверхность меняется и без смены потока: отступ под панель режима, поворот
+    // экрана, зум сцены (обёртка сцены получает явный размер — это её последний ребёнок).
+    const surfaceEl = surfaceElement();
+    if (surfaceEl) {
+      observer.observe(surfaceEl);
+      if (surface === 'viewport' && surfaceEl.lastElementChild) observer.observe(surfaceEl.lastElementChild);
+    }
     return () => observer.disconnect();
-  }, [measure]);
+  }, [measure, surfaceElement, surface]);
 
   // Смена шрифта/колонок/транспозиции двигает строки без изменения размера слоя —
   // ResizeObserver такого не ловит, поэтому пересчёт ещё и по подписи раскладки.
@@ -164,16 +216,19 @@ export function SongInkLayer({
     // перерисовка на каждое событие роняет частоту кадров на слабом планшете.
     const frame = requestAnimationFrame(() => {
       const dpr = window.devicePixelRatio || 1;
-      if (canvas.width !== Math.round(size.width * dpr) || canvas.height !== Math.round(size.height * dpr)) {
-        canvas.width = Math.round(size.width * dpr);
-        canvas.height = Math.round(size.height * dpr);
+      const width = size.width + bleed.left + bleed.right;
+      const height = size.height + bleed.top + bleed.bottom;
+      if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
       }
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
-      // Битмап покрывает только видимое окно листа, а геометрия штрихов живёт в
-      // координатах всего потока — сдвиг окна вносится трансформацией контекста.
-      ctx.setTransform(dpr, 0, 0, dpr, -contentOffsetX * dpr, 0);
-      ctx.clearRect(contentOffsetX, 0, size.width, size.height);
+      // Битмап покрывает видимое окно листа с вылетом, а геометрия штрихов живёт в
+      // координатах всего потока — сдвиг окна и вылет вносятся трансформацией контекста.
+      const originX = contentOffsetX - bleed.left;
+      ctx.setTransform(dpr, 0, 0, dpr, -originX * dpr, bleed.top * dpr);
+      ctx.clearRect(originX, 0 - bleed.top, width, height);
 
       for (const stroke of strokes) {
         if (stroke.tool === 'text') continue; // заметки живут в DOM-слое
@@ -193,7 +248,7 @@ export function SongInkLayer({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [strokes, draft, rectIndex, size, contentOffsetX]);
+  }, [strokes, draft, rectIndex, size, bleed, contentOffsetX]);
 
   // ---- Поле ввода заметки ----------------------------------------------------
 
@@ -332,8 +387,15 @@ export function SongInkLayer({
         // В режиме он же — зона касаний: со второго листа хост уехал `translateX` за
         // экран, и видимые колонки — лишь переполнение потока. Без холста касание
         // ловилось только поверх строк: пустая колонка и место под текстом не рисовались.
-        className={cn('absolute top-0 h-full w-full', ink.active ? 'pointer-events-auto' : 'pointer-events-none')}
-        style={{ left: contentOffsetX }}
+        // Вылет (`bleed`) — до краёв листа/скролл-контейнера: шапка песни, поля и
+        // пустота под последней строкой тоже холст (`lib/inkCanvasBleed.ts`).
+        className={cn('absolute', ink.active ? 'pointer-events-auto' : 'pointer-events-none')}
+        style={{
+          left: contentOffsetX - bleed.left,
+          top: -bleed.top,
+          width: size.width + bleed.left + bleed.right,
+          height: size.height + bleed.top + bleed.bottom,
+        }}
       />
 
       <div data-song-ink-notes className="pointer-events-none absolute inset-0">
@@ -374,7 +436,7 @@ export function SongInkLayer({
             // строка центрируется по тапу. Готовая заметка якорится ровно так же —
             // иначе набранное уезжало бы относительно того, что получилось.
             style={{ left: editor.x, top: editor.y, fontSize: editor.width }}
-            className="pointer-events-auto absolute w-40 -translate-y-1/2 rounded-app-sm border border-app-primary bg-app-surface-elevated px-1 py-0.5 text-left font-sans leading-tight text-app-text shadow-app-md outline-none"
+            className="pointer-events-auto absolute w-40 -translate-y-1/2 select-text rounded-app-sm border border-app-primary bg-app-surface-elevated px-1 py-0.5 text-left font-sans leading-tight text-app-text shadow-app-md outline-none"
             onChange={(e) => {
               ink.noteActivity();
               setEditor((prev) => (prev ? { ...prev, text: e.target.value } : prev));
