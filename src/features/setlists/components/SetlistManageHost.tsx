@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react';
 import { useSongs } from '@/features/songs/hooks/useSongs';
 import { SetlistManageSheet } from './SetlistManageSheet';
+import { summaryToSetlistItems } from '../lib/offlineSetlists';
 import type { SetlistItem, SetlistSummary, SetlistSummaryItem } from '../types';
 
 interface SetlistManageHostProps {
@@ -14,22 +15,6 @@ interface SetlistManageHostProps {
   /** Новый состав сета — список обновляет свою карточку локально. */
   onItemsChange: (setlistId: string, items: SetlistSummaryItem[]) => void;
   onDeleted: (setlistId: string) => void;
-}
-
-/**
- * Краткий состав карточки (`SetlistSummaryItem`) → строки шита (`SetlistItem`).
- * `id`/`sort` синтетические: список сетов их не отдаёт, а шиту нужен стабильный
- * React-key. На сервер уходят только `songId` (см. `useSetlistEditor.persist`),
- * поэтому синтетика наружу не утекает.
- */
-function toSetlistItems(items: SetlistSummaryItem[]): SetlistItem[] {
-  return items.map((item, i) => ({
-    id: `summary-${item.songId}-${i}`,
-    sort: i,
-    songId: item.songId,
-    title: item.title,
-    songKey: item.songKey,
-  }));
 }
 
 function toSummaryItems(items: SetlistItem[]): SetlistSummaryItem[] {
@@ -51,7 +36,7 @@ export const SetlistManageHost: React.FC<SetlistManageHostProps> = ({
   onDeleted,
 }) => {
   const { songs } = useSongs();
-  const [items, setItems] = useState<SetlistItem[]>(() => toSetlistItems(setlist.items));
+  const [items, setItems] = useState<SetlistItem[]>(() => summaryToSetlistItems(setlist.items));
 
   const handleItemsChange = useCallback(
     (next: SetlistItem[]) => {

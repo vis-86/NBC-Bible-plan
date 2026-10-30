@@ -3,10 +3,13 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SetlistSummary } from '../types';
 
-const { readSWRMock, refreshMock } = vi.hoisted(() => ({
+const { readSWRMock, refreshMock, warmMock } = vi.hoisted(() => ({
   readSWRMock: vi.fn(),
   refreshMock: vi.fn(),
+  warmMock: vi.fn(),
 }));
+
+vi.mock('../lib/warmSetlistsOffline', () => ({ warmSetlistsOffline: warmMock }));
 
 vi.mock('../lib/offlineSetlists', () => ({
   readSetlistsThroughSWR: readSWRMock,
@@ -30,7 +33,20 @@ describe('useSetlists.refresh', () => {
     resetSetlistsCache();
     readSWRMock.mockReset();
     refreshMock.mockReset();
+    warmMock.mockReset();
+    warmMock.mockResolvedValue(undefined);
     readSWRMock.mockResolvedValue({ setlists: [OLD], fromCache: true });
+  });
+
+  it('каждый полученный список уходит в офлайн-прогрев: стартовый и после refresh', async () => {
+    refreshMock.mockResolvedValueOnce([FRESH]);
+    const { result } = await renderLoaded();
+    expect(warmMock).toHaveBeenCalledWith([OLD], expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/));
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(warmMock).toHaveBeenLastCalledWith([FRESH], expect.any(String));
   });
 
   it('успешный refresh заменяет список и обновляет module-кэш', async () => {

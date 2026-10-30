@@ -2,6 +2,8 @@
 
 import { useRouter } from 'next/navigation';
 import { motion, useReducedMotion } from 'motion/react';
+import { ChevronDown, RefreshCw } from 'lucide-react';
+import { cn } from '@/shared/utils/cn';
 import { partitionSetlists } from '../lib/archive';
 import type { SetlistSummary } from '../types';
 import { SetlistCard } from './SetlistCard';
@@ -15,6 +17,12 @@ interface SetlistsListProps {
   onEdit?: (setlist: SetlistSummary) => void;
   /** Корзина на карточке. */
   onDelete?: (setlist: SetlistSummary) => void;
+  /**
+   * Кнопка «Обновить» на пустом списке — то же, что жест «потянуть вниз»: о жесте знают
+   * не все, а пустой экран без единого действия выглядит сломанным.
+   */
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
 interface SetlistGroupProps {
@@ -54,6 +62,8 @@ export const SetlistsList: React.FC<SetlistsListProps> = ({
   canManageSetlists,
   onEdit,
   onDelete,
+  onRefresh,
+  refreshing = false,
 }) => {
   const router = useRouter();
   const { upcoming, undated, past } = partitionSetlists(setlists, todayISO);
@@ -66,6 +76,18 @@ export const SetlistsList: React.FC<SetlistsListProps> = ({
     return (
       <div data-setlists-empty className="flex flex-col items-center gap-4 py-16 text-center">
         <p className="text-app-text-muted">Сетов пока нет</p>
+        {onRefresh && (
+          <button
+            type="button"
+            data-setlists-refresh-button
+            onClick={onRefresh}
+            disabled={refreshing}
+            className="flex items-center gap-2 rounded-app-md border-2 border-app-border px-4 py-2.5 text-sm font-medium text-app-text-secondary transition-transform active:scale-95 disabled:opacity-60"
+          >
+            <RefreshCw size={16} aria-hidden className={cn(refreshing && 'animate-spin')} />
+            {refreshing ? 'Обновляем…' : 'Обновить'}
+          </button>
+        )}
         {canManageSetlists && (
           <button
             type="button"
@@ -87,11 +109,13 @@ export const SetlistsList: React.FC<SetlistsListProps> = ({
 
       {past.length > 0 && (
         <details data-setlist-archive className="group">
-          <summary className="flex cursor-pointer list-none items-center justify-between text-sm font-medium text-app-text-secondary [&::-webkit-details-marker]:hidden">
+          <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between rounded-app-md text-sm font-medium text-app-text-secondary [&::-webkit-details-marker]:hidden">
             <span>Архив ({past.length})</span>
-            <span className="text-app-text-muted transition-transform group-open:rotate-180" aria-hidden>
-              ▼
-            </span>
+            <ChevronDown
+              size={20}
+              aria-hidden
+              className="text-app-text-muted transition-transform duration-200 group-open:rotate-180"
+            />
           </summary>
           <div className="mt-2">
             <SetlistGroup items={past} onEdit={onEdit} onDelete={onDelete} />

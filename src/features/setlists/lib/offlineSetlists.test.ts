@@ -6,6 +6,7 @@ import { OfflineNoDataError, reportNetworkTimeout, resetNetworkSuspicionForTests
 import { DEFAULT_NETWORK_TIMEOUT_MS, NetworkTimeoutError } from '@/shared/offline/networkTimeout';
 import { getApiCache, persistApiCache } from '@/shared/offline/readThrough';
 import type { Setlist, SetlistSummary } from '../types';
+import { ApiClientError } from '@/shared/services/api/client';
 
 const { getSetlistsMock, getSetlistMock } = vi.hoisted(() => ({
   getSetlistsMock: vi.fn(),
@@ -20,6 +21,7 @@ import {
   PULL_REFRESH_TIMEOUT_MS,
   readSetlistsThrough,
   readSetlistThrough,
+  readSetlistThroughSWR,
   refreshSetlistsFromNetwork,
   SETLISTS_LIST_CACHE_KEY,
   setlistCacheKey,
@@ -157,6 +159,39 @@ describe('offlineSetlists', () => {
 
     it('дефолтный таймаут длиннее сетевого дефолта — жест инициирован пользователем', () => {
       expect(PULL_REFRESH_TIMEOUT_MS).toBeGreaterThan(DEFAULT_NETWORK_TIMEOUT_MS);
+    });
+  });
+
+  describe('readSetlistThroughSWR — фолбэк на кэш списка', () => {
+    it('офлайн, детали нет, сет есть в кэше списка -> деталь собрана из списка', async () => {
+      vi.stubGlobal('navigator', { onLine: false });
+      await persistApiCache(SETLISTS_LIST_CACHE_KEY, { setlists: [SUMMARY] });
+      getSetlistMock.mockImplementationOnce(() => new Promise(() => {}));
+
+      const { setlist, fromCache } = await readSetlistThroughSWR('set-1', { timeoutMs: 20 });
+      expect(fromCache).toBe(true);
+      expect(setlist).toMatchObject({ id: 'set-1', title: 'Воскресное', date: '2026-08-02' });
+      expect(setlist.items.map((item) => item.songId)).toEqual([1]);
+    });
+
+    it('сеть упала, деталь в IDB есть -> отдаётся деталь, а не сборка из списка', async () => {
+      await persistApiCache(setlistCacheKey('set-1'), { setlist: DETAIL });
+      await persistApiCache(SETLISTS_LIST_CACHE_KEY, { setlists: [SUMMARY] });
+      const { setlist } = await readSetlistThroughSWR('set-1');
+      expect(setlist.items[0].id).toBe('item-1');
+    });
+
+    it('сервер ответил 404 -> ошибка проброшена, кэш списка не подставляется', async () => {
+      await persistApiCache(SETLISTS_LIST_CACHE_KEY, { setlists: [SUMMARY] });
+      const err = new ApiClientError('Not found', 404);
+      getSetlistMock.mockRejectedValueOnce(err);
+      await expect(readSetlistThroughSWR('set-1')).rejects.toBe(err);
+    });
+
+    it('сета нет и в списке -> исходная ошибка', async () => {
+      const err = new TypeError('Failed to fetch');
+      getSetlistMock.mockRejectedValueOnce(err);
+      await expect(readSetlistThroughSWR('set-1')).rejects.toBe(err);
     });
   });
 });

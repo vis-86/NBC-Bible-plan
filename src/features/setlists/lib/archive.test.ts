@@ -37,7 +37,7 @@ describe('partitionSetlists', () => {
     expect(result).toEqual({ upcoming: [], undated: [], past: [] });
   });
 
-  it('смешанный список распределяется по трём группам, сохраняя исходный порядок', () => {
+  it('смешанный список распределяется по трём группам; архив — свежие сверху', () => {
     const list = [
       summary('future-1', '2026-08-05'),
       summary('today', today),
@@ -49,6 +49,11 @@ describe('partitionSetlists', () => {
     const result = partitionSetlists(list, today);
     expect(result.upcoming.map((s) => s.id)).toEqual(['future-1', 'today']);
     expect(result.undated.map((s) => s.id)).toEqual(['undated-1', 'undated-2']);
-    expect(result.past.map((s) => s.id)).toEqual(['past-1', 'past-2']);
+    expect(result.past.map((s) => s.id)).toEqual(['past-2', 'past-1']);
+  });
+
+  it('сеты архива одного дня сохраняют порядок BFF', () => {
+    const list = [summary('a', '2026-07-20'), summary('b', '2026-07-25'), summary('c', '2026-07-20')];
+    expect(partitionSetlists(list, today).past.map((s) => s.id)).toEqual(['b', 'a', 'c']);
   });
 });

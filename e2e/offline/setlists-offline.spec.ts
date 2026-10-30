@@ -206,4 +206,70 @@ test.describe('Сетлисты — офлайн (T15)', () => {
     await context.setOffline(false);
     await context.close();
   });
+
+  /**
+   * «Получили сет — он офлайн»: сет, который видели только в СПИСКЕ (не открывали),
+   * офлайн обязан открываться в режиме сета. Раньше деталь попадала в IDB лишь при
+   * открытии сета, и песня офлайн открывалась вне сета — без таблетки и свайпа.
+   * Вторая половина — фолбэк: деталь из IDB пропала, сет собирается из кэша списка.
+   */
+  test('сет, увиденный только в списке, офлайн открывается в режиме сета (прогрев + фолбэк из списка)', async ({ browser }) => {
+    const context = await browser.newContext({ storageState });
+    const page = await context.newPage();
+    await waitForServiceWorkerReady(page);
+    await page.goto(appPath('/dashboard/setlists'));
+    await expect(page.locator('[data-setlists-page]')).toBeVisible();
+
+    const detailKey = `setlists:item:${setlistId}`;
+    const hasApiCache = (key: string) =>
+      page.evaluate(
+        (args) =>
+          new Promise<boolean>((resolve) => {
+            const req = indexedDB.open('bible-plan-offline');
+            req.onsuccess = () => {
+              const get = req.result.transaction('apiCache').objectStore('apiCache').get(args.key);
+              get.onsuccess = () => resolve(get.result !== undefined);
+              get.onerror = () => resolve(false);
+            };
+            req.onerror = () => resolve(false);
+          }),
+        { key }
+      );
+    await expect.poll(() => hasApiCache(detailKey), { timeout: 15_000 }).toBe(true);
+    await page.waitForTimeout(1_500); // песни сета греются следом за деталью
+
+    // Деталь «не доехала»: остаётся только кэш списка.
+    await page.evaluate(
+      (args) =>
+        new Promise<void>((resolve, reject) => {
+          const req = indexedDB.open('bible-plan-offline');
+          req.onsuccess = () => {
+            const tx = req.result.transaction('apiCache', 'readwrite');
+            tx.objectStore('apiCache').delete(args.key);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+          };
+          req.onerror = () => reject(req.error);
+        }),
+      { key: detailKey }
+    );
+    await page.close();
+
+    await context.setOffline(true);
+    const offlinePage = await context.newPage();
+    const rscErrors: string[] = [];
+    offlinePage.on('console', (msg) => {
+      if (msg.text().includes('Failed to fetch RSC payload')) rscErrors.push(msg.text());
+    });
+
+    await offlinePage.goto(appPath(`/dashboard/song?id=${songIds[0]}&setlistId=${setlistId}`));
+    await expect(offlinePage.locator('[data-song-page]')).toBeVisible();
+    await expect(offlinePage.locator('[data-setlist-pager-dock-counter]')).toHaveText('1 / 2');
+    await offlinePage.locator('[data-setlist-pager-dock-next]').click();
+    await expect(offlinePage.locator('[data-setlist-pager-dock-counter]')).toHaveText('2 / 2');
+
+    expect(rscErrors, 'RSC-пейлоад запрашивался по сети вместо precache').toEqual([]);
+    await context.setOffline(false);
+    await context.close();
+  });
 });

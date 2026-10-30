@@ -1,8 +1,9 @@
 import { isDefinitelyOffline, reportNetworkSuccess } from '@/shared/offline/networkHealth';
 import { DEFAULT_NETWORK_TIMEOUT_MS, raceWithTimeout } from '@/shared/offline/networkTimeout';
-import { persistApiCache, readThrough, readThroughSWR } from '@/shared/offline/readThrough';
+import { getApiCache, persistApiCache, readThrough, readThroughSWR } from '@/shared/offline/readThrough';
+import { ApiClientError } from '@/shared/services/api/client';
 import { setlistsApi } from '@/shared/services/api/endpoints';
-import type { Setlist, SetlistSummary } from '../types';
+import type { Setlist, SetlistItem, SetlistSummary, SetlistSummaryItem, SetlistsListResponse } from '../types';
 
 /**
  * Ключи apiCache сетлистов — единственный источник, импортируемый и читателем
@@ -106,19 +107,62 @@ export interface SetlistSWRResult {
   fromCache: boolean;
 }
 
-/** Cache-first чтение детали сета; ключ — тот же `setlistCacheKey(id)`. */
+/**
+ * Краткий состав из списка (`SetlistSummaryItem`) → строки детали (`SetlistItem`).
+ * `id`/`sort` синтетические: список их не отдаёт, а экранам нужен стабильный React-key.
+ * На сервер уходят только `songId` (см. `useSetlistEditor.persist`), синтетика не утекает.
+ */
+export function summaryToSetlistItems(items: SetlistSummaryItem[]): SetlistItem[] {
+  return items.map((item, i) => ({
+    id: `summary-${item.songId}-${i}`,
+    sort: i,
+    songId: item.songId,
+    title: item.title,
+    songKey: item.songKey,
+  }));
+}
+
+/**
+ * Деталь сета, собранная из закэшированного СПИСКА. Фолбэк для офлайна: сет виден в
+ * списке, а его деталь в IDB так и не попала (пришёл фоновой ревалидацией, прогрев не
+ * успел) — без этого песня открывалась вне сета, без навигации по нему.
+ */
+async function readSetlistFromListCache(id: string): Promise<Setlist | null> {
+  const list = await getApiCache<SetlistsListResponse>(SETLISTS_LIST_CACHE_KEY);
+  const summary = list?.setlists.find((s) => s.id === id);
+  if (!summary) return null;
+  return { id: summary.id, title: summary.title, date: summary.date, items: summaryToSetlistItems(summary.items) };
+}
+
+/** Сервер ответил (404/403/500) — это не офлайн, подменять ответ кэшем списка нельзя. */
+function isServerAnswer(err: unknown): boolean {
+  return err instanceof ApiClientError && typeof err.status === 'number';
+}
+
+/**
+ * Cache-first чтение детали сета; ключ — тот же `setlistCacheKey(id)`. Детали нет ни в
+ * сети, ни в IDB — собираем её из кэша списка (`readSetlistFromListCache`).
+ */
 export async function readSetlistThroughSWR(
   id: string,
   options: { onFresh?: (setlist: Setlist) => void; timeoutMs?: number } = {}
 ): Promise<SetlistSWRResult> {
   const key = setlistCacheKey(id);
-  const { data, fromCache } = await readThroughSWR(key, () => setlistsApi.getSetlist(id), {
-    timeoutMs: options.timeoutMs,
-    onFresh: (res) => {
-      console.debug('[setlists/offline] фоновая ревалидация детали', key);
-      options.onFresh?.(res.setlist);
-    },
-  });
-  console.debug('[setlists/offline] деталь прочитана', key, { fromCache });
-  return { setlist: data.setlist, fromCache };
+  try {
+    const { data, fromCache } = await readThroughSWR(key, () => setlistsApi.getSetlist(id), {
+      timeoutMs: options.timeoutMs,
+      onFresh: (res) => {
+        console.debug('[setlists/offline] фоновая ревалидация детали', key);
+        options.onFresh?.(res.setlist);
+      },
+    });
+    console.debug('[setlists/offline] деталь прочитана', key, { fromCache });
+    return { setlist: data.setlist, fromCache };
+  } catch (err) {
+    if (isServerAnswer(err)) throw err;
+    const fallback = await readSetlistFromListCache(id);
+    if (!fallback) throw err;
+    console.warn('[setlists/offline] детали нет офлайн — собрана из кэша списка', key, err);
+    return { setlist: fallback, fromCache: true };
+  }
 }

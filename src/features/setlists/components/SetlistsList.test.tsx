@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import type { SetlistSummary } from '../types';
 
 const pushMock = vi.fn();
@@ -69,5 +69,17 @@ describe('SetlistsList', () => {
     const setlists = [makeSetlist({ id: 'future', date: '2030-01-01' })];
     const { container } = render(<SetlistsList setlists={setlists} todayISO={TODAY} canManageSetlists={false} />);
     expect(container.querySelector('[data-setlist-archive]')).toBeNull();
+  });
+
+  it('пустой список: «Обновить» зовёт onRefresh, во время обновления задизейблена', () => {
+    const onRefresh = vi.fn();
+    const { container, getByText, rerender } = render(
+      <SetlistsList setlists={[]} todayISO={TODAY} canManageSetlists={false} onRefresh={onRefresh} />
+    );
+    fireEvent.click(container.querySelector('[data-setlists-refresh-button]') as HTMLElement);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+
+    rerender(<SetlistsList setlists={[]} todayISO={TODAY} canManageSetlists={false} onRefresh={onRefresh} refreshing />);
+    expect(getByText('Обновляем…').closest('button')?.disabled).toBe(true);
   });
 });

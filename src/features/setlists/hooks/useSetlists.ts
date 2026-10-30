@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { readSetlistsThroughSWR, refreshSetlistsFromNetwork } from '../lib/offlineSetlists';
+import { warmSetlistsOffline } from '../lib/warmSetlistsOffline';
+import { toLocalISODate } from '@/shared/utils/date';
 import type { SetlistSummary } from '../types';
 
 /** Module-level кэш: список сетов грузится один раз за сессию (по образцу `useSongs`). */
@@ -14,6 +16,13 @@ let inflight: Promise<SetlistSummary[]> | null = null;
  * иначе экран показал бы состав, которого уже нет.
  */
 let generation = 0;
+
+/** Любой полученный список — сразу в офлайн (деталь сетов + песни), не дожидаясь открытия. */
+function warmOffline(list: SetlistSummary[]): void {
+  void warmSetlistsOffline(list, toLocalISODate(new Date())).catch((err) => {
+    console.debug('[useSetlists] офлайн-прогрев не удался', err);
+  });
+}
 
 /** Подписчики на молчаливое применение свежего списка (фоновая ревалидация). */
 const listeners = new Set<(list: SetlistSummary[]) => void>();
@@ -42,12 +51,14 @@ async function fetchSetlistsOnce(): Promise<SetlistSummary[]> {
           return;
         }
         cache = list;
+        warmOffline(list);
         listeners.forEach((notify) => notify(list));
       },
     })
       .then(({ setlists, fromCache }) => {
         console.debug('[useSetlists] источник данных:', fromCache ? 'cache' : 'network');
         if (gen === generation) cache = setlists;
+        warmOffline(setlists);
         return setlists;
       })
       .finally(() => {
@@ -102,6 +113,7 @@ export function useSetlists() {
       // Обновляем module-кэш, а не сбрасываем: reset заставил бы следующий монтаж
       // экрана снова идти в сеть, хотя свежие данные уже на руках.
       cache = list;
+      warmOffline(list);
       refreshWonRef.current = true;
       if (activeRef.current) {
         setSetlists(list);

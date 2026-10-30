@@ -85,3 +85,11 @@ export function pluralizeDays(n: number): string {
   if (mod10 >= 2 && mod10 <= 4) return 'дня';
   return 'дней';
 }
+
+/** Локальная дата в `YYYY-MM-DD` (без UTC-сдвига `toISOString`: вечером сегодня не станет завтра). */
+export function toLocalISODate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}

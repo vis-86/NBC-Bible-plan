@@ -10,8 +10,8 @@ export interface PartitionedSetlists {
  * Делит список сетов на «Ближайшие»/«Без даты»/«Архив». Границей служит
  * `date === todayISO` — сет на сегодня считается upcoming, а не прошедшим.
  * Сравнение строк `YYYY-MM-DD` лексикографически, без `Date`/таймзон.
- * Относительный порядок внутри групп сохраняется (список уже приходит
- * отсортированным с BFF: `date ASC NULLS LAST, date_created DESC`).
+ * Ближайшие и без даты сохраняют порядок BFF (`date ASC NULLS LAST, date_created DESC`),
+ * архив — разворачивается: свежие сверху, ищут в нём почти всегда недавний сет.
  */
 export function partitionSetlists(list: SetlistSummary[], todayISO: string): PartitionedSetlists {
   const upcoming: SetlistSummary[] = [];
@@ -27,6 +27,9 @@ export function partitionSetlists(list: SetlistSummary[], todayISO: string): Par
       past.push(setlist);
     }
   }
+
+  // Стабильная сортировка: сеты одного дня остаются в порядке BFF.
+  past.sort((a, b) => (a.date === b.date ? 0 : (a.date as string) < (b.date as string) ? 1 : -1));
 
   return { upcoming, undated, past };
 }

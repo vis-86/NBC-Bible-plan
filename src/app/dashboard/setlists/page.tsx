@@ -11,18 +11,11 @@ import { SetlistsList } from '@/features/setlists/components/SetlistsList';
 import { SetlistManageHost } from '@/features/setlists/components/SetlistManageHost';
 import { useAppRole } from '@/shared/hooks/useAppRole';
 import type { SetlistSummary, SetlistSummaryItem } from '@/features/setlists/types';
-
-function todayISO(): string {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
+import { toLocalISODate } from '@/shared/utils/date';
 
 function SetlistsPageContent() {
   const router = useRouter();
-  const { setlists, loading, error, refresh, refreshError } = useSetlists();
+  const { setlists, loading, error, refresh, refreshing, refreshError } = useSetlists();
   const { canManageSetlists } = useAppRole();
 
   /**
@@ -94,8 +87,10 @@ function SetlistsPageContent() {
         ) : (
           <SetlistsList
             setlists={localSetlists}
-            todayISO={todayISO()}
+            todayISO={toLocalISODate(new Date())}
             canManageSetlists={canManageSetlists}
+            onRefresh={handlePullToRefresh}
+            refreshing={refreshing}
             onEdit={canManageSetlists ? (setlist) => setManaged({ setlist, action: 'edit' }) : undefined}
             onDelete={canManageSetlists ? (setlist) => setManaged({ setlist, action: 'delete' }) : undefined}
           />
