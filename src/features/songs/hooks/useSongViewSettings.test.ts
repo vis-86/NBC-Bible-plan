@@ -40,6 +40,22 @@ describe('useSongViewSettings', () => {
       inkPenOnly: false,
       inkInstant: false,
       inkColor: DEFAULT_SONG_VIEW_SETTINGS.inkColor,
+      setlistAutoScroll: false,
+      setlistAutoScrollDelay: DEFAULT_SONG_VIEW_SETTINGS.setlistAutoScrollDelay,
+    });
+  });
+
+  it('помнит автозапуск автоскролла в сете и зажимает задержку', () => {
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ setlistAutoScroll: true, setlistAutoScrollDelay: 15 }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0]).toMatchObject({ setlistAutoScroll: true, setlistAutoScrollDelay: 15 });
+
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ setlistAutoScrollDelay: 999 }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0].setlistAutoScrollDelay).toBe(30);
+
+    localStorage.setItem(SONG_VIEW_SETTINGS_STORAGE_KEY, JSON.stringify({ setlistAutoScroll: 'yes', setlistAutoScrollDelay: 'soon' }));
+    expect(renderHook(() => useSongViewSettings()).result.current[0]).toMatchObject({
+      setlistAutoScroll: false,
+      setlistAutoScrollDelay: DEFAULT_SONG_VIEW_SETTINGS.setlistAutoScrollDelay,
     });
   });
 

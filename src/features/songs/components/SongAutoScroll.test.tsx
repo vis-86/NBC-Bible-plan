@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { SongAutoScroll } from './SongAutoScroll';
 import { SongToolStack } from './SongToolStack';
 
@@ -47,5 +47,19 @@ describe('SongAutoScroll', () => {
   it('canScroll=false → контрола нет вовсе', () => {
     const { container } = render(<SongAutoScroll {...props} playing={false} canScroll={false} />);
     expect(container.querySelector('[data-song-autoscroll-toggle]')).toBeNull();
+  });
+
+  it('отсчёт автозапуска: секунды на FAB, тап — старт сразу; во время игры отсчёта нет', () => {
+    const onToggle = vi.fn();
+    const { rerender } = render(<SongAutoScroll {...props} onToggle={onToggle} playing={false} countdown={7} />);
+
+    const fab = screen.getByRole('button', { name: 'Автоскролл через 7 с, запустить сейчас' });
+    expect(fab.textContent).toBe('7');
+    expect(fab.getAttribute('data-song-autoscroll-countdown')).toBe('7');
+    fireEvent.click(fab);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+
+    rerender(<SongAutoScroll {...props} onToggle={onToggle} playing countdown={7} />);
+    expect(screen.getByRole('button', { name: 'Пауза автоскролла' }).hasAttribute('data-song-autoscroll-countdown')).toBe(false);
   });
 });

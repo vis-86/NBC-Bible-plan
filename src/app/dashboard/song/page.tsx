@@ -25,16 +25,18 @@ import { useInkStage } from '@/features/songs/hooks/useInkStage';
 import { useSongAnnotations } from '@/features/songs/hooks/useSongAnnotations';
 import { useSongKey } from '@/features/songs/hooks/useSongKey';
 import { useAutoScroll } from '@/features/songs/hooks/useAutoScroll';
+import { useAutoScrollAutostart } from '@/features/songs/hooks/useAutoScrollAutostart';
 import { useAutoHideOnScroll } from '@/shared/hooks/useAutoHideOnScroll';
 import { useTapToReveal } from '@/shared/hooks/useTapToReveal';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
 import { useDelayedFlag } from '@/shared/hooks/useDelayedFlag';
 import { useScreenWakeLock } from '@/shared/hooks/useScreenWakeLock';
+import { useIsScrolledToEnd } from '@/shared/hooks/useIsScrolledToEnd';
 import { SwipePager } from '@/shared/components/pager/SwipePager';
 import { PagerHint, usePagerHint } from '@/shared/components/pager/PagerHint';
 import { useSetlistPlayback } from '@/features/setlists/hooks/useSetlistPlayback';
 import { SetlistManageSheet } from '@/features/setlists/components/SetlistManageSheet';
-import { SetlistPagerDock } from '@/features/setlists/components/SetlistPagerDock';
+import { SETLIST_PAGER_DOCK_RESERVE_PX, SetlistPagerDock } from '@/features/setlists/components/SetlistPagerDock';
 import { useAppRole } from '@/shared/hooks/useAppRole';
 import { useSongs } from '@/features/songs/hooks/useSongs';
 import type { SetlistItem } from '@/features/setlists/types';
@@ -149,6 +151,10 @@ function SongPageContent() {
   // (`suspended`): иначе хром было бы не вернуть, не выключив автоскролл.
   const focusMode = autoscroll.playing && !autoscroll.suspended;
   // Итог с учётом режима пометок — `headerHidden` ниже, после `useSongInk`.
+  // Конец листа: док сета возвращается сам. Иначе после доезда автоскролла до низа
+  // (хром спрятан стартом, а скролла вверх никто не делает) таблетка так и оставалась
+  // скрытой — заметнее всего на последней песне, где следующей нет и уйти свайпом некуда.
+  const scrolledToEnd = useIsScrolledToEnd(contentRef, { contentKey: song?.id });
   const readingHeaderHidden = mode === 'scroll' && (hidden || focusMode);
 
   /**
@@ -208,6 +214,9 @@ function SongPageContent() {
   }
   const headerPadding = ink.active ? 0 : headerHeight;
   const inkBottomPadding = ink.active ? INK_TOOLBAR_RESERVE_PX : 0;
+  // Безопасная зона под доком сета — только в режиме scroll: высота листов в постраничном
+  // режиме считается от вьюпорта, лишний отступ их переразбил бы.
+  const dockBottomPadding = playback.inSetlist && mode === 'scroll' && !ink.active ? SETLIST_PAGER_DOCK_RESERVE_PX : 0;
   // Высоту листа отступы режима менять не должны (переразбивка посреди штриха) —
   // SongView вычтет эту разницу из резерва.
   const inkExtraPadding = inkBottomPadding + headerPadding - headerHeight;
@@ -233,6 +242,21 @@ function SongPageContent() {
    */
   useTapToReveal(contentRef, () => setHidden(false), {
     enabled: !ink.active && !isViewSettingsOpen && !isKeyPickerOpen && !isSetlistSheetOpen,
+  });
+
+  // Автозапуск в сете: отсчёт на FAB, касание листа его отменяет, тап по FAB — старт сразу.
+  // Шторки и режим пометок отсчёт приостанавливают (после закрытия — с полной задержки).
+  const autostartCountdown = useAutoScrollAutostart({
+    containerRef: contentRef,
+    songId: song?.id ?? '',
+    enabled:
+      Boolean(viewSettings.setlistAutoScroll) && playback.inSetlist && autoscroll.canScroll && !anySheetOpen && !ink.active,
+    playing: autoscroll.playing,
+    delaySeconds: viewSettings.setlistAutoScrollDelay,
+    onStart: () => {
+      setHidden(true);
+      autoscroll.play();
+    },
   });
 
   // Переход к соседней песне сета: сброс scrollTop (компонент не размонтируется —
@@ -439,7 +463,9 @@ function SongPageContent() {
               paddingTop: `calc(${headerPadding}px + ${mode === 'scroll' ? '1rem' : '0.5rem'})`,
               ...(ink.active
                 ? { paddingBottom: `calc(${inkBottomPadding}px + ${mode === 'scroll' ? '1rem' : '0.5rem'})` }
-                : {}),
+                : dockBottomPadding > 0
+                  ? { paddingBottom: `calc(${dockBottomPadding}px + 1rem)` }
+                  : {}),
               ...(ink.active && INK_PEN_ONLY ? { touchAction: 'pan-x pan-y' } : {}),
             }}
           >
@@ -519,6 +545,7 @@ function SongPageContent() {
               canScroll={autoscroll.canScroll}
               onToggle={handleAutoScrollToggle}
               onSetStep={autoscroll.setStep}
+              countdown={autostartCountdown}
             />
             )}
             {/* Фокус-режим: пока автоскролл играет, в стеке остаётся только его FAB —
@@ -575,7 +602,7 @@ function SongPageContent() {
             onPrev={() => playback.prevId != null && navigateToSetlistSong(playback.prevId)}
             onNext={() => playback.nextId != null && navigateToSetlistSong(playback.nextId)}
             onOpenSetlist={() => setIsSetlistSheetOpen(true)}
-            hidden={headerHidden}
+            hidden={headerHidden && !scrolledToEnd}
           />
         )}
       </div>

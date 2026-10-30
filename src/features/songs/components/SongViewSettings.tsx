@@ -6,7 +6,17 @@ import { BottomSheet } from '@/shared/components/ui/BottomSheet';
 import { ChoiceGroup } from '@/shared/components/ui/ChoiceGroup';
 import { RangeSlider } from '@/shared/components/ui/RangeSlider';
 import { useMediaQuery } from '@/shared/hooks/useMediaQuery';
-import { MAX_CHORD_SCALE, MAX_FONT_SIZE, MIN_CHORD_SCALE, MIN_FONT_SIZE, SONG_WIDE_LAYOUT_QUERY, clampChordScale } from '../hooks/useSongViewSettings';
+import {
+  MAX_CHORD_SCALE,
+  MAX_FONT_SIZE,
+  MAX_SETLIST_AUTOSCROLL_DELAY,
+  MIN_CHORD_SCALE,
+  MIN_FONT_SIZE,
+  MIN_SETLIST_AUTOSCROLL_DELAY,
+  SONG_WIDE_LAYOUT_QUERY,
+  clampChordScale,
+  clampSetlistAutoScrollDelay,
+} from '../hooks/useSongViewSettings';
 import { CHORD_COLORS, CUSTOM_CHORD_COLOR_FALLBACK, isCustomChordColor } from '../lib/chordColors';
 import type { SongChordDisplay } from '../lib/chordDisplay';
 import type { SongViewColumns, SongViewDensity, SongViewSettings as SongViewSettingsValue } from '../hooks/useSongViewSettings';
@@ -274,6 +284,38 @@ export const SongViewSettings: React.FC<SongViewSettingsProps> = ({ isOpen, onCl
             {settings.showChords && <ChordColorRow value={settings.chordColor} onChange={(chordColor) => onSettingsChange({ chordColor })} />}
             {settings.showChords && <ChordScaleRow value={settings.chordScale} onChange={(chordScale) => onSettingsChange({ chordScale })} />}
             <ToggleRow label="Заголовок песни" checked={settings.showHeader} onChange={() => onSettingsChange({ showHeader: !settings.showHeader })} dataAttr="data-section-show-header" />
+          </div>
+        </SettingsGroup>
+
+        <SettingsGroup title="Автоскролл">
+          <div className="space-y-4">
+            <ToggleRow
+              label="Автозапуск в сете"
+              checked={settings.setlistAutoScroll}
+              onChange={() => onSettingsChange({ setlistAutoScroll: !settings.setlistAutoScroll })}
+              dataAttr="data-section-setlist-autoscroll"
+            />
+            {/* Задержка без включённого автозапуска ни на что не влияет — как цвет без аккордов. */}
+            {settings.setlistAutoScroll && (
+              <div data-section-setlist-autoscroll-delay>
+                <label className="mb-2 block text-sm font-medium text-app-text-secondary">Задержка перед стартом</label>
+                <div className="flex items-center gap-2">
+                  <RangeSlider
+                    value={settings.setlistAutoScrollDelay}
+                    min={MIN_SETLIST_AUTOSCROLL_DELAY}
+                    max={MAX_SETLIST_AUTOSCROLL_DELAY}
+                    aria-label="Задержка перед стартом автоскролла"
+                    data-song-view-settings-autoscroll-delay-slider
+                    onChange={(next) => onSettingsChange({ setlistAutoScrollDelay: clampSetlistAutoScrollDelay(next) })}
+                    className="flex-1"
+                  />
+                  <span className="w-12 shrink-0 text-right text-sm tabular-nums text-app-text-secondary">{settings.setlistAutoScrollDelay} с</span>
+                </div>
+                <p className="mt-2 text-xs text-app-text-muted">
+                  Песня сета поедет сама. Отсчёт виден на кнопке ▶: тап по ней — старт сразу, касание листа — отмена.
+                </p>
+              </div>
+            )}
           </div>
         </SettingsGroup>
 

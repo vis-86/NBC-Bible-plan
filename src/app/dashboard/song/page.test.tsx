@@ -55,6 +55,11 @@ vi.mock('@/features/songs/hooks/useAutoScroll', () => ({
   }),
 }));
 
+let scrolledToEnd = false;
+vi.mock('@/shared/hooks/useIsScrolledToEnd', () => ({
+  useIsScrolledToEnd: () => scrolledToEnd,
+}));
+
 vi.mock('@/shared/hooks/useAutoHideOnScroll', () => ({
   useAutoHideOnScroll: () => ({ hidden: false, ignoreNextScroll: vi.fn(), setHidden: vi.fn() }),
 }));
@@ -190,6 +195,7 @@ describe('SongPage — фокус-режим автоскролла', () => {
     vi.clearAllMocks();
     wideLayout = false;
     autoscrollPlaying = false;
+    scrolledToEnd = false;
     playbackState = { ...playbackState, prevId: 1, nextId: 3, inSetlist: true, index: 1 };
   });
 
@@ -214,5 +220,20 @@ describe('SongPage — фокус-режим автоскролла', () => {
     const dock = document.querySelector('[data-setlist-pager-dock]') as HTMLElement;
     expect(dock.className).toContain('translate-y-24');
     expect(dock.className).toContain('opacity-0');
+  });
+
+  it('у конца листа таблетка сета возвращается, даже если хром спрятан', () => {
+    autoscrollPlaying = true;
+    scrolledToEnd = true;
+    render(<SongPage />);
+    expect(document.querySelector('[data-song-page-header-hidden]')).toBeTruthy();
+    const dock = document.querySelector('[data-setlist-pager-dock]') as HTMLElement;
+    expect(dock.className).toContain('opacity-100');
+  });
+
+  it('в сете под таблеткой оставлена безопасная зона', () => {
+    render(<SongPage />);
+    const viewport = document.querySelector('[data-song-page-viewport]') as HTMLElement;
+    expect(viewport.style.paddingBottom).toContain('72px');
   });
 });

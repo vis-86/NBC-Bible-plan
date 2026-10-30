@@ -3,6 +3,13 @@
 import { ChevronLeft, ChevronRight, ListMusic } from 'lucide-react';
 import { cn } from '@/shared/utils/cn';
 
+/**
+ * Сколько места снизу листа занимает док (таблетка 44px + отступ `bottom-4` + зазор).
+ * Экран песни добавляет его нижним отступом листа: иначе последние строки и аккорды
+ * навсегда остаются под таблеткой — долистать их выше неё нельзя.
+ */
+export const SETLIST_PAGER_DOCK_RESERVE_PX = 72;
+
 export interface SetlistPagerDockProps {
   index: number; // 0-based
   total: number;
@@ -12,7 +19,7 @@ export interface SetlistPagerDockProps {
   onNext: () => void;
   /** Тап по центру — открыть SetlistManageSheet. */
   onOpenSetlist: () => void;
-  /** Скрыт вместе с шапкой (тот же флаг, что у PageHeader на этой странице). */
+  /** Скрыт: шапка уехала и лист не долистан до конца (условие — на стороне экрана песни). */
   hidden: boolean;
 }
 
@@ -31,7 +38,7 @@ export function SetlistPagerDock({ index, total, canPrev, canNext, onPrev, onNex
       <div
         data-setlist-pager-dock
         className={cn(
-          'pointer-events-auto flex items-center gap-1 rounded-full bg-app-surface/90 shadow-app-card backdrop-blur-md transition-[transform,opacity] duration-300',
+          'pointer-events-auto flex items-center gap-1 rounded-full bg-app-surface/70 shadow-app-card backdrop-blur-sm transition-[transform,opacity] duration-300',
           hidden ? 'translate-y-24 opacity-0' : 'translate-y-0 opacity-100'
         )}
       >

@@ -11,7 +11,7 @@ import { AUTOSCROLL_STEPS } from '../lib/autoScroll';
  * Управление автоскроллом (§8, §4.5). UX по референсу `nbc-music-chordpro`
  * (`AutoScrollSpeedButtons`), проверенному на практике:
  *
- * - play/pause — компактный FAB внизу справа; его позицию задаёт `SongToolStack`,
+ * - play/pause — FAB 56px внизу справа (на паузе — сплошной primary); его позицию задаёт `SongToolStack`,
  *   собственного позиционирования у кнопки нет;
  * - во время проигрывания справа по центру высоты экрана появляются ДВЕ большие
  *   кнопки скорости (вверх = медленнее, вниз = быстрее). Они полупрозрачные, чтобы
@@ -33,6 +33,8 @@ export interface SongAutoScrollProps {
   canScroll: boolean;
   onToggle: () => void;
   onSetStep: (step: number) => void;
+  /** Секунды до автозапуска в сете (`useAutoScrollAutostart`), `null` — отсчёта нет. */
+  countdown?: number | null;
 }
 
 const MAX_STEP_INDEX = AUTOSCROLL_STEPS.length - 1;
@@ -40,7 +42,7 @@ const TAP_TARGET = 'transition-transform duration-150 active:scale-95 focus-visi
 /** Насколько блок скорости заметнее становится после нажатия (мс). */
 const ACTIVE_FLASH_MS = 500;
 
-export function SongAutoScroll({ playing, step, canScroll, onToggle, onSetStep }: SongAutoScrollProps) {
+export function SongAutoScroll({ playing, step, canScroll, onToggle, onSetStep, countdown = null }: SongAutoScrollProps) {
   // Полупрозрачные кнопки скорости на короткое время «проявляются» после нажатия.
   const [speedActive, setSpeedActive] = useState(false);
   const flashTimer = useRef<number | null>(null);
@@ -128,19 +130,33 @@ export function SongAutoScroll({ playing, step, canScroll, onToggle, onSetStep }
           (playing=false ⇒ панели нет), так что пререндеренная разметка совпадает. */}
       {speedPanel !== null && portalTarget ? createPortal(speedPanel, portalTarget) : null}
 
-      {/* Play/pause — компактный круглый FAB: матовый (backdrop-blur), иконка — primary. */}
+      {/* Play/pause — круглый FAB 56px. На паузе — сплошной primary: его ищут глазами
+          и жмут на бегу, одной рукой, с инструментом в другой; матовая полупрозрачная
+          кнопка 48px терялась на листе и промахивалась. Во время проигрывания кнопка
+          приглушена — она там только для остановки и не должна спорить с текстом.
+          Во время отсчёта автозапуска на кнопке — оставшиеся секунды, тап запускает сразу. */}
       <button
         type="button"
         data-song-autoscroll-toggle
-        aria-label={playing ? 'Пауза автоскролла' : 'Запустить автоскролл'}
+        data-song-autoscroll-countdown={countdown !== null && !playing ? countdown : undefined}
+        aria-label={
+          playing ? 'Пауза автоскролла' : countdown !== null ? `Автоскролл через ${countdown} с, запустить сейчас` : 'Запустить автоскролл'
+        }
         aria-pressed={playing}
         onClick={onToggle}
         className={cn(
-          'pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-app-surface-elevated/70 text-app-primary shadow-app-card backdrop-blur-md',
+          'pointer-events-auto flex h-14 w-14 items-center justify-center rounded-full shadow-app-card',
+          playing ? 'bg-app-surface-elevated/70 text-app-primary backdrop-blur-md' : 'bg-app-primary text-app-text-inverse',
           TAP_TARGET,
         )}
       >
-        {playing ? <Pause size={22} /> : <Play size={22} />}
+        {playing ? (
+          <Pause size={24} />
+        ) : countdown !== null ? (
+          <span className="text-lg font-semibold tabular-nums">{countdown}</span>
+        ) : (
+          <Play size={24} />
+        )}
       </button>
     </div>
   );

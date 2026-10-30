@@ -116,4 +116,28 @@ describe('SongViewSettings', () => {
     expect(screen.getByRole('switch', { name: 'Аккорды' })).toBeInTheDocument();
     expect(screen.getByRole('switch', { name: 'Заголовок песни' })).toBeInTheDocument();
   });
+
+  it('автозапуск в сете: тумблер шлёт патч, задержка видна только при включённом', () => {
+    mockMatchMedia(false);
+    const onSettingsChange = vi.fn();
+    const { rerender } = render(
+      <SongViewSettings isOpen settings={DEFAULT_SONG_VIEW_SETTINGS} onClose={() => {}} onSettingsChange={onSettingsChange} />
+    );
+
+    expect(screen.queryByText('Задержка перед стартом')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('switch', { name: 'Автозапуск в сете' }));
+    expect(onSettingsChange).toHaveBeenCalledWith({ setlistAutoScroll: true });
+
+    rerender(
+      <SongViewSettings
+        isOpen
+        settings={{ ...DEFAULT_SONG_VIEW_SETTINGS, setlistAutoScroll: true }}
+        onClose={() => {}}
+        onSettingsChange={onSettingsChange}
+      />
+    );
+    expect(screen.getByText('10 с')).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText('Задержка перед стартом автоскролла'), { target: { value: '15' } });
+    expect(onSettingsChange).toHaveBeenCalledWith({ setlistAutoScrollDelay: 15 });
+  });
 });

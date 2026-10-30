@@ -62,7 +62,18 @@ export interface SongViewSettings {
    * раз и ожидает увидеть его на следующей песне и после перезапуска приложения.
    */
   inkColor: string;
+  /**
+   * Автозапуск автоскролла в сете: открытая песня сета сама поедет через
+   * `setlistAutoScrollDelay` секунд. Только в сете — там телефон стоит на пюпитре и руки
+   * заняты инструментом; на одиночной песне человек читает, а не играет.
+   */
+  setlistAutoScroll: boolean;
+  /** Задержка автозапуска, секунды (`MIN/MAX_SETLIST_AUTOSCROLL_DELAY`). */
+  setlistAutoScrollDelay: number;
 }
+
+export const MIN_SETLIST_AUTOSCROLL_DELAY = 3;
+export const MAX_SETLIST_AUTOSCROLL_DELAY = 30;
 
 export const MIN_CHORD_SCALE = 60;
 export const MAX_CHORD_SCALE = 130;
@@ -85,6 +96,8 @@ export const DEFAULT_SONG_VIEW_SETTINGS: SongViewSettings = {
   // Красный: пометка обязана отличаться от печатного текста листа с одного взгляда,
   // а «цвет по теме» сливается с ним ровно в тот момент, когда пометку ищут глазами.
   inkColor: '#dc2626',
+  setlistAutoScroll: false,
+  setlistAutoScrollDelay: 10,
 };
 
 const DENSITIES: readonly SongViewDensity[] = ['comfortable', 'compact'];
@@ -108,6 +121,10 @@ function warnStorageUnavailable(err: unknown): void {
 
 export function clampChordScale(value: number): number {
   return Math.min(MAX_CHORD_SCALE, Math.max(MIN_CHORD_SCALE, Math.round(value)));
+}
+
+export function clampSetlistAutoScrollDelay(value: number): number {
+  return Math.min(MAX_SETLIST_AUTOSCROLL_DELAY, Math.max(MIN_SETLIST_AUTOSCROLL_DELAY, Math.round(value)));
 }
 
 function clampFontSize(value: number): number {
@@ -140,9 +157,16 @@ function sanitize(raw: Partial<SongViewSettings> | null | undefined): SongViewSe
       ? raw.inkColor
       : DEFAULT_SONG_VIEW_SETTINGS.inkColor;
 
+  const setlistAutoScroll =
+    typeof raw?.setlistAutoScroll === 'boolean' ? raw.setlistAutoScroll : DEFAULT_SONG_VIEW_SETTINGS.setlistAutoScroll;
+  const setlistAutoScrollDelay =
+    typeof raw?.setlistAutoScrollDelay === 'number' && Number.isFinite(raw.setlistAutoScrollDelay)
+      ? clampSetlistAutoScrollDelay(raw.setlistAutoScrollDelay)
+      : DEFAULT_SONG_VIEW_SETTINGS.setlistAutoScrollDelay;
+
   // Старый JSON мог нести `mode` (до этого рефакторинга) — поле просто игнорируется:
   // `Partial<SongViewSettings>` больше не объявляет его, а sanitize строит объект заново.
-  return { columns, fontSize, density, showChords, showHeader, chordDisplay, chordColor, chordScale, inkPenOnly, inkInstant, inkColor };
+  return { columns, fontSize, density, showChords, showHeader, chordDisplay, chordColor, chordScale, inkPenOnly, inkInstant, inkColor, setlistAutoScroll, setlistAutoScrollDelay };
 }
 
 /** Читает legacy-ключ размера шрифта (миграция v1 → v2). Только чтение — см. `readSettings`. */
