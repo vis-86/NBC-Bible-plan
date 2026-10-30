@@ -58,6 +58,9 @@ RSYNC_EXCLUDES=(
   --exclude '*.log'
   --exclude '.DS_Store'
   --exclude 'tsconfig.tsbuildinfo'
+  # Playwright artifacts: trace.zip carries the e2e account's session cookies.
+  --exclude 'test-results/'
+  --exclude 'playwright-report/'
 )
 
 DRY_RUN=0
