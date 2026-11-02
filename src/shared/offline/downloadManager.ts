@@ -60,6 +60,11 @@ export async function requestPersistentStorage(): Promise<boolean> {
   }
 }
 
+/** Ключи `manifest` пользовательского/командного контента (остальные — id переводов Писания). */
+export const MANIFEST_SONGS_KEY = 'songs';
+export const MANIFEST_PLAN_KEY = 'plan';
+export const MANIFEST_SETLISTS_KEY = 'setlists';
+
 async function writeManifestEntry(key: string, entry: Omit<ManifestRecord, 'key'>): Promise<void> {
   const db = await getDB();
   await db.put('manifest', { key, ...entry });
@@ -187,7 +192,7 @@ export async function downloadSongs(onProgress?: (done: number, total: number) =
     onProgress?.(done, list.songs.length);
   });
 
-  await writeManifestEntry('songs', { downloadedAt: now, itemCount: list.songs.length });
+  await writeManifestEntry(MANIFEST_SONGS_KEY, { downloadedAt: now, itemCount: list.songs.length });
   debug('downloaded songs', { itemCount: list.songs.length });
 }
 
@@ -218,7 +223,7 @@ export async function downloadPlan(): Promise<void> {
 
   await warmAppShell();
 
-  await writeManifestEntry('plan', { downloadedAt: Date.now() });
+  await writeManifestEntry(MANIFEST_PLAN_KEY, { downloadedAt: Date.now() });
   debug('downloaded plan warm-up (plan/weekly/books + app-shell routes)');
 }
 
@@ -245,7 +250,7 @@ export async function downloadSetlists(): Promise<void> {
     }
   }
 
-  await writeManifestEntry('setlists', { downloadedAt: Date.now(), itemCount: list.setlists.length });
+  await writeManifestEntry(MANIFEST_SETLISTS_KEY, { downloadedAt: Date.now(), itemCount: list.setlists.length });
   debug('setlists warmed:', warmed, 'of', list.setlists.length);
 }
 

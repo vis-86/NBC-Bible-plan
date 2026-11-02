@@ -8,6 +8,7 @@ import { getLastKnownUser, setLastKnownUser, clearLastKnownUser } from '@/shared
 import { raceNetwork } from '@/shared/offline/networkHealth';
 import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout } from '@/shared/offline/networkTimeout';
 import { scheduleEnsureOfflineData } from '@/shared/offline/autoDownload';
+import { ensureOfflineOwner } from '@/shared/offline/offlineOwner';
 
 interface User {
   directus_id: string;
@@ -103,6 +104,13 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       if (response.ok) {
         const data = await response.json();
         if (data.user) {
+          // До settle: экраны читают IDB cache-first и не должны успеть увидеть данные
+          // прежнего пользователя этого устройства. Сбой IDB вход не блокирует.
+          try {
+            await ensureOfflineOwner(String(data.user.directus_id));
+          } catch (err) {
+            console.error('[AuthProvider] offline owner check failed', err);
+          }
           settle(data.user);
           void setLastKnownUser(data.user);
           // Только server-confirmed вход (не last-known-user фолбэк ниже) — иначе
