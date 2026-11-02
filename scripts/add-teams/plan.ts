@@ -39,6 +39,31 @@ export const INVITE_ROLE_CHOICES: readonly { value: string; text: string }[] = [
 export const BACKFILL_COLLECTIONS = ['songs', 'setlists', 'auth_invites'] as const;
 export type BackfillCollection = (typeof BACKFILL_COLLECTIONS)[number];
 
+/**
+ * Фильтр строк, которым backfill ставит NBC. Reset-инвайты принадлежат пользователю,
+ * а не команде, — их backfill не трогает. Без поля `team` (dry-run до схемы) — все строки.
+ */
+export function backfillFilter(
+  collection: BackfillCollection,
+  teamFieldExists: boolean,
+): Record<string, unknown> | undefined {
+  const filter: Record<string, unknown> = {};
+  if (teamFieldExists) filter.team = { _null: true };
+  if (collection === 'auth_invites') filter.kind = { _neq: 'reset' };
+  return Object.keys(filter).length ? filter : undefined;
+}
+
+export type PhaseOneCheck = { ok: true } | { ok: false; teamCount: number };
+
+/**
+ * Backfill и членство в NBC верны, только пока NBC — единственная команда: при других
+ * командах строка «без команды» или пользователь без членства уже не обязательно из NBC.
+ */
+export function checkPhaseOne(teamSlugs: readonly string[]): PhaseOneCheck {
+  if (teamSlugs.length === 1 && teamSlugs[0] === NBC_TEAM.slug) return { ok: true };
+  return { ok: false, teamCount: teamSlugs.length };
+}
+
 /** `finalize` делает `team` обязательным только здесь: у reset-инвайтов команды нет. */
 export const REQUIRED_TEAM_COLLECTIONS = ['songs', 'setlists'] as const;
 export type RequiredTeamCollection = (typeof REQUIRED_TEAM_COLLECTIONS)[number];
@@ -313,10 +338,29 @@ export interface PermissionRow {
   policy: string;
   collection: string;
   action: string;
+  permissions?: unknown;
+  validation?: unknown;
+  presets?: unknown;
+  fields?: unknown;
 }
 
 export interface StripMatch extends PermissionRow {
   policyName: string;
+}
+
+/** Удаляемая строка целиком, одной JSON-строкой: без `id`/`policy_name` это тело `POST /permissions`. */
+export function permissionBackupLine(row: StripMatch): string {
+  return JSON.stringify({
+    id: row.id,
+    policy: row.policy,
+    policy_name: row.policyName,
+    collection: row.collection,
+    action: row.action,
+    permissions: row.permissions ?? null,
+    validation: row.validation ?? null,
+    presets: row.presets ?? null,
+    fields: row.fields ?? null,
+  });
 }
 
 /** Строки прав из {@link STRIP_PERMISSIONS}; политики ищутся по имени (имя в Directus не уникально). */

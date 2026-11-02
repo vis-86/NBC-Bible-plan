@@ -31,7 +31,9 @@ import {
   STRIP_PERMISSIONS,
   TEAM_ADMIN_ROLE,
   TEAM_ADMIN_TEMPLATE_ROLE,
+  backfillFilter,
   checkHost,
+  checkPhaseOne,
   describeSchemaStep,
   fieldKey,
   planFinalize,
@@ -39,6 +41,7 @@ import {
   planSchema,
   planStrip,
   planTeamAdminRole,
+  permissionBackupLine,
   type BackfillCollection,
   type PermissionRow,
   type RequiredTeamCollection,
@@ -53,7 +56,7 @@ export interface MigrationSchema {
   team_members: { id: string; team: string; user: string; date_created: string | null }[];
   songs: { id: number; team: string | null }[];
   setlists: { id: string; team: string | null }[];
-  auth_invites: { id: number; team: string | null }[];
+  auth_invites: { id: number; kind: string; team: string | null }[];
 }
 
 export interface MigrationClient {
@@ -155,12 +158,13 @@ async function readSchemaState(client: MigrationClient): Promise<SchemaState> {
   };
 }
 
-async function countRows(client: MigrationClient, collection: BackfillCollection, onlyWithoutTeam: boolean) {
+async function countRows(
+  client: MigrationClient,
+  collection: BackfillCollection,
+  filter: Record<string, unknown> | undefined,
+) {
   const rows = await client.request(
-    aggregate(collection, {
-      aggregate: { count: '*' },
-      ...(onlyWithoutTeam ? { query: { filter: { team: { _null: true } } } } : {}),
-    }),
+    aggregate(collection, { aggregate: { count: '*' }, ...(filter ? { query: { filter } } : {}) }),
   );
   const count = Number((rows as unknown as { count?: unknown }[])[0]?.count ?? 0);
   if (!Number.isFinite(count)) throw new Error(`unexpected count for "${collection}"`);
@@ -214,35 +218,49 @@ async function applyTeams(client: MigrationClient, dryRun: boolean, log: Logger)
   // (ключ — коллекция или `collection.field`).
   const has = (key: string) => !dryRun || schema.fields.has(key) || schema.collections.has(key);
 
-  let nbcId: string | null = null;
-  if (has('teams')) {
-    const found = await client.request(
-      readItems('teams', { filter: { slug: { _eq: NBC_TEAM.slug } }, fields: ['id'], limit: 1 }),
-    );
-    nbcId = found[0]?.id ?? null;
-  }
+  const teams = has('teams')
+    ? await readAll((page) =>
+        client.request(readItems('teams', { fields: ['id', 'slug'], sort: ['id'], limit: PAGE, page })),
+      )
+    : [];
+  const teamSlugs = teams.map((t) => String(t.slug));
+  let nbcId: string | null = teams.find((t) => t.slug === NBC_TEAM.slug)?.id ?? null;
   if (nbcId) {
     log.info(`${LOG} team "${NBC_TEAM.slug}" exists (${nbcId})`);
   } else if (dryRun) {
     log.info(`${LOG} [dry-run] would create team "${NBC_TEAM.slug}" (${NBC_TEAM.name})`);
+    teamSlugs.push(NBC_TEAM.slug);
   } else {
     const created = await client.request(createItem('teams', { slug: NBC_TEAM.slug, name: NBC_TEAM.name }));
     nbcId = created.id;
+    teamSlugs.push(NBC_TEAM.slug);
     log.info(`${LOG} team "${NBC_TEAM.slug}" created (${nbcId})`);
   }
 
-  for (const collection of BACKFILL_COLLECTIONS) {
-    if (dryRun || !nbcId) {
-      const count = await countRows(client, collection, has(fieldKey(collection, 'team')));
-      log.info(`${LOG} [dry-run] would set team="${NBC_TEAM.slug}" on ${count} row(s) of "${collection}"`);
-    } else {
-      const updated = await backfillTeam(client, collection, nbcId);
-      log.info(`${LOG} backfill "${collection}": ${updated} row(s) set to team "${NBC_TEAM.slug}"`);
+  const phaseOne = checkPhaseOne(teamSlugs);
+  if (!phaseOne.ok) {
+    log.warn(
+      `${LOG} ${phaseOne.teamCount} teams exist — phase-1 steps skipped ` +
+        `(backfill to "${NBC_TEAM.slug}", "${NBC_TEAM.slug}" memberships)`,
+    );
+  } else {
+    for (const collection of BACKFILL_COLLECTIONS) {
+      if (dryRun || !nbcId) {
+        const filter = backfillFilter(collection, has(fieldKey(collection, 'team')));
+        const count = await countRows(client, collection, filter);
+        log.info(`${LOG} [dry-run] would set team="${NBC_TEAM.slug}" on ${count} row(s) of "${collection}"`);
+      } else {
+        const updated = await backfillTeam(client, collection, nbcId);
+        log.info(`${LOG} backfill "${collection}": ${updated} row(s) set to team "${NBC_TEAM.slug}"`);
+      }
     }
   }
 
-  const [roles, users, members] = await Promise.all([
-    readRolesWithPolicies(client),
+  const roles = await readRolesWithPolicies(client);
+  await ensureTeamAdminRole(client, roles, dryRun, log);
+  if (!phaseOne.ok) return 0;
+
+  const [users, members] = await Promise.all([
     readAll((page) => client.request(readUsers({ fields: ['id', 'role'], sort: ['id'], limit: PAGE, page }))),
     has('team_members')
       ? readAll((page) =>
@@ -250,8 +268,6 @@ async function applyTeams(client: MigrationClient, dryRun: boolean, log: Logger)
         )
       : Promise.resolve([]),
   ]);
-  await ensureTeamAdminRole(client, roles, dryRun, log);
-
   const memberships = planMemberships({
     roles,
     users: users.map((u) => ({ id: String(u.id), role: (u.role as string | null) ?? null })),
@@ -350,7 +366,7 @@ async function backfillTeam(client: MigrationClient, collection: BackfillCollect
   const seen = new Set<string>();
   for (;;) {
     const rows = (await client.request(
-      readItems(collection, { filter: { team: { _null: true } }, fields: ['id'], sort: ['id'], limit: PAGE }),
+      readItems(collection, { filter: backfillFilter(collection, true), fields: ['id'], sort: ['id'], limit: PAGE }),
     )) as { id: string | number }[];
     if (!rows.length) return seen.size;
     const ids = rows.map((r) => r.id);
@@ -368,7 +384,7 @@ async function finalizeTeams(client: MigrationClient, dryRun: boolean, log: Logg
   for (const collection of REQUIRED_TEAM_COLLECTIONS) {
     const field = fields.find((f) => f.collection === collection && f.field === 'team');
     const nullable = field ? field.schema?.is_nullable !== false : undefined;
-    const nullCount = field ? await countRows(client, collection, true) : 0;
+    const nullCount = field ? await countRows(client, collection, { team: { _null: true } }) : 0;
     state[collection] = { nullable, nullCount };
   }
   const plan = planFinalize(state);
@@ -412,7 +428,7 @@ async function stripUserPermissions(client: MigrationClient, dryRun: boolean, lo
           client.request(
             readPermissions({
               filter: { policy: { _in: policies.map((p) => p.id) } },
-              fields: ['id', 'policy', 'collection', 'action'],
+              fields: ['id', 'policy', 'collection', 'action', 'permissions', 'validation', 'presets', 'fields'],
               sort: ['id'],
               limit: PAGE,
               page,
@@ -424,6 +440,10 @@ async function stripUserPermissions(client: MigrationClient, dryRun: boolean, lo
         policy: String(p.policy),
         collection: String(p.collection),
         action: String(p.action),
+        permissions: p.permissions,
+        validation: p.validation,
+        presets: p.presets,
+        fields: p.fields,
       }))
     : [];
 
@@ -432,6 +452,8 @@ async function stripUserPermissions(client: MigrationClient, dryRun: boolean, lo
     log.info(`${LOG} nothing to delete`);
     return 0;
   }
+  log.info(`${LOG} rows to delete, one JSON per row — save this output to restore them (POST /permissions):`);
+  for (const m of matches) log.info(`${LOG} backup ${permissionBackupLine(m)}`);
   for (const m of matches) {
     log.info(`${LOG} ${dryRun ? '[dry-run] would delete' : 'delete'} permission #${m.id}: ${m.policyName} ${m.collection}.${m.action}`);
   }

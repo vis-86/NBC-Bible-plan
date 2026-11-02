@@ -11,6 +11,9 @@ import {
   planSchema,
   planStrip,
   planTeamAdminRole,
+  backfillFilter,
+  checkPhaseOne,
+  permissionBackupLine,
   type SchemaState,
 } from './plan';
 
@@ -262,5 +265,57 @@ describe('planStrip', () => {
   it('finds nothing to delete after a previous run', () => {
     const rows = [{ id: 7, policy: 'p-custom', collection: 'song_user_state', action: 'read' }];
     expect(planStrip([{ id: 'p-custom', name: 'custom' }], rows)).toEqual([]);
+  });
+});
+
+describe('checkPhaseOne', () => {
+  it('allows the phase-1 steps while nbc is the only team', () => {
+    expect(checkPhaseOne(['nbc'])).toEqual({ ok: true });
+  });
+
+  it('skips the phase-1 steps once another team exists', () => {
+    expect(checkPhaseOne(['nbc', 'church-x'])).toEqual({ ok: false, teamCount: 2 });
+    expect(checkPhaseOne(['church-x'])).toEqual({ ok: false, teamCount: 1 });
+  });
+});
+
+describe('backfillFilter', () => {
+  it('leaves reset invites without a team', () => {
+    expect(backfillFilter('auth_invites', true)).toEqual({ team: { _null: true }, kind: { _neq: 'reset' } });
+    expect(backfillFilter('auth_invites', false)).toEqual({ kind: { _neq: 'reset' } });
+  });
+
+  it('takes every song and setlist without a team', () => {
+    expect(backfillFilter('songs', true)).toEqual({ team: { _null: true } });
+    expect(backfillFilter('setlists', true)).toEqual({ team: { _null: true } });
+    expect(backfillFilter('songs', false)).toBeUndefined();
+  });
+});
+
+describe('permissionBackupLine', () => {
+  it('prints the whole permission row as one JSON line', () => {
+    const line = permissionBackupLine({
+      id: 3,
+      policy: 'p-custom',
+      policyName: 'custom',
+      collection: 'reading',
+      action: 'update',
+      permissions: { user_id: { _eq: '$CURRENT_USER' } },
+      validation: null,
+      presets: { year: 2026 },
+      fields: ['*'],
+    });
+    expect(line).not.toContain('\n');
+    expect(JSON.parse(line)).toEqual({
+      id: 3,
+      policy: 'p-custom',
+      policy_name: 'custom',
+      collection: 'reading',
+      action: 'update',
+      permissions: { user_id: { _eq: '$CURRENT_USER' } },
+      validation: null,
+      presets: { year: 2026 },
+      fields: ['*'],
+    });
   });
 });

@@ -5,15 +5,21 @@
  *   apply                   — только добавляет и совместим со старым кодом BFF: коллекции
  *                             `teams`/`team_members`, nullable `team` у songs/setlists/auth_invites,
  *                             `songs.origin_song`, `auth_invites.role` (AppRole приглашённого),
- *                             команда `nbc`, backfill `team IS NULL` → nbc, роль Directus
- *                             `team_admin` с политиками роли musician_editor, членство в nbc
- *                             для ролей «Чтец»/musician/musician_editor.
- *                             Повторный запуск ничего не меняет.
+ *                             команда `nbc`, роль Directus `team_admin` с политиками роли
+ *                             musician_editor. Шаги фазы 1 — backfill `team IS NULL` → nbc
+ *                             (кроме reset-инвайтов) и членство в nbc для ролей
+ *                             «Чтец»/musician/musician_editor — выполняются, только пока `nbc` —
+ *                             единственная команда; при нескольких командах они пропускаются
+ *                             с предупреждением. Повторный запуск безопасен: уже сделанное
+ *                             не повторяется.
+ *                             Runbook: backfill обновляет строки песен и сетов, Directus поднимает
+ *                             им `date_updated` → на устройствах однократная перекачка песен и сетов.
  *   finalize                — `team` NOT NULL в songs и setlists (после деплоя кода с командами).
  *                             Отказывает (код 1), если остались строки без команды.
  *   strip-user-permissions  — снимает с пользовательских политик права на коллекции, которые
  *                             приложение читает только admin-клиентом в BFF (список —
- *                             `STRIP_PERMISSIONS` в `scripts/add-teams/plan.ts`).
+ *                             `STRIP_PERMISSIONS` в `scripts/add-teams/plan.ts`). Перед удалением
+ *                             печатает строки целиком (JSON на строку) — вывод сохранить для отката.
  *
  * Запуск: `npx tsx scripts/add-teams.ts <apply|finalize|strip-user-permissions> --confirm-host=<host> [--dry-run]`
  * Хост цели — из `NEXT_PUBLIC_DIRECTUS_URL` (с портом, если он есть в URL). Не совпал
