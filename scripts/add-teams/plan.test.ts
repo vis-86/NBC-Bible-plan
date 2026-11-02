@@ -10,6 +10,7 @@ import {
   planMemberships,
   planSchema,
   planStrip,
+  planTeamAdminRole,
   type SchemaState,
 } from './plan';
 
@@ -95,6 +96,58 @@ describe('planSchema', () => {
     expect(relation('songs', 'origin_song')).toMatchObject({ related: 'songs', onDelete: 'SET NULL' });
     expect(relation('setlists', 'team')?.onDelete).toBe('RESTRICT');
     expect(relation('auth_invites', 'team')?.onDelete).toBe('CASCADE');
+  });
+
+  it('declares auth_invites.role as a nullable string with the app roles as choices', () => {
+    const role = FIELDS.find((f) => f.collection === 'auth_invites' && f.field === 'role');
+    expect(role).toMatchObject({ type: 'string', schema: { is_nullable: true } });
+    expect(role?.schema).not.toHaveProperty('default_value');
+    const choices = (role?.meta.options as { choices: { value: string }[] }).choices.map((c) => c.value);
+    expect(choices).toEqual(['reader', 'musician', 'musician_editor', 'team_admin']);
+  });
+
+  it('plans auth_invites.role when only it is missing', () => {
+    const state = migratedSchema();
+    const fields = new Set(state.fields);
+    fields.delete('auth_invites.role');
+    expect(planSchema({ ...state, fields })).toEqual([
+      expect.objectContaining({ kind: 'field', spec: expect.objectContaining({ collection: 'auth_invites', field: 'role' }) }),
+    ]);
+  });
+});
+
+describe('planTeamAdminRole', () => {
+  const custom = { id: 'p-custom', name: 'custom' };
+  const editor = { id: 'p-editor', name: 'setlist_editor' };
+  const template = { id: 'r-editor', name: 'musician_editor', policies: [custom, editor] };
+
+  it('creates the role with the policies of musician_editor', () => {
+    expect(planTeamAdminRole([template, { id: 'r-reader', name: 'Чтец', policies: [custom] }])).toEqual({
+      roleId: null,
+      addPolicies: [custom, editor],
+      templateMissing: false,
+    });
+  });
+
+  it('plans nothing when team_admin already has the same policies', () => {
+    expect(planTeamAdminRole([template, { id: 'r-admin', name: 'team_admin', policies: [editor, custom] }])).toEqual({
+      roleId: 'r-admin',
+      addPolicies: [],
+      templateMissing: false,
+    });
+  });
+
+  it('links only the policies team_admin is missing', () => {
+    const plan = planTeamAdminRole([template, { id: 'r-admin', name: 'team_admin', policies: [custom] }]);
+    expect(plan.addPolicies).toEqual([editor]);
+  });
+
+  it('creates the role without policies when musician_editor is missing', () => {
+    expect(planTeamAdminRole([{ id: 'r-reader', name: 'Чтец', policies: [custom] }])).toEqual({
+      roleId: null,
+      addPolicies: [],
+      templateMissing: true,
+    });
   });
 });
 

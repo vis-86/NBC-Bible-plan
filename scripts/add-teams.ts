@@ -4,8 +4,10 @@
  *
  *   apply                   — только добавляет и совместим со старым кодом BFF: коллекции
  *                             `teams`/`team_members`, nullable `team` у songs/setlists/auth_invites,
- *                             `songs.origin_song`, команда `nbc`, backfill `team IS NULL` → nbc,
- *                             членство в nbc для ролей «Чтец»/musician/musician_editor.
+ *                             `songs.origin_song`, `auth_invites.role` (AppRole приглашённого),
+ *                             команда `nbc`, backfill `team IS NULL` → nbc, роль Directus
+ *                             `team_admin` с политиками роли musician_editor, членство в nbc
+ *                             для ролей «Чтец»/musician/musician_editor.
  *                             Повторный запуск ничего не меняет.
  *   finalize                — `team` NOT NULL в songs и setlists (после деплоя кода с командами).
  *                             Отказывает (код 1), если остались строки без команды.

@@ -23,20 +23,34 @@ function fakeClient(handle: (req: Req) => unknown) {
 
 function memoryLog() {
   const lines: string[] = [];
-  const log: Logger = { info: (m) => lines.push(m), error: (m) => lines.push(m) };
+  const log: Logger = { info: (m) => lines.push(m), warn: (m) => lines.push(m), error: (m) => lines.push(m) };
   return { log, lines };
 }
 
 const LOCAL = 'http://localhost:18055';
 const roles = [
   { id: 'r-reader', name: 'Чтец' },
+  { id: 'r-editor', name: 'musician_editor' },
+  { id: 'r-team-admin', name: 'team_admin' },
   { id: 'r-admin', name: 'Administrator' },
+];
+const customPolicy = { id: 'p-custom', name: 'custom' };
+const editorPolicy = { id: 'p-setlist-editor', name: 'setlist_editor' };
+const access = [
+  { role: 'r-reader', policy: customPolicy },
+  { role: 'r-editor', policy: customPolicy },
+  { role: 'r-editor', policy: editorPolicy },
+  { role: 'r-team-admin', policy: customPolicy },
+  { role: 'r-team-admin', policy: editorPolicy },
+  { role: null, policy: { id: 'p-user-level', name: 'personal' } },
 ];
 
 /** Directus, в котором `apply` уже отработал полностью. */
 function migratedDirectus(req: Req): unknown {
   if (req.method !== 'GET') throw new Error(`unexpected ${req.method} ${req.path}`);
   switch (req.path) {
+    case '/access':
+      return access;
     case '/collections':
       return ['teams', 'team_members', 'songs', 'setlists', 'auth_invites'].map((collection) => ({ collection }));
     case '/fields':
@@ -114,7 +128,46 @@ describe('run: apply', () => {
     expect(code).toBe(0);
     expect(calls.filter((c) => c.method !== 'GET')).toEqual([]);
     expect(lines.join('\n')).toContain('schema: up to date');
+    expect(lines.join('\n')).toContain('role "team_admin" exists (r-team-admin), policies up to date');
     expect(lines.join('\n')).toContain('0 user(s) added');
+  });
+
+  it('creates team_admin with the policies linked to musician_editor', async () => {
+    const { client, calls } = fakeClient((req) => {
+      if (req.method === 'POST' && req.path === '/roles') return { id: 'r-new-admin' };
+      if (req.method === 'POST' && req.path === '/access') return [];
+      if (req.path === '/roles') return roles.filter((r) => r.name !== 'team_admin');
+      if (req.path === '/access') return access.filter((a) => a.role !== 'r-team-admin');
+      return migratedDirectus(req);
+    });
+    const { log } = memoryLog();
+
+    const code = await run(['apply', '--confirm-host=localhost:18055'], { directusUrl: LOCAL, createClient: () => client, log });
+
+    expect(code).toBe(0);
+    const writes = calls.filter((c) => c.method !== 'GET');
+    expect(writes.map((c) => `${c.method} ${c.path}`)).toEqual(['POST /roles', 'POST /access']);
+    expect(JSON.parse(String(writes[0].body))).toMatchObject({ name: 'team_admin' });
+    expect(JSON.parse(String(writes[1].body))).toEqual([
+      { role: 'r-new-admin', policy: 'p-custom' },
+      { role: 'r-new-admin', policy: 'p-setlist-editor' },
+    ]);
+  });
+
+  it('warns and creates team_admin without policies when musician_editor is missing', async () => {
+    const { client, calls } = fakeClient((req) => {
+      if (req.method === 'POST' && req.path === '/roles') return { id: 'r-new-admin' };
+      if (req.path === '/roles') return roles.filter((r) => r.name !== 'team_admin' && r.name !== 'musician_editor');
+      if (req.path === '/access') return access.filter((a) => a.role === 'r-reader');
+      return migratedDirectus(req);
+    });
+    const { log, lines } = memoryLog();
+
+    const code = await run(['apply', '--confirm-host=localhost:18055'], { directusUrl: LOCAL, createClient: () => client, log });
+
+    expect(code).toBe(0);
+    expect(calls.filter((c) => c.method !== 'GET').map((c) => `${c.method} ${c.path}`)).toEqual(['POST /roles']);
+    expect(lines.join('\n')).toContain('role "musician_editor" not found');
   });
 
   it('dry run only reads, even when everything is missing', async () => {
@@ -123,7 +176,8 @@ describe('run: apply', () => {
       if (req.path === '/collections') return [{ collection: 'songs' }, { collection: 'setlists' }, { collection: 'auth_invites' }];
       if (req.path === '/fields' || req.path === '/relations') return [];
       if (req.path.startsWith('/items/')) return [{ count: 5 }];
-      if (req.path === '/roles') return roles;
+      if (req.path === '/roles') return roles.filter((r) => r.name !== 'team_admin');
+      if (req.path === '/access') return access.filter((a) => a.role !== 'r-team-admin');
       if (req.path === '/users') return [{ id: 'u-reader', role: 'r-reader' }];
       throw new Error(`unexpected GET ${req.path}`);
     });
@@ -140,6 +194,9 @@ describe('run: apply', () => {
     // Поля team ещё нет — считаются все строки, без фильтра по несуществующему полю.
     expect(calls.filter((c) => c.path === '/items/songs').map((c) => c.params?.filter)).toEqual([undefined]);
     expect(lines.join('\n')).toContain('would set team="nbc" on 5 row(s) of "songs"');
+    expect(lines.join('\n')).toContain('would create field "auth_invites.role" (string)');
+    expect(lines.join('\n')).toContain('would create role "team_admin"');
+    expect(lines.join('\n')).toContain('would link policies to "team_admin": custom, setlist_editor');
     expect(lines.join('\n')).toContain('would add 1 user(s)');
   });
 });

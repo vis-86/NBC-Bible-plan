@@ -23,6 +23,18 @@ export const NBC_TEAM = { slug: 'nbc', name: 'НБЦ' } as const;
 /** Роли пользователей приложения NBC — они получают членство в команде NBC. */
 export const MEMBER_ROLE_NAMES: readonly string[] = ['Чтец', 'musician', 'musician_editor'];
 
+/** Роль Directus администратора команды; политики копируются с {@link TEAM_ADMIN_TEMPLATE_ROLE}. */
+export const TEAM_ADMIN_ROLE = 'team_admin';
+export const TEAM_ADMIN_TEMPLATE_ROLE = 'musician_editor';
+
+/** Значения `auth_invites.role` — `AppRole` приложения; в роль Directus их переводит BFF. */
+export const INVITE_ROLE_CHOICES: readonly { value: string; text: string }[] = [
+  { value: 'reader', text: 'Чтец' },
+  { value: 'musician', text: 'Музыкант' },
+  { value: 'musician_editor', text: 'Музыкант-редактор' },
+  { value: 'team_admin', text: 'Администратор команды' },
+];
+
 /** Коллекции, строкам которых `apply` проставляет команду NBC. */
 export const BACKFILL_COLLECTIONS = ['songs', 'setlists', 'auth_invites'] as const;
 export type BackfillCollection = (typeof BACKFILL_COLLECTIONS)[number];
@@ -150,6 +162,18 @@ export const FIELDS: readonly FieldSpec[] = [
   }),
   m2o('setlists', 'team', 'uuid', '{{name}}', 'Команда-владелец сета', { is_nullable: true }),
   m2o('auth_invites', 'team', 'uuid', '{{name}}', 'Команда, в которую приглашает инвайт', { is_nullable: true }),
+  {
+    collection: 'auth_invites',
+    field: 'role',
+    type: 'string',
+    meta: {
+      interface: 'select-dropdown',
+      options: { choices: INVITE_ROLE_CHOICES },
+      note: 'Роль в приложении для приглашённого; у reset-инвайтов пусто',
+      width: 'half',
+    },
+    schema: { is_nullable: true },
+  },
 ];
 
 export const RELATIONS: readonly RelationSpec[] = [
@@ -232,6 +256,32 @@ export function planMemberships({ roles, users, memberUserIds }: MembershipInput
     else plan.toAdd.push(user.id);
   }
   return plan;
+}
+
+export interface RoleWithPolicies {
+  id: string;
+  name: string;
+  policies: readonly { id: string; name: string }[];
+}
+
+export interface TeamAdminRolePlan {
+  /** `null` — роли `team_admin` ещё нет, её надо создать. */
+  roleId: string | null;
+  /** Политики шаблонной роли, которых у `team_admin` пока нет. Лишние связи не снимаются. */
+  addPolicies: { id: string; name: string }[];
+  templateMissing: boolean;
+}
+
+/** `team_admin` получает те же политики, что `musician_editor` на этом инстансе (по связям access). */
+export function planTeamAdminRole(roles: readonly RoleWithPolicies[]): TeamAdminRolePlan {
+  const template = roles.find((r) => r.name === TEAM_ADMIN_TEMPLATE_ROLE);
+  const role = roles.find((r) => r.name === TEAM_ADMIN_ROLE);
+  const linked = new Set(role?.policies.map((p) => p.id) ?? []);
+  return {
+    roleId: role?.id ?? null,
+    addPolicies: (template?.policies ?? []).filter((p) => !linked.has(p.id)),
+    templateMissing: !template,
+  };
 }
 
 export interface TeamFieldState {

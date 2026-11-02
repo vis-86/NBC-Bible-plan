@@ -9,6 +9,8 @@ import {
   createItem,
   createItems,
   createRelation,
+  createRole,
+  customEndpoint,
   deletePermissions,
   readCollections,
   readFields,
@@ -27,6 +29,8 @@ import {
   NBC_TEAM,
   REQUIRED_TEAM_COLLECTIONS,
   STRIP_PERMISSIONS,
+  TEAM_ADMIN_ROLE,
+  TEAM_ADMIN_TEMPLATE_ROLE,
   checkHost,
   describeSchemaStep,
   fieldKey,
@@ -34,9 +38,11 @@ import {
   planMemberships,
   planSchema,
   planStrip,
+  planTeamAdminRole,
   type BackfillCollection,
   type PermissionRow,
   type RequiredTeamCollection,
+  type RoleWithPolicies,
   type SchemaState,
   type SchemaStep,
   type TeamFieldState,
@@ -56,6 +62,7 @@ export interface MigrationClient {
 
 export interface Logger {
   info(message: string): void;
+  warn(message: string): void;
   error(message: string): void;
 }
 
@@ -235,7 +242,7 @@ async function applyTeams(client: MigrationClient, dryRun: boolean, log: Logger)
   }
 
   const [roles, users, members] = await Promise.all([
-    readAll((page) => client.request(readRoles({ fields: ['id', 'name'], sort: ['id'], limit: PAGE, page }))),
+    readRolesWithPolicies(client),
     readAll((page) => client.request(readUsers({ fields: ['id', 'role'], sort: ['id'], limit: PAGE, page }))),
     has('team_members')
       ? readAll((page) =>
@@ -243,8 +250,10 @@ async function applyTeams(client: MigrationClient, dryRun: boolean, log: Logger)
         )
       : Promise.resolve([]),
   ]);
+  await ensureTeamAdminRole(client, roles, dryRun, log);
+
   const memberships = planMemberships({
-    roles: roles.map((r) => ({ id: String(r.id), name: String(r.name) })),
+    roles,
     users: users.map((u) => ({ id: String(u.id), role: (u.role as string | null) ?? null })),
     memberUserIds: new Set(members.map((m) => String(m.user))),
   });
@@ -261,6 +270,79 @@ async function applyTeams(client: MigrationClient, dryRun: boolean, log: Logger)
   }
   log.info(`${LOG} memberships: ${memberships.toAdd.length} user(s) added to team "${NBC_TEAM.slug}"`);
   return 0;
+}
+
+interface AccessRow {
+  role: string | null;
+  policy: { id: string; name: string } | null;
+}
+
+/** Роли и их политики из `directus_access` (строки с `role = null` — связи пользователей, не ролей). */
+async function readRolesWithPolicies(client: MigrationClient): Promise<RoleWithPolicies[]> {
+  const [roles, access] = await Promise.all([
+    readAll((page) => client.request(readRoles({ fields: ['id', 'name'], sort: ['id'], limit: PAGE, page }))),
+    // У SDK нет команды для directus_access — читаем эндпоинт напрямую.
+    readAll((page) =>
+      client.request(
+        customEndpoint<AccessRow[]>({
+          path: '/access',
+          method: 'GET',
+          params: { fields: ['role', 'policy.id', 'policy.name'], sort: ['id'], limit: PAGE, page },
+        }),
+      ),
+    ),
+  ]);
+  return roles.map((r) => ({
+    id: String(r.id),
+    name: String(r.name),
+    policies: access
+      .filter((a) => a.role === r.id && a.policy)
+      .map((a) => ({ id: String(a.policy?.id), name: String(a.policy?.name) })),
+  }));
+}
+
+async function ensureTeamAdminRole(
+  client: MigrationClient,
+  roles: readonly RoleWithPolicies[],
+  dryRun: boolean,
+  log: Logger,
+): Promise<void> {
+  const plan = planTeamAdminRole(roles);
+  const names = plan.addPolicies.map((p) => p.name).join(', ');
+  if (plan.templateMissing) {
+    log.warn(`${LOG} role "${TEAM_ADMIN_TEMPLATE_ROLE}" not found — "${TEAM_ADMIN_ROLE}" gets no policies`);
+  }
+  if (plan.roleId && !plan.addPolicies.length) {
+    log.info(`${LOG} role "${TEAM_ADMIN_ROLE}" exists (${plan.roleId}), policies up to date`);
+    return;
+  }
+  if (dryRun) {
+    if (!plan.roleId) log.info(`${LOG} [dry-run] would create role "${TEAM_ADMIN_ROLE}"`);
+    if (names) log.info(`${LOG} [dry-run] would link policies to "${TEAM_ADMIN_ROLE}": ${names}`);
+    return;
+  }
+  let roleId = plan.roleId;
+  if (!roleId) {
+    const created = await client.request(
+      createRole({
+        name: TEAM_ADMIN_ROLE,
+        icon: 'admin_panel_settings',
+        description: 'Администратор команды: участники и инвайты своей команды',
+      }),
+    );
+    roleId = String(created.id);
+    log.info(`${LOG} role "${TEAM_ADMIN_ROLE}" created (${roleId})`);
+  }
+  if (!plan.addPolicies.length) return;
+  // Связь роль↔политика — строка directus_access, пишется тем же эндпоинтом.
+  await client.request(
+    customEndpoint<unknown>({
+      path: '/access',
+      method: 'POST',
+      body: JSON.stringify(plan.addPolicies.map((p) => ({ role: roleId, policy: p.id }))),
+    }),
+  );
+  log.info(`${LOG} role "${TEAM_ADMIN_ROLE}": linked policies ${names}`);
 }
 
 /** Пачками, пока остаются строки без команды: старый код может создавать их параллельно. */
