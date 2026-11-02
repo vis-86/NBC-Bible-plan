@@ -1,0 +1,72 @@
+# Витрина worship (песни и сеты для музыкальных команд) — отдельный домен, та же статика
+# из второго билда (/usr/share/nginx/html-worship) и тот же BFF.
+#
+# Включение — одна правка: заменить WORSHIP_DOMAIN на реальный домен (во всех местах
+# файла), выпустить сертификат certbot'ом для этого домена, затем
+#   mv worship.conf.disabled worship.conf  &&  docker compose restart nginx
+# Пока файл *.disabled, nginx его не читает, а default.conf/tls.conf не затронуты.
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name WORSHIP_DOMAIN;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://WORSHIP_DOMAIN$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name WORSHIP_DOMAIN;
+
+    ssl_certificate     /etc/letsencrypt/live/WORSHIP_DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/WORSHIP_DOMAIN/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    client_max_body_size 25m;
+    resolver 127.0.0.11 valid=30s ipv6=off;
+
+    # Тот же BFF, что у основного приложения (сессия — cookie хоста, домены изолированы).
+    location /app/api/ {
+        set $up_bff bff;
+        proxy_pass http://$up_bff:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location = /app/sw.js {
+        root /usr/share/nginx/html-worship;
+        add_header Cache-Control "public, max-age=0, must-revalidate";
+    }
+
+    location /app/_next/static/ {
+        root /usr/share/nginx/html-worship;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    location = /app/manifest.webmanifest {
+        root /usr/share/nginx/html-worship;
+        add_header Cache-Control "public, max-age=0, must-revalidate";
+    }
+
+    location /app {
+        root /usr/share/nginx/html-worship;
+        try_files $uri $uri.html $uri/ =404;
+        add_header Cache-Control "no-cache";
+    }
+
+    location = / {
+        return 302 /app;
+    }
+}

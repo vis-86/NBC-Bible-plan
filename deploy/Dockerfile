@@ -32,6 +32,29 @@ ENV NEXT_PUBLIC_REGISTER_REQUIRE_CODE=$NEXT_PUBLIC_REGISTER_REQUIRE_CODE
 RUN yarn build
 
 # ---------------------------------------------------------------------------
+# build-worship: вторая статика из той же кодовой базы — витрина для музыкальных
+# команд (NEXT_PUBLIC_APP_MODE=worship, см. src/shared/config/appMode.ts). Next всегда
+# пишет в out/, поэтому режимы собираются в разных стадиях. Бренд — из build-args.
+# ---------------------------------------------------------------------------
+FROM base AS build-worship
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ARG NEXT_PUBLIC_BASE_PATH=/app
+ARG NEXT_PUBLIC_DIRECTUS_URL
+ARG NEXT_PUBLIC_AI_ENABLE
+ARG NEXT_PUBLIC_APP_NAME=Аккорды
+ARG NEXT_PUBLIC_APP_SHORT_NAME=Аккорды
+ENV NEXT_PUBLIC_APP_MODE=worship
+ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
+ENV NEXT_PUBLIC_DIRECTUS_URL=$NEXT_PUBLIC_DIRECTUS_URL
+ENV NEXT_PUBLIC_AI_ENABLE=$NEXT_PUBLIC_AI_ENABLE
+ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
+ENV NEXT_PUBLIC_APP_SHORT_NAME=$NEXT_PUBLIC_APP_SHORT_NAME
+RUN yarn build
+
+# ---------------------------------------------------------------------------
 # bff: Hono API server. Runs TS directly via tsx (no separate build step for
 # the BFF, see T1 — keeps this small/volunteer-maintainable), so the runtime
 # image needs the full node_modules (tsx is a devDependency), not a pruned one.
@@ -71,3 +94,5 @@ CMD ["node_modules/.bin/tsx", "server/src/index.ts"]
 # ---------------------------------------------------------------------------
 FROM nginx:alpine AS static
 COPY --from=build /app/out /usr/share/nginx/html/app
+# Витрина worship — отдельный корень; server-блок домена витрины: nginx/conf.d/worship.conf.disabled
+COPY --from=build-worship /app/out /usr/share/nginx/html-worship/app

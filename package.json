@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "concurrently -n next,bff -c blue,green \"next dev\" \"tsx watch server/src/index.ts\"",
     "build": "tsx scripts/build-manifest.ts && next build && tsx scripts/build-sw.ts",
+    "build:worship": "NEXT_PUBLIC_APP_MODE=worship yarn build",
     "bff:dev": "tsx watch server/src/index.ts",
     "bff:start": "tsx server/src/index.ts",
     "static:serve": "tsx scripts/static-serve.ts",
