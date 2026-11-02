@@ -9,6 +9,8 @@ import { raceNetwork } from '@/shared/offline/networkHealth';
 import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout } from '@/shared/offline/networkTimeout';
 import { scheduleEnsureOfflineData } from '@/shared/offline/autoDownload';
 import { ensureOfflineOwner } from '@/shared/offline/offlineOwner';
+import { replayOutbox } from '@/shared/offline/sync';
+import { SETLIST_DRAFT_STORAGE_KEY } from '@/features/setlists/hooks/useSetlistDraft';
 
 interface User {
   directus_id: string;
@@ -122,7 +124,14 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           const ownerId = data.user.directus_id;
           if (typeof ownerId === 'string' && ownerId !== '') {
             try {
-              await ensureOfflineOwner(ownerId);
+              if ((await ensureOfflineOwner(ownerId)) === 'wiped') {
+                // Черновик сета лежит в localStorage (features-слой), чужой команды — снимаем.
+                try {
+                  window.localStorage.removeItem(SETLIST_DRAFT_STORAGE_KEY);
+                } catch {
+                  // localStorage недоступен — черновика всё равно не прочитать
+                }
+              }
             } catch (err) {
               console.error('[AuthProvider] offline owner check failed', err);
             }
@@ -131,16 +140,23 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           }
           if (isStale()) return;
           settle(data.user);
-          void setLastKnownUser(data.user);
+          await setLastKnownUser(data.user);
+          if (isStale()) return;
           // Только server-confirmed вход (не last-known-user фолбэк ниже) — иначе
           // офлайн-вход пытается качать данные без сети.
           scheduleEnsureOfflineData();
+          // Владелец и last-known-user уже записаны — отложенные записи уходят сразу.
+          void replayOutbox();
         } else {
           // Сервер явно ответил «сессии нет» — это НЕ повод для офлайн-фолбэка.
+          await clearLastKnownUser();
+          if (isStale()) return;
           settle(null);
         }
       } else {
         // response.ok === false — тоже реальное «сессии нет» (напр. 401), а не сетевая ошибка.
+        await clearLastKnownUser();
+        if (isStale()) return;
         settle(null);
       }
     } catch (error) {

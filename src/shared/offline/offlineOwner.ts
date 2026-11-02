@@ -1,4 +1,5 @@
 import { getDB } from './db';
+import { clearLastKnownUser, getLastKnownUser } from './lastKnownUser';
 import { SYNC_ETAG_META_KEY, SYNC_VERSIONS_META_KEY } from './syncVersions';
 import { MANIFEST_PLAN_KEY, MANIFEST_SETLISTS_KEY, MANIFEST_SONGS_KEY } from './downloadManager';
 
@@ -18,12 +19,17 @@ export async function ensureOfflineOwner(userId: string): Promise<OfflineOwnerRe
   const db = await getDB();
   const record = await db.get('meta', OFFLINE_OWNER_META_KEY);
 
-  // Первый запуск после обновления: данные уже лежат и принадлежат этому пользователю.
   if (!record) {
-    await db.put('meta', { key: OFFLINE_OWNER_META_KEY, value: userId });
-    return 'claimed';
+    // Первый запуск после обновления: данные принадлежат этому пользователю — если только
+    // на устройстве не помнят другого (last-known-user ещё прежний: вызывать до его замены).
+    const known = await getLastKnownUser<{ directus_id?: unknown }>();
+    if (!known || typeof known.directus_id !== 'string' || known.directus_id === '' || known.directus_id === userId) {
+      await db.put('meta', { key: OFFLINE_OWNER_META_KEY, value: userId });
+      return 'claimed';
+    }
+  } else if (record.value === userId) {
+    return 'same';
   }
-  if (record.value === userId) return 'same';
 
   // Одна транзакция: либо вычистили всё и сменили владельца, либо ничего не изменилось
   // (иначе обрыв посреди очистки оставил бы чужие данные под старым владельцем).
@@ -42,4 +48,15 @@ export async function ensureOfflineOwner(userId: string): Promise<OfflineOwnerRe
     tx.done,
   ]);
   return 'wiped';
+}
+
+/**
+ * Вход/регистрация/активация другого пользователя: прежний last-known-user снимается до
+ * навигации, чтобы дашборд не стартовал «от имени» прежнего. Без id в ответе сравнивать
+ * не с чем — ничего не трогаем (AuthProvider разберётся по ответу сессии).
+ */
+export async function forgetForeignLastKnownUser(newUserId: unknown): Promise<void> {
+  if (typeof newUserId !== 'string' || newUserId === '') return;
+  const known = await getLastKnownUser<{ directus_id?: unknown }>();
+  if (known && known.directus_id !== newUserId) await clearLastKnownUser();
 }

@@ -1,6 +1,9 @@
 import { getPendingOutbox, attemptSend, removeOutboxRecord } from './outbox';
 import { isProgressOutboxRecord } from './db';
 import { raceNetwork } from './networkHealth';
+import { getLastKnownUser } from './lastKnownUser';
+import { getDB } from './db';
+import { OFFLINE_OWNER_META_KEY } from './offlineOwner';
 import { getApiPath } from '@/shared/utils/api';
 
 /**
@@ -50,6 +53,10 @@ let replayInFlight = false;
  * долгого офлайна с повторными тогглами одного дня).
  */
 export async function replayOutbox(): Promise<void> {
+  if (!(await isOutboxOwnedBySession())) {
+    debug('outbox owner not confirmed for the signed-in user — replay skipped');
+    return;
+  }
   if (replayInFlight) {
     debug('replay already in flight, skipping');
     return;
@@ -86,6 +93,25 @@ export async function replayOutbox(): Promise<void> {
     }
   } finally {
     replayInFlight = false;
+  }
+}
+
+/**
+ * Записи outbox уходят с cookie текущей сессии, поэтому реплей разрешён только когда
+ * владелец устройства совпадает с последним подтверждённым сервером пользователем.
+ * Иначе записи остаются в IDB до подтверждения (или очистки при входе другого).
+ */
+async function isOutboxOwnedBySession(): Promise<boolean> {
+  try {
+    const known = await getLastKnownUser<{ directus_id?: unknown }>();
+    const id = known?.directus_id;
+    if (typeof id !== 'string' || id === '') return false;
+    const db = await getDB();
+    const owner = await db.get('meta', OFFLINE_OWNER_META_KEY);
+    return owner?.value === id;
+  } catch (err) {
+    debug('owner check failed', err);
+    return false;
   }
 }
 

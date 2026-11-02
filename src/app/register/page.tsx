@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { getApiPath, getBasePath } from '@/lib/utils';
+import { forgetForeignLastKnownUser } from '@/shared/offline/offlineOwner';
 import { SUPPORT_CONTACT } from '@/lib/constants';
 import { isRegisterEnabled, isRegisterCodeRequired } from '@/shared/utils/constants';
 import { InstallAppHint } from '@/shared/components/pwa/InstallAppHint';
@@ -80,6 +81,7 @@ function RegisterForm() {
         else setError(message);
         return;
       }
+      await forgetForeignLastKnownUser(data?.user?.directus_id);
       markWelcomePending();
       setCreated({ login: trimmedLogin, password });
     } catch {

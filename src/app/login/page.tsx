@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { hasTelegramWebAppObject, isTelegramWebApp, initTelegramWebApp, getTelegramInitData } from '@/lib/telegram';
 import { getApiPath, getBasePath } from '@/lib/utils';
+import { forgetForeignLastKnownUser } from '@/shared/offline/offlineOwner';
 import { SUPPORT_CONTACT } from '@/lib/constants';
 import { isRegisterEnabled } from '@/shared/utils/constants';
 import TelegramLinkForm from '@/features/auth/components/TelegramLinkForm';
@@ -66,6 +67,7 @@ function LoginForm() {
         // ВАЖНО: ветвимся по data.linked, НЕ по verifyRes.ok — иначе при linked:false
         // редирект на /dashboard → middleware вернёт на /login → бесконечный цикл.
         if (verifyRes.ok && data.linked) {
+          await forgetForeignLastKnownUser(data.user?.directus_id);
           const redirect = searchParams.get('redirect') || '/dashboard';
           const url = redirect.startsWith('http') ? redirect : `${window.location.origin}${getBasePath()}${redirect}`;
           window.location.href = url;
@@ -119,6 +121,7 @@ function LoginForm() {
       });
       const sessionData = await sessionRes.json().catch(() => ({}));
       if (sessionData?.user) {
+        await forgetForeignLastKnownUser(sessionData.user.directus_id);
         if (typeof (window as any).refreshAuth === 'function') {
           (window as any).refreshAuth();
         }

@@ -13,12 +13,21 @@ vi.mock('@/shared/services/api/graphql', async () => {
 import { enqueueSingleProgress, enqueueBatchProgress, getPendingOutbox } from './outbox';
 import { replayOutbox, registerSyncTriggers, isServerReachable } from './sync';
 import { __deleteDB } from './db';
+import { setLastKnownUser } from './lastKnownUser';
+import { ensureOfflineOwner } from './offlineOwner';
+
+// replayOutbox шлёт записи только для подтверждённого владельца устройства.
+async function confirmDeviceOwner() {
+  await setLastKnownUser({ directus_id: 'u1', first_name: 'Тест' });
+  await ensureOfflineOwner('u1');
+}
 
 describe('offline/sync replayOutbox', () => {
   const fetchMock = vi.fn();
 
   beforeEach(async () => {
     await __deleteDB();
+    await confirmDeviceOwner();
     mutateMock.mockReset();
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
@@ -153,6 +162,7 @@ describe('registerSyncTriggers — online-триггер гейтится health
 
   beforeEach(async () => {
     await __deleteDB();
+    await confirmDeviceOwner();
     mutateMock.mockReset();
     fetchMock.mockReset();
     vi.stubGlobal('fetch', fetchMock);
@@ -191,5 +201,49 @@ describe('registerSyncTriggers — online-триггер гейтится health
     });
 
     unregister();
+  });
+});
+
+describe('offline/sync replayOutbox — владелец устройства', () => {
+  const fetchMock = vi.fn();
+
+  beforeEach(async () => {
+    await __deleteDB();
+    mutateMock.mockReset();
+    fetchMock.mockReset();
+    vi.stubGlobal('fetch', fetchMock);
+    mutateMock.mockResolvedValue({});
+  });
+
+  it('нет last-known-user -> записи не уходят и остаются в очереди', async () => {
+    mutateMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    await enqueueSingleProgress(1, 3);
+    mutateMock.mockClear();
+    await replayOutbox();
+    expect(mutateMock).not.toHaveBeenCalled();
+    expect(await getPendingOutbox()).toHaveLength(1);
+  });
+
+  it('владелец устройства отличается от last-known-user -> записи не уходят и остаются', async () => {
+    await setLastKnownUser({ directus_id: 'u1', first_name: 'A' });
+    await ensureOfflineOwner('u1');
+    mutateMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    await enqueueSingleProgress(1, 3);
+    await setLastKnownUser({ directus_id: 'u2', first_name: 'B' });
+    mutateMock.mockClear();
+    await replayOutbox();
+    expect(mutateMock).not.toHaveBeenCalled();
+    expect(await getPendingOutbox()).toHaveLength(1);
+  });
+
+  it('владелец совпадает с last-known-user -> записи уходят', async () => {
+    await setLastKnownUser({ directus_id: 'u1', first_name: 'A' });
+    await ensureOfflineOwner('u1');
+    mutateMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    await enqueueSingleProgress(1, 3);
+    mutateMock.mockClear();
+    await replayOutbox();
+    expect(mutateMock).toHaveBeenCalledTimes(1);
+    expect(await getPendingOutbox()).toHaveLength(0);
   });
 });

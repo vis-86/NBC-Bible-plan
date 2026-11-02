@@ -2,7 +2,8 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { __deleteDB, getDB } from './db';
-import { OFFLINE_OWNER_META_KEY, ensureOfflineOwner } from './offlineOwner';
+import { OFFLINE_OWNER_META_KEY, ensureOfflineOwner, forgetForeignLastKnownUser } from './offlineOwner';
+import { getLastKnownUser, setLastKnownUser } from './lastKnownUser';
 import { SYNC_ETAG_META_KEY, SYNC_VERSIONS_META_KEY } from './syncVersions';
 
 async function seed() {
@@ -68,5 +69,31 @@ describe('offline/offlineOwner', () => {
     await db.put('songs', { id: '9', data: {}, updatedAt: Date.now() });
     expect(await ensureOfflineOwner('u2')).toBe('same');
     expect(await db.count('songs')).toBe(1);
+  });
+
+  it('первый запуск, last-known-user другой -> wiped, а не claimed', async () => {
+    await seed();
+    await setLastKnownUser({ directus_id: 'u-old', first_name: 'A' });
+    expect(await ensureOfflineOwner('u2')).toBe('wiped');
+    const db = await getDB();
+    expect(await db.count('songs')).toBe(0);
+    expect((await db.get('meta', OFFLINE_OWNER_META_KEY))?.value).toBe('u2');
+  });
+
+  it('первый запуск, last-known-user тот же -> claimed без очистки', async () => {
+    await seed();
+    await setLastKnownUser({ directus_id: 'u2', first_name: 'A' });
+    expect(await ensureOfflineOwner('u2')).toBe('claimed');
+    expect(await (await getDB()).count('songs')).toBe(1);
+  });
+
+  it('forgetForeignLastKnownUser: чужого снимает, своего и без id — нет', async () => {
+    await setLastKnownUser({ directus_id: 'u1', first_name: 'A' });
+    await forgetForeignLastKnownUser('u1');
+    expect(await getLastKnownUser()).toBeDefined();
+    await forgetForeignLastKnownUser(undefined);
+    expect(await getLastKnownUser()).toBeDefined();
+    await forgetForeignLastKnownUser('u2');
+    expect(await getLastKnownUser()).toBeUndefined();
   });
 });

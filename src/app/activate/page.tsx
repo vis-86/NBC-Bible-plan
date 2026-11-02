@@ -3,6 +3,7 @@
 import { useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getApiPath, getBasePath } from '@/lib/utils';
+import { forgetForeignLastKnownUser } from '@/shared/offline/offlineOwner';
 import { SUPPORT_CONTACT } from '@/lib/constants';
 
 const inputClass =
@@ -59,6 +60,7 @@ function ActivateForm() {
         setError(data?.error || 'Не удалось завершить. Попробуйте ещё раз.');
         return;
       }
+      await forgetForeignLastKnownUser(data?.user?.directus_id);
       window.location.href = `${window.location.origin}${getBasePath()}/dashboard`;
     } catch {
       setError('Ошибка сети. Попробуйте ещё раз.');

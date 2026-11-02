@@ -53,10 +53,19 @@ import { getApiCache, persistApiCache, SONGS_LIST_CACHE_KEY } from './readThroug
 import { getCachedSong } from '@/features/songs/lib/offlineSongs';
 import { enqueueSingleProgress, getPendingOutbox } from './outbox';
 import { readSetlistThrough, readSetlistsThrough, setlistCacheKey } from '@/features/setlists/lib/offlineSetlists';
+import { setLastKnownUser } from './lastKnownUser';
+import { ensureOfflineOwner } from './offlineOwner';
+
+// replayOutbox шлёт записи только для подтверждённого владельца устройства.
+async function confirmDeviceOwner() {
+  await setLastKnownUser({ directus_id: 'u1', first_name: 'Тест' });
+  await ensureOfflineOwner('u1');
+}
 
 describe('offline/downloadManager', () => {
   beforeEach(async () => {
     await __deleteDB();
+    await confirmDeviceOwner();
     getSongsMock.mockReset();
     getSongMock.mockReset();
     getPlanMock.mockReset();
@@ -339,6 +348,7 @@ describe('offline/downloadManager', () => {
 describe('offline/downloadManager — дельта-синк (T15)', () => {
   beforeEach(async () => {
     await __deleteDB();
+    await confirmDeviceOwner();
     getSongsMock.mockReset();
     getSongMock.mockReset();
     getSetlistsMock.mockReset();

@@ -14,12 +14,21 @@ vi.mock('@/shared/services/api/graphql', () => ({
 import { __deleteDB, __resetDBConnection, isProgressOutboxRecord } from './db';
 import { enqueueSingleProgress, enqueueSongAnnotations, getPendingOutbox, getPendingOutboxOverlay } from './outbox';
 import { replayOutbox } from './sync';
+import { setLastKnownUser } from './lastKnownUser';
+import { ensureOfflineOwner } from './offlineOwner';
+
+// replayOutbox шлёт записи только для подтверждённого владельца устройства.
+async function confirmDeviceOwner() {
+  await setLastKnownUser({ directus_id: 'u1', first_name: 'Тест' });
+  await ensureOfflineOwner('u1');
+}
 
 const fetchMock = vi.fn();
 
 beforeEach(async () => {
   await __deleteDB();
   __resetDBConnection();
+  await confirmDeviceOwner();
   mutateMock.mockReset();
   fetchMock.mockReset();
   vi.stubGlobal('fetch', fetchMock);
