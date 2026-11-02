@@ -4,7 +4,13 @@
  * См. `.ai-factory/plans/feature-setlists.md`, `.ai-factory/plans/feature-song-editor.md`.
  */
 import type { Context, Next } from 'hono';
-import { canEditSongs, canManageSetlists, resolveAppRole, type AppRole } from '../../../src/lib/app-roles';
+import {
+  canEditSongs,
+  canManageSetlists,
+  canManageTeam,
+  resolveAppRole,
+  type AppRole,
+} from '../../../src/lib/app-roles';
 import { getUserRoleName } from '../../../src/lib/directus-user';
 import { logger } from '../logger';
 import { getSession } from '../session';
@@ -37,5 +43,8 @@ function requireRole(allowed: (role: AppRole) => boolean, what: string) {
 
 export const requireSetlistWrite = requireRole(canManageSetlists, 'setlist write');
 
-/** Правка и создание песен — только `musician_editor` (M9). */
+/** Правка и создание песен — `musician_editor` и `team_admin` (M9). */
 export const requireSongWrite = requireRole(canEditSongs, 'song write');
+
+/** Участники и инвайты своей команды — только `team_admin`. */
+export const requireTeamAdmin = requireRole(canManageTeam, 'team management');
