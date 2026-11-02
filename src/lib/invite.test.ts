@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 /**
  * In-memory мок коллекции Directus `auth_invites`.
@@ -70,13 +70,29 @@ vi.mock('@directus/sdk', () => ({
   updateItem: (_c: string, id: number, data: Partial<Row>): UpdateOp => ({ __op: 'update', id, data }),
 }));
 
+const { getTeamIdBySlugMock, getUserTeamIdMock } = vi.hoisted(() => ({
+  getTeamIdBySlugMock: vi.fn(),
+  getUserTeamIdMock: vi.fn(),
+}));
+vi.mock('./teams', () => ({
+  NBC_TEAM_SLUG: 'nbc',
+  getTeamIdBySlug: getTeamIdBySlugMock,
+  getUserTeamId: getUserTeamIdMock,
+}));
+
 import { createInvite, findValidInvite, consumeInvite } from './invite';
 
 describe('DB-backed invites', () => {
   beforeEach(() => {
     rows = [];
     nextId = 1;
+    getTeamIdBySlugMock.mockReset().mockResolvedValue('nbc-id');
+    getUserTeamIdMock.mockReset().mockResolvedValue(null);
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://nbc.test');
+    vi.stubEnv('WORSHIP_APP_URL', 'https://worship.test');
+    vi.stubEnv('NEXT_PUBLIC_BASE_PATH', '/app');
   });
+  afterEach(() => vi.unstubAllEnvs());
 
   it('creates an activate invite and finds it valid', async () => {
     const { token, url } = await createInvite({ kind: 'activate', teamId: 'team-1' });
@@ -145,5 +161,37 @@ describe('DB-backed invites', () => {
   it('reset invite needs no team', async () => {
     const { token } = await createInvite({ kind: 'reset', userId: 'user-123' });
     expect(await findValidInvite(token)).toMatchObject({ kind: 'reset', team: null, role: null });
+  });
+
+  describe('link domain follows the team', () => {
+    it('activate for the NBC team links to NEXT_PUBLIC_APP_URL', async () => {
+      const { url } = await createInvite({ kind: 'activate', teamId: 'nbc-id' });
+      expect(url.startsWith('https://nbc.test/app/activate?')).toBe(true);
+    });
+
+    it('activate for another team links to WORSHIP_APP_URL', async () => {
+      const { url } = await createInvite({ kind: 'activate', teamId: 'team-9', role: 'team_admin' });
+      expect(url.startsWith('https://worship.test/app/activate?')).toBe(true);
+    });
+
+    it('another team without WORSHIP_APP_URL: throws and creates nothing', async () => {
+      vi.stubEnv('WORSHIP_APP_URL', '');
+      await expect(createInvite({ kind: 'activate', teamId: 'team-9' })).rejects.toThrow(
+        'WORSHIP_APP_URL is not configured',
+      );
+      expect(rows).toHaveLength(0);
+    });
+
+    it('reset for a member of another team links to WORSHIP_APP_URL', async () => {
+      getUserTeamIdMock.mockResolvedValue('team-9');
+      const { url } = await createInvite({ kind: 'reset', userId: 'user-1' });
+      expect(getUserTeamIdMock).toHaveBeenCalledWith('user-1');
+      expect(url.startsWith('https://worship.test/app/activate?')).toBe(true);
+    });
+
+    it('reset for a user without a team links to NEXT_PUBLIC_APP_URL', async () => {
+      const { url } = await createInvite({ kind: 'reset', userId: 'user-1' });
+      expect(url.startsWith('https://nbc.test/app/activate?')).toBe(true);
+    });
   });
 });

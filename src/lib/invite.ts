@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { getDirectusAdminClient } from './directus';
 import { readItems, createItem, updateItem } from '@directus/sdk';
 import type { AppRole } from './app-roles';
+import { NBC_TEAM_SLUG, getTeamIdBySlug, getUserTeamId } from './teams';
 
 /**
  * Stateful invite/reset токены в коллекции Directus `auth_invites`.
@@ -84,6 +85,22 @@ export async function consumeInvite(id: number, createdUserId?: string): Promise
 }
 
 /**
+ * Домен приложения для ссылки: команда NBC — `NEXT_PUBLIC_APP_URL`, любая другая — `WORSHIP_APP_URL`
+ * (своя витрина). reset без команды у пользователя — старый аккаунт, ссылка NBC как раньше.
+ */
+async function resolveAppUrl(teamId: string | null): Promise<string> {
+  if (teamId) {
+    const nbcId = await getTeamIdBySlug(NBC_TEAM_SLUG);
+    if (teamId !== nbcId) {
+      const worshipUrl = process.env.WORSHIP_APP_URL;
+      if (!worshipUrl) throw new Error('createInvite: WORSHIP_APP_URL is not configured');
+      return worshipUrl;
+    }
+  }
+  return process.env.NEXT_PUBLIC_APP_URL || '';
+}
+
+/**
  * Программно создаёт invite/reset запись. Генерит token/expires_at/invite_url app-side
  * (НЕ полагается на Directus Flow — Flow обслуживает только ручной admin-UI путь).
  * activate-инвайт обязан нести команду (`teamId`): без неё аккаунт создать некуда.
@@ -102,11 +119,13 @@ export async function createInvite(input: {
   if (input.kind === 'activate' && !input.teamId) {
     throw new Error('createInvite: activate invite requires teamId');
   }
+  const linkTeamId =
+    input.kind === 'activate' ? (input.teamId ?? null) : input.userId ? await getUserTeamId(input.userId) : null;
+  const appUrl = await resolveAppUrl(linkTeamId);
   const token = crypto.randomUUID();
   const ttl = input.ttlSeconds ?? DEFAULT_TTL_SECONDS;
   const expiresAt = new Date(Date.now() + ttl * 1000).toISOString();
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH || '';
   const url = `${appUrl}${basePath}/activate?token=${encodeURIComponent(token)}&mode=${input.kind}`;
 

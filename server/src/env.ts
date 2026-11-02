@@ -18,6 +18,7 @@ const envSchema = z.object({
   NEXT_PUBLIC_DIRECTUS_URL: z.string().optional(),
   NEXT_PUBLIC_AI_ENABLE: z.string().optional(),
   NEXT_PUBLIC_BASE_PATH: z.string().optional(),
+  WORSHIP_APP_URL: z.string().optional(),
   LOG_LEVEL: z.string().optional(),
 });
 
