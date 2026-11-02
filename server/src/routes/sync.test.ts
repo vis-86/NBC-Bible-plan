@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { adminRequestMock, getReadingPlanMock } = vi.hoisted(() => ({
+const { adminRequestMock, getReadingPlanMock, getUserTeamIdMock } = vi.hoisted(() => ({
   adminRequestMock: vi.fn(),
   getReadingPlanMock: vi.fn(),
+  getUserTeamIdMock: vi.fn(),
 }));
 
 vi.mock('../../../src/lib/directus', () => ({
@@ -11,6 +12,9 @@ vi.mock('../../../src/lib/directus', () => ({
 vi.mock('../../../src/lib/directus-data', () => ({
   getReadingPlan: getReadingPlanMock,
   getWeeklyPlanItems: vi.fn(),
+}));
+vi.mock('../../../src/lib/teams', () => ({
+  getUserTeamId: getUserTeamIdMock,
 }));
 
 import { sealSession, SESSION_COOKIE_NAME } from '../../../src/lib/session-core';
@@ -37,10 +41,35 @@ function mockDirectusOk(options: { songId?: number; setlistId?: string } = {}) {
   getReadingPlanMock.mockResolvedValue([{ id: 1, numbers: 1, item: 1, read: 'Быт 1' }]);
 }
 
+type DirectusCommand = () => { path: string; params?: { filter?: { team?: { _eq?: string } } } };
+
+/** Песни двух команд; версии песен фильтруются по `team`, как в настоящем Directus. */
+function mockDirectusTwoTeams() {
+  const songs = [
+    { id: 1, team: 'team-a', date_updated: '2026-08-01T10:00:00Z', date_created: null },
+    { id: 2, team: 'team-b', date_updated: '2026-08-03T10:00:00Z', date_created: null },
+  ];
+  adminRequestMock.mockImplementation(async (command: DirectusCommand) => {
+    const { path, params } = command();
+    if (path === '/items/songs') {
+      const team = params?.filter?.team?._eq;
+      return songs.filter((row) => team === undefined || row.team === team);
+    }
+    if (path === '/items/setlists' || path === '/items/setlist_items') return [];
+    throw new Error(`unexpected Directus call ${path}`);
+  });
+  getReadingPlanMock.mockResolvedValue([{ id: 1, numbers: 1, item: 1, read: 'Быт 1' }]);
+  getUserTeamIdMock.mockImplementation(async (directusId: string) =>
+    directusId === 'user-a' ? 'team-a' : directusId === 'user-b' ? 'team-b' : null,
+  );
+}
+
 beforeEach(() => {
   process.env.SESSION_SECRET = 'test-session-secret-at-least-32-chars-long';
   adminRequestMock.mockReset();
   getReadingPlanMock.mockReset();
+  getUserTeamIdMock.mockReset();
+  getUserTeamIdMock.mockResolvedValue('team-a');
   __resetSyncCacheForTests();
 });
 
@@ -146,5 +175,56 @@ describe('GET /api/sync/manifest', () => {
     expect(res.status).toBe(503);
     const body = (await res.json()) as { error?: string; songs?: unknown };
     expect(body.songs).toBeUndefined();
+  });
+
+  it('без команды -> 403, Directus не запрашивается', async () => {
+    getUserTeamIdMock.mockResolvedValue(null);
+    const res = await createApp().request('/app/api/sync/manifest', {
+      headers: { cookie: await sessionCookie() },
+    });
+    expect(res.status).toBe(403);
+    expect(adminRequestMock).not.toHaveBeenCalled();
+  });
+
+  it('две команды получают разные манифесты — только свои песни', async () => {
+    mockDirectusTwoTeams();
+    const app = createApp();
+
+    const a = await app.request('/app/api/sync/manifest', { headers: { cookie: await sessionCookie('user-a') } });
+    const b = await app.request('/app/api/sync/manifest', { headers: { cookie: await sessionCookie('user-b') } });
+
+    expect(((await a.json()) as { songs: [string, string][] }).songs).toEqual([['1', '2026-08-01T10:00:00Z']]);
+    expect(((await b.json()) as { songs: [string, string][] }).songs).toEqual([['2', '2026-08-03T10:00:00Z']]);
+    expect(a.headers.get('ETag')).not.toBe(b.headers.get('ETag'));
+  });
+
+  it('кеш одной команды не отдаётся другой, а своей — отдаётся', async () => {
+    mockDirectusTwoTeams();
+    const app = createApp();
+    const cookieA = await sessionCookie('user-a');
+
+    await app.request('/app/api/sync/manifest', { headers: { cookie: cookieA } });
+    const callsAfterA = adminRequestMock.mock.calls.length;
+
+    const b = await app.request('/app/api/sync/manifest', { headers: { cookie: await sessionCookie('user-b') } });
+    expect(adminRequestMock.mock.calls.length).toBeGreaterThan(callsAfterA);
+    expect(((await b.json()) as { songs: [string, string][] }).songs.map(([id]) => id)).toEqual(['2']);
+
+    const callsAfterB = adminRequestMock.mock.calls.length;
+    const again = await app.request('/app/api/sync/manifest', { headers: { cookie: cookieA } });
+    expect(adminRequestMock.mock.calls.length).toBe(callsAfterB);
+    expect(((await again.json()) as { songs: [string, string][] }).songs.map(([id]) => id)).toEqual(['1']);
+  });
+
+  it('сбой Directus у одной команды -> 503, а не закешированный манифест другой', async () => {
+    mockDirectusTwoTeams();
+    const app = createApp();
+    await app.request('/app/api/sync/manifest', { headers: { cookie: await sessionCookie('user-a') } });
+
+    adminRequestMock.mockRejectedValue(new Error('Directus down'));
+    const res = await app.request('/app/api/sync/manifest', { headers: { cookie: await sessionCookie('user-b') } });
+
+    expect(res.status).toBe(503);
+    expect(((await res.json()) as { songs?: unknown }).songs).toBeUndefined();
   });
 });

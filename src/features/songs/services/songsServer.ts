@@ -6,8 +6,12 @@
  * Серверный доступ к коллекции `songs` через admin-клиент Directus.
  * Маппит поле `song_key` (Directus) → `key` (доменный тип Song).
  * Клиент в Directus напрямую не ходит — только через эти функции + API-роуты (arch: proxy).
+ *
+ * Админ-токен видит песни всех команд, поэтому функции, читающие или пишущие песни
+ * команды, принимают `teamId` первым аргументом и фильтруют по нему каждый запрос.
+ * `teamId` — только из `requireTeam` (членство по сессии), никогда из запроса.
  */
-import { createItem, readItem, readItems, updateItem } from '@directus/sdk';
+import { createItem, readItems, updateItem } from '@directus/sdk';
 import { getDirectusAdminClient } from '@/lib/directus';
 import type { CreateSongInput, UpdateSongInput } from '@/lib/validators/songs.schemas';
 import { chordProToPlainText } from '../lib/searchText';
@@ -58,12 +62,12 @@ function toSong(row: SongRow): Song {
  * `plainText` (без аккордов и директив) — иначе вес `songs:list`, который целиком лежит
  * в офлайн-кэше, вырос бы вдвое без пользы.
  */
-export async function getSongsList(): Promise<SongSummary[]> {
+export async function getSongsList(teamId: string): Promise<SongSummary[]> {
   const client = getDirectusAdminClient();
   const rows: SongRow[] = await client.request(
     readItems('songs', {
       fields: ['id', 'title', 'subtitle', 'song_key', 'tempo', 'time', 'content'],
-      filter: { status: { _eq: 'published' } },
+      filter: { status: { _eq: 'published' }, team: { _eq: teamId } },
       sort: ['sort', 'title'],
       limit: -1,
     }),
@@ -81,19 +85,25 @@ export async function getSongsList(): Promise<SongSummary[]> {
   return songs;
 }
 
-/** Одна песня с полным ChordPro-контентом, либо null если не найдена. */
-export async function getSongById(id: number): Promise<Song | null> {
+/**
+ * Одна песня команды с полным ChordPro-контентом, либо null. Песня другой команды и
+ * несуществующий id неразличимы — оба null. Сбой Directus пробрасывается (роут → 500):
+ * пустой ответ значит «нет», ошибка — ошибка.
+ */
+export async function getSongById(teamId: string, id: number): Promise<Song | null> {
   const client = getDirectusAdminClient();
-  try {
-    const row: SongRow = await client.request(
-      readItem('songs', id, { fields: [...DETAIL_FIELDS, 'visibility'] }),
-    );
-    return row ? toSong(row) : null;
-  } catch (error) {
-    // Directus кидает 403/404 для отсутствующего id — трактуем как "не найдено".
-    console.debug(`${LOG} detail: song ${id} not found`, error instanceof Error ? error.message : error);
+  const rows: SongRow[] = await client.request(
+    readItems('songs', {
+      fields: [...DETAIL_FIELDS, 'visibility'],
+      filter: { id: { _eq: id }, team: { _eq: teamId } },
+      limit: 1,
+    }),
+  );
+  if (rows.length === 0) {
+    console.debug(`${LOG} detail: song ${id} not found in team ${teamId}`);
     return null;
   }
+  return toSong(rows[0]);
 }
 
 /**
@@ -120,17 +130,17 @@ export async function getPublicSong(id: number): Promise<Song | null> {
 }
 
 /**
- * Версии песен для sync-манифеста: `[id, date_updated]`. `date_updated` — родное поле
- * Directus, отдельного счётчика версий заводить не нужно. Отдаём ВСЕ опубликованные id:
- * полный список заменяет tombstones — клиент удаляет из IDB всё, чего здесь нет.
+ * Версии песен команды для sync-манифеста: `[id, date_updated]`. `date_updated` — родное
+ * поле Directus, отдельного счётчика версий заводить не нужно. Отдаём ВСЕ опубликованные
+ * id команды: полный список заменяет tombstones — клиент удаляет из IDB всё, чего здесь нет.
  */
-export async function getSongVersions(): Promise<Array<[string, string]>> {
+export async function getSongVersions(teamId: string): Promise<Array<[string, string]>> {
   const client = getDirectusAdminClient();
   const rows: Array<{ id: number; date_updated?: string | null; date_created?: string | null }> =
     await client.request(
       readItems('songs', {
         fields: ['id', 'date_updated', 'date_created'],
-        filter: { status: { _eq: 'published' } },
+        filter: { status: { _eq: 'published' }, team: { _eq: teamId } },
         sort: ['id'],
         limit: -1,
       }),
@@ -165,16 +175,21 @@ function toRow(input: Partial<CreateSongInput & UpdateSongInput>): Record<string
 }
 
 /**
- * Создание песни (M9). Сервер сам задаёт три поля, которых нет в теле запроса:
+ * Создание песни (M9) в команде `teamId`. Сервер сам задаёт поля, которых нет в теле запроса:
  *
+ * - `team` — команда из сессии;
  * - `sort` = max + 1 — новая песня встаёт в конец каталога; в проде пустых `sort` нет;
  * - `slug` — NOT NULL + UNIQUE без дефолта, формат корпуса `{sort}-{название кебабом}`;
  * - `status: 'published'` — черновиков в модели нет (решение 1), а `draft` не попал бы
  *   ни в каталог, ни в sync-манифест: оба фильтруют по `published`.
  *
+ * `sort` и `slug` считаются по всем песням, не по команде: UNIQUE на `slug` глобальный.
+ * `visibility` без значения в теле — `members`: публикация песни — осознанное действие,
+ * дефолт колонки (`public`) при создании не используется.
+ *
  * Версию песни поднимать не нужно: манифест считает её по `date_updated`/`date_created`.
  */
-export async function createSong(input: CreateSongInput): Promise<number> {
+export async function createSong(teamId: string, input: CreateSongInput): Promise<number> {
   const client = getDirectusAdminClient();
 
   const [last]: Array<{ sort?: number | null }> = await client.request(
@@ -189,10 +204,17 @@ export async function createSong(input: CreateSongInput): Promise<number> {
   const slug = nextFreeSlug(base, siblings.map((row) => row.slug));
 
   const created: { id: number } = await client.request(
-    createItem('songs', { ...toRow(input), slug, sort, status: 'published' }),
+    createItem('songs', {
+      ...toRow(input),
+      visibility: input.visibility ?? 'members',
+      team: teamId,
+      slug,
+      sort,
+      status: 'published',
+    }),
   );
 
-  console.debug(`${LOG} create: song ${created.id} (${slug})`);
+  console.debug(`${LOG} create: song ${created.id} (${slug}) in team ${teamId}`);
   return created.id;
 }
 
@@ -200,15 +222,27 @@ export async function createSong(input: CreateSongInput): Promise<number> {
  * Правка песни (M9). Патч частичный; `slug` не пересчитывается даже при смене
  * названия — это идентичность записи, по ней upsert'ит импортёр корпуса.
  * Конфликт двух редакторов — last-write-wins (решение 1).
+ *
+ * Сначала проверяется, что песня принадлежит команде: `updateItem` по одному id
+ * фильтра по команде не принимает. Песня другой команды — `SongNotFoundError`, как
+ * несуществующая.
  */
-export async function updateSong(id: number, input: UpdateSongInput): Promise<void> {
+export async function updateSong(teamId: string, id: number, input: UpdateSongInput): Promise<void> {
   const client = getDirectusAdminClient();
   const row = toRow(input);
+
+  const owned: Array<{ id: number }> = await client.request(
+    readItems('songs', { fields: ['id'], filter: { id: { _eq: id }, team: { _eq: teamId } }, limit: 1 }),
+  );
+  if (owned.length === 0) {
+    console.debug(`${LOG} update: song ${id} not found in team ${teamId}`);
+    throw new SongNotFoundError(id);
+  }
 
   try {
     await client.request(updateItem('songs', id, row));
   } catch (error) {
-    // Directus отдаёт 403/404 на отсутствующий id — для клиента это «не найдено».
+    // Песню удалили между проверкой и записью: Directus отдаёт 403/404 — это «не найдено».
     if (isNotFound(error)) throw new SongNotFoundError(id);
     throw error;
   }

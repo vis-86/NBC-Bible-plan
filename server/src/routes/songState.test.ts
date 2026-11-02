@@ -1,9 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { adminRequestMock } = vi.hoisted(() => ({ adminRequestMock: vi.fn() }));
+const { adminRequestMock, getUserTeamIdMock } = vi.hoisted(() => ({
+  adminRequestMock: vi.fn(),
+  getUserTeamIdMock: vi.fn(),
+}));
 
 vi.mock('../../../src/lib/directus', () => ({
   getDirectusAdminClient: () => ({ request: adminRequestMock }),
+}));
+vi.mock('../../../src/lib/teams', () => ({
+  getUserTeamId: getUserTeamIdMock,
 }));
 
 import { songStateId } from '../../../src/features/songs/services/songStateServer';
@@ -26,6 +32,13 @@ function notFound() {
   return Object.assign(new Error('Not found'), { response: { status: 403 } });
 }
 
+/** Песня 42 есть в команде пользователя — первый запрос PUT пометок. */
+function mockSongInTeam() {
+  adminRequestMock.mockResolvedValueOnce([{ id: 42, title: 'Песня', content: '' }]);
+}
+
+type DirectusCommand = () => { path: string; method: string; params?: { filter?: unknown } };
+
 const stroke = {
   id: 's1',
   tool: 'pen' as const,
@@ -41,6 +54,8 @@ const stroke = {
 beforeEach(() => {
   process.env.SESSION_SECRET = 'test-session-secret-at-least-32-chars-long';
   adminRequestMock.mockReset();
+  getUserTeamIdMock.mockReset();
+  getUserTeamIdMock.mockResolvedValue('team-a');
 });
 
 describe('songStateId', () => {
@@ -99,6 +114,23 @@ describe('GET /api/songs/:id/state', () => {
     });
     expect(res.status).toBe(502);
   });
+
+  it('без команды -> 403', async () => {
+    getUserTeamIdMock.mockResolvedValue(null);
+    const res = await createApp().request('/app/api/songs/42/state', {
+      headers: { cookie: await sessionCookie() },
+    });
+    expect(res.status).toBe(403);
+    expect(adminRequestMock).not.toHaveBeenCalled();
+  });
+
+  it('песню не проверяет: один запрос — к собственным пометкам', async () => {
+    adminRequestMock.mockRejectedValueOnce(notFound());
+    await createApp().request('/app/api/songs/42/state', { headers: { cookie: await sessionCookie() } });
+
+    expect(adminRequestMock).toHaveBeenCalledTimes(1);
+    expect((adminRequestMock.mock.calls[0][0] as DirectusCommand)().path).toContain('song_user_state');
+  });
 });
 
 describe('PUT /api/songs/:id/state', () => {
@@ -129,6 +161,7 @@ describe('PUT /api/songs/:id/state', () => {
   });
 
   it('создаёт запись, когда её ещё нет', async () => {
+    mockSongInTeam();
     adminRequestMock.mockRejectedValueOnce(notFound()); // readItem
     adminRequestMock.mockResolvedValueOnce({}); // createItem
 
@@ -136,7 +169,7 @@ describe('PUT /api/songs/:id/state', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: 'ok', updatedAt: body.updatedAt });
 
-    const created = itemsPayload(1);
+    const created = itemsPayload(2);
     expect(created).toMatchObject({
       id: songStateId('user-1', 42),
       user_id: 'user-1',
@@ -146,38 +179,42 @@ describe('PUT /api/songs/:id/state', () => {
   });
 
   it('чужой user_id в теле игнорируется — владелец берётся из сессии', async () => {
+    mockSongInTeam();
     adminRequestMock.mockRejectedValueOnce(notFound());
     adminRequestMock.mockResolvedValueOnce({});
 
     const res = await put({ ...body, user_id: 'victim', song: 999 }, await sessionCookie('user-1'));
     expect(res.status).toBe(200);
 
-    const created = itemsPayload(1);
+    const created = itemsPayload(2);
     expect(created.user_id).toBe('user-1');
     expect(created.song).toBe(42);
     expect(created.id).toBe(songStateId('user-1', 42));
   });
 
   it('обновляет существующую запись, если пришедшая правка новее', async () => {
+    mockSongInTeam();
     adminRequestMock.mockResolvedValueOnce({ updated_at: '2026-07-01T00:00:00.000Z' });
     adminRequestMock.mockResolvedValueOnce({});
 
     const res = await put(body);
     expect(res.status).toBe(200);
     expect((await res.json()).status).toBe('ok');
-    expect(itemsPayload(1).updated_at).toBe(new Date(body.updatedAt).toISOString());
+    expect(itemsPayload(2).updated_at).toBe(new Date(body.updatedAt).toISOString());
   });
 
   it('LWW: устаревшая правка отбрасывается и в Directus не пишется', async () => {
+    mockSongInTeam();
     adminRequestMock.mockResolvedValueOnce({ updated_at: new Date(body.updatedAt + 60_000).toISOString() });
 
     const res = await put(body);
     expect(res.status).toBe(200);
     expect((await res.json()).status).toBe('stale');
-    expect(adminRequestMock).toHaveBeenCalledTimes(1); // только чтение, записи не было
+    expect(adminRequestMock).toHaveBeenCalledTimes(2); // песня и пометки — только чтение, записи не было
   });
 
   it('гонка на create (RECORD_NOT_UNIQUE) -> повторный update, а не вторая запись', async () => {
+    mockSongInTeam();
     adminRequestMock.mockRejectedValueOnce(notFound()); // readItem
     adminRequestMock.mockRejectedValueOnce({ errors: [{ extensions: { code: 'RECORD_NOT_UNIQUE' } }] });
     adminRequestMock.mockResolvedValueOnce({}); // updateItem
@@ -185,12 +222,39 @@ describe('PUT /api/songs/:id/state', () => {
     const res = await put(body);
     expect(res.status).toBe(200);
     expect((await res.json()).status).toBe('ok');
-    expect(adminRequestMock).toHaveBeenCalledTimes(3);
+    expect(adminRequestMock).toHaveBeenCalledTimes(4);
   });
 
   it('Directus упал -> 502', async () => {
+    mockSongInTeam();
     adminRequestMock.mockRejectedValueOnce(new Error('boom'));
     const res = await put(body);
     expect(res.status).toBe(502);
+  });
+
+  it('сбой Directus при поиске песни -> 502, пометки не пишутся', async () => {
+    adminRequestMock.mockRejectedValueOnce(new Error('boom'));
+    const res = await put(body);
+    expect(res.status).toBe(502);
+    expect(adminRequestMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('без команды -> 403, в Directus ничего не уходит', async () => {
+    getUserTeamIdMock.mockResolvedValue(null);
+    const res = await put(body);
+    expect(res.status).toBe(403);
+    expect(adminRequestMock).not.toHaveBeenCalled();
+  });
+
+  it('песня другой команды -> 404, пометки не читаются и не пишутся', async () => {
+    adminRequestMock.mockResolvedValueOnce([]); // в команде team-a песни 42 нет
+
+    const res = await put(body, await sessionCookie('user-1'));
+    expect(res.status).toBe(404);
+
+    expect(adminRequestMock).toHaveBeenCalledTimes(1);
+    const lookup = (adminRequestMock.mock.calls[0][0] as DirectusCommand)();
+    expect(lookup.path).toBe('/items/songs');
+    expect(lookup.params?.filter).toEqual({ id: { _eq: 42 }, team: { _eq: 'team-a' } });
   });
 });

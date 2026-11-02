@@ -8,14 +8,16 @@
  *
  * Никогда не отдавать пустой манифест при сбое Directus: клиент прочитает его как
  * «всё удалили» и вычистит офлайн-данные. Сбой = 503.
+ *
+ * Песни в манифесте — только команды пользователя (`requireTeam`).
  */
 import { Hono } from 'hono';
 import { createHash } from 'node:crypto';
 import { getSongVersions } from '../../../src/features/songs/services/songsServer';
 import { getSetlistVersions } from '../../../src/features/setlists/services/setlistsServer';
 import { getReadingPlan } from '../../../src/lib/directus-data';
+import { requireTeam } from '../middleware/requireTeam';
 import { logger } from '../logger';
-import { getSession } from '../session';
 
 const LOG = '[Sync API]';
 
@@ -26,24 +28,25 @@ export interface SyncManifest {
 }
 
 /**
- * In-memory кеш ответа. Всплеск запусков (утро воскресенья) не должен бить в Directus
- * четырьмя запросами на каждого пользователя.
+ * In-memory кеш ответа по командам. Всплеск запусков (утро воскресенья) не должен бить
+ * в Directus четырьмя запросами на каждого пользователя. Ключ — команда: манифест одной
+ * команды другой не отдаётся.
  */
 const CACHE_TTL_MS = 60_000;
-let cached: { manifest: SyncManifest; etag: string; at: number } | null = null;
+const cached = new Map<string, { manifest: SyncManifest; etag: string; at: number }>();
 
-/** Только для тестов: сбрасывает in-memory кеш между кейсами. */
+/** Только для тестов: сбрасывает in-memory кеш всех команд между кейсами. */
 export function __resetSyncCacheForTests(): void {
-  cached = null;
+  cached.clear();
 }
 
 function etagOf(body: string): string {
   return `"${createHash('sha1').update(body).digest('hex').slice(0, 16)}"`;
 }
 
-async function buildManifest(): Promise<{ manifest: SyncManifest; etag: string }> {
+async function buildManifest(teamId: string): Promise<{ manifest: SyncManifest; etag: string }> {
   const [songs, setlists, plan] = await Promise.all([
-    getSongVersions(),
+    getSongVersions(teamId),
     getSetlistVersions(),
     // У плана нет своего поля версии — берём хеш самого плана. Он статичен весь год,
     // поэтому пересчёт раз в минуту дешевле отдельной схемы версионирования.
@@ -53,25 +56,24 @@ async function buildManifest(): Promise<{ manifest: SyncManifest; etag: string }
   const manifest: SyncManifest = { songs, setlists, plan };
   const body = JSON.stringify(manifest);
   logger.debug(
-    `${LOG} built: songs=${songs.length} setlists=${setlists.length} bytes=${Buffer.byteLength(body, 'utf8')}`
+    `${LOG} built for team ${teamId}: songs=${songs.length} setlists=${setlists.length} bytes=${Buffer.byteLength(body, 'utf8')}`
   );
   return { manifest, etag: etagOf(body) };
 }
 
 export const syncRoutes = new Hono();
 
-syncRoutes.get('/manifest', async (c) => {
-  const session = await getSession(c);
-  if (!session) return c.json({ error: 'Unauthorized' }, 401);
+syncRoutes.get('/manifest', requireTeam, async (c) => {
+  const teamId = c.get('teamId');
 
-  let entry = cached;
+  let entry = cached.get(teamId);
   if (entry && Date.now() - entry.at < CACHE_TTL_MS) {
-    logger.debug(`${LOG} in-memory cache hit`);
+    logger.debug(`${LOG} in-memory cache hit for team ${teamId}`);
   } else {
     try {
-      const built = await buildManifest();
+      const built = await buildManifest(teamId);
       entry = { ...built, at: Date.now() };
-      cached = entry;
+      cached.set(teamId, entry);
     } catch (error) {
       logger.error(`${LOG} Directus failure — отдаём 503, но НЕ пустой манифест`, error);
       return c.json({ error: 'Sync manifest unavailable' }, 503);

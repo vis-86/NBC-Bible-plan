@@ -1,5 +1,8 @@
 /**
  * Порт группы songs из src/app/api/songs/* (1:1 по поведению).
+ *
+ * Вся группа — за `requireTeam`: песни и пометки видны только в пределах команды
+ * пользователя, команда берётся из членства по сессии (`c.get('teamId')`).
  */
 import { Hono } from 'hono';
 import {
@@ -14,10 +17,14 @@ import { firstZodError } from '../../../src/lib/validators/setlists.schemas';
 import { CreateSongSchema, UpdateSongSchema } from '../../../src/lib/validators/songs.schemas';
 import { SongAnnotationsSchema } from '../../../src/lib/validators/songState.schemas';
 import { requireSongWrite } from '../middleware/requireRole';
+import { requireTeam } from '../middleware/requireTeam';
 import { logger } from '../logger';
 import { getSession } from '../session';
 
 export const songsRoutes = new Hono();
+
+// Зарегистрирован до роутов, поэтому срабатывает до гейта роли: requireTeam → роль → хендлер.
+songsRoutes.use('*', requireTeam);
 
 /** Числовой id песни из пути. null ⇒ 400 у вызывающего. */
 function parseSongId(raw: string | undefined): number | null {
@@ -31,9 +38,8 @@ function parseSongId(raw: string | undefined): number | null {
 songsRoutes.get('/', async (c) => {
   // Каталог — только вошедшим: песни, закрытые от гостей (`visibility = members`),
   // иначе утекали бы списком. Гостю — `/public/songs/:id` по одной песне.
-  if (!(await getSession(c))) return c.json({ error: 'Unauthorized' }, 401);
   try {
-    const songs = await getSongsList();
+    const songs = await getSongsList(c.get('teamId'));
     return c.json({ songs });
   } catch (error) {
     logger.error('[Songs API] list error:', error);
@@ -42,17 +48,17 @@ songsRoutes.get('/', async (c) => {
 });
 
 /**
- * GET /songs/:id — одна песня с полным ChordPro-контентом. 404 если не найдена.
+ * GET /songs/:id — одна песня своей команды с полным ChordPro-контентом.
+ * 404 — нет такой или она другой команды.
  */
 songsRoutes.get('/:id', async (c) => {
-  if (!(await getSession(c))) return c.json({ error: 'Unauthorized' }, 401);
   try {
     const songId = parseSongId(c.req.param('id'));
     if (songId === null) {
       return c.json({ error: 'Invalid song id' }, 400);
     }
 
-    const song = await getSongById(songId);
+    const song = await getSongById(c.get('teamId'), songId);
     if (!song) {
       return c.json({ error: 'Not found' }, 404);
     }
@@ -91,6 +97,8 @@ songsRoutes.get('/:id/state', async (c) => {
  * PUT /songs/:id/state — upsert пометок. LWW: запись со старым `updatedAt` отбрасывается,
  * иначе отложенный replay офлайн-очереди затёр бы более свежую правку с другого устройства.
  * Клиент получает 200 и в обоих случаях — отброс не ошибка, а штатный исход гонки.
+ *
+ * Пометки пишутся только к песне своей команды: иначе 404, как на несуществующую.
  */
 songsRoutes.put('/:id/state', async (c) => {
   const session = await getSession(c);
@@ -104,6 +112,11 @@ songsRoutes.put('/:id/state', async (c) => {
   if (!parsed.success) return c.json({ error: firstZodError(parsed.error) }, 400);
 
   try {
+    if (!(await getSongById(c.get('teamId'), songId))) {
+      logger.warn(`[SongState] song=${songId} not found in team, write refused`);
+      return c.json({ error: 'Not found' }, 404);
+    }
+
     logger.debug(
       `[SongState] write song=${songId} by ${session.directus_id}: ${parsed.data.strokes.length} stroke(s)`
     );
@@ -133,7 +146,7 @@ songsRoutes.post('/', requireSongWrite, async (c) => {
   if (!parsed.success) return c.json({ error: firstZodError(parsed.error) }, 400);
 
   try {
-    const id = await createSong(parsed.data);
+    const id = await createSong(c.get('teamId'), parsed.data);
     logger.debug(`[Songs API] created song ${id}`);
     return c.json({ id }, 201);
   } catch (error) {
@@ -156,7 +169,7 @@ songsRoutes.put('/:id', requireSongWrite, async (c) => {
   if (!parsed.success) return c.json({ error: firstZodError(parsed.error) }, 400);
 
   try {
-    await updateSong(songId, parsed.data);
+    await updateSong(c.get('teamId'), songId, parsed.data);
     logger.debug(`[Songs API] updated song ${songId}`);
     return c.json({ success: true });
   } catch (error) {

@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { getReadingPlanMock, getWeeklyPlanItemsMock, getSongsListMock, getSongByIdMock } = vi.hoisted(() => ({
-  getReadingPlanMock: vi.fn(),
-  getWeeklyPlanItemsMock: vi.fn(),
-  getSongsListMock: vi.fn(),
-  getSongByIdMock: vi.fn(),
-}));
+const { getReadingPlanMock, getWeeklyPlanItemsMock, getSongsListMock, getSongByIdMock, getUserTeamIdMock } =
+  vi.hoisted(() => ({
+    getReadingPlanMock: vi.fn(),
+    getWeeklyPlanItemsMock: vi.fn(),
+    getSongsListMock: vi.fn(),
+    getSongByIdMock: vi.fn(),
+    getUserTeamIdMock: vi.fn(),
+  }));
 
 vi.mock('../../../src/lib/directus-data', () => ({
   getReadingPlan: getReadingPlanMock,
@@ -15,6 +17,9 @@ vi.mock('../../../src/lib/directus-data', () => ({
 vi.mock('../../../src/features/songs/services/songsServer', () => ({
   getSongsList: getSongsListMock,
   getSongById: getSongByIdMock,
+}));
+vi.mock('../../../src/lib/teams', () => ({
+  getUserTeamId: getUserTeamIdMock,
 }));
 
 import { sealSession, SESSION_COOKIE_NAME } from '../../../src/lib/session-core';
@@ -33,6 +38,8 @@ beforeEach(() => {
   getWeeklyPlanItemsMock.mockReset();
   getSongsListMock.mockReset();
   getSongByIdMock.mockReset();
+  getUserTeamIdMock.mockReset();
+  getUserTeamIdMock.mockResolvedValue('team-a');
 });
 
 describe('GET /app/api/bible/books', () => {
@@ -126,6 +133,21 @@ describe('GET /app/api/songs', () => {
     const body = await res.json();
     expect(body.songs).toEqual([{ id: 1, title: 'Song' }]);
   });
+
+  it('список — команды из сессии; ?team= в query игнорируется', async () => {
+    getSongsListMock.mockResolvedValue([]);
+    const res = await createApp().request('/app/api/songs?team=team-b', await withSession());
+    expect(res.status).toBe(200);
+    expect(getSongsListMock).toHaveBeenCalledTimes(1);
+    expect(getSongsListMock).toHaveBeenCalledWith('team-a');
+  });
+
+  it('без команды -> 403, список не запрашивается', async () => {
+    getUserTeamIdMock.mockResolvedValue(null);
+    const res = await createApp().request('/app/api/songs', await withSession());
+    expect(res.status).toBe(403);
+    expect(getSongsListMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('GET /app/api/songs/:id', () => {
@@ -149,5 +171,19 @@ describe('GET /app/api/songs/:id', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.song.id).toBe(1);
+    expect(getSongByIdMock).toHaveBeenCalledWith('team-a', 1);
+  });
+
+  it('без команды -> 403, песня не запрашивается', async () => {
+    getUserTeamIdMock.mockResolvedValue(null);
+    const res = await createApp().request('/app/api/songs/1', await withSession());
+    expect(res.status).toBe(403);
+    expect(getSongByIdMock).not.toHaveBeenCalled();
+  });
+
+  it('сбой Directus -> 500, а не 404', async () => {
+    getSongByIdMock.mockRejectedValue(new Error('directus down'));
+    const res = await createApp().request('/app/api/songs/1', await withSession());
+    expect(res.status).toBe(500);
   });
 });
