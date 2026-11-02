@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { getApiPath } from '@/lib/utils';
 import { isTelegramWebApp, initTelegramWebApp } from '@/lib/telegram';
@@ -39,6 +39,9 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  // Поколение сессии: logout/истечение сессии увеличивают его, и проверка сессии,
+  // стартовавшая раньше, не возвращает пользователя после выхода.
+  const generationRef = useRef(0);
 
   useEffect(() => {
     checkSession();
@@ -64,6 +67,12 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     // а не после round-trip'а сессии. Источник истины по-прежнему сервер: его ответ
     // «сессии нет» снимает пользователя, и гард уводит на логин. `confirmed` не даёт
     // позднему чтению IDB перетереть уже пришедший ответ сервера.
+    const generation = generationRef.current;
+    const isStale = () => {
+      const stale = generationRef.current !== generation;
+      if (stale) console.debug('[AuthProvider] session check superseded by logout — result ignored');
+      return stale;
+    };
     let confirmed = false;
     const settle = (next: User | null) => {
       confirmed = true;
@@ -71,7 +80,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     };
     void getLastKnownUser<User>()
       .then((known) => {
-        if (known && !confirmed) setUser((current) => current ?? known);
+        if (known && !confirmed && generationRef.current === generation) setUser((current) => current ?? known);
       })
       .catch((err) => console.debug('[AuthProvider] last-known-user read failed', err));
     try {
@@ -89,6 +98,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       } catch (err) {
         if (isNetworkTimeout(err)) {
           const lastKnownUser = await getLastKnownUser<User>();
+          if (isStale()) return;
           if (lastKnownUser) {
             console.debug('[FIX][AuthProvider] session check timed out — falling back to last-known-user');
             settle(lastKnownUser);
@@ -96,21 +106,30 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           }
           // Фолбэка нет — дожидаемся медленную сеть (лучше, чем выкинуть на логин).
           response = await sessionFetch;
+          if (isStale()) return;
         } else {
           throw err;
         }
       }
 
+      if (isStale()) return;
       if (response.ok) {
         const data = await response.json();
+        if (isStale()) return;
         if (data.user) {
           // До settle: экраны читают IDB cache-first и не должны успеть увидеть данные
           // прежнего пользователя этого устройства. Сбой IDB вход не блокирует.
-          try {
-            await ensureOfflineOwner(String(data.user.directus_id));
-          } catch (err) {
-            console.error('[AuthProvider] offline owner check failed', err);
+          const ownerId = data.user.directus_id;
+          if (typeof ownerId === 'string' && ownerId !== '') {
+            try {
+              await ensureOfflineOwner(ownerId);
+            } catch (err) {
+              console.error('[AuthProvider] offline owner check failed', err);
+            }
+          } else {
+            console.error('[AuthProvider] session user has no directus_id — offline owner check skipped');
           }
+          if (isStale()) return;
           settle(data.user);
           void setLastKnownUser(data.user);
           // Только server-confirmed вход (не last-known-user фолбэк ниже) — иначе
@@ -129,6 +148,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       // по последнему подтверждённому пользователю.
       console.error('Error checking session:', error);
       const lastKnownUser = await getLastKnownUser<User>();
+      if (isStale()) return;
       if (lastKnownUser) {
         console.debug('[AuthProvider] offline — falling back to last-known-user');
         settle(lastKnownUser);
@@ -153,6 +173,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   // При 401 (истёк токен) API-клиент вызывает этот callback — выходим и редирект на логин
   useEffect(() => {
     (globalThis as unknown as { __onSessionExpired?: () => void }).__onSessionExpired = () => {
+      generationRef.current += 1;
       setUser(null);
       void clearLastKnownUser();
       router.push('/login');
@@ -164,6 +185,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
   }, [router]);
 
   const logout = async () => {
+    generationRef.current += 1;
     try {
       await fetch(getApiPath('/api/auth/logout'), {
         method: 'POST',
