@@ -10,6 +10,7 @@ import {
 import { readingSettingsApi, syncApi } from '@/shared/services/api/endpoints';
 import { isDefinitelyOffline } from './networkHealth';
 import { getSyncEtag, getSyncVersions, saveSyncEtag, saveSyncVersions } from './syncVersions';
+import { isWorshipMode } from '@/shared/config/appMode';
 import { resolveSelfHostedTranslationId, type BibleTranslationId } from '@/lib/bible-translations';
 
 /**
@@ -118,10 +119,12 @@ async function ensureBaseline(): Promise<Set<string>> {
   const manifest = await getManifest();
   const have = new Set(manifest.map((m) => m.key));
 
-  const translationIds = await resolveDefaultTranslations();
+  // Витрина worship: только песни и сеты — без плана и Писания.
+  const worship = isWorshipMode();
+  const translationIds = worship ? [] : await resolveDefaultTranslations();
 
   const jobs: Array<{ key: string; run: () => Promise<void> }> = [];
-  if (!have.has('plan')) jobs.push({ key: 'plan', run: downloadPlan });
+  if (!worship && !have.has('plan')) jobs.push({ key: 'plan', run: downloadPlan });
   if (!have.has('songs')) jobs.push({ key: 'songs', run: downloadSongs });
   if (!have.has('setlists')) jobs.push({ key: 'setlists', run: downloadSetlists });
   for (const translationId of translationIds) {
@@ -184,7 +187,7 @@ async function runDeltaSync(
 
     // План версионируется целиком: изменился — перекачиваем прогрев целиком.
     let planUpdated = false;
-    if (planBase !== result.manifest.plan) {
+    if (!isWorshipMode() && planBase !== result.manifest.plan) {
       await downloadPlan();
       planUpdated = true;
     }

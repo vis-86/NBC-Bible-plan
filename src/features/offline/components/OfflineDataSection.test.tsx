@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import 'fake-indexeddb/auto';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 const { downloadBibleTranslationMock, downloadSongsMock, downloadPlanMock, clearAllOfflineDataMock, getManifestMock } =
@@ -141,5 +141,27 @@ describe('OfflineDataSection', () => {
     fireEvent.click(screen.getByText('Всё равно очистить'));
 
     await waitFor(() => expect(clearAllOfflineDataMock).toHaveBeenLastCalledWith({ force: true }));
+  });
+});
+
+describe('OfflineDataSection — режим worship', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_APP_MODE', 'worship');
+    getManifestMock.mockReset().mockResolvedValue([]);
+    useReadingSettingsMock.mockReset().mockReturnValue({ settings: { nt_translation: 'rst' }, isLoading: false });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('только песни и сетлисты: без Писания и плана', async () => {
+    render(<OfflineDataSection />);
+    await waitFor(() => expect(getManifestMock).toHaveBeenCalled());
+
+    expect(screen.getByText('Песни')).toBeInTheDocument();
+    expect(screen.getByText('Сетлисты')).toBeInTheDocument();
+    expect(screen.queryByText('Писание')).not.toBeInTheDocument();
+    expect(screen.queryByText('План чтения')).not.toBeInTheDocument();
   });
 });

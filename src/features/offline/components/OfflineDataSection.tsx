@@ -6,6 +6,7 @@ import { BIBLE_TRANSLATIONS, resolveSelfHostedTranslationId, type BibleTranslati
 import { getAppBuildTime } from '@/shared/config/appVersion';
 import { useReadingSettings } from '@/features/reading/hooks/useReadingSettings';
 import { DEFAULT_TRANSLATION } from '@/shared/offline/autoDownload';
+import { isWorshipMode } from '@/shared/config/appMode';
 
 const DOWNLOADABLE_TRANSLATIONS = Object.values(BIBLE_TRANSLATIONS).filter((t) => t.selfHostedAllowed);
 
@@ -79,7 +80,10 @@ export function OfflineDataSection() {
   const setlistsState = getItemState('setlists');
 
   // Всё ли скачано? (все переводы + песни + план + сетлисты) — влияет на подпись кнопки «скачать всё».
-  const allKeys: OfflineDownloadKey[] = [...downloadableTranslationIds, 'songs', 'plan', 'setlists'];
+  const worship = isWorshipMode();
+  const allKeys: OfflineDownloadKey[] = worship
+    ? ['songs', 'setlists']
+    : [...downloadableTranslationIds, 'songs', 'plan', 'setlists'];
   const allDownloaded = allKeys.every((k) => manifest.some((m) => m.key === k));
 
   const handleClear = async (force: boolean) => {
@@ -133,14 +137,19 @@ export function OfflineDataSection() {
             </p>
           )}
           <p className="text-xs text-app-text-muted">
-            Скачивает Писание, песни и план — приложение будет работать без интернета.
+            {worship
+              ? 'Скачивает песни и сеты — приложение будет работать без интернета.'
+              : 'Скачивает Писание, песни и план — приложение будет работать без интернета.'}
           </p>
           <p className="text-xs text-app-text-muted">
-            Базовые данные (план, песни, один перевод Писания) скачиваются автоматически после входа.
+            {worship
+              ? 'Песни и сеты скачиваются автоматически после входа.'
+              : 'Базовые данные (план, песни, один перевод Писания) скачиваются автоматически после входа.'}
           </p>
         </div>
 
         {/* Писание */}
+        {!worship && (
         <div className="space-y-2">
           <h3 className="text-sm font-medium text-app-text-secondary">Писание</h3>
           <div className="flex flex-col gap-2">
@@ -184,6 +193,8 @@ export function OfflineDataSection() {
           </div>
         </div>
 
+        )}
+
         {/* Песни */}
         <div className="space-y-2">
           <h3 className="flex items-center gap-1.5 text-sm font-medium text-app-text-secondary">
@@ -217,6 +228,7 @@ export function OfflineDataSection() {
         </div>
 
         {/* План */}
+        {!worship && (
         <div className="space-y-2">
           <h3 className="flex items-center gap-1.5 text-sm font-medium text-app-text-secondary">
             План чтения
@@ -243,6 +255,8 @@ export function OfflineDataSection() {
             <p className="text-xs text-app-missed-text" role="alert">{planState.error}</p>
           )}
         </div>
+
+        )}
 
         {/* Сетлисты */}
         <div className="space-y-2">
@@ -288,7 +302,7 @@ export function OfflineDataSection() {
           ) : (
             <div className="space-y-2 rounded-lg border border-app-border p-3">
               <p className="text-sm text-app-text-secondary">
-                Удалить скачанные Писание, песни и план с этого устройства?
+                {worship ? 'Удалить скачанные песни и сеты с этого устройства?' : 'Удалить скачанные Писание, песни и план с этого устройства?'}
                 {pendingOutboxCount > 0 && ' Есть несинхронизированный прогресс — сначала попробуем его отправить.'}
               </p>
               {clearError && (

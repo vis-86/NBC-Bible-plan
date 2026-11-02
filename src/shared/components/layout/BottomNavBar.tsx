@@ -6,6 +6,7 @@ import { BookOpen, Home, User, MessageCircle, Music, ListMusic } from 'lucide-re
 import { AppView } from '@/types';
 import { isAIEnabled } from '@/shared/utils/constants';
 import { bibleTabHref } from '@/features/reading/last-read-location';
+import { isWorshipMode } from '@/shared/config/appMode';
 import { useChromeVisibility } from './ChromeVisibility';
 
 interface NavItem {
@@ -15,6 +16,8 @@ interface NavItem {
   href?: string;
   view?: AppView;
 }
+
+const WORSHIP_NAV_IDS = new Set(['songs', 'setlists', 'settings']);
 
 interface BottomNavBarProps {
   onChangeView?: (view: AppView) => void;
@@ -90,7 +93,7 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
     }
   };
 
-  const navItems: NavItem[] = [
+  const allNavItems: NavItem[] = [
     { id: 'home', icon: Home, label: 'Главная', href: '/dashboard' },
     { id: 'bible', icon: BookOpen, label: 'Библия', href: '/dashboard/read?book=Бытие&chapter=1' },
     { id: 'songs', icon: Music, label: 'Песни', href: '/dashboard/songs' },
@@ -100,6 +103,10 @@ function BottomNavBarInner({ onChangeView }: BottomNavBarProps) {
       : []),
     { id: 'settings', icon: User, label: 'Профиль', href: '/dashboard/settings' },
   ];
+  // Витрина worship: только песни, сеты и профиль (Библия, план и чат скрыты).
+  const navItems = isWorshipMode()
+    ? allNavItems.filter((item) => WORSHIP_NAV_IDS.has(item.id))
+    : allNavItems;
 
   // Плавающий бар (по мотивам YouVersion/chordpro): почти во всю ширину (с боковыми
   // полями), приподнят над низом на фиксированный `--dock-nav-gap` (БЕЗ прибавки

@@ -367,3 +367,53 @@ describe('offline/autoDownload — переводы Писания для обо
     expect(downloadBibleTranslationMock).toHaveBeenCalledWith('rst');
   });
 });
+
+describe('offline/autoDownload — режим worship', () => {
+  beforeEach(() => {
+    vi.stubEnv('NEXT_PUBLIC_APP_MODE', 'worship');
+    getSettingsMock.mockReset().mockResolvedValue({ settings: { nt_translation: 'rst' } });
+    downloadPlanMock.mockReset().mockResolvedValue(undefined);
+    downloadSongsMock.mockReset().mockResolvedValue(undefined);
+    downloadSetlistsMock.mockReset().mockResolvedValue(undefined);
+    downloadBibleTranslationMock.mockReset().mockResolvedValue(undefined);
+    getManifestMock.mockReset().mockResolvedValue([]);
+    getSyncManifestMock.mockReset().mockResolvedValue({ status: 'not-modified' });
+    syncSongsDeltaMock.mockReset().mockResolvedValue({ stats: { checked: 0, updated: 0, removed: 0 }, versions: {} });
+    syncSetlistsDeltaMock
+      .mockReset()
+      .mockResolvedValue({ stats: { checked: 0, updated: 0, removed: 0 }, versions: {} });
+    __resetAutoDownloadGuard();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('пустое хранилище -> качаются только песни и сеты, без плана, Писания и чтения настроек', async () => {
+    await ensureOfflineData();
+
+    expect(downloadSongsMock).toHaveBeenCalledTimes(1);
+    expect(downloadSetlistsMock).toHaveBeenCalledTimes(1);
+    expect(downloadPlanMock).not.toHaveBeenCalled();
+    expect(downloadBibleTranslationMock).not.toHaveBeenCalled();
+    expect(getSettingsMock).not.toHaveBeenCalled();
+  });
+
+  it('дельта-синк: изменившаяся версия плана не вызывает перекачку плана', async () => {
+    getManifestMock.mockResolvedValue([
+      { key: 'songs', downloadedAt: 1 },
+      { key: 'setlists', downloadedAt: 1 },
+    ]);
+    getSyncManifestMock.mockResolvedValue({
+      status: 'ok',
+      etag: '"w1"',
+      manifest: { songs: [['1', 'a']], setlists: [['s1', 'h1']], plan: 'p-new' },
+    });
+
+    await ensureOfflineData();
+
+    expect(syncSongsDeltaMock).toHaveBeenCalled();
+    expect(syncSetlistsDeltaMock).toHaveBeenCalled();
+    expect(downloadPlanMock).not.toHaveBeenCalled();
+  });
+});

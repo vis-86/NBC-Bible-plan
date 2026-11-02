@@ -8,8 +8,10 @@ import ServiceWorkerRegistrar from "@/components/ServiceWorkerRegistrar";
 import ChunkGuard from "@/components/ChunkGuard";
 import PageZoomGuard from "@/components/PageZoomGuard";
 import { UpdateToast } from "@/shared/components/ui/UpdateToast";
+import { getAppBrand } from "@/shared/config/appMode";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
+const brand = getAppBrand();
 
 const inter = Inter({
   variable: "--font-inter",
@@ -29,9 +31,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "NBC Bible Plan",
-  description: "План чтения Библии Нижегородской Библейской Церкви",
-  applicationName: "NBC Bible Plan",
+  title: brand.name,
+  description: brand.description,
+  applicationName: brand.name,
   manifest: `${basePath}/manifest.webmanifest`,
   appleWebApp: {
     capable: true,
@@ -41,7 +43,7 @@ export const metadata: Metadata = {
     // сверху, режет на светлой теме), а под островком по факту ничего важного не
     // перекрывалось. Остаёмся на translucent.
     statusBarStyle: "black-translucent",
-    title: "Bible Plan",
+    title: brand.shortName,
   },
   icons: {
     icon: `${basePath}/icons/icon-192.png`,

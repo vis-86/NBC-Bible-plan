@@ -14,7 +14,9 @@ import {
   InstallGuide,
   FinalCta,
   Footer,
+  WorshipLanding,
 } from '@/features/landing';
+import { isWorshipMode } from '@/shared/config/appMode';
 
 /**
  * Лендинг — тонкий оркестратор: держит гейт авторизации и редирект входа из
@@ -35,6 +37,8 @@ export default function Home() {
       router.replace('/login?redirect=/dashboard');
     }
   }, [authLoading, user, router]);
+
+  if (isWorshipMode()) return <WorshipLanding />;
 
   return (
     <div className="relative min-h-screen overflow-x-clip bg-app-bg text-app-text">

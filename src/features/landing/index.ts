@@ -7,3 +7,4 @@ export { HowToStart } from './components/HowToStart';
 export { InstallGuide } from './components/InstallGuide';
 export { FinalCta } from './components/FinalCta';
 export { Footer } from './components/Footer';
+export { WorshipLanding } from './components/WorshipLanding';

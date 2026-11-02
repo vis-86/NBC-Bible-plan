@@ -19,6 +19,7 @@ import { InstallBanner } from '@/shared/components/pwa/InstallBanner';
 import { WelcomeCard } from '@/features/onboarding/WelcomeCard';
 import { useWelcome } from '@/features/onboarding/welcomeStore';
 import { preloadChapters } from '@/features/reading/bible-text-cache';
+import { getStartPath, isWorshipMode } from '@/shared/config/appMode';
 
 function DashboardPageInner() {
   const router = useRouter();
@@ -244,7 +245,17 @@ function DashboardPageInner() {
   );
 }
 
+/** Витрина worship: плана чтения нет — «главная» это список песен. */
+function WorshipHomeRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace(getStartPath());
+  }, [router]);
+  return <FullScreenLoader />;
+}
+
 export default function DashboardPage() {
+  if (isWorshipMode()) return <WorshipHomeRedirect />;
   return (
     <Suspense fallback={<FullScreenLoader />}>
       <DashboardPageInner />

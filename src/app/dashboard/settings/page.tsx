@@ -12,6 +12,7 @@ import { OfflineDataSection } from '@/features/offline/components/OfflineDataSec
 import { ProfileSection } from '@/features/profile/components/ProfileSection';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { Button } from '@/shared/components/ui/Button';
+import { isWorshipMode } from '@/shared/config/appMode';
 
 const themeOptions: Array<{ value: AppThemePreference; label: string }> = [
   { value: 'light', label: 'Светлая' },
@@ -78,7 +79,8 @@ export default function SettingsPage() {
             </div>
           </section>
 
-          <DashboardReadingSettingsSection />
+          {/* Витрина worship: настроек чтения и Писания нет. */}
+          {!isWorshipMode() && <DashboardReadingSettingsSection />}
           <OfflineDataSection />
 
           <section className="mt-8">

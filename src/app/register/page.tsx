@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, CheckCircle2, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { getApiPath, getBasePath } from '@/lib/utils';
@@ -11,6 +11,7 @@ import { Atmosphere } from '@/features/landing';
 import { LOGIN_HANDLE_HINT, loginHandleError } from '@/lib/validators/login-handle';
 import { getTelegramInitData, isTelegramWebApp } from '@/lib/telegram';
 import { markWelcomePending } from '@/features/onboarding/welcomeStore';
+import { isWorshipMode } from '@/shared/config/appMode';
 
 const inputClass =
   'mt-1 block w-full rounded-xl border border-app-border bg-app-surface-muted px-3.5 py-2.5 text-app-text placeholder-app-text-subtle focus:border-app-primary/50 focus:outline-none focus:ring-1 focus:ring-app-primary/30';
@@ -334,7 +335,17 @@ function Card({ children, below }: { children: React.ReactNode; below?: React.Re
   );
 }
 
+/** Витрина worship: вход только по инвайту — регистрации нет. */
+function RegisterRedirect() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/login');
+  }, [router]);
+  return null;
+}
+
 export default function RegisterPage() {
+  if (isWorshipMode()) return <RegisterRedirect />;
   // Флаг build-time: ветвление статично, Suspense не нужен (нет useSearchParams).
   return isRegisterEnabled() ? <RegisterForm /> : <RegisterDisabled />;
 }

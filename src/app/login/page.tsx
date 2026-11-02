@@ -8,6 +8,7 @@ import { SUPPORT_CONTACT } from '@/lib/constants';
 import { isRegisterEnabled } from '@/shared/utils/constants';
 import TelegramLinkForm from '@/features/auth/components/TelegramLinkForm';
 import { InstallAppHint } from '@/shared/components/pwa/InstallAppHint';
+import { getAppBrand, isWorshipMode } from '@/shared/config/appMode';
 
 const inputClass =
   'mt-1 block w-full rounded-md border border-app-border bg-app-surface-muted px-3 py-2 text-app-text placeholder-app-text-subtle focus:border-app-primary/50 focus:outline-none focus:ring-1 focus:ring-app-primary/30';
@@ -26,11 +27,14 @@ function LoginForm() {
   // initData для формы привязки, когда tg_id ещё не связан с аккаунтом.
   const [tgLinkInitData, setTgLinkInitData] = useState<string | null>(null);
 
+  const worship = isWorshipMode();
+
   useEffect(() => {
     const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
     const checkTelegram = async () => {
-      if (!hasTelegramWebAppObject()) {
+      // Витрина worship: вход через Telegram не поддерживается — только логин/пароль.
+      if (worship || !hasTelegramWebAppObject()) {
         setTelegramLoading(false);
         return;
       }
@@ -82,7 +86,7 @@ function LoginForm() {
     };
 
     checkTelegram();
-  }, [router, searchParams]);
+  }, [router, searchParams, worship]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -179,7 +183,9 @@ function LoginForm() {
           height={40}
           className="h-10 w-10 rounded-xl shadow-[0_6px_18px_rgba(79,70,229,0.25)]"
         />
-        <span className="text-[15px] font-semibold tracking-tight text-app-text">План чтения Библии</span>
+        <span className="text-[15px] font-semibold tracking-tight text-app-text">
+          {worship ? getAppBrand().name : 'План чтения Библии'}
+        </span>
       </button>
       <div className="space-y-8 rounded-lg bg-app-surface p-8 shadow-app-md">
         <div>
@@ -187,7 +193,7 @@ function LoginForm() {
             Вход
           </h2>
           <p className="mt-2 text-sm text-app-text-secondary">
-            Логин и пароль — те, что вы придумали при регистрации
+            {worship ? 'Логин и пароль из вашего приглашения' : 'Логин и пароль — те, что вы придумали при регистрации'}
           </p>
         </div>
 
@@ -195,7 +201,7 @@ function LoginForm() {
           {error && (
             <div role="alert" className="rounded-md bg-app-missed border border-app-missed-text/20 p-3 text-sm text-app-accent">
               {error}
-              {badCredentials && isRegisterEnabled() && (
+              {badCredentials && !worship && isRegisterEnabled() && (
                 <p className="mt-1 text-app-text-secondary">
                   Ещё не регистрировались? Создайте аккаунт кнопкой ниже.
                 </p>
@@ -248,6 +254,7 @@ function LoginForm() {
 
         {/* Новичок, открывший установленное приложение, попадает сюда (start_url → гейт →
             /login), поэтому путь «нет аккаунта» — отдельная заметная кнопка, а не ссылка. */}
+        {!worship && (
         <div className="border-t border-app-border pt-6 text-center" data-login-new-user>
           <p className="text-sm font-medium text-app-text">Впервые здесь?</p>
           {isRegisterEnabled() ? (
@@ -271,12 +278,19 @@ function LoginForm() {
             {isRegisterEnabled() ? 'Займёт минуту, почта и телефон не нужны' : 'Аккаунты выдаём по личной ссылке через поддержку'}
           </p>
         </div>
+        )}
 
         <p className="text-center text-sm text-app-text-secondary">
-          Забыли пароль или логин?{' '}
-          <a href={SUPPORT_CONTACT} className="font-medium text-app-text hover:underline">
-            Напишите в поддержку
-          </a>
+          {worship ? (
+            'Забыли пароль или логин? Обратитесь к руководителю команды.'
+          ) : (
+            <>
+              Забыли пароль или логин?{' '}
+              <a href={SUPPORT_CONTACT} className="font-medium text-app-text hover:underline">
+                Напишите в поддержку
+              </a>
+            </>
+          )}
         </p>
       </div>
       <InstallAppHint />

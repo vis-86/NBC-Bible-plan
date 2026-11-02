@@ -12,6 +12,7 @@ import {
 } from '@/shared/offline/downloadManager';
 import { getPendingOutbox } from '@/shared/offline/outbox';
 import type { ManifestRecord } from '@/shared/offline/db';
+import { isWorshipMode } from '@/shared/config/appMode';
 import { BIBLE_TRANSLATIONS, type BibleTranslationId } from '@/lib/bible-translations';
 
 /** Ключ загрузки: id перевода Писания, либо 'songs' / 'plan' / 'setlists'. */
@@ -146,7 +147,9 @@ export function useOfflineData() {
    * сколько упало, и отдаём в UI через `bulk.failed`.
    */
   const downloadAll = useCallback(async () => {
-    const total = DOWNLOADABLE_TRANSLATION_IDS.length + 3; // + песни + план + сетлисты
+    // Витрина worship: только песни и сетлисты — без Писания и плана.
+    const worship = isWorshipMode();
+    const total = worship ? 2 : DOWNLOADABLE_TRANSLATION_IDS.length + 3; // + песни + план + сетлисты
     setBulk({ loading: true, done: 0, total, failed: 0 });
     let done = 0;
     let failed = 0;
@@ -158,11 +161,13 @@ export function useOfflineData() {
       setBulk({ loading: true, done, total, failed });
     };
 
-    for (const id of DOWNLOADABLE_TRANSLATION_IDS) {
-      await step(downloadTranslation(id));
+    if (!worship) {
+      for (const id of DOWNLOADABLE_TRANSLATION_IDS) {
+        await step(downloadTranslation(id));
+      }
     }
     await step(downloadSongsAction());
-    await step(downloadPlanAction());
+    if (!worship) await step(downloadPlanAction());
     await step(downloadSetlistsAction());
 
     setBulk({ loading: false, done, total, failed });

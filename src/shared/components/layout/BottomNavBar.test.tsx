@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 const pushMock = vi.fn();
@@ -95,4 +95,38 @@ describe('BottomNavBar', () => {
     expect(nav.className).not.toContain('pointer-events-none');
   });
 
+});
+
+describe('BottomNavBar — режим приложения', () => {
+  beforeEach(() => {
+    pushMock.mockClear();
+    mockPathname = '/dashboard/songs';
+    mockSearchParams = new URLSearchParams();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const navIds = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('[data-dashboard-nav-item]')).map((el) =>
+      el.getAttribute('data-dashboard-nav-item')
+    );
+
+  it('church: Главная и Библия на месте', () => {
+    const { container } = renderNav();
+    const ids = navIds(container);
+    expect(ids).toContain('home');
+    expect(ids).toContain('bible');
+    expect(ids).toEqual(expect.arrayContaining(['songs', 'setlists', 'settings']));
+  });
+
+  it('worship: только «Песни», «Сеты», «Профиль»', () => {
+    vi.stubEnv('NEXT_PUBLIC_APP_MODE', 'worship');
+    vi.stubEnv('NEXT_PUBLIC_AI_ENABLE', 'true');
+    const { container } = renderNav();
+    expect(navIds(container)).toEqual(['songs', 'setlists', 'settings']);
+    expect(screen.queryByText('Библия')).not.toBeInTheDocument();
+    expect(screen.queryByText('Пастырь')).not.toBeInTheDocument();
+  });
 });
