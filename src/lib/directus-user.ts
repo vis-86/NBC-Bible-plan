@@ -1,6 +1,8 @@
 // @ts-nocheck - Directus SDK typing issue with custom schema
 import { getDirectusAdminClient } from '@/lib/directus';
-import { readItems, createItem, createUser, readUser, readUsers, updateUser, readRoles } from '@directus/sdk';
+import { readItems, createItem, createUser, deleteUser, readUser, readUsers, updateUser, readRoles } from '@directus/sdk';
+import { APP_ROLE_TO_DIRECTUS_ROLE, type AppRole } from '@/lib/app-roles';
+import { addTeamMember } from '@/lib/teams';
 
 // Хелперы логин↔email живут в `local-email.ts` (модуль без directus-зависимостей —
 // его можно импортировать из клиентских компонентов). Здесь — ре-экспорт для
@@ -13,9 +15,12 @@ function debug(...args: unknown[]) {
   if (DEBUG) console.debug('[directus-user]', ...args);
 }
 
-/** Находит id роли «Чтец» (или null, если не найдена). */
-async function getReaderRoleId(adminClient: ReturnType<typeof getDirectusAdminClient>): Promise<string | null> {
-  const roles = await adminClient.request(readRoles({ filter: { name: { _eq: 'Чтец' } }, limit: 1 }));
+/** Находит id роли Directus по имени (или null, если не найдена). */
+async function getRoleIdByName(
+  adminClient: ReturnType<typeof getDirectusAdminClient>,
+  roleName: string
+): Promise<string | null> {
+  const roles = await adminClient.request(readRoles({ filter: { name: { _eq: roleName } }, limit: 1 }));
   return roles.length > 0 ? roles[0].id : null;
 }
 
@@ -26,16 +31,30 @@ export class LoginTakenError extends Error {
   }
 }
 
+export interface CreateLocalUserInput {
+  login: string;
+  password: string;
+  displayName?: string;
+  /** Команда, в которую аккаунт попадает сразу (`team_members`). */
+  teamId: string;
+  /** Роль приложения → роль Directus через `APP_ROLE_TO_DIRECTUS_ROLE`. */
+  appRole?: AppRole;
+}
+
 /**
- * Создаёт псевдонимного веб-пользователя по логину+паролю.
+ * Создаёт псевдонимного веб-пользователя по логину+паролю и добавляет его в команду.
  * email = `{login}@local.baptistnn.ru`. Бросает LoginTakenError при занятом логине.
+ * Если членство не создалось, аккаунт удаляется: иначе логин занят, а войти некуда
+ * (BFF без членства в команде не пускает к данным).
  * @returns directus user id
  */
-export async function createLocalUser(
-  login: string,
-  password: string,
-  displayName?: string
-): Promise<string> {
+export async function createLocalUser({
+  login,
+  password,
+  displayName,
+  teamId,
+  appRole = 'reader',
+}: CreateLocalUserInput): Promise<string> {
   const adminClient = getDirectusAdminClient();
   const email = loginToEmail(login);
 
@@ -47,7 +66,11 @@ export async function createLocalUser(
     throw new LoginTakenError(login);
   }
 
-  const roleId = await getReaderRoleId(adminClient);
+  const roleName = APP_ROLE_TO_DIRECTUS_ROLE[appRole];
+  const roleId = await getRoleIdByName(adminClient, roleName);
+  if (!roleId) {
+    console.warn('[directus-user] directus role not found, user created without role', roleName);
+  }
   const newUser = await adminClient.request(
     createUser({
       role: roleId,
@@ -58,7 +81,20 @@ export async function createLocalUser(
       status: 'active',
     })
   );
-  debug('local user created', newUser.id, login);
+  debug('local user created', newUser.id, login, appRole);
+
+  try {
+    await addTeamMember(teamId, newUser.id);
+  } catch (error) {
+    console.error('[directus-user] team membership failed, removing user', newUser.id, teamId, error);
+    try {
+      await adminClient.request(deleteUser(newUser.id));
+    } catch (cleanupError) {
+      console.error('[directus-user] failed to remove user after membership error', newUser.id, cleanupError);
+    }
+    throw error;
+  }
+  debug('team member added', newUser.id, '->', teamId);
   return newUser.id;
 }
 

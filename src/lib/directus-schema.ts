@@ -78,6 +78,40 @@ export interface DirectusSchema {
     sort?: number | null;
     date_created?: string;
     date_updated?: string;
+    /** Команда-владелец песни (uuid `teams.id`). */
+    team?: string | null;
+    /** Оригинал (`songs.id`), если песня скопирована из каталога другой команды. */
+    origin_song?: number | null;
+  };
+  /**
+   * Сетлист. Запросы BFF типизируются локальной схемой в
+   * `src/features/setlists/services/setlistsServer.ts`; здесь — для полноты общей схемы.
+   */
+  setlists: {
+    id: string;
+    title: string;
+    date: string | null;
+    date_created: string;
+    date_updated: string | null;
+    created_by: string;
+    /** Команда-владелец сета (uuid `teams.id`). */
+    team?: string | null;
+  };
+  /** Команда (мультитенантность): владелец песен и сетов. Коллекцию создаёт `scripts/add-teams`. */
+  teams: {
+    id: string;
+    name: string;
+    /** Уникальный slug (`nbc` — команда церкви). */
+    slug: string;
+    date_created?: string;
+  };
+  /** Членство: один пользователь = одна команда (уникальность по `user`). */
+  team_members: {
+    id: string;
+    /** uuid `teams.id` */
+    team: string;
+    /** id `directus_users` */
+    user: string;
   };
   /**
    * Личное состояние песни у пользователя (M10 + §10.3): рабочая тональность,
@@ -120,6 +154,10 @@ export interface DirectusSchema {
     used_at?: string | null;
     /** готовая ссылка активации/сброса */
     invite_url?: string | null;
+    /** activate: команда нового аккаунта (uuid `teams.id`); reset: не используется */
+    team?: string | null;
+    /** activate: роль нового аккаунта — значение `AppRole`; пусто или неизвестное ⇒ `reader` */
+    role?: string | null;
   };
 }
 

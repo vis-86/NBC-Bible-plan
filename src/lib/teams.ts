@@ -21,7 +21,7 @@ function relationId(value: unknown): string | null {
 export async function getUserTeamId(directusUserId: string): Promise<string | null> {
   if (!directusUserId) return null;
   const rows = await getDirectusAdminClient().request(
-    // @ts-expect-error DirectusSchema не содержит коллекцию (см. directus-data.ts)
+    // @ts-expect-error коллекции DirectusSchema — объекты, SDK v20 сужает readItems до never (см. setlistsServer.ts)
     readItems('team_members', {
       filter: { user: { _eq: directusUserId } },
       fields: ['team'],
@@ -35,7 +35,7 @@ export async function getUserTeamId(directusUserId: string): Promise<string | nu
 export async function getTeamIdBySlug(slug: string): Promise<string | null> {
   if (!slug) return null;
   const rows = await getDirectusAdminClient().request(
-    // @ts-expect-error DirectusSchema не содержит коллекцию (см. directus-data.ts)
+    // @ts-expect-error коллекции DirectusSchema — объекты, SDK v20 сужает readItems до never (см. setlistsServer.ts)
     readItems('teams', {
       filter: { slug: { _eq: slug } },
       fields: ['id'],
@@ -47,7 +47,6 @@ export async function getTeamIdBySlug(slug: string): Promise<string | null> {
 
 export async function addTeamMember(teamId: string, directusUserId: string): Promise<void> {
   await getDirectusAdminClient().request(
-    // @ts-expect-error DirectusSchema не содержит коллекцию (см. directus-data.ts)
     createItem('team_members', { team: teamId, user: directusUserId }),
   );
 }

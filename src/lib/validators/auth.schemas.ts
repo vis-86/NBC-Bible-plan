@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { APP_ROLES } from '../app-roles';
 import { LOGIN_HANDLE_MAX, LOGIN_HANDLE_MIN, LOGIN_HANDLE_PATTERN } from './login-handle';
 
 /**
@@ -43,10 +44,15 @@ export const TelegramLinkSchema = z.object({
   password: z.string().min(1, 'Укажите пароль').max(128),
 });
 
-/** Создание invite/reset ссылки (admin-only эндпоинт). */
+/**
+ * Создание invite/reset ссылки (admin-only эндпоинт).
+ * `team` (slug) и `role` — только для activate; дефолты (команда NBC, `reader`) ставит роут.
+ */
 export const InviteCreateSchema = z.object({
   kind: z.enum(['activate', 'reset']),
   userId: z.string().optional(),
+  team: z.string().trim().min(1, 'Укажите команду').max(64).optional(),
+  role: z.enum(APP_ROLES, 'Неизвестная роль').optional(),
 });
 
 /**

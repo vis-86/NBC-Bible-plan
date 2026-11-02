@@ -2,6 +2,7 @@
 import crypto from 'crypto';
 import { getDirectusAdminClient } from './directus';
 import { readItems, createItem, updateItem } from '@directus/sdk';
+import type { AppRole } from './app-roles';
 
 /**
  * Stateful invite/reset токены в коллекции Directus `auth_invites`.
@@ -17,6 +18,10 @@ export interface ValidInvite {
   kind: InviteKind;
   /** reset: id целевого пользователя; activate: null до активации */
   user: string | null;
+  /** activate: команда нового аккаунта; null — инвайт без команды (активировать нельзя) */
+  team: string | null;
+  /** activate: роль как записана в инвайте, без проверки — сверяет с `AppRole` вызывающий */
+  role: string | null;
 }
 
 const DEFAULT_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 дней
@@ -28,7 +33,7 @@ function debug(...args: unknown[]) {
 
 /**
  * Ищет валидную invite-запись по токену: не использована и не просрочена.
- * @returns { id, kind, user } или null, если токен не найден/использован/просрочен.
+ * @returns { id, kind, user, team, role } или null, если токен не найден/использован/просрочен.
  */
 export async function findValidInvite(token: string): Promise<ValidInvite | null> {
   if (!token) {
@@ -44,7 +49,7 @@ export async function findValidInvite(token: string): Promise<ValidInvite | null
         expires_at: { _gt: new Date().toISOString() },
       },
       limit: 1,
-      fields: ['id', 'kind', 'user'],
+      fields: ['id', 'kind', 'user', 'team', 'role'],
     })
   );
   const invite = rows[0];
@@ -52,8 +57,14 @@ export async function findValidInvite(token: string): Promise<ValidInvite | null
     debug('no valid invite for token');
     return null;
   }
-  debug('valid invite found id=%s kind=%s', invite.id, invite.kind);
-  return { id: invite.id, kind: invite.kind, user: invite.user ?? null };
+  debug('valid invite found id=%s kind=%s team=%s', invite.id, invite.kind, invite.team ?? '-');
+  return {
+    id: invite.id,
+    kind: invite.kind,
+    user: invite.user ?? null,
+    team: invite.team ?? null,
+    role: invite.role ?? null,
+  };
 }
 
 /**
@@ -75,14 +86,22 @@ export async function consumeInvite(id: number, createdUserId?: string): Promise
 /**
  * Программно создаёт invite/reset запись. Генерит token/expires_at/invite_url app-side
  * (НЕ полагается на Directus Flow — Flow обслуживает только ручной admin-UI путь).
+ * activate-инвайт обязан нести команду (`teamId`): без неё аккаунт создать некуда.
  * @returns { url, token } — готовая ссылка для передачи пользователю.
  */
 export async function createInvite(input: {
   kind: InviteKind;
   userId?: string;
+  /** activate: команда нового аккаунта (обязательно) */
+  teamId?: string;
+  /** activate: роль нового аккаунта; не задана ⇒ при активации `reader` */
+  role?: AppRole;
   label?: string;
   ttlSeconds?: number;
 }): Promise<{ url: string; token: string }> {
+  if (input.kind === 'activate' && !input.teamId) {
+    throw new Error('createInvite: activate invite requires teamId');
+  }
   const token = crypto.randomUUID();
   const ttl = input.ttlSeconds ?? DEFAULT_TTL_SECONDS;
   const expiresAt = new Date(Date.now() + ttl * 1000).toISOString();
@@ -101,8 +120,16 @@ export async function createInvite(input: {
       expires_at: expiresAt,
       used_at: null,
       invite_url: url,
+      team: input.teamId ?? null,
+      role: input.role ?? null,
     })
   );
-  debug('invite created kind=%s user=%s', input.kind, input.userId ?? '-');
+  debug(
+    'invite created kind=%s user=%s team=%s role=%s',
+    input.kind,
+    input.userId ?? '-',
+    input.teamId ?? '-',
+    input.role ?? '-'
+  );
   return { url, token };
 }

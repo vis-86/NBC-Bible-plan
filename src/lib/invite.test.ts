@@ -13,6 +13,8 @@ interface Row {
   expires_at: string;
   used_at: string | null;
   invite_url: string | null;
+  team: string | null;
+  role: string | null;
 }
 
 let rows: Row[] = [];
@@ -77,7 +79,7 @@ describe('DB-backed invites', () => {
   });
 
   it('creates an activate invite and finds it valid', async () => {
-    const { token, url } = await createInvite({ kind: 'activate' });
+    const { token, url } = await createInvite({ kind: 'activate', teamId: 'team-1' });
     expect(url).toContain('/activate?token=');
     expect(url).toContain('mode=activate');
 
@@ -103,24 +105,45 @@ describe('DB-backed invites', () => {
   });
 
   it('rejects an expired invite', async () => {
-    const { token } = await createInvite({ kind: 'activate', ttlSeconds: -1 });
+    const { token } = await createInvite({ kind: 'activate', teamId: 'team-1', ttlSeconds: -1 });
     expect(await findValidInvite(token)).toBeNull();
   });
 
   it('rejects an already-consumed invite', async () => {
-    const { token } = await createInvite({ kind: 'activate' });
+    const { token } = await createInvite({ kind: 'activate', teamId: 'team-1' });
     const invite = await findValidInvite(token);
     await consumeInvite(invite!.id);
     expect(await findValidInvite(token)).toBeNull();
   });
 
   it('binds the created user on activate consume', async () => {
-    const { token } = await createInvite({ kind: 'activate' });
+    const { token } = await createInvite({ kind: 'activate', teamId: 'team-1' });
     const invite = await findValidInvite(token);
     await consumeInvite(invite!.id, 'new-user-42');
 
     const row = rows.find((r) => r.id === invite!.id)!;
     expect(row.used_at).toBeTruthy();
     expect(row.user).toBe('new-user-42');
+  });
+
+  it('stores team and role of an activate invite and returns them', async () => {
+    const { token } = await createInvite({ kind: 'activate', teamId: 'team-7', role: 'musician' });
+    const invite = await findValidInvite(token);
+    expect(invite).toMatchObject({ kind: 'activate', team: 'team-7', role: 'musician' });
+  });
+
+  it('activate invite without role stores null (reader on activation)', async () => {
+    const { token } = await createInvite({ kind: 'activate', teamId: 'team-7' });
+    expect((await findValidInvite(token))?.role).toBeNull();
+  });
+
+  it('refuses an activate invite without team', async () => {
+    await expect(createInvite({ kind: 'activate' })).rejects.toThrow('requires teamId');
+    expect(rows).toHaveLength(0);
+  });
+
+  it('reset invite needs no team', async () => {
+    const { token } = await createInvite({ kind: 'reset', userId: 'user-123' });
+    expect(await findValidInvite(token)).toMatchObject({ kind: 'reset', team: null, role: null });
   });
 });

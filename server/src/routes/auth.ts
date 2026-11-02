@@ -9,6 +9,7 @@
  */
 import { Hono } from 'hono';
 import { readUsers } from '@directus/sdk';
+import { isAppRole, type AppRole } from '../../../src/lib/app-roles';
 import { getDirectusAdminClient } from '../../../src/lib/directus';
 import {
   createLocalUser,
@@ -26,6 +27,7 @@ import {
   isRegistrationOpen,
   verifyChurchCode,
 } from '../../../src/lib/register-access';
+import { getTeamIdBySlug, NBC_TEAM_SLUG } from '../../../src/lib/teams';
 import { verifyTelegramInitData } from '../../../src/lib/telegram-server';
 import {
   ActivateSchema,
@@ -57,6 +59,16 @@ async function readProfileByAdmin(
   return users[0] as
     | { first_name?: string | null; last_name?: string | null; email?: string | null }
     | undefined;
+}
+
+const INVALID_INVITE_ERROR = 'Ссылка недействительна или истекла. Обратитесь в поддержку.';
+
+/** Роль нового аккаунта из инвайта: пусто → `reader`, значение вне `AppRole` → `reader` + warn. */
+function inviteAppRole(rawRole: string | null, inviteId: number): AppRole {
+  if (!rawRole) return 'reader';
+  if (isAppRole(rawRole)) return rawRole;
+  logger.warn(`activate: invite ${inviteId} has unknown role "${rawRole}", using reader`);
+  return 'reader';
 }
 
 export const authRoutes = new Hono();
@@ -244,8 +256,8 @@ async function linkTelegramAfterRegister(directusUserId: string, initData: strin
 }
 
 /**
- * POST /auth/register — самостоятельная регистрация.
- * Барьеры по порядку: rate-limit → 503(выключено) → zod → 403(код) → 409(дубль).
+ * POST /auth/register — самостоятельная регистрация (только в команду NBC).
+ * Барьеры по порядку: rate-limit → 503(выключено) → zod → 403(код) → 503(нет команды) → 409(дубль).
  */
 authRoutes.post('/register', async (c) => {
   const ip = clientIp(c.req.raw);
@@ -276,9 +288,21 @@ authRoutes.post('/register', async (c) => {
     }
   }
 
+  let teamId: string | null;
   try {
-    const directusUserId = await createLocalUser(login, password, displayName);
-    logger.debug(`register: account created ${directusUserId} login=${login}`);
+    teamId = await getTeamIdBySlug(NBC_TEAM_SLUG);
+  } catch (error) {
+    logger.error(`register: team "${NBC_TEAM_SLUG}" lookup failed`, error);
+    return c.json({ error: 'Регистрация временно недоступна' }, 503);
+  }
+  if (!teamId) {
+    logger.error(`register: team "${NBC_TEAM_SLUG}" not found`);
+    return c.json({ error: 'Регистрация временно недоступна' }, 503);
+  }
+
+  try {
+    const directusUserId = await createLocalUser({ login, password, displayName, teamId });
+    logger.debug(`register: account created ${directusUserId} login=${login} team=${teamId}`);
 
     let user: { first_name?: string | null; last_name?: string | null } = {};
     user = (await readProfileByAdmin(directusUserId)) ?? {};
@@ -329,21 +353,31 @@ authRoutes.post('/activate', async (c) => {
 
   const invite = await findValidInvite(token);
   if (!invite) {
-    return c.json(
-      { error: 'Ссылка недействительна или истекла. Обратитесь в поддержку.' },
-      400
-    );
+    return c.json({ error: INVALID_INVITE_ERROR }, 400);
   }
 
   try {
     let directusUserId: string;
 
     if (invite.kind === 'activate') {
+      if (!invite.team) {
+        logger.error(`activate: invite ${invite.id} has no team`);
+        return c.json({ error: INVALID_INVITE_ERROR }, 400);
+      }
       if (!login) {
         return c.json({ error: 'Укажите логин' }, 400);
       }
-      directusUserId = await createLocalUser(login, password, displayName);
-      logger.debug(`activate: account created ${directusUserId} login=${login}`);
+      const appRole = inviteAppRole(invite.role, invite.id);
+      directusUserId = await createLocalUser({
+        login,
+        password,
+        displayName,
+        teamId: invite.team,
+        appRole,
+      });
+      logger.debug(
+        `activate: account created ${directusUserId} login=${login} team=${invite.team} role=${appRole}`
+      );
       await consumeInvite(invite.id, directusUserId);
     } else {
       if (!invite.user) {
@@ -379,6 +413,8 @@ authRoutes.post('/activate', async (c) => {
 
 /**
  * POST /auth/invite/create (admin-only, Bearer INVITE_ADMIN_SECRET).
+ * activate: `team` — slug команды (по умолчанию NBC), `role` — `AppRole` (по умолчанию reader);
+ * неизвестный slug → 400. reset: `team`/`role` не используются.
  */
 authRoutes.post('/invite/create', async (c) => {
   const adminSecret = process.env.INVITE_ADMIN_SECRET;
@@ -395,14 +431,28 @@ authRoutes.post('/invite/create', async (c) => {
   if (!parsed.success) {
     return c.json({ error: firstZodError(parsed.error) }, 400);
   }
-  const { kind, userId } = parsed.data;
+  const { kind, userId, team, role } = parsed.data;
 
-  if (kind === 'reset' && !userId) {
-    return c.json({ error: 'Для reset требуется userId' }, 400);
+  if (kind === 'reset') {
+    if (!userId) {
+      return c.json({ error: 'Для reset требуется userId' }, 400);
+    }
+    const { url, token } = await createInvite({ kind, userId });
+    logger.debug(`invite: issued reset url for userId=${userId}`);
+    return c.json({ url, token });
   }
 
-  const { url, token } = await createInvite({ kind, userId });
-  logger.debug(`invite: issued ${kind} url for userId=${userId ?? '-'}`);
+  const teamSlug = team ?? NBC_TEAM_SLUG;
+  const appRole = role ?? 'reader';
+  // Сбой Directus при поиске уходит в общий onError (500), как и сбой createInvite.
+  const teamId = await getTeamIdBySlug(teamSlug);
+  if (!teamId) {
+    logger.warn(`invite: unknown team slug "${teamSlug}"`);
+    return c.json({ error: 'Команда не найдена' }, 400);
+  }
+
+  const { url, token } = await createInvite({ kind, userId, teamId, role: appRole });
+  logger.debug(`invite: issued activate url team=${teamSlug} role=${appRole}`);
   return c.json({ url, token });
 });
 
