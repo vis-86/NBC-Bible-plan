@@ -29,11 +29,27 @@ const MEMBER_A = 'aaaaaaaa-0000-4000-8000-000000000002';
 const ADMIN_B = 'bbbbbbbb-0000-4000-8000-000000000001';
 const MEMBER_B = 'bbbbbbbb-0000-4000-8000-000000000002';
 const NOBODY = 'cccccccc-0000-4000-8000-000000000009';
+/** Второй `team_admin` команды A — им управляет только администратор приложения. */
+const ADMIN_A2 = 'aaaaaaaa-0000-4000-8000-000000000003';
+/** Участники команды A вне ролей приложения: для команды их нет. */
+const APP_ADMIN = 'aaaaaaaa-0000-4000-8000-000000000004';
+const OTHER_ROLE = 'aaaaaaaa-0000-4000-8000-000000000005';
+const POLICY_ADMIN = 'aaaaaaaa-0000-4000-8000-000000000006';
+/** Аккаунт без роли Directus — для приложения `reader`. */
+const NO_ROLE = 'aaaaaaaa-0000-4000-8000-000000000007';
 
 const NBC_URL = 'https://nbc.example.org';
 const WORSHIP_URL = 'https://worship.example.org';
 
-type User = { id: string; email: string; first_name: string; status: string; role: string };
+type User = {
+  id: string;
+  email: string;
+  first_name: string;
+  status: string;
+  role: string | null;
+  /** Политика с `admin_access`, выданная самому пользователю, а не его роли. */
+  adminPolicy?: boolean;
+};
 type Membership = { id: number; team: string; user: string };
 
 const ROLES = [
@@ -43,18 +59,21 @@ const ROLES = [
   { id: 'role-admin', name: 'team_admin' },
 ];
 
+/** Роль Directus, чьи политики дают `admin_access`. */
+const DIRECTUS_ADMIN_ROLE = 'Administrator';
+
 let users: Record<string, User>;
 let memberships: Membership[];
 let invites: Array<Record<string, unknown>>;
 
-function user(id: string, login: string, role: string): User {
+function user(id: string, login: string, role: string | null): User {
   return { id, email: `${login}@local.baptistnn.ru`, first_name: login.toUpperCase(), status: 'active', role };
 }
 
 type DirectusCommand = () => {
   path: string;
   method: string;
-  params?: { fields?: string[]; filter?: Record<string, { _eq?: unknown }> };
+  params?: { fields?: string[]; filter?: Record<string, { _eq?: unknown; _null?: boolean }> };
   body?: string;
 };
 
@@ -71,7 +90,7 @@ function fakeDirectus(command: DirectusCommand) {
   if (userPath) {
     const target = Object.values(users).find((u) => sameId(u.id, userPath[1]));
     if (!target) throw Object.assign(new Error('Forbidden'), { response: { status: 403 } });
-    if (method === 'GET') return { role: { name: target.role } };
+    if (method === 'GET') return { role: target.role === null ? null : { name: target.role } };
     if (method === 'PATCH') {
       const patch = JSON.parse(body ?? '{}') as { role?: string; status?: string };
       if (patch.role !== undefined) target.role = ROLES.find((r) => r.id === patch.role)?.name ?? 'unknown';
@@ -93,13 +112,31 @@ function fakeDirectus(command: DirectusCommand) {
         (filter.team?._eq === undefined || m.team === filter.team._eq) &&
         (filter.user?._eq === undefined || sameId(m.user, filter.user._eq)),
     );
-    if (params?.fields?.includes('user.id')) {
-      return rows.map((m) => {
-        const u = users[m.user];
-        return { user: { id: u.id, email: u.email, first_name: u.first_name, status: u.status, role: { name: u.role } } };
-      });
-    }
-    return rows.map((m) => ({ id: m.id }));
+    // Политики отдаются, только если их запросили: забытое поле в запросе тест должен заметить.
+    const fields = params?.fields ?? [];
+    const withRolePolicies = fields.includes('user.role.policies.policy.admin_access');
+    const withUserPolicies = fields.includes('user.policies.policy.admin_access');
+    return rows.map((m) => {
+      const u = users[m.user];
+      const role =
+        u.role === null
+          ? null
+          : {
+              name: u.role,
+              ...(withRolePolicies && { policies: [{ policy: { admin_access: u.role === DIRECTUS_ADMIN_ROLE } }] }),
+            };
+      return {
+        id: m.id,
+        user: {
+          id: u.id,
+          email: u.email,
+          first_name: u.first_name,
+          status: u.status,
+          role,
+          ...(withUserPolicies && { policies: u.adminPolicy ? [{ policy: { admin_access: true } }] : [] }),
+        },
+      };
+    });
   }
 
   const membershipPath = path.match(/^\/items\/team_members\/(\d+)$/);
@@ -117,6 +154,20 @@ function fakeDirectus(command: DirectusCommand) {
     return {};
   }
 
+  if (path === '/items/auth_invites' && method === 'PATCH') {
+    const { query, data } = JSON.parse(body ?? '{}') as {
+      query?: { filter?: Record<string, { _eq?: unknown; _null?: boolean }> };
+      data: Record<string, unknown>;
+    };
+    const where = query?.filter ?? {};
+    for (const invite of invites) {
+      const userMatches = where.user?._eq === undefined || sameId(invite.user, where.user._eq);
+      const unusedMatches = where.used_at?._null !== true || invite.used_at == null;
+      if (userMatches && unusedMatches) Object.assign(invite, data);
+    }
+    return [];
+  }
+
   throw new Error(`unexpected Directus call ${method} ${path}`);
 }
 
@@ -127,12 +178,22 @@ beforeEach(() => {
     [MEMBER_A]: user(MEMBER_A, 'member-a', 'musician'),
     [ADMIN_B]: user(ADMIN_B, 'admin-b', 'team_admin'),
     [MEMBER_B]: user(MEMBER_B, 'member-b', 'musician'),
+    [ADMIN_A2]: user(ADMIN_A2, 'admin-a2', 'team_admin'),
+    [APP_ADMIN]: user(APP_ADMIN, 'app-admin', DIRECTUS_ADMIN_ROLE),
+    [OTHER_ROLE]: user(OTHER_ROLE, 'other-role', 'Бухгалтерия'),
+    [POLICY_ADMIN]: { ...user(POLICY_ADMIN, 'policy-admin', 'musician'), adminPolicy: true },
+    [NO_ROLE]: user(NO_ROLE, 'no-role', null),
   };
   memberships = [
     { id: 1, team: 'team-a', user: ADMIN_A },
     { id: 2, team: 'team-a', user: MEMBER_A },
     { id: 3, team: 'team-b', user: ADMIN_B },
     { id: 4, team: 'team-b', user: MEMBER_B },
+    { id: 5, team: 'team-a', user: ADMIN_A2 },
+    { id: 6, team: 'team-a', user: APP_ADMIN },
+    { id: 7, team: 'team-a', user: OTHER_ROLE },
+    { id: 8, team: 'team-a', user: POLICY_ADMIN },
+    { id: 9, team: 'team-a', user: NO_ROLE },
   ];
   invites = [];
   adminRequestMock.mockReset();
@@ -162,16 +223,13 @@ async function call(method: string, path: string, as?: string, body?: unknown) {
   });
 }
 
-/** Состояние «никто ничего не записал»: роли, статусы и членства как в beforeEach. */
+/** Ни одного пишущего запроса в Directus (POST/PATCH/DELETE) — только чтение. */
 function expectNoWrites() {
-  expect(invites).toEqual([]);
-  expect(memberships).toHaveLength(4);
-  expect(Object.values(users).map((u) => [u.role, u.status])).toEqual([
-    ['team_admin', 'active'],
-    ['musician', 'active'],
-    ['team_admin', 'active'],
-    ['musician', 'active'],
-  ]);
+  const writes = adminRequestMock.mock.calls
+    .map(([command]) => (command as DirectusCommand)())
+    .filter(({ method }) => method !== 'GET')
+    .map(({ method, path }) => `${method} ${path}`);
+  expect(writes).toEqual([]);
 }
 
 const ADMIN_ENDPOINTS: Array<[string, string, unknown?]> = [
@@ -213,13 +271,16 @@ describe('гейты /api/team', () => {
 });
 
 describe('GET /api/team/members', () => {
-  it('только участники своей команды, без email', async () => {
+  it('только участники своей команды с ролями приложения, без email', async () => {
     users[MEMBER_A].status = 'suspended';
     const res = await call('GET', '/members', ADMIN_A);
     expect(res.status).toBe(200);
+    // APP_ADMIN, OTHER_ROLE и POLICY_ADMIN — вне ролей приложения, в списке их нет.
     expect(await res.json()).toEqual([
       { userId: ADMIN_A, login: 'admin-a', displayName: 'ADMIN-A', role: 'team_admin', active: true },
       { userId: MEMBER_A, login: 'member-a', displayName: 'MEMBER-A', role: 'musician', active: false },
+      { userId: ADMIN_A2, login: 'admin-a2', displayName: 'ADMIN-A2', role: 'team_admin', active: true },
+      { userId: NO_ROLE, login: 'no-role', displayName: 'NO-ROLE', role: 'reader', active: true },
     ]);
   });
 
@@ -327,6 +388,19 @@ describe('DELETE /api/team/members/:userId', () => {
     expect(users[MEMBER_A]).toMatchObject({ id: MEMBER_A, status: 'suspended' });
   });
 
+  it('неиспользованные инвайты убранного участника гасятся, чужие и использованные не трогаются', async () => {
+    const usedAt = '2026-01-01T00:00:00.000Z';
+    invites = [
+      { id: 1, kind: 'reset', user: MEMBER_A, used_at: null },
+      { id: 2, kind: 'reset', user: MEMBER_A, used_at: usedAt },
+      { id: 3, kind: 'reset', user: ADMIN_B, used_at: null },
+    ];
+    expect((await call('DELETE', `/members/${MEMBER_A}`, ADMIN_A)).status).toBe(200);
+    expect(typeof invites[0].used_at).toBe('string');
+    expect(invites[1].used_at).toBe(usedAt);
+    expect(invites[2].used_at).toBeNull();
+  });
+
   it.each([MEMBER_B, ADMIN_B, NOBODY])('чужой или несуществующий (%s) -> 404, без записей', async (id) => {
     expect((await call('DELETE', `/members/${id}`, ADMIN_A)).status).toBe(404);
     expectNoWrites();
@@ -335,5 +409,46 @@ describe('DELETE /api/team/members/:userId', () => {
   it.each([ADMIN_A, ADMIN_A.toUpperCase()])('себя (%s) -> 409', async (id) => {
     expect((await call('DELETE', `/members/${id}`, ADMIN_A)).status).toBe(409);
     expectNoWrites();
+  });
+});
+
+describe('действия только над обычными участниками', () => {
+  const ACTIONS: Array<[string, (id: string) => [string, string, unknown?]]> = [
+    ['reset', (id) => ['POST', `/members/${id}/reset`]],
+    ['PATCH', (id) => ['PATCH', `/members/${id}`, { role: 'reader' }]],
+    ['DELETE', (id) => ['DELETE', `/members/${id}`]],
+  ];
+  const OUTSIDE_APP_ROLES: Array<[string, string]> = [
+    ['роль Administrator', APP_ADMIN],
+    ['роль вне AppRole', OTHER_ROLE],
+    ['политика admin_access у пользователя', POLICY_ADMIN],
+  ];
+
+  it.each(ACTIONS.flatMap(([action, req]) => OUTSIDE_APP_ROLES.map(([label, id]) => [action, label, req(id)] as const)))(
+    '%s: %s -> 404, как чужой, без записей',
+    async (_action, _label, [method, path, body]) => {
+      expect((await call(method, path, ADMIN_A, body)).status).toBe(404);
+      expectNoWrites();
+    },
+  );
+
+  it.each(ACTIONS.map(([action, req]) => [action, req(ADMIN_A2)] as const))(
+    '%s: другой team_admin -> 409, без записей',
+    async (_action, [method, path, body]) => {
+      const res = await call(method, path, ADMIN_A, body);
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'Администратора команды меняет администратор приложения' });
+      expectNoWrites();
+    },
+  );
+
+  it('reset себе (team_admin) -> 409', async () => {
+    expect((await call('POST', `/members/${ADMIN_A}/reset`, ADMIN_A)).status).toBe(409);
+    expectNoWrites();
+  });
+
+  it('обычного участника можно повысить до team_admin', async () => {
+    expect((await call('PATCH', `/members/${MEMBER_A}`, ADMIN_A, { role: 'team_admin' })).status).toBe(200);
+    expect(users[MEMBER_A].role).toBe('team_admin');
   });
 });

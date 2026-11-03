@@ -3,7 +3,8 @@
  *
  * Вся группа — за `requireTeam` (команда только из членства по сессии), управление —
  * дополнительно за `requireTeamAdmin`. Участник в `:userId` обязан состоять в команде
- * вызывающего: чужой и несуществующий отвечают одинаково 404.
+ * вызывающего: чужой и несуществующий отвечают одинаково 404. Управлять можно только
+ * обычными участниками: другой `team_admin` — 409, аккаунт вне ролей приложения — 404.
  *
  * Запись online-only — осознанное исключение из offline-first, как запись песен и сетов.
  */
@@ -16,6 +17,7 @@ import {
   listTeamMembers,
   removeMember,
   setMemberRole,
+  TeamAdminTargetError,
 } from '../../../src/features/team/services/teamServer';
 import { requireTeamAdmin } from '../middleware/requireRole';
 import { requireTeam } from '../middleware/requireTeam';
@@ -25,6 +27,8 @@ import { getSession } from '../session';
 export const teamRoutes = new Hono();
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const TEAM_ADMIN_TARGET_ERROR = 'Администратора команды меняет администратор приложения';
 
 // Зарегистрирован до роутов, поэтому срабатывает до гейта роли: requireTeam → роль → хендлер.
 teamRoutes.use('*', requireTeam);
@@ -109,6 +113,7 @@ teamRoutes.post('/members/:userId/reset', requireTeamAdmin, async (c) => {
     logger.debug(`[team] reset issued for ${userId}`);
     return c.json({ url: invite.url }, 201);
   } catch (error) {
+    if (error instanceof TeamAdminTargetError) return c.json({ error: TEAM_ADMIN_TARGET_ERROR }, 409);
     logger.error('[team] reset error:', error);
     return c.json({ error: 'Internal server error' }, 500);
   }
@@ -135,6 +140,7 @@ teamRoutes.patch('/members/:userId', requireTeamAdmin, async (c) => {
 
     return c.json({ success: true });
   } catch (error) {
+    if (error instanceof TeamAdminTargetError) return c.json({ error: TEAM_ADMIN_TARGET_ERROR }, 409);
     logger.error('[team] role change error:', error);
     return c.json({ error: 'Internal server error' }, 500);
   }
@@ -158,6 +164,7 @@ teamRoutes.delete('/members/:userId', requireTeamAdmin, async (c) => {
 
     return c.json({ success: true });
   } catch (error) {
+    if (error instanceof TeamAdminTargetError) return c.json({ error: TEAM_ADMIN_TARGET_ERROR }, 409);
     logger.error('[team] remove error:', error);
     return c.json({ error: 'Internal server error' }, 500);
   }
