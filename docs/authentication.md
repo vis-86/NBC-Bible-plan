@@ -55,6 +55,13 @@ Stateful токены в коллекции Directus `auth_invites` (`src/lib/in
   `used_at` (+`user` для activate).
 - Создание: вручную в Directus UI (Flow заполняет `token`/`expires_at`/`invite_url`) **или**
   программно `createInvite()` (`POST /api/auth/invite/create`, защищён `INVITE_ADMIN_SECRET`).
+- Команды: activate-инвайт несёт `team` и `role` (`AppRole`); тело `invite/create` принимает
+  `team` (slug, по умолчанию `nbc`) и `role` (по умолчанию `reader`). Активация создаёт аккаунт
+  сразу с членством в команде инвайта; инвайт без команды — недействительная ссылка. Ссылка
+  ведёт на витрину команды (`NEXT_PUBLIC_APP_URL` для NBC, `WORSHIP_APP_URL` для остальных).
+  Внутри команды инвайты выдаёт её `team_admin` в приложении (`/dashboard/team`), новую
+  команду заводит `scripts/create-team.ts`.
+- Регистрация по коду церкви создаёт аккаунт только в команде `nbc`; нет команды — 503.
 
 «Забыл логин/пароль» → поддержка создаёт `reset`-приглашение на пользователя в Directus и выдаёт
 ссылку (`mode=reset`), которая ведёт на ту же страницу `/activate`.

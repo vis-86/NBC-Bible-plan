@@ -87,6 +87,7 @@ bible-plan/
 │   │       └── hooks/                # useOfflineData
 │   │   └── onboarding/               # Приветствие новичка на главной (WelcomeCard + флаг welcomeStore, ставит /register)
 │   │   └── profile/                  # Профиль пользователя (секция настроек)
+│   │   └── team/                     # Команда: services/teamServer (BFF), экран /dashboard/team, секция в настройках
 │   │       └── components/           # ProfileSection (логин read-only + инлайн-правка имени)
 │   ├── sw/
 │   │   └── sw.ts                     # Build-time SW (esbuild + @serwist/build injectManifest → out/sw.js)
@@ -145,6 +146,8 @@ bible-plan/
 │   ├── build-sw.ts                   # esbuild + @serwist/build injectManifest → out/sw.js
 │   ├── static-serve.ts               # Local static+bff-proxy server for e2e (mimics nginx)
 │   ├── migrate-ink-anchor-hashes.ts  # M9 T4.1: одноразовая миграция якорей пометок (прод применён 2026-09-24)
+│   ├── add-teams.ts + add-teams/     # Миграция команд: apply / finalize / strip-user-permissions (--confirm-host, --dry-run)
+│   ├── create-team.ts + create-team/ # Новая команда + одноразовая ссылка её team_admin
 │   └── songs-import/                 # Импорт корпуса data/songs → Directus — ОДНОРАЗОВЫЙ, на непустой коллекции отказывает
 ├── deploy/                           # Dockerfile (build/bff/static stages), compose.yml, nginx/, deploy.sh
 ├── .ai-factory/                      # AI Factory context
@@ -178,13 +181,18 @@ bible-plan/
 | `src/shared/offline/downloadManager.ts` | Опциональная офлайн-загрузка Писания/песен/плана/сетлистов (+ пометки песен), очистка и **дельта-синк** (`syncSongsDelta`/`syncSetlistsDelta`) |
 | `src/shared/offline/autoDownload.ts` | Автозагрузка базового набора после логина (iOS partition fix) + дельта-синк на КАЖДОМ запуске: манифест с ETag → качается только изменившееся, отсутствующее в манифесте удаляется. Версии и ETag фиксируются только после успеха |
 | `src/shared/offline/syncVersions.ts` | Карта версий и ETag манифеста в существующем сторе `meta` (`sync:versions`, `sync:etag`) — без новых сторов и без подъёма `DB_VERSION` |
-| `server/src/routes/sync.ts` | `GET /api/sync/manifest` — пер-элементные версии песен/сетов/плана, ETag + 304, in-memory кеш 60 с. Версия сета учитывает состав (`setlist_items`), не только `date_updated`. Сбой Directus → 503, НИКОГДА не пустой манифест |
+| `src/lib/teams.ts` + `server/src/middleware/requireTeam.ts` | Команда пользователя — только из членства `team_members` по сессии (`c.get('teamId')`); нет членства → 403. Инварианты команд — `CLAUDE.md`, «Команды (мультитенантность)». Гейт обращений к коллекциям команд — `server/src/tenant-boundary.test.ts` |
+| `src/shared/offline/offlineOwner.ts` | Владелец офлайн-данных устройства: вход другого пользователя стирает песни/сеты/`apiCache`/outbox (Писание остаётся); `replayOutbox` шлёт очередь только для подтверждённого владельца |
+| `src/shared/config/appMode.ts` | Режим сборки `church` / `worship` (витрина музыкальных команд: только песни и сеты, свой бренд) — единственное место чтения `NEXT_PUBLIC_APP_MODE` и бренда |
+| `server/src/routes/catalog.ts` + `src/app/dashboard/catalog/page.tsx` | Общий каталог: `public`-песни других команд, копирование к себе — форк (`origin_song`, `visibility = members`). Online-only, только `canEditSongs` |
+| `server/src/routes/team.ts` + `src/app/dashboard/team/page.tsx` | Управление командой (`team_admin`, `requireTeamAdmin`): участники, инвайты с ролью, reset, смена роли, удаление (`suspended`). Online-only |
+| `server/src/routes/sync.ts` | `GET /api/sync/manifest` — пер-элементные версии песен/сетов/плана своей команды, ETag + 304, in-memory кеш 60 с на команду. Версия сета учитывает состав (`setlist_items`), не только `date_updated`. Сбой Directus → 503, НИКОГДА не пустой манифест |
 | `src/features/setlists/lib/warmSetlistsOffline.ts` | «Получили сет — он офлайн»: каждый полученный список греет деталь всех сетов и песни неархивных; фолбэк детали из кэша списка — в `readSetlistThroughSWR` |
 | `src/features/setlists/lib/warmSetlistSongs.ts` | Фоновый прогрев всех песен открытого сета тем же вызовом, которым их читает экран (`readSongThroughSWR`) |
 | `src/features/songs/components/SongFreshBanner.tsx` | Плашка «Песня обновлена» — свежая версия открытой песни применяется только по явному тапу (`useSong().applyFresh`) |
 | `src/app/dashboard/song-edit/page.tsx` + `src/features/songs/components/SongEditor.tsx` | Редактор песни (M9 T3a): создание (без `id`) и правка (`?id=`), в `APP_SHELL_ROUTES`. Вкладки «Вставить» (конвертер «аккорды над строкой»), «Аккорды» (`SongChordCanvas` + `SongChordKeyboard`, модель без потерь — `lib/songEditModel.ts`) и «Исходник» (ChordPro), предпросмотр `SongView`. Запись online-only (`useSaveSong` → после записи обновляет IDB песни и список), песня для правки — только из сети (`useSongForEdit`), логика черновика — `lib/songEditorDraft.ts`. Вход — только при `canEditSongs` |
 | `src/app/s/page.tsx` + `server/src/routes/publicSongs.ts` | Ссылка «Поделиться» на песню (`SongShareButton` в шапке песни, `lib/songShare.ts`). Вошедший → `/dashboard/song`, гость → read-only лист из `GET /api/public/songs/:id` (только `songs.visibility = public`, online-only). Видимость правит `musician_editor` в редакторе. Миграция поля — `scripts/add-song-visibility-field.ts` |
-| `src/lib/app-roles.ts` + `src/shared/hooks/useAppRole.ts` | `AppRole` (reader/musician/musician_editor), `GET /api/user/role` — гейт кнопок сетлистов и правки песен (реальный гейт — BFF `requireSetlistWrite`/`requireSongWrite`, см. `CLAUDE.md`). Роль кешируется cache-first на 5 мин: смена роли в Directus видна после истечения и повторного входа на экран |
+| `src/lib/app-roles.ts` + `src/shared/hooks/useAppRole.ts` | `AppRole` (reader/musician/musician_editor/team_admin), `GET /api/user/role` — гейт кнопок сетлистов и правки песен (реальный гейт — BFF `requireSetlistWrite`/`requireSongWrite`, см. `CLAUDE.md`). Роль кешируется cache-first на 5 мин: смена роли в Directus видна после истечения и повторного входа на экран |
 | `server/src/routes/songs.ts` (`POST /`, `PUT /:id`) + `src/lib/validators/songs.schemas.ts` | Запись песни (M9) под `requireSongWrite`: тело — готовый ChordPro, `slug`/`sort`/`status` ставит сервер (`createSong`/`updateSong` в `songsServer.ts`). Прав на `songs` у политик пользователей в Directus нет и не выдавать |
 | `server/src/routes/setlists.ts` + `src/features/setlists/services/setlistsServer.ts` | CRUD сетлистов (Directus admin-client), `requireSetlistWrite` на мутирующих роутах |
 | `src/app/dashboard/setlists/page.tsx`, `.../setlist/page.tsx`, `.../setlist-edit/page.tsx` | Список / read-only просмотр / создание сета — все три в `APP_SHELL_ROUTES`. Карточка списка показывает состав и ведёт на первую песню сета (`/dashboard/song?id=&setlistId=`); `setlist-edit` — ТОЛЬКО создание (два шага: выбор песен → название/дата/порядок) |

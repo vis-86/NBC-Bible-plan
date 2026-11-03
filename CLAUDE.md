@@ -74,9 +74,10 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
 ## Роли доступа (сетлисты)
 
 - Роли: `reader` (дефолт), `musician` (CRUD сетлистов), `musician_editor` (CRUD сетлистов
-  + создание и редактирование песен). Обе музыкантские роли проходят `canManageSetlists`;
-  `canEditSongs` — только `musician_editor` (редактор песен M9). Маппинг Directus-роль →
-  `AppRole` — `src/lib/app-roles.ts`.
+  + создание и редактирование песен), `team_admin` (всё то же + участники своей команды).
+  `canManageSetlists` — все три последние; `canEditSongs` — `musician_editor` и `team_admin`;
+  `canManageTeam` — только `team_admin` (гейт BFF — `requireTeamAdmin`). Маппинг
+  Directus-роль ↔ `AppRole` — `src/lib/app-roles.ts`.
 - **Реальный гейт — BFF, не Directus.** Приложение ходит в Directus админ-токеном через
   BFF, поэтому Directus-права — второй рубеж, а не защита. Каждый мутирующий роут
   сетлистов обязан пройти через `requireSetlistWrite`, песен — через `requireSongWrite`
@@ -100,6 +101,37 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
   вошедшего страница уводит в `/dashboard/song` (офлайн). Кому открыта песня — поле
   `songs.visibility` (`public`/`members`), гейт — `GET /api/public/songs/:id` в BFF.
   `GET /api/songs*` — только с сессией. Подробности — `docs/offline-pwa.md`.
+
+## Команды (мультитенантность) — инварианты
+
+Песни и сеты принадлежат команде (`teams`, членство `team_members`, один пользователь = одна
+команда). NBC — команда `nbc`. Решения и обоснование — `docs/worship-multitenant-prompt.md`.
+
+- Команда — ТОЛЬКО из членства по сессии: `requireTeam` → `c.get('teamId')`. Никогда из тела,
+  query или URL. Нет членства → 403, сбой Directus → 503.
+- Функция сервиса фичи, читающая или пишущая данные команды, принимает `teamId` первым
+  аргументом и падает на пустом: `c.get('teamId')` типизирован глобально и в роуте без
+  `requireTeam` вернёт `undefined`, а фильтр `{ team: { _eq: undefined } }` уходит как `{}`.
+  Ресурс другой команды и несуществующий неразличимы — 404.
+- Вызовы Directus к коллекциям команд — только в сервисах фич (`songsServer`, `songStateServer`,
+  `setlistsServer`, `teamServer`, `src/lib/teams.ts`); гейт — `server/src/tenant-boundary.test.ts`.
+  Новый сервис — в его список разрешённых.
+- Аккаунт создаётся только вместе с членством (`createLocalUser` удаляет пользователя, если
+  членство не записалось). Регистрация по коду церкви — только в NBC; инвайт несёт команду и роль.
+- Ссылка инвайта ведёт на витрину своей команды: NBC → `NEXT_PUBLIC_APP_URL`, остальные →
+  `WORSHIP_APP_URL` (пусто ⇒ такой инвайт не создаётся).
+- Две витрины из одной кодовой базы, общий BFF: `NEXT_PUBLIC_APP_MODE=church|worship`.
+  Единственное место чтения режима и бренда — `src/shared/config/appMode.ts`.
+- Офлайн-данные принадлежат пользователю устройства: при входе другого `ensureOfflineOwner`
+  стирает песни, сеты, `apiCache`, пометки и outbox (скачанное Писание остаётся), а
+  `replayOutbox` шлёт очередь только для подтверждённого владельца.
+- Общий каталог (`/api/catalog`) — `public`-песни других команд; копия — форк (`origin_song`,
+  `visibility = members`), а не ссылка. Новая песня по умолчанию `members`.
+- **Осознанные online-only исключения:** каталог и управление командой (`/api/team`) — с UI
+  «нужен интернет», в IDB не кладутся.
+- Схема — `scripts/add-teams.ts` (`apply` / `finalize` / `strip-user-permissions`,
+  `--confirm-host`), новая команда — `scripts/create-team.ts`. Порядок выкатки —
+  `docs/deployment.md`.
 
 ## Прод и деплой
 

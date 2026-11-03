@@ -17,7 +17,8 @@
 |------------|-----------|-------------------|
 | `SESSION_SECRET` | Пароль для iron-session (шифрование+подпись cookie). **Обязателен в prod**, ≥32 символов. | `openssl rand -hex 32` |
 | `INVITE_ADMIN_SECRET` | Защита эндпоинта `POST /api/auth/invite/create` (выдача invite-ссылок). | `openssl rand -hex 24` |
-| `NEXT_PUBLIC_APP_URL` | Базовый URL приложения для построения invite/reset ссылок. | — |
+| `NEXT_PUBLIC_APP_URL` | Базовый URL приложения для построения invite/reset ссылок (команда NBC). | — |
+| `WORSHIP_APP_URL` | Server-only. Домен worship-витрины (без `/` в конце) для invite/reset ссылок команд, кроме NBC. Пусто ⇒ такие инвайты не создаются. | — |
 
 ## Самостоятельная регистрация (`/register`)
 

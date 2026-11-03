@@ -93,6 +93,9 @@
 | `NODE_ENV` | auto | `production` / `development` / `test` |
 | `PORT` | `3000` | Порт для запуска сервера |
 | `NEXT_TELEMETRY_DISABLED` | `0` | Установите `1` чтобы отключить телеметрию Next.js |
+| `NEXT_PUBLIC_APP_MODE` | `church` | Build-time. `worship` — витрина для музыкальных команд (только песни и сеты). Читается только в `src/shared/config/appMode.ts`; сборка — `yarn build:worship` |
+| `NEXT_PUBLIC_APP_NAME` / `NEXT_PUBLIC_APP_SHORT_NAME` | `Аккорды` | Build-time, только для `worship`: бренд витрины (манифест PWA, `<title>`). В Docker — из `WORSHIP_APP_NAME` / `WORSHIP_APP_SHORT_NAME` (`deploy/.env`) |
+| `WORSHIP_APP_URL` | — | Server-only (BFF). Домен worship-витрины для ссылок-приглашений команд, кроме NBC; пусто ⇒ такие инвайты не создаются |
 
 ---
 
