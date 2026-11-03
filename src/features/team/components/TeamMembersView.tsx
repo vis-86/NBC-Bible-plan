@@ -64,17 +64,13 @@ export function TeamMembersView() {
   };
 
   const menuItems = (m: TeamMember): ActionMenuItem[] => {
-    const items: ActionMenuItem[] = [
+    // У себя и у другого администратора действий нет: сервер ответил бы 409.
+    if (m.role === 'team_admin' || m.userId.toLowerCase() === team.selfId) return [];
+    return [
       { id: 'reset', label: 'Ссылка для смены пароля', onSelect: () => void reset(m) },
+      { id: 'role', label: 'Изменить роль', onSelect: () => setDialog({ kind: 'role', member: m }) },
+      { id: 'remove', label: 'Убрать из команды', destructive: true, onSelect: () => setDialog({ kind: 'remove', member: m }) },
     ];
-    // Себе роль и удаление недоступны: сервер ответит 409, поэтому и не показываем.
-    if (m.userId.toLowerCase() !== team.selfId) {
-      items.push(
-        { id: 'role', label: 'Изменить роль', onSelect: () => setDialog({ kind: 'role', member: m }) },
-        { id: 'remove', label: 'Убрать из команды', destructive: true, onSelect: () => setDialog({ kind: 'remove', member: m }) }
-      );
-    }
-    return items;
   };
 
   const removing = dialog?.kind === 'remove' ? dialog.member : null;
@@ -108,7 +104,9 @@ export function TeamMembersView() {
                   {!m.active && <span data-team-member-inactive> · не активирован</span>}
                 </p>
               </div>
-              <ActionMenu items={menuItems(m)} ariaLabel={`Действия с участником ${memberName(m)}`} />
+              {menuItems(m).length > 0 && (
+                <ActionMenu items={menuItems(m)} ariaLabel={`Действия с участником ${memberName(m)}`} />
+              )}
             </li>
           ))}
         </ul>

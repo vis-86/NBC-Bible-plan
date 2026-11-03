@@ -70,7 +70,7 @@ describe('useTeamMembers', () => {
     expect(url).toBe('https://x/activate?t=1');
   });
 
-  it('changeRole обновляет роль в списке; ошибка 409 даёт сообщение', async () => {
+  it('changeRole обновляет роль в списке; 409 показывает текст сервера', async () => {
     api.setRole.mockResolvedValueOnce({ success: true });
     const { result } = renderHook(() => useTeamMembers());
     await waitFor(() => expect(result.current.status).toBe('ready'));
@@ -80,11 +80,11 @@ describe('useTeamMembers', () => {
     expect(api.setRole).toHaveBeenCalledWith('bbbb', 'musician');
     expect(result.current.members.find((m) => m.userId === 'bbbb')?.role).toBe('musician');
 
-    api.setRole.mockRejectedValueOnce(new ApiClientError('conflict', 409));
+    api.setRole.mockRejectedValueOnce(new ApiClientError('Администратора команды меняет администратор приложения', 409));
     await act(async () => {
       await result.current.changeRole('bbbb', 'reader');
     });
-    expect(result.current.actionError).toMatch(/самому себе/);
+    expect(result.current.actionError).toBe('Администратора команды меняет администратор приложения');
     expect(result.current.members.find((m) => m.userId === 'bbbb')?.role).toBe('musician');
   });
 

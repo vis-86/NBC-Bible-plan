@@ -16,6 +16,7 @@ vi.mock('@/hooks/useAuth', () => ({ useAuth: () => ({ user: { directus_id: 'aaaa
 import { TeamMembersView } from './TeamMembersView';
 
 const ME: TeamMember = { userId: 'aaaa-self', login: 'me', displayName: 'Я', role: 'team_admin', active: true };
+const OTHER_ADMIN: TeamMember = { userId: 'cccc', login: 'adm', displayName: 'Админ', role: 'team_admin', active: true };
 const BOB: TeamMember = { userId: 'bbbb', login: 'bob', displayName: 'Боб', role: 'reader', active: false };
 
 function menuFor(userId: string) {
@@ -44,15 +45,17 @@ describe('TeamMembersView', () => {
     expect(document.querySelector('[data-team-member="aaaa-self"]')?.textContent).toContain('Администратор');
   });
 
-  it('для себя скрыты «Изменить роль» и «Убрать», для других есть', async () => {
+  it('у себя и у другого администратора действий нет, у остальных есть', async () => {
+    api.listMembers.mockResolvedValue([ME, OTHER_ADMIN, BOB]);
     await renderLoaded();
-    menuFor('aaaa-self');
-    expect(item('reset')).toBeTruthy();
-    expect(item('role')).toBeNull();
-    expect(item('remove')).toBeNull();
-    fireEvent.keyDown(document, { key: 'Escape' });
+    const trigger = (id: string) =>
+      document.querySelector(`[data-team-member="${id}"] [data-action-menu-trigger]`);
+    expect(trigger('aaaa-self')).toBeNull();
+    expect(trigger('cccc')).toBeNull();
+    expect(trigger('bbbb')).toBeTruthy();
 
     menuFor('bbbb');
+    expect(item('reset')).toBeTruthy();
     expect(item('role')).toBeTruthy();
     expect(item('remove')).toBeTruthy();
   });

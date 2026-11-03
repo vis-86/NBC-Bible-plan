@@ -14,13 +14,16 @@ const ACTION_TIMEOUT_MS = 20_000;
 
 export type TeamMembersStatus = 'loading' | 'ready' | 'offline' | 'forbidden' | 'error';
 
-/** Сообщение об ошибке действия; 409 (себя) и 404 (уже убран) объясняем отдельно. */
+/** Сообщение об ошибке действия; 409 (текст сервера) и 404 (уже убран) объясняем отдельно. */
 function actionError(err: unknown): string {
   if (isNetworkTimeout(err)) return 'Нет связи, попробуйте ещё раз';
   if (err instanceof ApiClientError) {
     if (err.status === 403) return 'Нет доступа';
     if (err.status === 404) return 'Участник не найден — обновите список';
-    if (err.status === 409) return 'Нельзя применить это действие к самому себе';
+    // apiClient кладёт в message поле `error` тела ответа — сервер объясняет причину сам
+    // (себя / другой администратор); без тела остаётся общий текст.
+    if (err.status === 409 && !err.message.startsWith('HTTP error')) return err.message;
+    if (err.status === 409) return 'Действие недоступно для этого участника';
   }
   return 'Не удалось выполнить действие. Попробуйте ещё раз';
 }
