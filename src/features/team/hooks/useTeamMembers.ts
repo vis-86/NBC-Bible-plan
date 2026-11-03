@@ -4,14 +4,19 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AppRole } from '@/lib/app-roles';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsOnline } from '@/shared/hooks/useIsOnline';
+import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout, raceWithTimeout } from '@/shared/offline/networkTimeout';
 import { ApiClientError } from '@/shared/services/api/client';
 import { teamApi } from '../api';
 import type { TeamMember } from '../types';
+
+/** Действия пишут в Directus (создание инвайта, правка роли) — дольше обычного чтения. */
+const ACTION_TIMEOUT_MS = 20_000;
 
 export type TeamMembersStatus = 'loading' | 'ready' | 'offline' | 'forbidden' | 'error';
 
 /** Сообщение об ошибке действия; 409 (себя) и 404 (уже убран) объясняем отдельно. */
 function actionError(err: unknown): string {
+  if (isNetworkTimeout(err)) return 'Нет связи, попробуйте ещё раз';
   if (err instanceof ApiClientError) {
     if (err.status === 403) return 'Нет доступа';
     if (err.status === 404) return 'Участник не найден — обновите список';
@@ -40,7 +45,7 @@ export function useTeamMembers() {
     }
     setStatus('loading');
     try {
-      setMembers(await teamApi.listMembers());
+      setMembers(await raceWithTimeout(teamApi.listMembers(), DEFAULT_NETWORK_TIMEOUT_MS));
       setStatus('ready');
     } catch (err) {
       if (err instanceof ApiClientError && err.status === 403) setStatus('forbidden');
@@ -57,7 +62,7 @@ export function useTeamMembers() {
     async <T,>(fn: () => Promise<T>): Promise<T | null> => {
       setActionErr(null);
       try {
-        return await fn();
+        return await raceWithTimeout(fn(), ACTION_TIMEOUT_MS);
       } catch (err) {
         setActionErr(actionError(err));
         return null;

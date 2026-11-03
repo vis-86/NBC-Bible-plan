@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_NETWORK_TIMEOUT_MS } from '@/shared/offline/networkTimeout';
 import { ApiClientError } from '@/shared/services/api/client';
 import type { TeamMember } from '../types';
 
@@ -101,5 +102,35 @@ describe('useTeamMembers', () => {
       await result.current.removeMember('bbbb');
     });
     expect(result.current.members.map((m) => m.userId)).toEqual(['aaaa-self']);
+  });
+
+  describe('зависший запрос (lie-fi)', () => {
+    afterEach(() => vi.useRealTimers());
+
+    it('загрузка по таймауту даёт error, а не вечный loading', async () => {
+      vi.useFakeTimers();
+      api.listMembers.mockReturnValue(new Promise(() => {}));
+      const { result } = renderHook(() => useTeamMembers());
+      expect(result.current.status).toBe('loading');
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(DEFAULT_NETWORK_TIMEOUT_MS + 100);
+      });
+      expect(result.current.status).toBe('error');
+    });
+
+    it('действие по таймауту возвращает null и сообщение «Нет связи»', async () => {
+      const { result } = renderHook(() => useTeamMembers());
+      await waitFor(() => expect(result.current.status).toBe('ready'));
+      vi.useFakeTimers();
+      api.createInvite.mockReturnValue(new Promise(() => {}));
+      let url: string | null = 'x';
+      await act(async () => {
+        const p = result.current.createInvite('reader');
+        await vi.advanceTimersByTimeAsync(20_100);
+        url = await p;
+      });
+      expect(url).toBeNull();
+      expect(result.current.actionError).toBe('Нет связи, попробуйте ещё раз');
+    });
   });
 });
