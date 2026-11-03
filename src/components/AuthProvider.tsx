@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { createContext, useCallback, useEffect, useRef, useState, ReactNode } from 'react';
 import { getApiPath, getBasePath } from '@/lib/utils';
 import { isTelegramWebApp, initTelegramWebApp } from '@/lib/telegram';
 import { getLastKnownUser, setLastKnownUser, clearLastKnownUser } from '@/shared/offline/lastKnownUser';
@@ -36,16 +36,19 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Снятие last-known-user: сначала закрепляем владельца устройства, чтобы вход другого
+// пользователя очистил данные, а не принял их как свои.
+async function forgetLastKnownUser() {
+  await claimOwnerFromLastKnownUser();
+  await clearLastKnownUser();
+}
+
 export default function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   // Поколение сессии: logout/истечение сессии увеличивают его, и проверка сессии,
   // стартовавшая раньше, не возвращает пользователя после выхода.
   const generationRef = useRef(0);
-
-  useEffect(() => {
-    checkSession();
-  }, []);
 
   // Telegram Mini App: expand to full height and apply header color from theme
   useEffect(() => {
@@ -54,14 +57,8 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
-  // Снятие last-known-user: сначала закрепляем владельца устройства, чтобы вход другого
-  // пользователя очистил данные, а не принял их как свои.
-  const forgetLastKnownUser = async () => {
-    await claimOwnerFromLastKnownUser();
-    await clearLastKnownUser();
-  };
-
-  const checkSession = async () => {
+  // Стабильна: читает только сеттеры, ref и модульные функции — не изменяемое состояние.
+  const checkSession = useCallback(async () => {
     // Обязательно true и на повторных вызовах (refreshAuth() после логина) — иначе
     // DashboardAuthGate видит стухшее `user === null` от предыдущей проверки и
     // редиректит на /login раньше, чем этот checkSession успевает отработать
@@ -191,7 +188,11 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     } finally {
       if (!reloading) setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    checkSession();
+  }, [checkSession]);
 
   // Экспортируем checkSession для использования в других компонентах
   useEffect(() => {
@@ -201,7 +202,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     return () => {
       delete (window as any).refreshAuth;
     };
-  }, []);
+  }, [checkSession]);
 
   // При 401 (истёк токен) API-клиент вызывает этот callback — выходим и редирект на логин
   useEffect(() => {

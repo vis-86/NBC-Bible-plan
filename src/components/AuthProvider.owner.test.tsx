@@ -309,4 +309,26 @@ describe('AuthProvider offline owner', () => {
     const db = await getDB();
     expect((await db.get('meta', OFFLINE_OWNER_META_KEY))?.value).toBe('u-new');
   });
+
+  it('проверка сессии на монтировании вызывается один раз при повторных рендерах', async () => {
+    ensureOfflineOwnerMock.mockResolvedValue('same');
+    stubSession();
+    const { rerender } = render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('user').textContent).toBe('Новый'));
+    for (let i = 0; i < 3; i++) {
+      rerender(
+        <AuthProvider>
+          <Consumer />
+        </AuthProvider>
+      );
+    }
+    const sessionCalls = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls.filter(([url]) =>
+      String(url).includes('/api/auth/session')
+    );
+    expect(sessionCalls).toHaveLength(1);
+  });
 });
