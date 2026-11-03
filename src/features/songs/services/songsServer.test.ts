@@ -163,3 +163,20 @@ describe('getSongById', () => {
     expect(song?.defaultKey).toBeUndefined();
   });
 });
+
+describe('teamId обязателен в каждой функции команды', () => {
+  const calls: Array<[string, (teamId: unknown) => Promise<unknown>]> = [
+    ['getSongsList', (teamId) => getSongsList(teamId as string)],
+    ['getSongById', (teamId) => getSongById(teamId as string, 7)],
+    ['getSongVersions', (teamId) => getSongVersions(teamId as string)],
+    ['createSong', (teamId) => createSong(teamId as string, { title: 'Песня', content: '' })],
+    ['updateSong', (teamId) => updateSong(teamId as string, 7, { title: 'X' })],
+  ];
+
+  it.each(calls)('%s: пустой или не строковый teamId -> ошибка, Directus не вызывается', async (_name, call) => {
+    for (const teamId of [undefined, null, '', 42]) {
+      await expect(call(teamId)).rejects.toThrow('teamId is required');
+    }
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+});

@@ -34,6 +34,14 @@ type SongRow = {
 
 const DETAIL_FIELDS = ['id', 'title', 'subtitle', 'song_key', 'default_key', 'tempo', 'time', 'content'];
 
+/**
+ * Пустой `teamId` недопустим: `{ team: { _eq: undefined } }` сериализуется в `{ team: {} }`,
+ * то есть в запрос без фильтра по команде. Поэтому каждая функция с `teamId` начинает с этой проверки.
+ */
+function requireTeamId(teamId: unknown): void {
+  if (typeof teamId !== 'string' || teamId === '') throw new Error('teamId is required');
+}
+
 function toSummary(row: SongRow): SongSummary {
   return {
     id: String(row.id),
@@ -63,6 +71,7 @@ function toSong(row: SongRow): Song {
  * в офлайн-кэше, вырос бы вдвое без пользы.
  */
 export async function getSongsList(teamId: string): Promise<SongSummary[]> {
+  requireTeamId(teamId);
   const client = getDirectusAdminClient();
   const rows: SongRow[] = await client.request(
     readItems('songs', {
@@ -91,6 +100,7 @@ export async function getSongsList(teamId: string): Promise<SongSummary[]> {
  * пустой ответ значит «нет», ошибка — ошибка.
  */
 export async function getSongById(teamId: string, id: number): Promise<Song | null> {
+  requireTeamId(teamId);
   const client = getDirectusAdminClient();
   const rows: SongRow[] = await client.request(
     readItems('songs', {
@@ -135,6 +145,7 @@ export async function getPublicSong(id: number): Promise<Song | null> {
  * id команды: полный список заменяет tombstones — клиент удаляет из IDB всё, чего здесь нет.
  */
 export async function getSongVersions(teamId: string): Promise<Array<[string, string]>> {
+  requireTeamId(teamId);
   const client = getDirectusAdminClient();
   const rows: Array<{ id: number; date_updated?: string | null; date_created?: string | null }> =
     await client.request(
@@ -190,6 +201,7 @@ function toRow(input: Partial<CreateSongInput & UpdateSongInput>): Record<string
  * Версию песни поднимать не нужно: манифест считает её по `date_updated`/`date_created`.
  */
 export async function createSong(teamId: string, input: CreateSongInput): Promise<number> {
+  requireTeamId(teamId);
   const client = getDirectusAdminClient();
 
   const [last]: Array<{ sort?: number | null }> = await client.request(
@@ -228,6 +240,7 @@ export async function createSong(teamId: string, input: CreateSongInput): Promis
  * несуществующая.
  */
 export async function updateSong(teamId: string, id: number, input: UpdateSongInput): Promise<void> {
+  requireTeamId(teamId);
   const client = getDirectusAdminClient();
   const row = toRow(input);
 
