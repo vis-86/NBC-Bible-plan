@@ -29,6 +29,7 @@ const APP_SHELL_ROUTES = [
   '/dashboard/setlist-edit',
   '/dashboard/song-edit',
   '/dashboard/catalog',
+  '/dashboard/team',
   '/s',
 ];
 

@@ -10,6 +10,7 @@ import type { AppThemePreference } from '@/shared/services/api/endpoints';
 import { DashboardReadingSettingsSection } from '@/features/reading/components/DashboardReadingSettingsSection';
 import { OfflineDataSection } from '@/features/offline/components/OfflineDataSection';
 import { ProfileSection } from '@/features/profile/components/ProfileSection';
+import { TeamSettingsSection } from '@/features/team/components/TeamSettingsSection';
 import { PageHeader } from '@/shared/components/layout/PageHeader';
 import { Button } from '@/shared/components/ui/Button';
 import { isWorshipMode } from '@/shared/config/appMode';
@@ -78,6 +79,8 @@ export default function SettingsPage() {
               ))}
             </div>
           </section>
+
+          <TeamSettingsSection />
 
           {/* Витрина worship: настроек чтения и Писания нет. */}
           {!isWorshipMode() && <DashboardReadingSettingsSection />}
