@@ -18,7 +18,7 @@ const TimeSchema = z.string().trim().max(16, 'Размер: максимум 16 
 // Самая длинная песня корпуса — единицы килобайт; лимит отсекает вставку целого
 // песенника, а не длинную песню.
 const ContentSchema = z.string().min(1, 'Текст песни обязателен').max(50_000, 'Текст песни слишком длинный');
-// Не задана при создании ⇒ дефолт колонки в Directus (`public`).
+// Не задана при создании ⇒ дефолт колонки в Directus. Редактор при создании шлёт `members`.
 const VisibilitySchema = z.enum(['public', 'members']);
 
 export const CreateSongSchema = z.object({

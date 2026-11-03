@@ -35,7 +35,7 @@ export function saveErrorMessage(err: unknown): string {
  * автор ещё до 5 минут видел бы свою песню до правки. Сбой не фатален: запись уже прошла,
  * а дельта-синк следующего запуска всё равно принесёт новую версию.
  */
-async function refreshAfterWrite(id: string): Promise<void> {
+export async function refreshAfterWrite(id: string): Promise<void> {
   const song = raceWithTimeout(songsApi.getSong(id), REFRESH_TIMEOUT_MS).then(async ({ song: fresh }) => {
     await persistCachedSong(fresh);
     rememberSong(fresh);

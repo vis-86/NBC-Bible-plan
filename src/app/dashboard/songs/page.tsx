@@ -78,14 +78,24 @@ function SongsPageContent() {
         title="Песни"
         right={
           canEditSongs ? (
-            <button
-              type="button"
-              data-songs-create-button
-              onClick={() => router.push('/dashboard/song-edit')}
-              className="rounded-app-md border-2 border-app-primary px-3 py-1.5 text-sm font-medium text-app-primary transition-transform active:scale-95"
-            >
-              Добавить
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                data-songs-catalog-button
+                onClick={() => router.push('/dashboard/catalog')}
+                className="rounded-app-md border border-app-border px-3 py-1.5 text-sm font-medium text-app-text-secondary transition-transform active:scale-95"
+              >
+                Каталог
+              </button>
+              <button
+                type="button"
+                data-songs-create-button
+                onClick={() => router.push('/dashboard/song-edit')}
+                className="rounded-app-md border-2 border-app-primary px-3 py-1.5 text-sm font-medium text-app-primary transition-transform active:scale-95"
+              >
+                Добавить
+              </button>
+            </div>
           ) : undefined
         }
       >

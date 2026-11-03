@@ -26,7 +26,8 @@ export const EMPTY_SONG_DRAFT: SongEditorDraft = {
   tempo: '',
   time: '',
   content: '',
-  visibility: 'public',
+  // Публикация в общий каталог — осознанное действие, по умолчанию песня видна только команде.
+  visibility: 'members',
 };
 
 /** Лимиты зеркалят `src/lib/validators/songs.schemas.ts` — BFF всё равно проверит сам. */

@@ -167,3 +167,12 @@ describe('applyPastedText', () => {
     expect(draft.content).toContain('[Bm]');
   });
 });
+
+describe('visibility по умолчанию', () => {
+  it('новая песня — только для команды', () => {
+    expect(EMPTY_SONG_DRAFT.visibility).toBe('members');
+  });
+  it('существующая песня сохраняет public', () => {
+    expect(draftFromSong({ id: '1', title: 'T', content: 'x', visibility: 'public' }).visibility).toBe('public');
+  });
+});

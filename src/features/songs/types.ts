@@ -122,3 +122,15 @@ export interface SongAnnotations {
 export interface SongStateResponse {
   annotations: SongAnnotations;
 }
+
+/** Песня общего каталога (чужая команда, `visibility = public`) — ответ `GET /api/catalog`. */
+export interface CatalogSong {
+  id: string;
+  title: string;
+  subtitle?: string;
+  key?: string;
+  /** Команда-источник. */
+  teamName: string;
+  /** id нашей копии, если песня уже скопирована. */
+  copiedAs?: string;
+}

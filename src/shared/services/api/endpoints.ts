@@ -4,6 +4,7 @@ import { BibleReference, ReadingPlanDay, PlanItem } from '@/types';
 import type { AppRole } from '@/lib/app-roles';
 // Type-only import (стирается при компиляции) — доменные типы фичи songs.
 import type {
+  CatalogSong,
   CreateSongPayload,
   SongListResponse,
   SongResponse,
@@ -133,6 +134,37 @@ export const songsApi = {
   },
   update: async (id: string | number, patch: UpdateSongPayload): Promise<void> => {
     await apiClient.put(`/api/songs/${id}`, patch);
+  },
+};
+
+export interface CatalogCopyResult {
+  /** 201 — песня скопирована; 409 — копия уже есть, `id` указывает на неё. */
+  alreadyCopied: boolean;
+  id: string;
+}
+
+export const catalogApi = {
+  list: async (): Promise<{ songs: CatalogSong[] }> => {
+    return apiClient.get<{ songs: CatalogSong[] }>('/api/catalog');
+  },
+  /**
+   * 409 несёт в теле id уже существующей копии — штатный исход, а не ошибка, поэтому
+   * `apiClient` (он теряет тело ошибки) здесь не используется.
+   */
+  copy: async (id: string | number): Promise<CatalogCopyResult> => {
+    const res = await fetch(getApiPath(`/api/catalog/${encodeURIComponent(String(id))}/copy`), {
+      method: 'POST',
+      credentials: 'include',
+    });
+    if (res.status === 201 || res.status === 409) {
+      const body = (await res.json().catch(() => null)) as { id?: number | string } | null;
+      if (body?.id === undefined || body.id === null) throw new ApiClientError('Failed to parse response', res.status);
+      return { alreadyCopied: res.status === 409, id: String(body.id) };
+    }
+    if (res.status === 401) {
+      (globalThis as unknown as { __onSessionExpired?: () => void }).__onSessionExpired?.();
+    }
+    throw new ApiClientError(`HTTP error: ${res.statusText}`, res.status);
   },
 };
 

@@ -59,8 +59,8 @@ function Field({ id, label, value, error, placeholder, inputMode = 'text', disab
 }
 
 const VISIBILITY_LABELS: Record<SongVisibility, string> = {
-  public: 'Открыта всем',
-  members: 'Только своим',
+  public: 'Всем: общий каталог и ссылка',
+  members: 'Только моей команде',
 };
 
 /** Метаданные песни. `subtitle` и `defaultKey` намеренно не показаны — шум для редактора. */
