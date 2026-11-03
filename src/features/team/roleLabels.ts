@@ -7,4 +7,5 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   team_admin: 'Администратор',
 };
 
-export const ROLE_ORDER: AppRole[] = ['reader', 'musician', 'musician_editor', 'team_admin'];
+/** Роли, которые администратор команды выдаёт сам; `team_admin` выдаёт администратор приложения. */
+export const ROLE_ORDER: AppRole[] = ['reader', 'musician', 'musician_editor'];

@@ -87,6 +87,14 @@ describe('TeamMembersView', () => {
     expect(api.createReset).toHaveBeenCalledWith('bbbb');
   });
 
+  it('в выборе роли нет «Администратор»', async () => {
+    await renderLoaded();
+    fireEvent.click(document.querySelector('[data-team-invite-button]') as HTMLElement);
+    const options = [...document.querySelectorAll('[data-team-role-option]')].map((o) => o.textContent);
+    expect(options).toEqual(['Участник', 'Музыкант', 'Редактор песен']);
+    expect(document.querySelector('[data-team-role-option="team_admin"]')).toBeNull();
+  });
+
   it('смена роли отправляет выбранную роль', async () => {
     api.setRole.mockResolvedValue({ success: true });
     await renderLoaded();
