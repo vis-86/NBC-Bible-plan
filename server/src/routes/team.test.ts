@@ -1,20 +1,24 @@
 /**
  * Управление командой: гейт `team_admin`, границы команды для `:userId`, запрет на себя,
  * команда инвайта — только из сессии. Directus — таблицы в памяти, применяющие фильтры
- * так же, как настоящий.
+ * так же, как настоящий. Команда A — NBC (ссылки на `NEXT_PUBLIC_APP_URL`), команда B —
+ * другая церковь (ссылки на витрину `WORSHIP_APP_URL`).
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { adminRequestMock, getUserTeamIdMock } = vi.hoisted(() => ({
+const { adminRequestMock, getUserTeamIdMock, getTeamIdBySlugMock } = vi.hoisted(() => ({
   adminRequestMock: vi.fn(),
   getUserTeamIdMock: vi.fn(),
+  getTeamIdBySlugMock: vi.fn(),
 }));
 
 vi.mock('../../../src/lib/directus', () => ({
   getDirectusAdminClient: () => ({ request: adminRequestMock }),
 }));
 vi.mock('../../../src/lib/teams', () => ({
+  NBC_TEAM_SLUG: 'nbc',
   getUserTeamId: getUserTeamIdMock,
+  getTeamIdBySlug: getTeamIdBySlugMock,
 }));
 
 import { sealSession, SESSION_COOKIE_NAME } from '../../../src/lib/session-core';
@@ -25,6 +29,9 @@ const MEMBER_A = 'aaaaaaaa-0000-4000-8000-000000000002';
 const ADMIN_B = 'bbbbbbbb-0000-4000-8000-000000000001';
 const MEMBER_B = 'bbbbbbbb-0000-4000-8000-000000000002';
 const NOBODY = 'cccccccc-0000-4000-8000-000000000009';
+
+const NBC_URL = 'https://nbc.example.org';
+const WORSHIP_URL = 'https://worship.example.org';
 
 type User = { id: string; email: string; first_name: string; status: string; role: string };
 type Membership = { id: number; team: string; user: string };
@@ -132,6 +139,14 @@ beforeEach(() => {
   adminRequestMock.mockImplementation(async (command: DirectusCommand) => fakeDirectus(command));
   getUserTeamIdMock.mockReset();
   getUserTeamIdMock.mockImplementation(async (id: string) => memberships.find((m) => m.user === id)?.team ?? null);
+  getTeamIdBySlugMock.mockReset();
+  getTeamIdBySlugMock.mockImplementation(async (slug: string) => (slug === 'nbc' ? 'team-a' : null));
+  vi.stubEnv('NEXT_PUBLIC_APP_URL', NBC_URL);
+  vi.stubEnv('WORSHIP_APP_URL', WORSHIP_URL);
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 async function call(method: string, path: string, as?: string, body?: unknown) {
@@ -223,6 +238,15 @@ describe('POST /api/team/invites', () => {
     expect(invites).toHaveLength(1);
     expect(invites[0]).toMatchObject({ kind: 'activate', team: 'team-a', role: 'musician_editor', user: null });
     expect(url).toContain(`token=${invites[0].token}`);
+    expect(url.startsWith(`${NBC_URL}/`)).toBe(true);
+  });
+
+  it('команда не NBC -> ссылка ведёт на витрину WORSHIP_APP_URL', async () => {
+    const res = await call('POST', '/invites', ADMIN_B, { role: 'musician' });
+    expect(res.status).toBe(201);
+    const { url } = (await res.json()) as { url: string };
+    expect(url.startsWith(`${WORSHIP_URL}/`)).toBe(true);
+    expect(invites[0]).toMatchObject({ kind: 'activate', team: 'team-b', role: 'musician', invite_url: url });
   });
 
   it.each([[{ role: 'admin' }], [{}], [{ role: 42 }], ['not-an-object']])(
@@ -240,6 +264,16 @@ describe('POST /api/team/members/:userId/reset', () => {
     expect(res.status).toBe(201);
     expect(invites).toHaveLength(1);
     expect(invites[0]).toMatchObject({ kind: 'reset', user: MEMBER_A });
+    const { url } = (await res.json()) as { url: string };
+    expect(url.startsWith(`${NBC_URL}/`)).toBe(true);
+  });
+
+  it('участник команды не NBC -> reset-ссылка ведёт на витрину WORSHIP_APP_URL', async () => {
+    const res = await call('POST', `/members/${MEMBER_B}/reset`, ADMIN_B);
+    expect(res.status).toBe(201);
+    const { url } = (await res.json()) as { url: string };
+    expect(url.startsWith(`${WORSHIP_URL}/`)).toBe(true);
+    expect(invites[0]).toMatchObject({ kind: 'reset', user: MEMBER_B, invite_url: url });
   });
 
   it.each([MEMBER_B, ADMIN_B, NOBODY])('чужой или несуществующий (%s) -> 404, инвайта нет', async (id) => {
