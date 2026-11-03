@@ -1,14 +1,13 @@
 'use client';
 
 import { createContext, useEffect, useRef, useState, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-import { getApiPath } from '@/lib/utils';
+import { getApiPath, getBasePath } from '@/lib/utils';
 import { isTelegramWebApp, initTelegramWebApp } from '@/lib/telegram';
 import { getLastKnownUser, setLastKnownUser, clearLastKnownUser } from '@/shared/offline/lastKnownUser';
 import { raceNetwork } from '@/shared/offline/networkHealth';
 import { DEFAULT_NETWORK_TIMEOUT_MS, isNetworkTimeout } from '@/shared/offline/networkTimeout';
 import { scheduleEnsureOfflineData } from '@/shared/offline/autoDownload';
-import { ensureOfflineOwner } from '@/shared/offline/offlineOwner';
+import { claimOwnerFromLastKnownUser, ensureOfflineOwner } from '@/shared/offline/offlineOwner';
 import { replayOutbox } from '@/shared/offline/sync';
 import { SETLIST_DRAFT_STORAGE_KEY } from '@/features/setlists/hooks/useSetlistDraft';
 
@@ -40,7 +39,6 @@ interface AuthProviderProps {
 export default function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const router = useRouter();
   // Поколение сессии: logout/истечение сессии увеличивают его, и проверка сессии,
   // стартовавшая раньше, не возвращает пользователя после выхода.
   const generationRef = useRef(0);
@@ -55,6 +53,13 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       initTelegramWebApp();
     }
   }, []);
+
+  // Снятие last-known-user: сначала закрепляем владельца устройства, чтобы вход другого
+  // пользователя очистил данные, а не принял их как свои.
+  const forgetLastKnownUser = async () => {
+    await claimOwnerFromLastKnownUser();
+    await clearLastKnownUser();
+  };
 
   const checkSession = async () => {
     // Обязательно true и на повторных вызовах (refreshAuth() после логина) — иначе
@@ -76,6 +81,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
       return stale;
     };
     let confirmed = false;
+    let reloading = false;
     const settle = (next: User | null) => {
       confirmed = true;
       setUser(next);
@@ -131,6 +137,14 @@ export default function AuthProvider({ children }: AuthProviderProps) {
                 } catch {
                   // localStorage недоступен — черновика всё равно не прочитать
                 }
+                // Кеши в памяти модулей (списки, песни) пережили смену аккаунта —
+                // перезагрузка страницы их сбрасывает; владелец уже новый, цикла нет.
+                if (!isStale()) {
+                  await setLastKnownUser(data.user);
+                  reloading = true; // loading остаётся true: гард не уводит на логин до перезагрузки
+                  window.location.reload();
+                }
+                return;
               }
             } catch (err) {
               console.error('[AuthProvider] offline owner check failed', err);
@@ -149,15 +163,18 @@ export default function AuthProvider({ children }: AuthProviderProps) {
           void replayOutbox();
         } else {
           // Сервер явно ответил «сессии нет» — это НЕ повод для офлайн-фолбэка.
-          await clearLastKnownUser();
+          await forgetLastKnownUser();
           if (isStale()) return;
           settle(null);
         }
-      } else {
-        // response.ok === false — тоже реальное «сессии нет» (напр. 401), а не сетевая ошибка.
-        await clearLastKnownUser();
+      } else if (response.status === 401 || response.status === 403) {
+        // Реальное «сессии нет», а не сетевая ошибка.
+        await forgetLastKnownUser();
         if (isStale()) return;
         settle(null);
+      } else {
+        // 5xx (например, 502 при деплое) — сервер недоступен, как сеть: офлайн-фолбэк.
+        throw new Error(`session check failed: HTTP ${response.status}`);
       }
     } catch (error) {
       // fetch() упал (сеть недоступна) — единственный случай, где уместен офлайн-вход
@@ -172,7 +189,7 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         settle(null);
       }
     } finally {
-      setLoading(false);
+      if (!reloading) setLoading(false);
     }
   };
 
@@ -191,14 +208,16 @@ export default function AuthProvider({ children }: AuthProviderProps) {
     (globalThis as unknown as { __onSessionExpired?: () => void }).__onSessionExpired = () => {
       generationRef.current += 1;
       setUser(null);
-      void clearLastKnownUser();
-      router.push('/login');
-      fetch(getApiPath('/api/auth/logout'), { method: 'POST', credentials: 'include' }).catch(() => {});
+      void forgetLastKnownUser()
+        .then(() => fetch(getApiPath('/api/auth/logout'), { method: 'POST', credentials: 'include' }))
+        .catch(() => {})
+        // Полная навигация: модульные кеши (списки, песни) умирают вместе со страницей.
+        .finally(() => window.location.replace(`${getBasePath()}/login`));
     };
     return () => {
       delete (globalThis as unknown as { __onSessionExpired?: () => void }).__onSessionExpired;
     };
-  }, [router]);
+  }, []);
 
   const logout = async () => {
     generationRef.current += 1;
@@ -208,8 +227,8 @@ export default function AuthProvider({ children }: AuthProviderProps) {
         credentials: 'include',
       });
       setUser(null);
-      await clearLastKnownUser();
-      router.push('/login');
+      await forgetLastKnownUser();
+      window.location.replace(`${getBasePath()}/login`);
     } catch (error) {
       console.error('Error logging out:', error);
     }

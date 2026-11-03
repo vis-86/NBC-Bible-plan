@@ -2,7 +2,7 @@
 import 'fake-indexeddb/auto';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { __deleteDB, getDB } from './db';
-import { OFFLINE_OWNER_META_KEY, ensureOfflineOwner, forgetForeignLastKnownUser } from './offlineOwner';
+import { OFFLINE_OWNER_META_KEY, ensureOfflineOwner, forgetForeignLastKnownUser, claimOwnerFromLastKnownUser } from './offlineOwner';
 import { getLastKnownUser, setLastKnownUser } from './lastKnownUser';
 import { SYNC_ETAG_META_KEY, SYNC_VERSIONS_META_KEY } from './syncVersions';
 
@@ -95,5 +95,15 @@ describe('offline/offlineOwner', () => {
     expect(await getLastKnownUser()).toBeDefined();
     await forgetForeignLastKnownUser('u2');
     expect(await getLastKnownUser()).toBeUndefined();
+  });
+
+  it('claimOwnerFromLastKnownUser: пишет владельца только если его нет', async () => {
+    await setLastKnownUser({ directus_id: 'u1', first_name: 'A' });
+    await claimOwnerFromLastKnownUser();
+    const db = await getDB();
+    expect((await db.get('meta', OFFLINE_OWNER_META_KEY))?.value).toBe('u1');
+    await setLastKnownUser({ directus_id: 'u2', first_name: 'B' });
+    await claimOwnerFromLastKnownUser();
+    expect((await db.get('meta', OFFLINE_OWNER_META_KEY))?.value).toBe('u1');
   });
 });

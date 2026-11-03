@@ -24,6 +24,9 @@ vi.mock('@/lib/telegram', () => ({
   getTelegramInitData: () => undefined,
 }));
 
+const forgetForeignMock = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock('@/shared/offline/offlineOwner', () => ({ forgetForeignLastKnownUser: forgetForeignMock }));
+
 import LoginPage from './page';
 
 beforeAll(() => {
@@ -119,5 +122,29 @@ describe('/login — путь для нового пользователя', () 
     await waitFor(() => {
       expect(screen.getByRole('alert')).not.toHaveTextContent(/Ещё не регистрировались/);
     });
+  });
+});
+
+describe('/login — смена пользователя на устройстве', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('запасная ветка (cookie не подхватилась) тоже снимает чужой last-known-user', async () => {
+    forgetForeignMock.mockClear();
+    vi.stubGlobal('location', { ...window.location, href: '', origin: 'http://localhost' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) =>
+        Promise.resolve({
+          ok: true,
+          status: 200,
+          json: async () => (String(url).includes('/api/auth/login') ? { user: { directus_id: 'u2' } } : {}),
+        })
+      )
+    );
+    render(<LoginPage />);
+    fireEvent.change(await screen.findByLabelText('Логин'), { target: { value: 'login' } });
+    fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'password-1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
+    await waitFor(() => expect(forgetForeignMock).toHaveBeenCalledWith('u2'));
   });
 });

@@ -129,6 +129,7 @@ function LoginForm() {
         router.refresh();
       } else {
         // cookie не подхватилась — редирект полной загрузкой страницы, чтобы cookie точно применилась
+        await forgetForeignLastKnownUser(data?.user?.directus_id);
         window.location.href = redirect.startsWith('http') ? redirect : `${window.location.origin}${getBasePath()}${redirect}`;
       }
     } catch (err: any) {

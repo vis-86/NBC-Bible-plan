@@ -84,6 +84,11 @@ export async function replayOutbox(): Promise<void> {
         continue;
       }
 
+      // Пользователь мог смениться за время реплея — дальше записи не отправляем.
+      if (!(await isOutboxOwnedBySession())) {
+        debug('outbox owner changed during replay — stopping');
+        return;
+      }
       const ok = await attemptSend(record);
       if (ok) {
         await removeOutboxRecord(record.id);

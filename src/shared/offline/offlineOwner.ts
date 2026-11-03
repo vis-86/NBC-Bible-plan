@@ -51,6 +51,25 @@ export async function ensureOfflineOwner(userId: string): Promise<OfflineOwnerRe
 }
 
 /**
+ * Перед снятием last-known-user (logout, «сессии нет»): если владельца устройства ещё нет
+ * (данные лежат с версии до владельцев), им становится этот пользователь — иначе вход
+ * следующего человека закрепил бы за ним чужие данные без очистки.
+ */
+export async function claimOwnerFromLastKnownUser(): Promise<void> {
+  try {
+    const known = await getLastKnownUser<{ directus_id?: unknown }>();
+    const id = known?.directus_id;
+    if (typeof id !== 'string' || id === '') return;
+    const db = await getDB();
+    if (!(await db.get('meta', OFFLINE_OWNER_META_KEY))) {
+      await db.put('meta', { key: OFFLINE_OWNER_META_KEY, value: id });
+    }
+  } catch (err) {
+    console.error('[offlineOwner] claim from last-known-user failed', err);
+  }
+}
+
+/**
  * Вход/регистрация/активация другого пользователя: прежний last-known-user снимается до
  * навигации, чтобы дашборд не стартовал «от имени» прежнего. Без id в ответе сравнивать
  * не с чем — ничего не трогаем (AuthProvider разберётся по ответу сессии).

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getApiPath, getBasePath } from '@/lib/utils';
+import { forgetForeignLastKnownUser } from '@/shared/offline/offlineOwner';
 import { isRegisterEnabled } from '@/shared/utils/constants';
 
 const inputClass =
@@ -40,6 +41,7 @@ export default function TelegramLinkForm({ initData }: TelegramLinkFormProps) {
         setError(data?.error || 'Не удалось привязать аккаунт.');
         return;
       }
+      await forgetForeignLastKnownUser(data?.user?.directus_id);
       window.location.href = `${window.location.origin}${getBasePath()}/dashboard`;
     } catch {
       setError('Ошибка сети. Попробуйте ещё раз.');

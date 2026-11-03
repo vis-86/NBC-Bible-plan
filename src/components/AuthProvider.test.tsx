@@ -81,7 +81,7 @@ describe('AuthProvider offline last-known-user fallback', () => {
 
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) })
+      vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({}) })
     );
 
     render(

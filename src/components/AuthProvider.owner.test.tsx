@@ -8,17 +8,21 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() }),
 }));
 const replayOutboxMock = vi.fn();
+const reloadMock = vi.fn();
+const replaceMock = vi.fn();
 vi.mock('@/shared/offline/sync', () => ({ replayOutbox: () => replayOutboxMock() }));
 vi.mock('@/shared/offline/autoDownload', () => ({ scheduleEnsureOfflineData: vi.fn() }));
 const ensureOfflineOwnerMock = vi.fn();
-vi.mock('@/shared/offline/offlineOwner', () => ({
+vi.mock('@/shared/offline/offlineOwner', async (importActual) => ({
+  ...(await importActual<typeof import('@/shared/offline/offlineOwner')>()),
   ensureOfflineOwner: (id: string) => ensureOfflineOwnerMock(id),
 }));
 
 import AuthProvider, { AuthContext } from './AuthProvider';
 import { SETLIST_DRAFT_STORAGE_KEY } from '@/features/setlists/hooks/useSetlistDraft';
 import { getLastKnownUser, setLastKnownUser } from '@/shared/offline/lastKnownUser';
-import { __resetDBConnection } from '@/shared/offline/db';
+import { OFFLINE_OWNER_META_KEY } from '@/shared/offline/offlineOwner';
+import { getDB, __resetDBConnection } from '@/shared/offline/db';
 import { resetNetworkSuspicionForTests } from '@/shared/offline/networkHealth';
 
 function Consumer() {
@@ -48,13 +52,16 @@ describe('AuthProvider offline owner', () => {
     resetNetworkSuspicionForTests();
     ensureOfflineOwnerMock.mockReset();
     replayOutboxMock.mockReset();
+    reloadMock.mockReset();
+    replaceMock.mockReset();
+    vi.stubGlobal('location', { ...window.location, reload: reloadMock, replace: replaceMock });
     localStorage.clear();
   });
   afterEach(() => vi.unstubAllGlobals());
 
   it('ensureOfflineOwner отрабатывает до того, как контекст отдаёт пользователя', async () => {
     let release: () => void = () => {};
-    ensureOfflineOwnerMock.mockImplementation(() => new Promise<string>((r) => (release = () => r('wiped'))));
+    ensureOfflineOwnerMock.mockImplementation(() => new Promise<string>((r) => (release = () => r('same'))));
     stubSession();
 
     render(
@@ -135,7 +142,8 @@ describe('AuthProvider offline owner', () => {
 
   it('«сессии нет» (ok:false и user:null) снимает last-known-user', async () => {
     for (const res of [
-      { ok: false, json: async () => ({}) },
+      { ok: false, status: 401, json: async () => ({}) },
+      { ok: false, status: 403, json: async () => ({}) },
       { ok: true, json: async () => ({ user: null }) },
     ]) {
       await setLastKnownUser({ directus_id: 'u-old', first_name: 'Старый' });
@@ -206,5 +214,99 @@ describe('AuthProvider offline owner', () => {
       </AuthProvider>
     );
     await waitFor(() => expect(localStorage.getItem(SETLIST_DRAFT_STORAGE_KEY)).toBeNull());
+  });
+
+  it('wiped -> новый last-known-user записан, страница перезагружается, пользователь не выставляется; после перезагрузки (same) цикла нет', async () => {
+    ensureOfflineOwnerMock.mockResolvedValue('wiped');
+    stubSession();
+    const first = render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(reloadMock).toHaveBeenCalledTimes(1));
+    expect(await getLastKnownUser()).toEqual({ directus_id: 'u-new', first_name: 'Новый' });
+    expect(replayOutboxMock).not.toHaveBeenCalled();
+    first.unmount();
+
+    // «после перезагрузки»: владелец уже новый
+    ensureOfflineOwnerMock.mockResolvedValue('same');
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('user').textContent).toBe('Новый'));
+    expect(reloadMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('logout — полная навигация на /login, а не router.push', async () => {
+    stubSession();
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('user').textContent).toBe('Новый'));
+    fireEvent.click(screen.getByText('logout'));
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledTimes(1));
+    expect(String(replaceMock.mock.calls[0][0])).toMatch(/\/login$/);
+  });
+
+  it('истечение сессии — полная навигация на /login', async () => {
+    stubSession();
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('user').textContent).toBe('Новый'));
+    (globalThis as unknown as { __onSessionExpired: () => void }).__onSessionExpired();
+    await waitFor(() => expect(replaceMock).toHaveBeenCalledTimes(1));
+    expect(String(replaceMock.mock.calls[0][0])).toMatch(/\/login$/);
+  });
+
+  it('5xx при проверке сессии не снимает last-known-user и даёт офлайн-вход', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await setLastKnownUser({ directus_id: 'u-old', first_name: 'Старый' });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 502, json: async () => ({}) }));
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('user').textContent).toBe('Старый'));
+    expect(await getLastKnownUser()).toBeDefined();
+    errorSpy.mockRestore();
+  });
+
+  it('«сессии нет» без записи владельца: владельцем становится прежний last-known-user', async () => {
+    await (await getDB()).delete('meta', OFFLINE_OWNER_META_KEY);
+    await setLastKnownUser({ directus_id: 'u-old', first_name: 'Старый' });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({}) }));
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>
+    );
+    await waitFor(async () => expect(await getLastKnownUser()).toBeUndefined());
+    const db = await getDB();
+    expect((await db.get('meta', OFFLINE_OWNER_META_KEY))?.value).toBe('u-old');
+  });
+
+  it('logout без записи владельца: владельцем становится прежний last-known-user', async () => {
+    await (await getDB()).delete('meta', OFFLINE_OWNER_META_KEY);
+    stubSession();
+    render(
+      <AuthProvider>
+        <Consumer />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId('user').textContent).toBe('Новый'));
+    await waitFor(async () => expect(await getLastKnownUser()).toBeDefined());
+    fireEvent.click(screen.getByText('logout'));
+    await waitFor(async () => expect(await getLastKnownUser()).toBeUndefined());
+    const db = await getDB();
+    expect((await db.get('meta', OFFLINE_OWNER_META_KEY))?.value).toBe('u-new');
   });
 });

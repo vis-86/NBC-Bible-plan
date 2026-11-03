@@ -246,4 +246,20 @@ describe('offline/sync replayOutbox — владелец устройства', 
     expect(mutateMock).toHaveBeenCalledTimes(1);
     expect(await getPendingOutbox()).toHaveLength(0);
   });
+
+  it('владелец сменился посреди реплея -> оставшиеся записи не отправляются', async () => {
+    await setLastKnownUser({ directus_id: 'u1', first_name: 'A' });
+    await ensureOfflineOwner('u1');
+    mutateMock.mockRejectedValue(new TypeError('Failed to fetch'));
+    await enqueueSingleProgress(1, 3);
+    await enqueueSingleProgress(2, 3);
+    mutateMock.mockReset();
+    mutateMock.mockImplementation(async () => {
+      await setLastKnownUser({ directus_id: 'u2', first_name: 'B' });
+      return {};
+    });
+    await replayOutbox();
+    expect(mutateMock).toHaveBeenCalledTimes(1);
+    expect(await getPendingOutbox()).toHaveLength(1);
+  });
 });
