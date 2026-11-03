@@ -68,6 +68,7 @@ vi.mock('../../../src/lib/register-access', () => ({
 }));
 
 import { createApp } from '../app';
+import { sealSession, SESSION_COOKIE_NAME } from '../../../src/lib/session-core';
 
 const SESSION_COOKIE = 'bible-plan-session=';
 
@@ -395,6 +396,82 @@ describe('bff auth routes', () => {
     expect(res.status).toBe(200);
     expect((await res.json()) as object).toEqual({ linked: false });
     expect(res.headers.get('set-cookie')).toBeNull();
+  });
+
+  describe('telegram + статус аккаунта', () => {
+    beforeEach(() => {
+      verifyTelegramMock.mockReturnValue({ valid: true, user: { id: 12345, first_name: 'Tg' } });
+      getUserByTelegramIdMock.mockResolvedValue('user-7');
+      adminRequestMock.mockResolvedValue([{ first_name: 'Иван' }]);
+    });
+
+    it('активный аккаунт -> linked: true + сессия', async () => {
+      const res = await post('/app/api/auth/telegram', { initData: 'tg-init-data' });
+      expect(res.status).toBe(200);
+      expect((await res.json()) as object).toMatchObject({ linked: true });
+      expect(res.headers.get('set-cookie') ?? '').toContain(SESSION_COOKIE);
+    });
+
+    it.each([
+      ['suspended', 'suspended'],
+      ['пользователя нет', null],
+    ])('аккаунт не active (%s) -> { linked: false } без сессии', async (_case, status) => {
+      getUserStatusMock.mockResolvedValue(status);
+
+      const res = await post('/app/api/auth/telegram', { initData: 'tg-init-data' });
+      expect(res.status).toBe(200);
+      expect((await res.json()) as object).toEqual({ linked: false });
+      expect(res.headers.get('set-cookie')).toBeNull();
+      expect(getUserStatusMock).toHaveBeenCalledWith('user-7');
+    });
+  });
+
+  describe('GET /auth/session + статус аккаунта', () => {
+    async function getSessionWith(cookie?: string) {
+      return createApp().request('/app/api/auth/session', {
+        headers: cookie ? { Cookie: cookie } : {},
+      });
+    }
+
+    async function sessionCookie(): Promise<string> {
+      const sealed = await sealSession({ directus_id: 'user-7', first_name: 'Иван' });
+      return `${SESSION_COOKIE_NAME}=${sealed}`;
+    }
+
+    beforeEach(() => {
+      adminRequestMock.mockResolvedValue([{ first_name: 'Иван' }]);
+    });
+
+    it('активный аккаунт -> пользователь в ответе', async () => {
+      const res = await getSessionWith(await sessionCookie());
+      expect(res.status).toBe(200);
+      expect((await res.json()) as object).toMatchObject({ user: { directus_id: 'user-7' } });
+      expect(res.headers.get('set-cookie') ?? '').not.toContain('Max-Age=0');
+    });
+
+    it.each([
+      ['suspended', 'suspended'],
+      ['пользователя нет', null],
+    ])('аккаунт не active (%s) -> cookie снят, ответ как без сессии', async (_case, status) => {
+      const anonymous = await getSessionWith();
+
+      getUserStatusMock.mockResolvedValue(status);
+      const res = await getSessionWith(await sessionCookie());
+
+      expect(res.status).toBe(anonymous.status);
+      expect(await res.json()).toEqual(await anonymous.json());
+      expect(res.headers.get('set-cookie') ?? '').toContain('Max-Age=0');
+      expect(getUserStatusMock).toHaveBeenCalledWith('user-7');
+    });
+
+    it('сбой Directus при чтении статуса -> сессия остаётся', async () => {
+      getUserStatusMock.mockRejectedValue(new Error('directus down'));
+
+      const res = await getSessionWith(await sessionCookie());
+      expect(res.status).toBe(200);
+      expect((await res.json()) as object).toMatchObject({ user: { directus_id: 'user-7' } });
+      expect(res.headers.get('set-cookie') ?? '').not.toContain('Max-Age=0');
+    });
   });
 
   it('logout -> 200 + истекающий cookie', async () => {

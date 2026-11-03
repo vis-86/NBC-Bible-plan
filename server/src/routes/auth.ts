@@ -178,12 +178,24 @@ authRoutes.post('/logout', (c) => {
 
 /**
  * GET /auth/session — текущая сессия; профиль освежается admin-клиентом,
- * cookie пере-запечатывается при расхождении.
+ * cookie пере-запечатывается при расхождении. Аккаунт не `active` (например, убран
+ * из команды) или удалён → cookie снимается, ответ как без сессии.
  */
 authRoutes.get('/session', async (c) => {
   try {
     const session = await getSession(c);
     if (!session) {
+      return c.json({ user: null }, 200);
+    }
+
+    // undefined — статус неизвестен (сбой Directus): временный сбой не выкидывает пользователя.
+    const status = await getUserStatus(session.directus_id).catch((error: unknown) => {
+      logger.error(`session status check failed for ${session.directus_id}`, error);
+      return undefined;
+    });
+    if (status !== undefined && status !== 'active') {
+      deleteSession(c);
+      logger.warn(`session: account ${session.directus_id} status=${status ?? 'missing'}, session removed`);
       return c.json({ user: null }, 200);
     }
 
@@ -464,7 +476,8 @@ authRoutes.post('/invite/create', async (c) => {
 
 /**
  * POST /auth/telegram — mini-app вход. Аккаунты НЕ создаются.
- * tg_id не привязан → 200 { linked: false } БЕЗ сессии (клиент ветвится по linked).
+ * tg_id не привязан или аккаунт не `active` → 200 { linked: false } БЕЗ сессии
+ * (клиент ветвится по linked).
  */
 authRoutes.post('/telegram', async (c) => {
   try {
@@ -489,6 +502,12 @@ authRoutes.post('/telegram', async (c) => {
 
     if (!directusUserId) {
       logger.debug(`telegram: tg_id=${telegramUser.id} linked=false`);
+      return c.json({ linked: false });
+    }
+
+    const status = await getUserStatus(directusUserId);
+    if (status !== 'active') {
+      logger.warn(`telegram: user=${directusUserId} status=${status ?? 'missing'}, session not created`);
       return c.json({ linked: false });
     }
 
