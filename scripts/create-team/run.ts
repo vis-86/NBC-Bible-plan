@@ -2,14 +2,15 @@
  * Заведение команды и инвайта для её первого администратора: разбор аргументов, проверка хоста,
  * чтение/создание команды. Клиент и выпуск инвайта передаются снаружи — тесты подставляют моки.
  */
-import { createItem, readItems, type RestCommand } from '@directus/sdk';
-import { checkHost } from '../add-teams/plan';
+import { createItem, readItems, readPermissions, readPolicies, type RestCommand } from '@directus/sdk';
+import { STRIP_PERMISSIONS, checkHost, planStrip, type StripMatch } from '../add-teams/plan';
 
 export interface TeamsSchema {
   teams: { id: string; name: string; slug: string }[];
 }
 
 export interface TeamsClient {
+  // Права и политики — системные коллекции Directus, схема `teams` их не описывает.
   request<Output>(command: RestCommand<Output, TeamsSchema>): Promise<Output>;
 }
 
@@ -59,6 +60,49 @@ export function parseArgs(argv: readonly string[]): ParsedArgs {
   return { ok: true, name, slug, confirmHost, dryRun };
 }
 
+const PAGE = 100;
+
+async function readAll<T>(readPage: (page: number) => Promise<T[]>): Promise<T[]> {
+  const all: T[] = [];
+  for (let page = 1; ; page += 1) {
+    const rows = await readPage(page);
+    all.push(...rows);
+    if (rows.length < PAGE) return all;
+  }
+}
+
+/** Права, которые `add-teams strip-user-permissions` ещё не снял (тот же план и то же чтение, что в add-teams). */
+async function findUnstrippedPermissions(client: TeamsClient): Promise<StripMatch[]> {
+  const policyNames = [...new Set(STRIP_PERMISSIONS.map((r) => r.policy))];
+  const policies = (
+    await readAll((page) =>
+      client.request(
+        readPolicies({ filter: { name: { _in: policyNames } }, fields: ['id', 'name'], sort: ['id'], limit: PAGE, page }),
+      ),
+    )
+  ).map((p) => ({ id: String(p.id), name: String(p.name) }));
+  if (!policies.length) return [];
+  const permissions = (
+    await readAll((page) =>
+      client.request(
+        readPermissions({
+          filter: { policy: { _in: policies.map((p) => p.id) } },
+          fields: ['id', 'policy', 'collection', 'action'],
+          sort: ['id'],
+          limit: PAGE,
+          page,
+        }),
+      ),
+    )
+  ).map((p) => ({
+    id: Number(p.id),
+    policy: String(p.policy),
+    collection: String(p.collection),
+    action: String(p.action),
+  }));
+  return planStrip(policies, permissions);
+}
+
 export async function run(argv: readonly string[], deps: RunDeps): Promise<number> {
   const { log } = deps;
   const args = parseArgs(argv);
@@ -76,6 +120,23 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<numbe
   log.info(`${LOG} team "${args.slug}" on ${host.host}${args.dryRun ? ' — dry run, read-only' : ''}`);
 
   const client = deps.createClient();
+  // Второй рубеж Directus: пока у пользовательских политик есть права на сеты/чтение, участники
+  // новой команды могли бы работать с чужими данными напрямую в Directus.
+  const unstripped = await findUnstrippedPermissions(client);
+  if (unstripped.length) {
+    const list = unstripped.map((m) => `${m.policyName} ${m.collection}.${m.action}`).join(', ');
+    if (!args.dryRun) {
+      log.error(
+        `${LOG} ${unstripped.length} user permission row(s) are not stripped yet (${list}); ` +
+          'run `npx tsx scripts/add-teams.ts strip-user-permissions` first; nothing was changed',
+      );
+      return 1;
+    }
+    log.warn(
+      `${LOG} [dry-run] warning: ${unstripped.length} user permission row(s) are not stripped yet (${list}); ` +
+        'a real run will refuse until `add-teams strip-user-permissions` is done',
+    );
+  }
   const found = await client.request(
     readItems('teams', { filter: { slug: { _eq: args.slug } }, fields: ['id', 'name'], limit: 1 }),
   );

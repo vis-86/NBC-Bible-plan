@@ -11,12 +11,16 @@ interface Req {
 const LOCAL = 'http://localhost:18055';
 const ARGS = ['--name=Church X', '--slug=church-x', '--confirm-host=localhost:18055'];
 
-function setup(existing: { id: string; name: string } | null) {
+const UNSTRIPPED = { id: 7, policy: 'pol-custom', collection: 'setlists', action: 'read' };
+
+function setup(existing: { id: string; name: string } | null, permissions: object[] = []) {
   const calls: Req[] = [];
   const client = {
     request: vi.fn(async (command: unknown) => {
       const req = (command as () => Req)();
       calls.push(req);
+      if (req.path === '/policies') return [{ id: 'pol-custom', name: 'custom' }];
+      if (req.path === '/permissions') return permissions;
       if (req.method === 'POST') return { id: 'new-team-id' };
       return existing ? [existing] : [];
     }),
@@ -88,11 +92,33 @@ describe('create-team', () => {
     expect(t.lines.join('\n')).toContain('already taken');
   });
 
+  it('refuses while user permissions are not stripped: no writes, no invite', async () => {
+    const t = setup(null, [UNSTRIPPED]);
+    expect(await t.exec(ARGS)).toBe(1);
+    expect(t.calls.some((c) => c.method === 'POST')).toBe(false);
+    expect(t.issueInvite).not.toHaveBeenCalled();
+    expect(t.lines.join('\n')).toContain('strip-user-permissions');
+  });
+
+  it('ignores permission rows that are not in the strip plan', async () => {
+    const t = setup(null, [{ id: 8, policy: 'pol-custom', collection: 'song_user_state', action: 'read' }]);
+    expect(await t.exec(ARGS)).toBe(0);
+    expect(t.issueInvite).toHaveBeenCalled();
+  });
+
+  it('dry run with unstripped permissions only warns', async () => {
+    const t = setup(null, [UNSTRIPPED]);
+    expect(await t.exec([...ARGS, '--dry-run'])).toBe(0);
+    expect(t.calls.every((c) => (c.method ?? 'GET') === 'GET')).toBe(true);
+    expect(t.lines.join('\n')).toContain('warning');
+    expect(t.issueInvite).not.toHaveBeenCalled();
+  });
+
   it('dry run only reads', async () => {
     for (const existing of [null, { id: 'team-1', name: 'Church X' }]) {
       const t = setup(existing);
       expect(await t.exec([...ARGS, '--dry-run'])).toBe(0);
-      expect(t.calls.length).toBe(1);
+      expect(t.calls.filter((c) => c.path === '/items/teams').length).toBe(1);
       expect(t.calls.every((c) => (c.method ?? 'GET') === 'GET')).toBe(true);
       expect(t.issueInvite).not.toHaveBeenCalled();
       expect(t.lines.join('\n')).toContain('[dry-run]');

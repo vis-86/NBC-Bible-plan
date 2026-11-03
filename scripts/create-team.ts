@@ -7,7 +7,9 @@
  * с `--confirm-host` — скрипт печатает хост цели и выходит с кодом 1, не сделав ни одного запроса.
  * Команда с таким slug уже есть и имя то же — создаётся только НОВЫЙ инвайт (так можно перевыпустить
  * потерянную ссылку); имя другое — код 1. `--dry-run` только читает.
- * Требует env (из .env.local): NEXT_PUBLIC_DIRECTUS_URL, DIRECTUS_ADMIN_TOKEN, NEXT_PUBLIC_APP_URL.
+ * Перед записью проверяет, что `add-teams strip-user-permissions` уже выполнен: иначе код 1 (в --dry-run — предупреждение).
+ * Для ссылки нужен `WORSHIP_APP_URL`: без него команда создаётся, а выпуск инвайта падает — повторный
+ * запуск с тем же slug и именем дочинит. Требует env (из .env.local): NEXT_PUBLIC_DIRECTUS_URL, DIRECTUS_ADMIN_TOKEN, NEXT_PUBLIC_APP_URL.
  */
 import { loadEnvConfig } from '@next/env';
 import { LOG, run, type TeamsClient } from './create-team/run';
