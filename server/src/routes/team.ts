@@ -30,6 +30,13 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 const TEAM_ADMIN_TARGET_ERROR = 'Администратора команды меняет администратор приложения';
 
+/**
+ * Роль `team_admin` выдаёт только администратор приложения (`scripts/create-team.ts`):
+ * понизить или убрать другого администратора команда не может, и выданная ею роль
+ * стала бы необратимой.
+ */
+const TEAM_ADMIN_GRANT_ERROR = 'Роль администратора команды выдаёт администратор приложения';
+
 // Зарегистрирован до роутов, поэтому срабатывает до гейта роли: requireTeam → роль → хендлер.
 teamRoutes.use('*', requireTeam);
 
@@ -88,6 +95,7 @@ teamRoutes.post('/invites', requireTeamAdmin, async (c) => {
   try {
     const role = await readRole(c);
     if (!role) return c.json({ error: 'Invalid role' }, 400);
+    if (role === 'team_admin') return c.json({ error: TEAM_ADMIN_GRANT_ERROR }, 403);
 
     const teamId = c.get('teamId');
     const { url } = await createTeamInvite(teamId, role);
@@ -130,6 +138,7 @@ teamRoutes.patch('/members/:userId', requireTeamAdmin, async (c) => {
 
     const role = await readRole(c);
     if (!role) return c.json({ error: 'Invalid role' }, 400);
+    if (role === 'team_admin') return c.json({ error: TEAM_ADMIN_GRANT_ERROR }, 403);
 
     const me = await callerId(c);
     if (!me) return c.json({ error: 'Unauthorized' }, 401);

@@ -447,8 +447,29 @@ describe('действия только над обычными участник
     expectNoWrites();
   });
 
-  it('обычного участника можно повысить до team_admin', async () => {
-    expect((await call('PATCH', `/members/${MEMBER_A}`, ADMIN_A, { role: 'team_admin' })).status).toBe(200);
-    expect(users[MEMBER_A].role).toBe('team_admin');
+});
+
+describe('роль team_admin выдаёт только администратор приложения', () => {
+  const GRANT_ERROR = { error: 'Роль администратора команды выдаёт администратор приложения' };
+
+  it('повысить обычного участника до team_admin -> 403, без записей', async () => {
+    const res = await call('PATCH', `/members/${MEMBER_A}`, ADMIN_A, { role: 'team_admin' });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual(GRANT_ERROR);
+    expect(users[MEMBER_A].role).toBe('musician');
+    expectNoWrites();
+  });
+
+  it('инвайт с ролью team_admin -> 403, инвайта нет', async () => {
+    const res = await call('POST', '/invites', ADMIN_A, { role: 'team_admin' });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual(GRANT_ERROR);
+    expect(invites).toEqual([]);
+    expectNoWrites();
+  });
+
+  it.each(['reader', 'musician', 'musician_editor'])('остальные роли (%s) выдаются как раньше', async (role) => {
+    expect((await call('PATCH', `/members/${MEMBER_A}`, ADMIN_A, { role })).status).toBe(200);
+    expect((await call('POST', '/invites', ADMIN_A, { role })).status).toBe(201);
   });
 });
