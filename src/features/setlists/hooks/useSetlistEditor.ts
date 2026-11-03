@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from 'react';
 import { setlistsApi } from '@/shared/services/api/endpoints';
+import { ApiClientError } from '@/shared/services/api/client';
 import { getDB } from '@/shared/offline/db';
 import { setlistCacheKey, SETLISTS_LIST_CACHE_KEY } from '../lib/offlineSetlists';
 import { resetSetlistsCache } from './useSetlists';
@@ -111,7 +112,15 @@ export function useSetlistEditor({
     setDeleting(true);
     setDeleteError(null);
     try {
-      await setlistsApi.remove(setlistId);
+      await setlistsApi.remove(setlistId).catch((err: unknown) => {
+        // 404: сета уже нет (удалили с другого устройства) или он не нашей команды —
+        // цель удаления достигнута, а экран должен уйти от сета-призрака из кэша.
+        if (err instanceof ApiClientError && err.status === 404) {
+          console.debug(`[useSetlistEditor] setlist ${setlistId} already gone (404), treating as deleted`);
+          return;
+        }
+        throw err;
+      });
       resetSetlistsCache();
       try {
         const db = await getDB();
