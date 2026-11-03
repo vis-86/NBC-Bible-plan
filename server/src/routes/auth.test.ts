@@ -12,7 +12,11 @@ const {
   findValidInviteMock,
   consumeInviteMock,
   createInviteMock,
+  getUserStatusMock,
+  setUserPasswordMock,
 } = vi.hoisted(() => ({
+  getUserStatusMock: vi.fn(),
+  setUserPasswordMock: vi.fn(),
   getTeamIdBySlugMock: vi.fn(),
   findValidInviteMock: vi.fn(),
   consumeInviteMock: vi.fn(),
@@ -40,6 +44,8 @@ vi.mock('../../../src/lib/directus-user', async (importOriginal) => {
     getUserByTelegramId: getUserByTelegramIdMock,
     createLocalUser: createLocalUserMock,
     linkTelegramToUser: linkTelegramToUserMock,
+    getUserStatus: getUserStatusMock,
+    setUserPassword: setUserPasswordMock,
   };
 });
 vi.mock('../../../src/lib/telegram-server', () => ({
@@ -108,6 +114,8 @@ describe('bff auth routes', () => {
     findValidInviteMock.mockReset();
     consumeInviteMock.mockReset().mockResolvedValue(undefined);
     createInviteMock.mockReset().mockResolvedValue({ url: 'https://app.test/activate?token=t', token: 't' });
+    getUserStatusMock.mockReset().mockResolvedValue('active');
+    setUserPasswordMock.mockReset().mockResolvedValue(undefined);
   });
 
   it('login happy-path: 200, Set-Cookie, имя из admin-клиента', async () => {
@@ -297,7 +305,27 @@ describe('bff auth routes', () => {
       const res = await post('/app/api/auth/activate', { token: 'reset-token-123', password: 'secret123' });
       expect(res.status).toBe(200);
       expect(createLocalUserMock).not.toHaveBeenCalled();
+      expect(setUserPasswordMock).toHaveBeenCalledWith('user-9', 'secret123');
       expect(consumeInviteMock).toHaveBeenCalledWith(6);
+    });
+
+    it.each([
+      ['suspended', 'suspended'],
+      ['пользователя нет', null],
+    ])('reset для неактивного аккаунта (%s) -> ответ как на недействительную ссылку', async (_case, status) => {
+      findValidInviteMock.mockResolvedValue(null);
+      const invalid = await post('/app/api/auth/activate', { token: 'reset-token-123', password: 'secret123' });
+
+      getUserStatusMock.mockResolvedValue(status);
+      findValidInviteMock.mockResolvedValue({ id: 6, kind: 'reset', user: 'user-9', team: null, role: null });
+      const res = await post('/app/api/auth/activate', { token: 'reset-token-123', password: 'secret123' });
+
+      expect(res.status).toBe(invalid.status);
+      expect(await res.json()).toEqual(await invalid.json());
+      expect(res.headers.get('set-cookie')).toBeNull();
+      expect(getUserStatusMock).toHaveBeenCalledWith('user-9');
+      expect(setUserPasswordMock).not.toHaveBeenCalled();
+      expect(consumeInviteMock).not.toHaveBeenCalled();
     });
   });
 

@@ -14,6 +14,7 @@ import { getDirectusAdminClient } from '../../../src/lib/directus';
 import {
   createLocalUser,
   getUserByTelegramId,
+  getUserStatus,
   linkTelegramToUser,
   LoginTakenError,
   loginToEmail,
@@ -382,6 +383,11 @@ authRoutes.post('/activate', async (c) => {
     } else {
       if (!invite.user) {
         return c.json({ error: 'Некорректный токен сброса' }, 400);
+      }
+      const status = await getUserStatus(invite.user);
+      if (status !== 'active') {
+        logger.warn(`activate: reset for inactive user ${invite.user} status=${status ?? 'missing'}`);
+        return c.json({ error: INVALID_INVITE_ERROR }, 400);
       }
       await setUserPassword(invite.user, password);
       directusUserId = invite.user;

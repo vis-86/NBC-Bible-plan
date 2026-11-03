@@ -69,6 +69,10 @@ export async function createLocalUser({
   const roleName = APP_ROLE_TO_DIRECTUS_ROLE[appRole];
   const roleId = await getRoleIdByName(adminClient, roleName);
   if (!roleId) {
+    // Без роли аккаунт молча стал бы читателем — для музыкантов и админа команды это ошибка.
+    if (appRole !== 'reader') {
+      throw new Error(`Directus role not found: ${roleName}`);
+    }
     console.warn('[directus-user] directus role not found, user created without role', roleName);
   }
   const newUser = await adminClient.request(
@@ -103,6 +107,17 @@ export async function setUserPassword(userId: string, password: string): Promise
   const adminClient = getDirectusAdminClient();
   await adminClient.request(updateUser(userId, { password }));
   debug('password set for user', userId);
+}
+
+/** Статус аккаунта Directus (`active`, `suspended`, …) или null, если пользователя нет. */
+export async function getUserStatus(userId: string): Promise<string | null> {
+  const adminClient = getDirectusAdminClient();
+  const users = await adminClient.request(
+    readUsers({ filter: { id: { _eq: userId } }, limit: 1, fields: ['status'] })
+  );
+  const status = users[0]?.status;
+  debug('status lookup', userId, '->', status ?? null);
+  return typeof status === 'string' ? status : null;
 }
 
 /**

@@ -25,7 +25,7 @@ vi.mock('./teams', () => ({
   addTeamMember: addTeamMemberMock,
 }));
 
-import { createLocalUser, loginToEmail, LOCAL_EMAIL_DOMAIN } from './directus-user';
+import { createLocalUser, getUserStatus, loginToEmail, LOCAL_EMAIL_DOMAIN } from './directus-user';
 
 type Op = { op: string; name?: string; data?: { role?: string | null }; id?: string };
 
@@ -147,5 +147,43 @@ describe('createLocalUser', () => {
       'user-new',
       expect.objectContaining({ message: 'delete failed' }),
     );
+  });
+
+  it('роли Directus для музыканта нет — ошибка, пользователь не создаётся', async () => {
+    directusOk({ readRoles: () => [] });
+
+    await expect(
+      createLocalUser({ login: 'ivan', password: 'secret123', teamId: 'team-1', appRole: 'team_admin' }),
+    ).rejects.toThrow('Directus role not found: team_admin');
+    expect(opsOf('createUser')).toHaveLength(0);
+    expect(addTeamMemberMock).not.toHaveBeenCalled();
+  });
+
+  it('роли «Чтец» нет — пользователь создаётся без роли, как раньше', async () => {
+    directusOk({ readRoles: () => [] });
+
+    expect(await createLocalUser({ login: 'ivan', password: 'secret123', teamId: 'team-1' })).toBe('user-new');
+    expect(opsOf('createUser')[0].data?.role).toBeNull();
+    expect(console.warn).toHaveBeenCalled();
+  });
+});
+
+describe('getUserStatus', () => {
+  beforeEach(() => {
+    requestMock.mockReset();
+  });
+
+  it('возвращает status пользователя', async () => {
+    requestMock.mockResolvedValueOnce([{ status: 'suspended' }]);
+    expect(await getUserStatus('user-9')).toBe('suspended');
+    expect(requestMock.mock.calls[0][0]).toEqual({
+      op: 'readUsers',
+      query: { filter: { id: { _eq: 'user-9' } }, limit: 1, fields: ['status'] },
+    });
+  });
+
+  it('пользователя нет -> null', async () => {
+    requestMock.mockResolvedValueOnce([]);
+    expect(await getUserStatus('user-9')).toBeNull();
   });
 });
