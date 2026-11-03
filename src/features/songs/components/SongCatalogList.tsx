@@ -53,7 +53,7 @@ export function SongCatalogList({ songs }: SongCatalogListProps) {
               {song.copiedAs && (
                 <span
                   data-song-catalog-copied
-                  className="rounded-full bg-app-success px-2 py-0.5 text-xs font-medium text-app-success-text"
+                  className="rounded-full bg-app-success-muted px-2 py-0.5 text-xs font-medium text-app-success-dark"
                 >
                   Уже у вас
                 </span>

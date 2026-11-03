@@ -33,10 +33,11 @@ describe('useCopyCatalogSong', () => {
     expect(refresh.refreshAfterWrite).toHaveBeenCalledWith('42');
   });
 
-  it('409 — возвращает id уже существующей копии, кеши не трогает', async () => {
+  it('409 — возвращает id существующей копии и обновляет IDB и список', async () => {
     api.copy.mockResolvedValue({ alreadyCopied: true, id: '7' });
+    refresh.refreshAfterWrite.mockResolvedValue(undefined);
     expect(await run()).toEqual({ status: 'existing', id: '7' });
-    expect(refresh.refreshAfterWrite).not.toHaveBeenCalled();
+    expect(refresh.refreshAfterWrite).toHaveBeenCalledWith('7');
   });
 
   it('404 — песня больше недоступна', async () => {

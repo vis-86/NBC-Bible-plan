@@ -27,9 +27,9 @@ export function useCopyCatalogSong() {
     setSubmitting(true);
     try {
       const res = await raceWithTimeout(catalogApi.copy(id), COPY_TIMEOUT_MS);
-      if (res.alreadyCopied) return { status: 'existing', id: res.id };
+      // Копия уже могла появиться (в т.ч. повтор после таймаута) — её тоже кладём в IDB и список.
       await refreshAfterWrite(res.id);
-      return { status: 'copied', id: res.id };
+      return { status: res.alreadyCopied ? 'existing' : 'copied', id: res.id };
     } catch (err) {
       if (err instanceof ApiClientError && err.status === 404) return { status: 'gone' };
       console.error(`[useCopyCatalogSong] copy ${id} failed`, err);
