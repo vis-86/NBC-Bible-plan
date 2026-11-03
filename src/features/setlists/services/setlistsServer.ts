@@ -1,8 +1,13 @@
 /**
  * Серверный доступ к коллекциям `setlists`/`setlist_items` через admin-клиент Directus.
  * Клиент в Directus напрямую не ходит — только через эти функции + BFF-роуты (arch: proxy).
+ *
+ * Админ-токен видит сеты всех команд, поэтому каждая функция принимает `teamId` и
+ * ограничивает им каждый запрос: `setlists` — по полю `team`, `setlist_items` — через
+ * связь с сетом (`setlist.team`), песни сета — по `songs.team`. `teamId` — только из
+ * `requireTeam` (членство по сессии), никогда из запроса.
  */
-import { createItem, createItems, deleteItem, deleteItems, readItem, readItems, updateItem } from '@directus/sdk';
+import { createItem, createItems, deleteItems, readItems, updateItems } from '@directus/sdk';
 import type { DirectusClient, RestClient } from '@directus/sdk';
 import { getDirectusAdminClient } from '@/lib/directus';
 import { createHash } from 'node:crypto';
@@ -51,16 +56,18 @@ type SetlistRow = {
   /** Заполняется Directus при правке самого сета; правка состава его НЕ трогает. */
   date_updated: string | null;
   created_by: string;
+  /** Команда-владелец сета (uuid `teams.id`). */
+  team: string | null;
 };
-type SetlistItemRow = { id: string; setlist: string; song: number | null; sort: number };
-type SongRow = { id: number; title: string; subtitle?: string | null; song_key?: string | null };
+/** `setlist` — M2O на `setlists`: объектная ветка типа нужна для фильтра по `setlist.team`. */
+type SetlistItemRow = { id: string; setlist: string | SetlistRow; song: number | null; sort: number };
+type SongRow = { id: number; title: string; subtitle?: string | null; song_key?: string | null; team: string | null };
 
 /**
  * Локальная схема для admin-клиента. В общей `DirectusSchema` (`src/lib/directus-schema.ts`)
- * коллекций сетлистов нет, а сами коллекции там описаны объектами вместо массивов — SDK v20
- * из-за этого сужает collection-параметр `readItems`/`readItem` до `never` (раньше файл был
- * целиком под `@ts-nocheck`). Описываем массивами ровно те три коллекции, которые нужны здесь,
- * — запросы ниже типизируются по-настоящему.
+ * коллекции описаны объектами вместо массивов — SDK v20 из-за этого сужает collection-параметр
+ * `readItems`/`readItem` до `never` (раньше файл был целиком под `@ts-nocheck`). Описываем
+ * массивами ровно те три коллекции, которые нужны здесь, — запросы ниже типизируются по-настоящему.
  */
 interface SetlistsSchema {
   setlists: SetlistRow[];
@@ -80,6 +87,49 @@ function getClient(): SetlistsClient {
   return getDirectusAdminClient() as unknown as SetlistsClient;
 }
 
+/**
+ * `{ team: { _eq: undefined } }` сериализуется в `{ team: {} }`, и Directus отдал бы строки
+ * всех команд, — поэтому пустой `teamId` останавливает запрос, а не уходит фильтром.
+ */
+function assertTeamId(teamId: unknown): asserts teamId is string {
+  if (typeof teamId !== 'string' || teamId.trim() === '') {
+    throw new Error('teamId is required');
+  }
+}
+
+/** Фильтр позиций по сетам команды — через M2O `setlist_items.setlist` (своего `team` у позиций нет). */
+function teamItemsFilter(teamId: string, setlistId?: string) {
+  return {
+    setlist: setlistId === undefined ? { team: { _eq: teamId } } : { id: { _eq: setlistId }, team: { _eq: teamId } },
+  };
+}
+
+/** Сет есть и принадлежит команде. Сбой Directus пробрасывается: ошибка — не «нет сета». */
+async function isTeamSetlist(client: SetlistsClient, teamId: string, id: string): Promise<boolean> {
+  const rows = await client.request(
+    readItems('setlists', { fields: ['id'], filter: { id: { _eq: id }, team: { _eq: teamId } }, limit: 1 })
+  );
+  return rows.length > 0;
+}
+
+/**
+ * Все `songIds` — песни команды; одним запросом, до любой записи. FK проверяет только
+ * существование песни, а сет может ссылаться лишь на песни своей команды.
+ */
+async function assertTeamSongs(client: SetlistsClient, teamId: string, songIds: number[]): Promise<void> {
+  const unique = [...new Set(songIds)];
+  if (unique.length === 0) return;
+  const rows = await client.request(
+    readItems('songs', { fields: ['id'], filter: { id: { _in: unique }, team: { _eq: teamId } }, limit: -1 })
+  );
+  const found = new Set(rows.map((row) => Number(row.id)));
+  const missing = unique.filter((id) => !found.has(id));
+  if (missing.length > 0) {
+    console.warn(`${LOG} songs not in team ${teamId}: [${missing.join(', ')}]`);
+    throw new UnknownSongIdError();
+  }
+}
+
 /** `date` ASC NULLS LAST, тай-брейк `date_created` DESC. Directus не выражает NULLS LAST в query — сортируем в JS. */
 function compareSetlists(a: SetlistSortFields, b: SetlistSortFields): number {
   if (a.date && b.date) {
@@ -97,19 +147,37 @@ function compareSetlists(a: SetlistSortFields, b: SetlistSortFields): number {
  * читаем все items и все нужные песни тремя запросами и сшиваем в памяти, без агрегатов
  * и без N запросов деталей.
  */
-export async function getSetlistsList(): Promise<SetlistSummary[]> {
+export async function getSetlistsList(teamId: string): Promise<SetlistSummary[]> {
+  assertTeamId(teamId);
   const client = getClient();
   const [setlists, items] = await Promise.all([
-    client.request(readItems('setlists', { fields: ['id', 'title', 'date', 'date_created'], limit: -1 })),
-    client.request(readItems('setlist_items', { fields: ['setlist', 'song', 'sort'], limit: -1, sort: ['sort'] })),
+    client.request(
+      readItems('setlists', {
+        fields: ['id', 'title', 'date', 'date_created'],
+        filter: { team: { _eq: teamId } },
+        limit: -1,
+      })
+    ),
+    client.request(
+      readItems('setlist_items', {
+        fields: ['setlist', 'song', 'sort'],
+        filter: teamItemsFilter(teamId),
+        limit: -1,
+        sort: ['sort'],
+      })
+    ),
   ]);
 
-  const validItems = items.filter((item): item is SetlistItemRow & { song: number } => item.song !== null);
+  const validItems = items.filter((item): item is SetlistItemRow & { setlist: string; song: number } => item.song !== null);
   const songIds = [...new Set(validItems.map((item) => item.song))];
-  const songs: SongRow[] =
+  const songs: Pick<SongRow, 'id' | 'title' | 'song_key'>[] =
     songIds.length > 0
       ? await client.request(
-          readItems('songs', { filter: { id: { _in: songIds } }, fields: ['id', 'title', 'song_key'], limit: -1 })
+          readItems('songs', {
+            filter: { id: { _in: songIds }, team: { _eq: teamId } },
+            fields: ['id', 'title', 'song_key'],
+            limit: -1,
+          })
         )
       : [];
   const songById = new Map(songs.map((song) => [song.id, song]));
@@ -117,7 +185,8 @@ export async function getSetlistsList(): Promise<SetlistSummary[]> {
   const bySetlist = new Map<string, SetlistSummaryItem[]>();
   for (const item of validItems) {
     const song = songById.get(item.song);
-    if (!song) continue; // Песню удалили из каталога — строка не рендерится.
+    // Песню удалили из каталога или она другой команды — строка не рендерится.
+    if (!song) continue;
     const list = bySetlist.get(item.setlist) ?? [];
     list.push({ songId: song.id, title: song.title, songKey: song.song_key ?? undefined });
     bySetlist.set(item.setlist, list);
@@ -133,22 +202,26 @@ export async function getSetlistsList(): Promise<SetlistSummary[]> {
   }));
 }
 
-/** Деталь сета: сам сет + items, отсортированные по `sort`, с краткими данными песен. null — не найден. */
-export async function getSetlistDetail(id: string): Promise<SetlistDetail | null> {
+/**
+ * Деталь сета: сам сет + items, отсортированные по `sort`, с краткими данными песен.
+ * null — нет такого сета или он другой команды (неразличимо). Сбой Directus пробрасывается
+ * (роут → 500): пустой ответ значит «нет», ошибка — ошибка.
+ */
+export async function getSetlistDetail(teamId: string, id: string): Promise<SetlistDetail | null> {
+  assertTeamId(teamId);
   const client = getClient();
 
-  let setlist: Pick<SetlistRow, 'id' | 'title' | 'date'>;
-  try {
-    setlist = await client.request(readItem('setlists', id, { fields: ['id', 'title', 'date'] }));
-  } catch (error) {
-    console.debug(`${LOG} detail: setlist ${id} not found`, error instanceof Error ? error.message : error);
+  const [setlist] = await client.request(
+    readItems('setlists', { fields: ['id', 'title', 'date'], filter: { id: { _eq: id }, team: { _eq: teamId } }, limit: 1 })
+  );
+  if (!setlist) {
+    console.debug(`${LOG} detail: setlist ${id} not found in team ${teamId}`);
     return null;
   }
-  if (!setlist) return null;
 
   const rawItems: SetlistItemBrief[] = await client.request(
     readItems('setlist_items', {
-      filter: { setlist: { _eq: id } },
+      filter: teamItemsFilter(teamId, id),
       fields: ['id', 'song', 'sort'],
       sort: ['sort'],
       limit: -1,
@@ -162,10 +235,14 @@ export async function getSetlistDetail(id: string): Promise<SetlistDetail | null
   const validItems = rawItems.filter((item): item is SetlistItemBrief & { song: number } => item.song !== null);
 
   const songIds = validItems.map((item) => item.song);
-  const songs: SongRow[] =
+  // Песня другой команды ведёт себя как удалённая: позиция не рендерится.
+  const songs: Pick<SongRow, 'id' | 'title' | 'subtitle' | 'song_key'>[] =
     songIds.length > 0
       ? await client.request(
-          readItems('songs', { filter: { id: { _in: songIds } }, fields: ['id', 'title', 'subtitle', 'song_key'] })
+          readItems('songs', {
+            filter: { id: { _in: songIds }, team: { _eq: teamId } },
+            fields: ['id', 'title', 'subtitle', 'song_key'],
+          })
         )
       : [];
   const songById = new Map(songs.map((song) => [song.id, song]));
@@ -208,18 +285,40 @@ function isForeignKeyViolation(error: unknown): boolean {
   );
 }
 
+/** Сета нет или он другой команды (неразличимо): роут отвечает 404, ничего не изменено. */
+export class SetlistNotFoundError extends Error {
+  constructor(id: string) {
+    super(`setlist ${id} not found`);
+    this.name = 'SetlistNotFoundError';
+  }
+}
+
+/** Запрос к одному сету команды — для записи и удаления по фильтру, а не по голому id. */
+function teamSetlistQuery(teamId: string, id: string) {
+  return { filter: { id: { _eq: id }, team: { _eq: teamId } } };
+}
+
 export interface CreateSetlistInput {
+  /** Команда из `requireTeam`; сет создаётся в ней. */
+  teamId: string;
   title: string;
   date: string | null;
   songIds: number[];
   createdBy: string;
 }
 
-/** Создаёт сет + items (`sort = index`). При сбое создания items удаляет уже созданный сет (компенсация). */
+/**
+ * Создаёт сет команды + items (`sort = index`). Песни проверяются на принадлежность команде
+ * до первой записи. При сбое создания items удаляет уже созданный сет (компенсация).
+ */
 export async function createSetlist(input: CreateSetlistInput): Promise<string> {
+  assertTeamId(input.teamId);
+  const { teamId } = input;
   const client = getClient();
+  await assertTeamSongs(client, teamId, input.songIds);
+
   const created: { id: string } = await client.request(
-    createItem('setlists', { title: input.title, date: input.date, created_by: input.createdBy })
+    createItem('setlists', { title: input.title, date: input.date, created_by: input.createdBy, team: teamId })
   );
 
   try {
@@ -231,14 +330,14 @@ export async function createSetlist(input: CreateSetlistInput): Promise<string> 
     );
   } catch (error) {
     console.error(`${LOG} create: item creation failed, compensating (delete setlist ${created.id})`, error);
-    await client.request(deleteItem('setlists', created.id)).catch((cleanupError) => {
+    await client.request(deleteItems('setlists', teamSetlistQuery(teamId, created.id))).catch((cleanupError) => {
       console.error(`${LOG} create: compensation delete failed for ${created.id}`, cleanupError);
     });
     if (isForeignKeyViolation(error)) throw new UnknownSongIdError();
     throw error;
   }
 
-  console.debug(`${LOG} create by ${input.createdBy}: ${input.songIds.length} songs`);
+  console.debug(`${LOG} create by ${input.createdBy} in team ${teamId}: ${input.songIds.length} songs`);
   return created.id;
 }
 
@@ -248,19 +347,31 @@ export interface UpdateSetlistInput {
   songIds?: number[];
 }
 
-/** PATCH заменяет состав целиком при переданном `songIds` (не диффит) — см. план, раздел «Архитектура». */
-export async function updateSetlist(id: string, input: UpdateSetlistInput): Promise<void> {
+/**
+ * PATCH заменяет состав целиком при переданном `songIds` (не диффит) — см. план, раздел «Архитектура».
+ *
+ * До любой записи: сет принадлежит команде (иначе `SetlistNotFoundError`) и все `songIds` —
+ * песни команды (иначе `UnknownSongIdError`).
+ */
+export async function updateSetlist(teamId: string, id: string, input: UpdateSetlistInput): Promise<void> {
+  assertTeamId(teamId);
   const client = getClient();
 
-  const patch: Record<string, unknown> = {};
+  if (!(await isTeamSetlist(client, teamId, id))) {
+    console.debug(`${LOG} update: setlist ${id} not found in team ${teamId}`);
+    throw new SetlistNotFoundError(id);
+  }
+  if (input.songIds !== undefined) await assertTeamSongs(client, teamId, input.songIds);
+
+  const patch: Partial<SetlistRow> = {};
   if (input.title !== undefined) patch.title = input.title;
   if (input.date !== undefined) patch.date = input.date;
   if (Object.keys(patch).length > 0) {
-    await client.request(updateItem('setlists', id, patch));
+    await client.request(updateItems('setlists', teamSetlistQuery(teamId, id), patch));
   }
 
   if (input.songIds !== undefined) {
-    await client.request(deleteItems('setlist_items', { filter: { setlist: { _eq: id } } }));
+    await client.request(deleteItems('setlist_items', { filter: teamItemsFilter(teamId, id) }));
     try {
       await client.request(
         createItems(
@@ -275,14 +386,22 @@ export async function updateSetlist(id: string, input: UpdateSetlistInput): Prom
     }
   }
 
-  console.debug(`${LOG} update ${id}`);
+  console.debug(`${LOG} update ${id} in team ${teamId}`);
 }
 
-/** Удаляет сет; items уходят по FK CASCADE (руками не чистить). */
-export async function deleteSetlist(id: string): Promise<void> {
+/**
+ * Удаляет сет команды; items уходят по FK CASCADE (руками не чистить). Сета нет или он
+ * другой команды — `SetlistNotFoundError`, ничего не удаляется.
+ */
+export async function deleteSetlist(teamId: string, id: string): Promise<void> {
+  assertTeamId(teamId);
   const client = getClient();
-  await client.request(deleteItems('setlists', [id]));
-  console.debug(`${LOG} delete ${id}`);
+  if (!(await isTeamSetlist(client, teamId, id))) {
+    console.debug(`${LOG} delete: setlist ${id} not found in team ${teamId}`);
+    throw new SetlistNotFoundError(id);
+  }
+  await client.request(deleteItems('setlists', teamSetlistQuery(teamId, id)));
+  console.debug(`${LOG} delete ${id} in team ${teamId}`);
 }
 
 /**
@@ -292,12 +411,19 @@ export async function deleteSetlist(id: string): Promise<void> {
  * по одному лишь `date_updated` пропустила бы ровно то изменение, ради которого сет и
  * открывают. Поэтому версия = короткий хеш от `date_updated` сета + его отсортированного
  * состава (`itemId:sort:songId`).
+ *
+ * Только сеты команды и их позиции: манифест одной команды не перечисляет сеты другой.
  */
-export async function getSetlistVersions(): Promise<Array<[string, string]>> {
+export async function getSetlistVersions(teamId: string): Promise<Array<[string, string]>> {
+  assertTeamId(teamId);
   const client = getClient();
   const [setlists, items] = await Promise.all([
-    client.request(readItems('setlists', { fields: ['id', 'date_updated', 'date_created'], limit: -1 })),
-    client.request(readItems('setlist_items', { fields: ['id', 'setlist', 'song', 'sort'], limit: -1 })),
+    client.request(
+      readItems('setlists', { fields: ['id', 'date_updated', 'date_created'], filter: { team: { _eq: teamId } }, limit: -1 })
+    ),
+    client.request(
+      readItems('setlist_items', { fields: ['id', 'setlist', 'song', 'sort'], filter: teamItemsFilter(teamId), limit: -1 })
+    ),
   ]);
 
   const bySetlist = new Map<string, string[]>();

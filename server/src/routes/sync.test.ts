@@ -216,6 +216,41 @@ describe('GET /api/sync/manifest', () => {
     expect(((await again.json()) as { songs: [string, string][] }).songs.map(([id]) => id)).toEqual(['1']);
   });
 
+  it('версии сетов — только сеты своей команды и их позиции', async () => {
+    const setlists = [
+      { id: 'set-a', team: 'team-a', date_updated: '2026-08-02T10:00:00Z', date_created: null },
+      { id: 'set-b', team: 'team-b', date_updated: '2026-08-02T10:00:00Z', date_created: null },
+    ];
+    const items = [
+      { id: 'ia', setlist: 'set-a', song: 1, sort: 0 },
+      { id: 'ib', setlist: 'set-b', song: 2, sort: 0 },
+    ];
+    type Filter = { team?: { _eq?: string }; setlist?: { team?: { _eq?: string } } };
+    adminRequestMock.mockImplementation(async (command: () => { path: string; params?: { filter?: Filter } }) => {
+      const { path, params } = command();
+      if (path === '/items/songs') return [];
+      if (path === '/items/setlists') {
+        return setlists.filter((row) => row.team === params?.filter?.team?._eq);
+      }
+      if (path === '/items/setlist_items') {
+        const team = params?.filter?.setlist?.team?._eq;
+        return items.filter((item) => setlists.find((s) => s.id === item.setlist)?.team === team);
+      }
+      throw new Error(`unexpected Directus call ${path}`);
+    });
+    getReadingPlanMock.mockResolvedValue([{ id: 1, numbers: 1, item: 1, read: 'Быт 1' }]);
+    getUserTeamIdMock.mockImplementation(async (directusId: string) => (directusId === 'user-b' ? 'team-b' : 'team-a'));
+
+    const app = createApp();
+    const a = await app.request('/app/api/sync/manifest', { headers: { cookie: await sessionCookie('user-a') } });
+    const b = await app.request('/app/api/sync/manifest', { headers: { cookie: await sessionCookie('user-b') } });
+
+    const ids = async (res: Response) =>
+      ((await res.json()) as { setlists: [string, string][] }).setlists.map(([id]) => id);
+    expect(await ids(a)).toEqual(['set-a']);
+    expect(await ids(b)).toEqual(['set-b']);
+  });
+
   it('сбой Directus у одной команды -> 503, а не закешированный манифест другой', async () => {
     mockDirectusTwoTeams();
     const app = createApp();

@@ -47,7 +47,7 @@ function etagOf(body: string): string {
 async function buildManifest(teamId: string): Promise<{ manifest: SyncManifest; etag: string }> {
   const [songs, setlists, plan] = await Promise.all([
     getSongVersions(teamId),
-    getSetlistVersions(),
+    getSetlistVersions(teamId),
     // У плана нет своего поля версии — берём хеш самого плана. Он статичен весь год,
     // поэтому пересчёт раз в минуту дешевле отдельной схемы версионирования.
     getReadingPlan().then((rows) => createHash('sha1').update(JSON.stringify(rows)).digest('hex').slice(0, 12)),

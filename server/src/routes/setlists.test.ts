@@ -1,9 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { adminRequestMock } = vi.hoisted(() => ({ adminRequestMock: vi.fn() }));
+const { adminRequestMock, getUserTeamIdMock } = vi.hoisted(() => ({
+  adminRequestMock: vi.fn(),
+  getUserTeamIdMock: vi.fn(),
+}));
 
 vi.mock('../../../src/lib/directus', () => ({
   getDirectusAdminClient: () => ({ request: adminRequestMock }),
+}));
+vi.mock('../../../src/lib/teams', () => ({
+  getUserTeamId: getUserTeamIdMock,
 }));
 
 import { sealSession, SESSION_COOKIE_NAME } from '../../../src/lib/session-core';
@@ -35,6 +41,8 @@ function mockReaderRole() {
 beforeEach(() => {
   process.env.SESSION_SECRET = 'test-session-secret-at-least-32-chars-long';
   adminRequestMock.mockReset();
+  getUserTeamIdMock.mockReset();
+  getUserTeamIdMock.mockResolvedValue('team-a');
 });
 
 describe('GET /api/setlists', () => {
@@ -82,7 +90,7 @@ describe('GET /api/setlists/:id', () => {
   });
 
   it('не найден -> 404', async () => {
-    adminRequestMock.mockRejectedValueOnce(new Error('not found'));
+    adminRequestMock.mockResolvedValueOnce([]);
     const cookie = await sessionCookie();
     const app = createApp();
     const res = await app.request('/app/api/setlists/11111111-1111-1111-1111-111111111111', {
@@ -92,7 +100,7 @@ describe('GET /api/setlists/:id', () => {
   });
 
   it('деталь: items по sort, orphan-item (song=null) отфильтрован', async () => {
-    adminRequestMock.mockResolvedValueOnce({ id: 'set-1', title: 'Сет', date: '2026-08-01' });
+    adminRequestMock.mockResolvedValueOnce([{ id: 'set-1', title: 'Сет', date: '2026-08-01' }]);
     adminRequestMock.mockResolvedValueOnce([
       { id: 'item-1', song: 1, sort: 0 },
       { id: 'item-2', song: 2, sort: 1 },
@@ -157,6 +165,7 @@ describe('PATCH/DELETE /api/setlists/:id — 403 для reader', () => {
 describe('POST /api/setlists — создание (musician)', () => {
   it('201, порядок sort соответствует порядку songIds', async () => {
     mockMusicianRole();
+    adminRequestMock.mockResolvedValueOnce([{ id: 1 }, { id: 2 }, { id: 3 }]); // песни команды
     adminRequestMock.mockResolvedValueOnce({ id: 'new-set' });
     adminRequestMock.mockResolvedValueOnce([]);
 
@@ -172,7 +181,7 @@ describe('POST /api/setlists — создание (musician)', () => {
 
     // `sort` — единственный носитель порядка: если он не идёт по индексу songIds,
     // drag «работает», но после перезагрузки порядок откатывается.
-    expect(itemsPayload(2)).toEqual([
+    expect(itemsPayload(3)).toEqual([
       { setlist: 'new-set', song: 3, sort: 0 },
       { setlist: 'new-set', song: 1, sort: 1 },
       { setlist: 'new-set', song: 2, sort: 2 },
@@ -229,6 +238,8 @@ describe('POST /api/setlists — создание (musician)', () => {
 
   it('несуществующий songId (FK-ошибка Directus) -> 400, не 500', async () => {
     mockMusicianRole();
+    // Проверку команды песня прошла, но к записи её уже удалили — FK-ошибка Directus.
+    adminRequestMock.mockResolvedValueOnce([{ id: 999 }]);
     adminRequestMock.mockResolvedValueOnce({ id: 'new-set' });
     adminRequestMock.mockRejectedValueOnce(new Error('violates foreign key constraint'));
     adminRequestMock.mockResolvedValueOnce({}); // compensation delete
@@ -248,7 +259,9 @@ describe('POST /api/setlists — создание (musician)', () => {
 describe('PATCH /api/setlists/:id — musician', () => {
   it('заменяет состав, PATCH проходит', async () => {
     mockMusicianRole();
-    adminRequestMock.mockResolvedValueOnce({}); // updateItem title
+    adminRequestMock.mockResolvedValueOnce([{ id: '11111111-1111-1111-1111-111111111111' }]); // сет команды
+    adminRequestMock.mockResolvedValueOnce([{ id: 1 }, { id: 2 }]); // песни команды
+    adminRequestMock.mockResolvedValueOnce({}); // updateItems title
     adminRequestMock.mockResolvedValueOnce({}); // deleteItems old items
     adminRequestMock.mockResolvedValueOnce([]); // createItems new items
 
@@ -264,6 +277,8 @@ describe('PATCH /api/setlists/:id — musician', () => {
 
   it('переставленный songIds сохраняется как sort по индексу (порядок после drag не откатится)', async () => {
     mockMusicianRole();
+    adminRequestMock.mockResolvedValueOnce([{ id: '11111111-1111-1111-1111-111111111111' }]); // сет команды
+    adminRequestMock.mockResolvedValueOnce([{ id: 1 }, { id: 2 }, { id: 3 }]); // песни команды
     adminRequestMock.mockResolvedValueOnce({}); // deleteItems старых items
     adminRequestMock.mockResolvedValueOnce([]); // createItems новых items
 
@@ -276,8 +291,9 @@ describe('PATCH /api/setlists/:id — musician', () => {
     });
     expect(res.status).toBe(200);
 
-    // Без title/date патч самого сета не отправляется, поэтому createItems — вызов №2.
-    expect(itemsPayload(2)).toEqual([
+    // Без title/date патч самого сета не отправляется, поэтому createItems — вызов №4
+    // (после роли, проверки сета, проверки песен и удаления старых items).
+    expect(itemsPayload(4)).toEqual([
       { setlist: '11111111-1111-1111-1111-111111111111', song: 3, sort: 0 },
       { setlist: '11111111-1111-1111-1111-111111111111', song: 1, sort: 1 },
       { setlist: '11111111-1111-1111-1111-111111111111', song: 2, sort: 2 },
@@ -288,6 +304,7 @@ describe('PATCH /api/setlists/:id — musician', () => {
 describe('DELETE /api/setlists/:id — musician', () => {
   it('204/200 успешное удаление', async () => {
     mockMusicianRole();
+    adminRequestMock.mockResolvedValueOnce([{ id: '11111111-1111-1111-1111-111111111111' }]); // сет команды
     adminRequestMock.mockResolvedValueOnce({});
 
     const cookie = await sessionCookie();
@@ -297,5 +314,162 @@ describe('DELETE /api/setlists/:id — musician', () => {
       headers: { Cookie: cookie },
     });
     expect(res.status).toBe(200);
+  });
+});
+
+describe('сеты видны и меняются только в своей команде', () => {
+  const SET_A = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const SET_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+
+  type Row = Record<string, unknown>;
+  type Filter = Record<string, Record<string, unknown>>;
+  type DirectusCommand = () => { path: string; method: string; params?: { filter?: Filter }; body?: string };
+
+  const setlists: Row[] = [
+    { id: SET_A, title: 'Сет A', date: null, date_created: '2026-01-01T00:00:00Z', team: 'team-a' },
+    { id: SET_B, title: 'Сет B', date: null, date_created: '2026-01-02T00:00:00Z', team: 'team-b' },
+  ];
+  const items: Row[] = [
+    { id: 'item-a', setlist: SET_A, song: 1, sort: 0 },
+    { id: 'item-b', setlist: SET_B, song: 2, sort: 0 },
+  ];
+  const songs: Row[] = [
+    { id: 1, title: 'Песня A', song_key: 'C', team: 'team-a' },
+    { id: 2, title: 'Песня B', song_key: 'D', team: 'team-b' },
+  ];
+  const tables: Record<string, Row[]> = { setlists, setlist_items: items, songs };
+
+  /** Фильтр как в Directus: `_eq`, `_in` и M2O `setlist` (позиция → её сет). */
+  function matches(row: Row, filter: Filter | undefined): boolean {
+    if (!filter) return true;
+    return Object.entries(filter).every(([field, cond]) => {
+      if ('_eq' in cond) return row[field] === cond._eq;
+      if ('_in' in cond) return (cond._in as unknown[]).includes(row[field]);
+      if (field === 'setlist') {
+        const parent = setlists.find((s) => s.id === row.setlist);
+        return !!parent && matches(parent, cond as Filter);
+      }
+      throw new Error(`фильтр ${field} не поддержан фейком`);
+    });
+  }
+
+  /** Все не-GET вызовы Directus — чтобы проверять «ни одной записи». */
+  let writes: Array<{ path: string; method: string }>;
+
+  function directusWithTwoTeams() {
+    writes = [];
+    adminRequestMock.mockImplementation(async (command: DirectusCommand) => {
+      const { path, method, params, body } = command();
+      if (path.startsWith('/users/')) return { role: { name: 'musician' } };
+      const collection = path.match(/^\/items\/([a-z_]+)$/)?.[1];
+      const table = collection ? tables[collection] : undefined;
+      if (!table) throw new Error(`неожиданный вызов Directus ${method} ${path}`);
+      if (method === 'GET') return table.filter((row) => matches(row, params?.filter));
+      writes.push({ path, method });
+      const parsed = body ? JSON.parse(body) : null;
+      if (method === 'POST') return Array.isArray(parsed) ? [] : { id: 'new-set' };
+      return [];
+    });
+    getUserTeamIdMock.mockImplementation(async (directusId: string) =>
+      directusId === 'user-a' ? 'team-a' : directusId === 'user-b' ? 'team-b' : null,
+    );
+  }
+
+  beforeEach(() => {
+    directusWithTwoTeams();
+  });
+
+  it('без команды -> 403 на всех роутах, Directus не запрашивается', async () => {
+    getUserTeamIdMock.mockResolvedValue(null);
+    const app = createApp();
+    const cookie = await sessionCookie('user-nobody');
+    const requests: Array<[string, RequestInit]> = [
+      ['/app/api/setlists', {}],
+      [`/app/api/setlists/${SET_A}`, {}],
+      ['/app/api/setlists', { method: 'POST', body: JSON.stringify({ title: 'Сет', songIds: [1] }) }],
+      [`/app/api/setlists/${SET_A}`, { method: 'PATCH', body: JSON.stringify({ title: 'Новое' }) }],
+      [`/app/api/setlists/${SET_A}`, { method: 'DELETE' }],
+    ];
+    for (const [url, init] of requests) {
+      const res = await app.request(url, {
+        ...init,
+        headers: { 'Content-Type': 'application/json', Cookie: cookie },
+      });
+      expect(res.status, `${init.method ?? 'GET'} ${url}`).toBe(403);
+    }
+    expect(adminRequestMock).not.toHaveBeenCalled();
+  });
+
+  it('список — только сеты своей команды', async () => {
+    const res = await createApp().request('/app/api/setlists', { headers: { Cookie: await sessionCookie('user-a') } });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { setlists: Array<{ id: string; items: Array<{ songId: number }> }> };
+    expect(body.setlists.map((s) => s.id)).toEqual([SET_A]);
+    expect(body.setlists[0].items.map((i) => i.songId)).toEqual([1]);
+  });
+
+  it('GET сета другой команды -> 404', async () => {
+    const res = await createApp().request(`/app/api/setlists/${SET_B}`, {
+      headers: { Cookie: await sessionCookie('user-a') },
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('GET своего сета -> 200 (контроль: фейк отдаёт свои сеты)', async () => {
+    const res = await createApp().request(`/app/api/setlists/${SET_B}`, {
+      headers: { Cookie: await sessionCookie('user-b') },
+    });
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { setlist: { title: string } }).setlist.title).toBe('Сет B');
+  });
+
+  it('PATCH сета другой команды -> 404, ни одной записи', async () => {
+    const res = await createApp().request(`/app/api/setlists/${SET_B}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: await sessionCookie('user-a') },
+      body: JSON.stringify({ title: 'Чужое', songIds: [1] }),
+    });
+    expect(res.status).toBe(404);
+    expect(writes).toEqual([]);
+  });
+
+  it('DELETE сета другой команды -> 404, ни одной записи', async () => {
+    const res = await createApp().request(`/app/api/setlists/${SET_B}`, {
+      method: 'DELETE',
+      headers: { Cookie: await sessionCookie('user-a') },
+    });
+    expect(res.status).toBe(404);
+    expect(writes).toEqual([]);
+  });
+
+  it('POST с песней другой команды -> 400, ни одной записи', async () => {
+    const res = await createApp().request('/app/api/setlists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: await sessionCookie('user-a') },
+      body: JSON.stringify({ title: 'Сет', songIds: [1, 2] }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: 'Unknown song id' });
+    expect(writes).toEqual([]);
+  });
+
+  it('PATCH своего сета с песней другой команды -> 400, ни одной записи', async () => {
+    const res = await createApp().request(`/app/api/setlists/${SET_A}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Cookie: await sessionCookie('user-a') },
+      body: JSON.stringify({ title: 'Новое', songIds: [2] }),
+    });
+    expect(res.status).toBe(400);
+    expect(writes).toEqual([]);
+  });
+
+  it('POST со своими песнями -> 201 (контроль)', async () => {
+    const res = await createApp().request('/app/api/setlists', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: await sessionCookie('user-a') },
+      body: JSON.stringify({ title: 'Сет', songIds: [1] }),
+    });
+    expect(res.status).toBe(201);
+    expect(writes.map((w) => w.path)).toEqual(['/items/setlists', '/items/setlist_items']);
   });
 });
