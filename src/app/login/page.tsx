@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { hasTelegramWebAppObject, isTelegramWebApp, initTelegramWebApp, getTelegramInitData } from '@/lib/telegram';
 import { getApiPath, getBasePath } from '@/lib/utils';
+import { getStartPath } from '@/shared/config/appMode';
 import { forgetForeignLastKnownUser } from '@/shared/offline/offlineOwner';
 import { SUPPORT_CONTACT } from '@/lib/constants';
 import { isRegisterEnabled } from '@/shared/utils/constants';
@@ -112,26 +113,15 @@ function LoginForm() {
         return;
       }
 
-      const redirect = searchParams.get('redirect') || '/dashboard';
+      // Прежний last-known-user снимаем сразу, до любых других запросов: cookie уже новая.
+      await forgetForeignLastKnownUser(data?.user?.directus_id);
 
-      // Убеждаемся, что cookie сессии применена: проверяем сессию перед редиректом,
-      // чтобы запросы дашборда уже шли с cookie (избегаем 401 при быстрой навигации).
-      const sessionRes = await fetch(getApiPath('/api/auth/session'), {
-        credentials: 'include',
-      });
-      const sessionData = await sessionRes.json().catch(() => ({}));
-      if (sessionData?.user) {
-        await forgetForeignLastKnownUser(sessionData.user.directus_id);
-        if (typeof (window as any).refreshAuth === 'function') {
-          (window as any).refreshAuth();
-        }
-        router.push(redirect);
-        router.refresh();
-      } else {
-        // cookie не подхватилась — редирект полной загрузкой страницы, чтобы cookie точно применилась
-        await forgetForeignLastKnownUser(data?.user?.directus_id);
-        window.location.href = redirect.startsWith('http') ? redirect : `${window.location.origin}${getBasePath()}${redirect}`;
-      }
+      // Полная навигация: cookie сессии точно применена, а перезагрузка страницы после
+      // смены владельца данных (AuthProvider) не перебивает клиентский переход.
+      const redirect = searchParams.get('redirect') || getStartPath();
+      window.location.replace(
+        redirect.startsWith('http') ? redirect : `${window.location.origin}${getBasePath()}${redirect}`
+      );
     } catch (err: any) {
       setError(err?.message || 'Ошибка входа. Проверьте данные.');
     } finally {

@@ -128,23 +128,31 @@ describe('/login — путь для нового пользователя', () 
 describe('/login — смена пользователя на устройстве', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('запасная ветка (cookie не подхватилась) тоже снимает чужой last-known-user', async () => {
+  it('успешный вход: чужой last-known-user снят до других запросов, переход — полной навигацией на redirect', async () => {
     forgetForeignMock.mockClear();
-    vi.stubGlobal('location', { ...window.location, href: '', origin: 'http://localhost' });
+    const replace = vi.fn();
+    vi.stubGlobal('location', { ...window.location, replace, origin: 'http://localhost' });
+    const calls: string[] = [];
+    forgetForeignMock.mockImplementation(async () => {
+      calls.push('forget');
+    });
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation((url: string) =>
-        Promise.resolve({
-          ok: true,
-          status: 200,
-          json: async () => (String(url).includes('/api/auth/login') ? { user: { directus_id: 'u2' } } : {}),
-        })
-      )
+      vi.fn().mockImplementation((url: string) => {
+        calls.push(String(url));
+        return Promise.resolve({ ok: true, status: 200, json: async () => ({ user: { directus_id: 'u2' } }) });
+      })
     );
     render(<LoginPage />);
     fireEvent.change(await screen.findByLabelText('Логин'), { target: { value: 'login' } });
     fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'password-1' } });
     fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
-    await waitFor(() => expect(forgetForeignMock).toHaveBeenCalledWith('u2'));
+    await waitFor(() => expect(replace).toHaveBeenCalledTimes(1));
+    expect(forgetForeignMock).toHaveBeenCalledWith('u2');
+    expect(calls).toHaveLength(2); // login, forget — запроса сессии нет
+    expect(calls[0]).toContain('/api/auth/login');
+    expect(calls[1]).toBe('forget');
+    expect(String(replace.mock.calls[0][0])).toMatch(/\/dashboard/);
+    expect(pushMock).not.toHaveBeenCalled();
   });
 });
