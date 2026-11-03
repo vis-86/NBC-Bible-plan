@@ -18,6 +18,7 @@ import { setlistsRoutes } from './routes/setlists';
 import { songsRoutes } from './routes/songs';
 import { publicSongsRoutes } from './routes/publicSongs';
 import { syncRoutes } from './routes/sync';
+import { teamRoutes } from './routes/team';
 import { userRoutes } from './routes/user';
 
 export function createApp() {
@@ -50,6 +51,7 @@ export function createApp() {
   app.route('/catalog', catalogRoutes);
   app.route('/setlists', setlistsRoutes);
   app.route('/sync', syncRoutes);
+  app.route('/team', teamRoutes);
   app.route('/user', userRoutes);
   app.route('/chat', chatRoutes);
   app.route('/graphql', graphqlRoutes);

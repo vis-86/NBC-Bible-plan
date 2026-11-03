@@ -77,6 +77,7 @@ COPY src/features/songs/services ./src/features/songs/services
 COPY src/features/songs/lib ./src/features/songs/lib
 COPY src/features/songs/types.ts ./src/features/songs/types.ts
 COPY src/features/setlists/services ./src/features/setlists/services
+COPY src/features/team/services ./src/features/team/services
 COPY src/types ./src/types
 COPY src/shared/utils ./src/shared/utils
 # Self-hosted Bible text (src/lib/bible-data.ts reads from process.cwd()/data at runtime)
