@@ -118,6 +118,11 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
   Новый сервис — в его список разрешённых.
 - Аккаунт создаётся только вместе с членством (`createLocalUser` удаляет пользователя, если
   членство не записалось). Регистрация по коду церкви — только в NBC; инвайт несёт команду и роль.
+- `team_admin` управляет только участниками `reader`/`musician`/`musician_editor`: другие
+  администраторы и аккаунты вне ролей приложения ему недоступны (404/409). Роль `team_admin`
+  выдаёт только администратор приложения (`scripts/create-team.ts`). Убранный участник —
+  `suspended`: его reset-ссылки гасятся, вход и Telegram mini-app не дают сессию,
+  `/auth/session` снимает живую cookie.
 - Ссылка инвайта ведёт на витрину своей команды: NBC → `NEXT_PUBLIC_APP_URL`, остальные →
   `WORSHIP_APP_URL` (пусто ⇒ такой инвайт не создаётся).
 - Две витрины из одной кодовой базы, общий BFF: `NEXT_PUBLIC_APP_MODE=church|worship`.
@@ -130,8 +135,10 @@ npm run deploy       # deploy/deploy.sh: rsync на сервер + сборка 
 - **Осознанные online-only исключения:** каталог и управление командой (`/api/team`) — с UI
   «нужен интернет», в IDB не кладутся.
 - Схема — `scripts/add-teams.ts` (`apply` / `finalize` / `strip-user-permissions`,
-  `--confirm-host`), новая команда — `scripts/create-team.ts`. Порядок выкатки —
-  `docs/deployment.md`.
+  `--confirm-host`), новая команда — `scripts/create-team.ts` (отказывает, пока не выполнен
+  `strip-user-permissions`). Порядок выкатки — `docs/deployment.md`.
+- Смена аккаунта на устройстве (выход, истечение сессии, вход другого) — полная перезагрузка
+  страницы: кеши в памяти модулей (`useSongs`, `useSetlists`, `useSong`) не переживают её.
 
 ## Прод и деплой
 
