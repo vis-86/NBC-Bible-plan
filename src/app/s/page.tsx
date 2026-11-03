@@ -17,6 +17,7 @@ import { SongKeyPicker } from '@/features/songs/components/SongKeyPicker';
 import { SongViewSettings } from '@/features/songs/components/SongViewSettings';
 import { resolveChordColor } from '@/features/songs/lib/chordColors';
 import { cn } from '@/shared/utils/cn';
+import { isWorshipMode } from '@/shared/config/appMode';
 
 /**
  * Ссылка «Поделиться» (`/s?id=`). Вошедший (в т.ч. офлайн по last-known-user) сразу уходит
@@ -101,7 +102,7 @@ function GuestSong({ id, state, retry }: { id: string } & ReturnType<typeof useP
       {state.status === 'unavailable' && (
         <ErrorMessage
           title="Песня недоступна"
-          message="Её нет по этой ссылке, или она открыта только участникам церкви."
+          message={`Её нет по этой ссылке, или она открыта только участникам ${isWorshipMode() ? 'команды' : 'церкви'}.`}
           onRetry={() => router.push(`/login?redirect=${encodeURIComponent(`/dashboard/song?id=${id}`)}`)}
           retryLabel="Войти"
         />

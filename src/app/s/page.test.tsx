@@ -33,6 +33,7 @@ beforeAll(() => {
 });
 
 afterEach(() => {
+  vi.unstubAllEnvs();
   cleanup();
   replaceMock.mockReset();
   getPublicSongMock.mockReset();
@@ -82,6 +83,16 @@ describe('/s — ссылка на песню', () => {
 
     expect(await screen.findByText('Песня недоступна')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['church', 'участникам церкви'],
+    ['worship', 'участникам команды'],
+  ])('«недоступна»: текст по режиму %s', async (mode, text) => {
+    vi.stubEnv('NEXT_PUBLIC_APP_MODE', mode);
+    getPublicSongMock.mockRejectedValue(new ApiClientError('Not found', 404));
+    render(<PublicSongPage />);
+    expect(await screen.findByText(new RegExp(text))).toBeInTheDocument();
   });
 
   it('сетевой сбой → повтор, а не «недоступна»', async () => {

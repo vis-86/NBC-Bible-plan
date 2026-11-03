@@ -62,9 +62,6 @@ services:
         NEXT_PUBLIC_AI_ENABLE: ${NEXT_PUBLIC_AI_ENABLE}
         NEXT_PUBLIC_REGISTER_ENABLED: ${NEXT_PUBLIC_REGISTER_ENABLED}
         NEXT_PUBLIC_REGISTER_REQUIRE_CODE: ${NEXT_PUBLIC_REGISTER_REQUIRE_CODE:-true}
-        # Бренд витрины worship (стадия build-worship); имя ещё не выбрано — плейсхолдер.
-        NEXT_PUBLIC_APP_NAME: ${WORSHIP_APP_NAME:-Аккорды}
-        NEXT_PUBLIC_APP_SHORT_NAME: ${WORSHIP_APP_SHORT_NAME:-Аккорды}
     restart: unless-stopped
     depends_on:
       directus:
@@ -119,6 +116,9 @@ services:
         NEXT_PUBLIC_AI_ENABLE: ${NEXT_PUBLIC_AI_ENABLE}
         NEXT_PUBLIC_REGISTER_ENABLED: ${NEXT_PUBLIC_REGISTER_ENABLED}
         NEXT_PUBLIC_REGISTER_REQUIRE_CODE: ${NEXT_PUBLIC_REGISTER_REQUIRE_CODE:-true}
+        # Бренд витрины worship (стадия build-worship); имя ещё не выбрано — плейсхолдер.
+        NEXT_PUBLIC_APP_NAME: ${WORSHIP_APP_NAME:-Аккорды}
+        NEXT_PUBLIC_APP_SHORT_NAME: ${WORSHIP_APP_SHORT_NAME:-Аккорды}
     restart: unless-stopped
     depends_on: [bff, directus]
     ports:

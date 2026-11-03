@@ -35,24 +35,17 @@ RUN yarn build
 # build-worship: вторая статика из той же кодовой базы — витрина для музыкальных
 # команд (NEXT_PUBLIC_APP_MODE=worship, см. src/shared/config/appMode.ts). Next всегда
 # пишет в out/, поэтому режимы собираются в разных стадиях. Бренд — из build-args.
+# `FROM build`: стадия стартует только после завершения `build` — две тяжёлые сборки
+# `yarn build` идут строго последовательно (не параллельно, нет удвоения памяти), а
+# исходники и node_modules переиспользуются. Церковный out/ остаётся в `build`.
 # ---------------------------------------------------------------------------
-FROM base AS build-worship
-COPY --from=deps /app/node_modules ./node_modules
-COPY . .
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
-ARG NEXT_PUBLIC_BASE_PATH=/app
-ARG NEXT_PUBLIC_DIRECTUS_URL
-ARG NEXT_PUBLIC_AI_ENABLE
+FROM build AS build-worship
 ARG NEXT_PUBLIC_APP_NAME=Аккорды
 ARG NEXT_PUBLIC_APP_SHORT_NAME=Аккорды
 ENV NEXT_PUBLIC_APP_MODE=worship
-ENV NEXT_PUBLIC_BASE_PATH=$NEXT_PUBLIC_BASE_PATH
-ENV NEXT_PUBLIC_DIRECTUS_URL=$NEXT_PUBLIC_DIRECTUS_URL
-ENV NEXT_PUBLIC_AI_ENABLE=$NEXT_PUBLIC_AI_ENABLE
 ENV NEXT_PUBLIC_APP_NAME=$NEXT_PUBLIC_APP_NAME
 ENV NEXT_PUBLIC_APP_SHORT_NAME=$NEXT_PUBLIC_APP_SHORT_NAME
-RUN yarn build
+RUN rm -rf out .next && yarn build
 
 # ---------------------------------------------------------------------------
 # bff: Hono API server. Runs TS directly via tsx (no separate build step for
