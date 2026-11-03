@@ -9,6 +9,7 @@ import { logger } from './logger';
 import { aiRoutes } from './routes/ai';
 import { authRoutes } from './routes/auth';
 import { bibleRoutes } from './routes/bible';
+import { catalogRoutes } from './routes/catalog';
 import { chatRoutes } from './routes/chat';
 import { directusProxyRoutes } from './routes/directus-proxy';
 import { graphqlRoutes } from './routes/graphql';
@@ -46,6 +47,7 @@ export function createApp() {
   app.route('/plan', planRoutes);
   app.route('/songs', songsRoutes);
   app.route('/public/songs', publicSongsRoutes);
+  app.route('/catalog', catalogRoutes);
   app.route('/setlists', setlistsRoutes);
   app.route('/sync', syncRoutes);
   app.route('/user', userRoutes);

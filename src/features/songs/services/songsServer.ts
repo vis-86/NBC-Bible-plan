@@ -202,6 +202,14 @@ function toRow(input: Partial<CreateSongInput & UpdateSongInput>): Record<string
  */
 export async function createSong(teamId: string, input: CreateSongInput): Promise<number> {
   requireTeamId(teamId);
+  return insertSong(teamId, input.title, { ...toRow(input), visibility: input.visibility ?? 'members' });
+}
+
+/**
+ * Запись новой песни в команду — общая часть `createSong` и `copySongToTeam`: `team`, `sort`,
+ * `slug` и `status` задаёт сервер (см. `createSong`) поверх переданных колонок.
+ */
+async function insertSong(teamId: string, title: string, fields: Record<string, unknown>): Promise<number> {
   const client = getDirectusAdminClient();
 
   const [last]: Array<{ sort?: number | null }> = await client.request(
@@ -209,7 +217,7 @@ export async function createSong(teamId: string, input: CreateSongInput): Promis
   );
   const sort = (last?.sort ?? 0) + 1;
 
-  const base = buildSongSlug(sort, input.title);
+  const base = buildSongSlug(sort, title);
   const siblings: Array<{ slug: string }> = await client.request(
     readItems('songs', { fields: ['slug'], filter: { slug: { _starts_with: base } }, limit: -1 }),
   );
@@ -217,8 +225,7 @@ export async function createSong(teamId: string, input: CreateSongInput): Promis
 
   const created: { id: number } = await client.request(
     createItem('songs', {
-      ...toRow(input),
-      visibility: input.visibility ?? 'members',
+      ...fields,
       team: teamId,
       slug,
       sort,
@@ -261,6 +268,123 @@ export async function updateSong(teamId: string, id: number, input: UpdateSongIn
   }
 
   console.debug(`${LOG} update: song ${id}, fields [${Object.keys(row).join(', ')}]`);
+}
+
+/** Песня в каталоге (чужая, опубликованная, `public`); `copiedAs` — id нашей копии, если она есть. */
+export type CatalogSong = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  key?: string;
+  teamName: string;
+  copiedAs?: string;
+};
+
+type CatalogRow = SongRow & { team?: { name?: string | null } | null };
+
+/** Каталог — опубликованные `public`-песни других команд. Своя команда в каталоге не показывается. */
+function catalogFilter(teamId: string): Record<string, unknown> {
+  return { status: { _eq: 'published' }, visibility: { _eq: 'public' }, team: { _neq: teamId } };
+}
+
+/**
+ * Каталог публичных песен других команд с названием команды-источника, по названию.
+ * `copiedAs` проставляется одним запросом по своим песням с `origin_song` — метка «уже у вас».
+ * Online-only: каталог не кешируется ни здесь, ни на клиенте.
+ */
+export async function getCatalog(teamId: string): Promise<CatalogSong[]> {
+  requireTeamId(teamId);
+  const client = getDirectusAdminClient();
+  const [rows, copies]: [CatalogRow[], Array<{ id: number; origin_song: number }>] = await Promise.all([
+    client.request(
+      readItems('songs', {
+        fields: ['id', 'title', 'subtitle', 'song_key', 'team.name'],
+        filter: catalogFilter(teamId),
+        sort: ['title'],
+        limit: -1,
+      }),
+    ),
+    client.request(
+      readItems('songs', {
+        fields: ['id', 'origin_song'],
+        filter: { team: { _eq: teamId }, origin_song: { _nnull: true } },
+        limit: -1,
+      }),
+    ),
+  ]);
+
+  const copiedAs = new Map(copies.map((copy) => [copy.origin_song, String(copy.id)]));
+  console.debug(`${LOG} catalog: ${rows.length} song(s), ${copies.length} already copied by team ${teamId}`);
+  return rows.map((row) => ({
+    id: String(row.id),
+    title: row.title,
+    subtitle: row.subtitle ?? undefined,
+    key: row.song_key ?? undefined,
+    teamName: row.team?.name ?? '',
+    copiedAs: copiedAs.get(row.id),
+  }));
+}
+
+/** Песни нет в каталоге: закрытая, неопубликованная, своя и несуществующая неразличимы. */
+export class CatalogSongNotFoundError extends Error {
+  constructor(id: number) {
+    super(`catalog song ${id} not found`);
+    this.name = 'CatalogSongNotFoundError';
+  }
+}
+
+/** Песня уже скопирована в команду; `existingId` — id этой копии. */
+export class SongAlreadyCopiedError extends Error {
+  readonly existingId: number;
+
+  constructor(existingId: number) {
+    super(`song already copied as ${existingId}`);
+    this.name = 'SongAlreadyCopiedError';
+    this.existingId = existingId;
+  }
+}
+
+/** Колонки, которые переходят в копию. `visibility`, `team`, пометки и сеты не копируются. */
+const COPIED_FIELDS = ['title', 'subtitle', 'song_key', 'default_key', 'tempo', 'time', 'content'] as const;
+
+/**
+ * Копия песни каталога в команду `teamId` — форк, а не ссылка: дальше команда правит её
+ * как свою. Копия закрыта (`visibility: members`) и помнит оригинал в `origin_song`,
+ * `slug`/`sort`/`status` — как у `createSong`. Повторная копия той же песни — `SongAlreadyCopiedError`.
+ */
+export async function copySongToTeam(teamId: string, sourceId: number): Promise<number> {
+  requireTeamId(teamId);
+  const client = getDirectusAdminClient();
+
+  const [source]: SongRow[] = await client.request(
+    readItems('songs', {
+      fields: ['id', ...COPIED_FIELDS],
+      filter: { id: { _eq: sourceId }, ...catalogFilter(teamId) },
+      limit: 1,
+    }),
+  );
+  if (!source) {
+    console.debug(`${LOG} copy: song ${sourceId} is not in the catalog for team ${teamId}`);
+    throw new CatalogSongNotFoundError(sourceId);
+  }
+
+  const [existing]: Array<{ id: number }> = await client.request(
+    readItems('songs', {
+      fields: ['id'],
+      filter: { team: { _eq: teamId }, origin_song: { _eq: sourceId } },
+      limit: 1,
+    }),
+  );
+  if (existing) {
+    console.debug(`${LOG} copy: song ${sourceId} already copied as ${existing.id} in team ${teamId}`);
+    throw new SongAlreadyCopiedError(existing.id);
+  }
+
+  const copy: Record<string, unknown> = {};
+  for (const field of COPIED_FIELDS) copy[field] = source[field];
+  const id = await insertSong(teamId, source.title, { ...copy, origin_song: source.id, visibility: 'members' });
+  console.debug(`${LOG} copy: song ${sourceId} -> ${id} in team ${teamId}`);
+  return id;
 }
 
 function isNotFound(error: unknown): boolean {
