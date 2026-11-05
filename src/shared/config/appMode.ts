@@ -43,12 +43,18 @@ export function getStartPath(): string {
   return isWorshipMode() ? '/dashboard/songs' : '/dashboard';
 }
 
+/** Каталог иконок PWA: у витрины свой набор в `public/icons/worship/`. */
+export function getAppIconsPath(basePath: string): string {
+  return `${basePath}/icons${isWorshipMode() ? '/worship' : ''}`;
+}
+
 /**
  * Web App Manifest для текущего режима. Чистая функция (используется
  * `scripts/build-manifest.ts` и тестами): `church` даёт прежний манифест без изменений.
  */
 export function buildWebManifest(basePath: string) {
   const brand = getAppBrand();
+  const icons = getAppIconsPath(basePath);
   return {
     name: brand.name,
     short_name: brand.shortName,
@@ -63,9 +69,9 @@ export function buildWebManifest(basePath: string) {
     orientation: 'portrait-primary',
     lang: 'ru',
     icons: [
-      { src: `${basePath}/icons/icon-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: `${basePath}/icons/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: `${basePath}/icons/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: `${icons}/icon-192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: `${icons}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: `${icons}/icon-512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   };
 }

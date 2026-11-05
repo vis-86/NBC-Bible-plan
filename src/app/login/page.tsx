@@ -10,7 +10,7 @@ import { SUPPORT_CONTACT } from '@/lib/constants';
 import { isRegisterEnabled } from '@/shared/utils/constants';
 import TelegramLinkForm from '@/features/auth/components/TelegramLinkForm';
 import { InstallAppHint } from '@/shared/components/pwa/InstallAppHint';
-import { getAppBrand, isWorshipMode } from '@/shared/config/appMode';
+import { getAppBrand, getAppIconsPath, isWorshipMode } from '@/shared/config/appMode';
 
 const inputClass =
   'mt-1 block w-full rounded-md border border-app-border bg-app-surface-muted px-3 py-2 text-app-text placeholder-app-text-subtle focus:border-app-primary/50 focus:outline-none focus:ring-1 focus:ring-app-primary/30';
@@ -170,7 +170,7 @@ function LoginForm() {
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={`${getBasePath()}/icons/icon-192.png`}
+          src={`${getAppIconsPath(getBasePath())}/icon-192.png`}
           alt=""
           aria-hidden
           width={40}

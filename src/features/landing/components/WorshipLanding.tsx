@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { getBasePath } from '@/lib/utils';
-import { getAppBrand } from '@/shared/config/appMode';
+import { getAppBrand, getAppIconsPath } from '@/shared/config/appMode';
 import { Atmosphere } from './Atmosphere';
 import { InstallGuide } from './InstallGuide';
 import { LoginButton } from './cta';
@@ -22,7 +22,7 @@ export const WorshipLanding: React.FC = () => {
           <section className="flex flex-col items-center py-20 text-center sm:py-28">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={`${getBasePath()}/icons/icon-192.png`}
+              src={`${getAppIconsPath(getBasePath())}/icon-192.png`}
               alt=""
               aria-hidden
               width={72}

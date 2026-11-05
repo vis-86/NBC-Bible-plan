@@ -117,6 +117,9 @@ describe('режим worship — маршруты и страницы', () => {
     expect(container.querySelector('[data-login-new-user]')).toBeNull();
     expect(screen.queryByText('Создать аккаунт')).not.toBeInTheDocument();
     expect(screen.queryByText(/Библи/)).not.toBeInTheDocument();
+    const logos = Array.from(container.querySelectorAll('img')).map((img) => img.getAttribute('src'));
+    expect(logos.some((src) => src?.includes('/icons/worship/'))).toBe(true);
+    expect(logos.some((src) => src?.includes('/icons/icon-'))).toBe(false);
   });
 
   it('church: /login показывает блок «Впервые здесь?»', async () => {
@@ -134,6 +137,9 @@ describe('режим worship — маршруты и страницы', () => {
     expect(container.querySelector('[data-landing-install]')).not.toBeNull();
     expect(container.querySelector('[data-landing-register-btn]')).toBeNull();
     expect(container.textContent).not.toMatch(/Библи|NBC|Нижегород/i);
+    const logos = Array.from(container.querySelectorAll('img')).map((img) => img.getAttribute('src'));
+    expect(logos.some((src) => src?.includes('/icons/worship/'))).toBe(true);
+    expect(logos.some((src) => src?.includes('/icons/icon-'))).toBe(false);
   });
 
   it('church: лендинг прежний (Hero «всегда под рукой»)', () => {

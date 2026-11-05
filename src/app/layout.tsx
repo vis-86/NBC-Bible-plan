@@ -8,7 +8,7 @@ import ChunkGuard from "@/components/ChunkGuard";
 import PageZoomGuard from "@/components/PageZoomGuard";
 import { TelegramScripts } from "./TelegramScripts";
 import { UpdateToast } from "@/shared/components/ui/UpdateToast";
-import { getAppBrand } from "@/shared/config/appMode";
+import { getAppBrand, getAppIconsPath } from "@/shared/config/appMode";
 
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 const brand = getAppBrand();
@@ -46,8 +46,8 @@ export const metadata: Metadata = {
     title: brand.shortName,
   },
   icons: {
-    icon: `${basePath}/icons/icon-192.png`,
-    apple: `${basePath}/icons/apple-touch-icon.png`,
+    icon: `${getAppIconsPath(basePath)}/icon-192.png`,
+    apple: `${getAppIconsPath(basePath)}/apple-touch-icon.png`,
   },
 };
 

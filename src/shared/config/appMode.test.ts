@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { buildWebManifest, getAppBrand, getAppMode, getStartPath, isWorshipMode } from './appMode';
+import { buildWebManifest, getAppBrand, getAppIconsPath, getAppMode, getStartPath, isWorshipMode } from './appMode';
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -65,6 +65,21 @@ describe('appMode', () => {
       expect(m.short_name).toBe('Хвала');
       expect(m.start_url).toBe('/dashboard/songs');
       expect(m.scope).toBe('/');
+    });
+
+    it('иконки: у витрины свой набор, у church — прежние пути', () => {
+      expect(buildWebManifest('/app').icons.map((i) => i.src)).toEqual([
+        '/app/icons/icon-192.png',
+        '/app/icons/icon-512.png',
+        '/app/icons/icon-512.png',
+      ]);
+      vi.stubEnv('NEXT_PUBLIC_APP_MODE', 'worship');
+      expect(buildWebManifest('/app').icons.map((i) => i.src)).toEqual([
+        '/app/icons/worship/icon-192.png',
+        '/app/icons/worship/icon-512.png',
+        '/app/icons/worship/icon-512.png',
+      ]);
+      expect(getAppIconsPath('/app')).toBe('/app/icons/worship');
     });
   });
 });
