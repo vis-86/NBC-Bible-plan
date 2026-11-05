@@ -165,7 +165,7 @@ T13). При локальном тестовом прогоне `unset NODE_ENV`
 4. В `deploy/.env` сервера: `WORSHIP_APP_URL=https://song.apps7.ru`, при желании
    `WORSHIP_APP_NAME` / `WORSHIP_APP_SHORT_NAME` (бренд витрины, по умолчанию «Аккорды»).
 5. После деплоя образа со второй сборкой (`docker compose up -d --build nginx bff`):
-   `worship.conf.disabled` → `worship.conf` на сервере, `nginx -t`, `nginx -s reload`.
+   `worship-tls.conf.disabled` → `worship-tls.conf` на сервере, `nginx -t`, `nginx -s reload`.
 6. Новая церковь: `npx tsx scripts/create-team.ts --name="…" --slug=… --confirm-host=<хост>` —
    печатает одноразовую ссылку для её администратора (`team_admin`); повтор с тем же slug и
    именем перевыпускает ссылку (так же добавляется второй администратор — в приложении роль

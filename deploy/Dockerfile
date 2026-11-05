@@ -88,5 +88,5 @@ CMD ["node_modules/.bin/tsx", "server/src/index.ts"]
 # ---------------------------------------------------------------------------
 FROM nginx:alpine AS static
 COPY --from=build /app/out /usr/share/nginx/html/app
-# Витрина worship — отдельный корень; server-блок домена витрины: nginx/conf.d/worship.conf.disabled
+# Витрина worship — отдельный корень; server-блок домена витрины: nginx/conf.d/worship-http.conf + worship-tls.conf.disabled
 COPY --from=build-worship /app/out /usr/share/nginx/html-worship/app

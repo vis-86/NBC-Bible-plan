@@ -3,7 +3,7 @@
 #
 # Включение — ПОСЛЕ выпуска сертификата для song.apps7.ru (HTTP-01 обслуживает
 # worship-http.conf) и после деплоя образа со второй сборкой:
-#   mv worship.conf.disabled worship.conf  &&  docker compose restart nginx
+#   mv worship-tls.conf.disabled worship-tls.conf  &&  docker compose exec nginx nginx -t  &&  docker compose exec nginx nginx -s reload
 # Пока файл *.disabled, nginx его не читает. Без сертификата nginx с этим блоком не
 # стартует (упадёт и NBC); без образа со второй сборкой витрина отдаёт 404.
 
