@@ -153,11 +153,17 @@ T13). При локальном тестовом прогоне `unset NODE_ENV`
 
 Витрина для музыкальных команд (`NEXT_PUBLIC_APP_MODE=worship`, свой домен):
 
-1. В `deploy/.env` сервера: `WORSHIP_APP_URL=https://<домен>`, при желании
+1. DNS: A-запись `song.apps7.ru` → `168.222.202.131` (DNS `apps7.ru` — Timeweb).
+2. Сертификат: HTTP-01 для `song.apps7.ru` отвечает `default.conf` (его `:80`-сервер ловит
+   любой хост), поэтому сертификат выпускается до включения витрины — тем же способом и в тот
+   же каталог `deploy/nginx/certbot/conf`, что у `bible.baptistnn.ru`; продление — тем же
+   механизмом.
+3. В `deploy/.env` сервера: `WORSHIP_APP_URL=https://song.apps7.ru`, при желании
    `WORSHIP_APP_NAME` / `WORSHIP_APP_SHORT_NAME` (бренд витрины, build-args).
-2. `deploy/nginx/conf.d/worship.conf.disabled`: заменить `WORSHIP_DOMAIN`, выпустить сертификат,
-   переименовать в `worship.conf`, `docker compose restart nginx`.
-3. Новая церковь: `npx tsx scripts/create-team.ts --name="…" --slug=… --confirm-host=<хост>` —
+4. `deploy/nginx/conf.d/worship.conf.disabled` (домен уже прописан) → переименовать в
+   `worship.conf` на сервере, `docker compose up -d --build nginx bff` (витрине нужен новый
+   образ со второй сборкой).
+5. Новая церковь: `npx tsx scripts/create-team.ts --name="…" --slug=… --confirm-host=<хост>` —
    печатает одноразовую ссылку для её администратора (`team_admin`); повтор с тем же slug и
    именем перевыпускает ссылку (так же добавляется второй администратор — в приложении роль
    `team_admin` не выдаётся). Скрипт отказывает, пока не выполнен `strip-user-permissions`, и
