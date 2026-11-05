@@ -1,24 +1,11 @@
-# Витрина worship (песни и сеты для музыкальных команд) — отдельный домен, та же статика
-# из второго билда (/usr/share/nginx/html-worship) и тот же BFF.
+# Витрина worship (песни и сеты для музыкальных команд) — HTTPS-блок song.apps7.ru: та же
+# статика из второго билда (/usr/share/nginx/html-worship) и тот же BFF.
 #
-# Домен витрины — song.apps7.ru. Включение: выпустить сертификат certbot'ом для него
-# (HTTP-01 отвечает default.conf: его :80-сервер ловит любой хост), затем
+# Включение — ПОСЛЕ выпуска сертификата для song.apps7.ru (HTTP-01 обслуживает
+# worship-http.conf) и после деплоя образа со второй сборкой:
 #   mv worship.conf.disabled worship.conf  &&  docker compose restart nginx
-# Пока файл *.disabled, nginx его не читает, а default.conf/tls.conf не затронуты.
-
-server {
-    listen 80;
-    listen [::]:80;
-    server_name song.apps7.ru;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    location / {
-        return 301 https://song.apps7.ru$request_uri;
-    }
-}
+# Пока файл *.disabled, nginx его не читает. Без сертификата nginx с этим блоком не
+# стартует (упадёт и NBC); без образа со второй сборкой витрина отдаёт 404.
 
 server {
     listen 443 ssl;

@@ -154,16 +154,19 @@ T13). При локальном тестовом прогоне `unset NODE_ENV`
 Витрина для музыкальных команд (`NEXT_PUBLIC_APP_MODE=worship`, свой домен):
 
 1. DNS: A-запись `song.apps7.ru` → `168.222.202.131` (DNS `apps7.ru` — Timeweb).
-2. Сертификат: HTTP-01 для `song.apps7.ru` отвечает `default.conf` (его `:80`-сервер ловит
-   любой хост), поэтому сертификат выпускается до включения витрины — тем же способом и в тот
-   же каталог `deploy/nginx/certbot/conf`, что у `bible.baptistnn.ru`; продление — тем же
-   механизмом.
-3. В `deploy/.env` сервера: `WORSHIP_APP_URL=https://song.apps7.ru`, при желании
-   `WORSHIP_APP_NAME` / `WORSHIP_APP_SHORT_NAME` (бренд витрины, build-args).
-4. `deploy/nginx/conf.d/worship.conf.disabled` (домен уже прописан) → переименовать в
-   `worship.conf` на сервере, `docker compose up -d --build nginx bff` (витрине нужен новый
-   образ со второй сборкой).
-5. Новая церковь: `npx tsx scripts/create-team.ts --name="…" --slug=… --confirm-host=<хост>` —
+2. HTTP-блок витрины: `scp deploy/nginx/conf.d/worship-http.conf` в `conf.d` на сервере,
+   `docker compose exec nginx nginx -t` и `docker compose exec nginx nginx -s reload`. Блоку
+   сертификат не нужен; точное `server_name` забирает `song.apps7.ru` у блока по умолчанию.
+   ⚠️ В `conf.d` на сервере есть блоки, которых нет в репозитории (книжный уголок,
+   `books.baptistnn.ru`) — копировать файлы по одному, каталог целиком не перезаписывать.
+3. Сертификат: webroot `/var/www/certbot` (на хосте `deploy/nginx/certbot/www`), тем же способом
+   и в тот же каталог `deploy/nginx/certbot/conf`, что у `bible.baptistnn.ru`; продление — тем
+   же механизмом (см. `certbot/conf/renewal/`).
+4. В `deploy/.env` сервера: `WORSHIP_APP_URL=https://song.apps7.ru`, при желании
+   `WORSHIP_APP_NAME` / `WORSHIP_APP_SHORT_NAME` (бренд витрины, по умолчанию «Аккорды»).
+5. После деплоя образа со второй сборкой (`docker compose up -d --build nginx bff`):
+   `worship.conf.disabled` → `worship.conf` на сервере, `nginx -t`, `nginx -s reload`.
+6. Новая церковь: `npx tsx scripts/create-team.ts --name="…" --slug=… --confirm-host=<хост>` —
    печатает одноразовую ссылку для её администратора (`team_admin`); повтор с тем же slug и
    именем перевыпускает ссылку (так же добавляется второй администратор — в приложении роль
    `team_admin` не выдаётся). Скрипт отказывает, пока не выполнен `strip-user-permissions`, и
